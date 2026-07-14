@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Supply Chain Pro · Gestionale di magazzino e linea multi-sede</title>
+<meta name="description" content="Supply Chain Pro: rifornimenti multi-sede in tempo reale per la ristorazione. Conteggi linea, laboratorio, ordini fornitori, kardex e analisi." />
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+:root{
+  --bg:#F4F7FE; --sup:#fff; --bordo:#E4E9F5; --ink:#1B2440; --dim:#5D6B8A; --tenue:#8B97B5;
+  --blu:#4C8DF6; --viola:#8A63F4; --rosa:#D96AC0; --verde:#2FA97C; --ambra:#E8A13C; --ciano:#22B8CF;
+  --grad:linear-gradient(135deg,#4C8DF6 0%,#8A63F4 55%,#D96AC0 110%);
+}
+*{box-sizing:border-box;margin:0}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px}
+header{padding:72px 0 48px;text-align:center;position:relative;overflow:hidden}
+.logo{width:76px;height:76px;border-radius:24px;background:var(--grad);display:inline-flex;align-items:center;justify-content:center;font-size:34px;box-shadow:0 18px 40px -16px rgba(120,100,244,.5)}
+h1{font-size:clamp(32px,6vw,52px);font-weight:800;margin-top:18px}
+.sotto{color:var(--dim);font-size:18px;max-width:560px;margin:10px auto 0}
+.chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.chip{font-size:12px;font-weight:700;padding:6px 14px;border-radius:99px}
+.chip.b{background:#EAF0FE;color:var(--blu)} .chip.v{background:#F1EDFE;color:var(--viola)}
+.chip.g{background:#E4F6EE;color:var(--verde)} .chip.c{background:#E7F7FA;color:var(--ciano)}
+section{padding:36px 0}
+h2{font-size:26px;font-weight:800;margin-bottom:6px}
+.desc{color:var(--dim);margin-bottom:24px}
+.griglia{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.carta{background:var(--sup);border:1px solid var(--bordo);border-radius:24px;padding:22px;box-shadow:0 10px 30px -18px rgba(60,90,180,.18)}
+.carta .ic{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:12px}
+.carta h3{font-size:16px;font-weight:800;margin-bottom:6px}
+.carta p{font-size:14px;color:var(--dim)}
+.flusso{counter-reset:passo}
+.flusso li{list-style:none;display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--bordo);font-size:15px;color:var(--dim)}
+.flusso li:last-child{border-bottom:none}
+.flusso li::before{counter-increment:passo;content:counter(passo);flex-shrink:0;width:28px;height:28px;border-radius:99px;background:var(--grad);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.timeline{border-left:3px solid var(--bordo);margin-left:8px;padding-left:24px;display:flex;flex-direction:column;gap:18px}
+.gen{position:relative}
+.gen::before{content:'';position:absolute;left:-33px;top:6px;width:15px;height:15px;border-radius:99px;background:var(--grad);border:3px solid var(--bg)}
+.gen b{display:block;font-size:15px}
+.gen span{font-size:14px;color:var(--dim)}
+.nota{background:#F1EDFE;border:1px solid #DCD2FA;border-radius:20px;padding:18px 22px;font-size:14px;color:var(--ink)}
+footer{text-align:center;padding:40px 0 56px;color:var(--tenue);font-size:13px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:8px}
+.stat .carta{text-align:center;padding:18px}
+.stat b{font-size:30px;font-weight:800;display:block}
+.stat span{font-size:12px;color:var(--dim);font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo">📦</div>
+    <h1>Supply Chain Pro</h1>
+    <p class="sotto">Gestionale di magazzino e linea multi-sede per la ristorazione:
+    rifornimenti in tempo reale fra linee, retro, laboratorio e fornitori.</p>
+    <div class="chips">
+      <span class="chip b">React · sync real-time</span>
+      <span class="chip v">Multi-sede · multi-ruolo</span>
+      <span class="chip g">Conversioni UdM automatiche</span>
+      <span class="chip c">Accesso su invito</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section>
+    <div class="stat">
+      <div class="carta"><b>3</b><span>ruoli: admin, laboratorio, operatore</span></div>
+      <div class="carta"><b>4</b><span>tipi di magazzino collegati</span></div>
+      <div class="carta"><b>2</b><span>flussi di rifornimento con conversioni</span></div>
+      <div class="carta"><b>4</b><span>generazioni di sviluppo</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Come funziona la rete</h2>
+    <p class="desc">Ogni sede ha linee di lavoro, un retro e un laboratorio di riferimento.
+    Il sistema converte automaticamente le unità di misura a ogni passaggio.</p>
+    <ol class="flusso">
+      <li>L'operatore conta i magazzini linea assegnati e inserisce ciò che vede rispetto al livello previsto.</li>
+      <li>Linea → Laboratorio: la differenza è convertita in unità di lavorazione e diventa una richiesta per il laboratorio.</li>
+      <li>Linea → Retro: la differenza è scalata subito dal retro della sede, con conversione automatica.</li>
+      <li>I magazzini sotto scorta generano report ordine nell'unità di misura di ciascun fornitore; alla consegna, la ricezione carica il magazzino.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Funzionalità</h2>
+    <p class="desc">Progettate confrontando i leader di settore (Odoo, Zoho Inventory, Sortly, inFlow) e adattate al flusso reale di una rete di ristorazione.</p>
+    <div class="griglia">
+      <div class="carta"><div class="ic" style="background:#EAF0FE">🔄</div><h3>Sync in tempo reale</h3><p>Stato condiviso fra tutti gli utenti con revisioni monotone, coda di mutazioni e riconciliazione dei conflitti.</p></div>
+      <div class="carta"><div class="ic" style="background:#E7F7FA">⚗️</div><h3>Richieste al laboratorio</h3><p>Le linee sotto livello generano richieste nell'unità di lavorazione; l'evasione scala il laboratorio e rifornisce la linea.</p></div>
+      <div class="carta"><div class="ic" style="background:#FBF2E4">🚚</div><h3>Ordini fornitori</h3><p>Report acquisti per fornitore e categoria, nelle unità di misura di ciascun fornitore, con ricezione merce che carica il magazzino.</p></div>
+      <div class="carta"><div class="ic" style="background:#F1EDFE">📒</div><h3>Kardex movimenti</h3><p>Ogni variazione di giacenza è tracciata: chi, quando, quanto, perché, con saldo progressivo per articolo.</p></div>
+      <div class="carta"><div class="ic" style="background:#FCE9EE">↔️</div><h3>Trasferimenti</h3><p>Spostamenti fra magazzini con conversione automatica e doppio movimento tracciato in kardex.</p></div>
+      <div class="carta"><div class="ic" style="background:#E4F6EE">📊</div><h3>Analisi</h3><p>Dashboard con copertura scorte per sede, movimenti giornalieri, prodotti più movimentati e fabbisogni per fornitore.</p></div>
+      <div class="carta"><div class="ic" style="background:#EAF0FE">🔐</div><h3>Accessi su invito</h3><p>Codici monouso generati dall'admin, richieste di primo accesso approvate in tempo reale, PIN personali.</p></div>
+      <div class="carta"><div class="ic" style="background:#F1EDFE">🧹</div><h3>Eliminazione guidata</h3><p>Cancellazioni in cascata con riepilogo dei riferimenti: prodotti, magazzini e sedi si eliminano in un solo passaggio sicuro.</p></div>
+      <div class="carta"><div class="ic" style="background:#E7F7FA">📤</div><h3>Export e backup</h3><p>CSV per Excel (giacenze, ordini, movimenti), punti di ripristino condivisi e backup testuale portabile.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Il percorso</h2>
+    <p class="desc">Quattro generazioni di sviluppo iterativo, con ambienti separati e versionamento Git.</p>
+    <div class="timeline">
+      <div class="gen"><b>Gen 1 · Fondamenta</b><span>Sync real-time, profili con PIN, shell di navigazione, CRUD amministrativo.</span></div>
+      <div class="gen"><b>Gen 2 · Prodotti e conteggi</b><span>Catalogo con conversioni fra unità di misura, magazzini, conteggi operatore.</span></div>
+      <div class="gen"><b>Gen 3 · Laboratorio e ordini</b><span>Richieste ed evasioni, report ordini fornitori, backup condivisibile, accessi su invito.</span></div>
+      <div class="gen"><b>Gen 4 · Analisi e tracciabilità</b><span>Dashboard analitica, kardex movimenti, trasferimenti, ricezione ordini, export CSV, eliminazioni in cascata, motore di sync irrobustito.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Architettura</h2>
+    <div class="griglia">
+      <div class="carta"><h3>Frontend</h3><p>React con componenti funzionali e hook, design system ispirato a Gemini (Plus Jakarta Sans, gradienti blu-viola-rosa), interamente in italiano.</p></div>
+      <div class="carta"><h3>Backend</h3><p>PostgreSQL su Supabase con canale realtime. Il sorgente dell'app è versionato nel database con verifica di integrità a ogni avvio.</p></div>
+      <div class="carta"><h3>Ciclo di vita</h3><p>Ambienti separati di sviluppo e produzione, repository Git, backup automatici prima di ogni rilascio, rollback in un passaggio.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="nota">💡 <b>Progetto privato in produzione.</b> L'applicazione è in uso reale con accesso
+    su invito: questa pagina ne racconta il funzionamento e l'architettura. Per una demo, contatta l'autore.</div>
+  </section>
+</div>
+
+<footer>Supply Chain Pro · progettato e costruito da Valerio · 2026</footer>
+</body>
+</html>
