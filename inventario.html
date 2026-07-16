@@ -349,7 +349,10 @@ header .top{align-items:center}
         <button class="btn" onclick="attivaDecoy()">Attiva copertura</button>
       </div>
       <div id="decoyOn" style="display:none">
-        <button class="btn danger" onclick="disattivaDecoy()">Disattiva copertura</button>
+        <div class="field"><label>Cambia codice segreto (almeno 4 cifre)</label>
+          <input id="decoyNew" type="number" inputmode="numeric" placeholder="Nuovo codice" /></div>
+        <button class="btn ghost" onclick="cambiaDecoy()">Cambia codice</button>
+        <button class="btn danger" style="margin-top:10px" onclick="disattivaDecoy()">Disattiva copertura</button>
       </div>
       <p class="muted" style="margin-top:10px;font-size:12px">Suggerimento: dopo averla attivata, rifai «Aggiungi a Home» così anche l'icona prende il nome neutro.</p>
     </div>
@@ -832,6 +835,9 @@ async function esporta(){
   const pass=prompt("Imposta una PASSWORD per proteggere il backup.\nSenza questa password il file non è leggibile da nessuno.");
   if(pass==null) return;
   if(pass.length<4){ toast("Password troppo corta (min 4 caratteri)"); return; }
+  const pass2=prompt("Ripeti la password per conferma:");
+  if(pass2==null) return;
+  if(pass!==pass2){ toast("Le password non coincidono"); return; }
   try{
     const it=150000;
     const salt=crypto.getRandomValues(new Uint8Array(16));
@@ -1007,6 +1013,12 @@ async function attivaDecoy(){
   if(!/^[1-9]\d{3,}$/.test(code)){ toast("Almeno 4 cifre, senza iniziare da 0"); return; }
   localStorage.setItem(DECOYKEY, await sha(code));
   $("decoyCode").value=""; renderSet(); applyIdentity(); toast("Copertura attivata");
+}
+async function cambiaDecoy(){
+  const code=($("decoyNew").value||"").trim();
+  if(!/^[1-9]\d{3,}$/.test(code)){ toast("Almeno 4 cifre, senza iniziare da 0"); return; }
+  localStorage.setItem(DECOYKEY, await sha(code));
+  $("decoyNew").value=""; toast("Codice aggiornato");
 }
 function disattivaDecoy(){
   if(!confirm("Disattivare la copertura? All'apertura non comparirà più la calcolatrice.")) return;
