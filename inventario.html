@@ -146,6 +146,23 @@ nav button.on .ic{filter:none;opacity:1}
 .color-row .c{width:34px;height:34px;border-radius:10px;border:3px solid transparent}
 .color-row .c.on{border-color:var(--ink)}
 
+/* tasti rapidi / blocchi */
+.qgrid{display:flex;flex-wrap:wrap;gap:8px}
+.qbtn{background:var(--sur2);border:1px solid var(--line);color:var(--ink);font-weight:800;
+  font-size:15px;padding:11px 15px;border-radius:12px;display:inline-flex;align-items:center;gap:7px}
+.qbtn.out{background:rgba(251,113,133,.13);color:var(--out);border-color:transparent}
+.qbtn.clr{background:none;color:var(--dim);font-weight:700;font-size:13px}
+.qbtn.tag2{padding:9px 10px 9px 14px}
+.qbtn .rmv{color:var(--faint);font-size:13px;padding:0 2px}
+.qgrid2{display:flex;gap:10px;margin:12px 0 16px}
+.stepbig{flex:1;padding:13px;border-radius:12px;font-weight:800;font-size:16px;border:1px solid var(--line)}
+.stepbig.minus{background:rgba(251,113,133,.13);color:var(--out);border-color:transparent}
+.stepbig.plus{background:rgba(52,211,153,.13);color:var(--acc);border-color:transparent}
+.qhead{background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:12px 15px;
+  margin-bottom:16px;font-size:13px;color:var(--dim);display:flex;justify-content:space-between;align-items:center}
+.qhead b{color:var(--ink);font-size:18px;font-weight:800}
+.mat .go{color:var(--faint);font-size:20px;flex-shrink:0;padding-left:2px}
+
 .lock{position:fixed;inset:0;z-index:100;background:var(--bg);color:var(--ink);
   display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
 .lock.show{display:flex}
@@ -256,6 +273,16 @@ nav button.on .ic{filter:none;opacity:1}
   <!-- IMPOSTAZIONI -->
   <section class="view hidden" id="v-set">
     <div class="carta">
+      <div class="sez"><span class="sez-tit">⚡ Tasti rapidi (blocchi)</span></div>
+      <p class="muted" style="margin-bottom:12px">Quantità pronte per registrare un'uscita al volo, es. un blocco da 12. Compaiono nel pannello del materiale e nel form di movimento.</p>
+      <div class="qgrid" id="presetList" style="margin-bottom:12px"></div>
+      <div class="row">
+        <input id="presetNew" type="number" inputmode="decimal" min="0" step="any" placeholder="Nuova quantità (es. 12)" />
+        <button class="btn sm" style="flex:0 0 auto;padding:12px 16px" onclick="addPreset()">Aggiungi</button>
+      </div>
+    </div>
+
+    <div class="carta">
       <div class="sez"><span class="sez-tit">🔐 Protezione con PIN</span>
         <span class="pill" id="pinStato">Off</span></div>
       <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre, salvato solo su questo dispositivo.</p>
@@ -307,14 +334,19 @@ const KEY = "magazzino_offline_v1";
 const PINKEY = "magazzino_pin_v1";
 const COLORI = ["#34D399","#22D3EE","#60A5FA","#A78BFA","#F472B6","#FB7185","#FBBF24","#94A3B8"];
 
+const PRESET_DEF = [5,10,25];
 let DB = load();
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
-    if(raw){ const d = JSON.parse(raw); return {tipi:d.tipi||[], materiali:d.materiali||[], movimenti:d.movimenti||[]}; }
+    if(raw){ const d = JSON.parse(raw); return {
+      tipi:d.tipi||[], materiali:d.materiali||[], movimenti:d.movimenti||[],
+      presets: Array.isArray(d.presets)? d.presets : PRESET_DEF.slice()
+    }; }
   }catch(e){}
-  return {tipi:[], materiali:[], movimenti:[]};
+  return {tipi:[], materiali:[], movimenti:[], presets:PRESET_DEF.slice()};
 }
+function r(n){ return Math.round(n*1000)/1000; }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch(e){ toast("Memoria piena o non disponibile"); }
@@ -385,11 +417,11 @@ function logRow(x){
   const nome=m?m.nome:"(materiale eliminato)";
   const unita=m?m.unita:"";
   const out=x.tipo==="uscita";
-  return `<div class="log ${out?"out":"in"}">
+  return `<div class="log ${out?"out":"in"}" onclick="editMov('${x.id}')">
     <div class="dot">${out?"📤":"📥"}</div>
     <div class="info"><b>${esc(nome)}</b><div class="d">${fmtData(x.data)}${x.nota?" · "+esc(x.nota):""}</div></div>
     <div class="amt ${out?"out":"in"}">${out?"−":"+"}${nf(x.qta)} ${esc(unita)}</div>
-    <button class="x" onclick="delMov('${x.id}')" aria-label="Elimina">✕</button>
+    <button class="x" onclick="event.stopPropagation();delMov('${x.id}')" aria-label="Elimina">✕</button>
   </div>`;
 }
 
@@ -417,25 +449,52 @@ function renderMat(){
 
 function matRow(m){
   const bassa=scortaBassa(m);
-  return `<div class="mat">
-    <div class="info" onclick="openMat('${m.id}')">
+  const meta=[bassa?'<span class="pill bad">sotto scorta</span>':"", m.soglia>0?"soglia "+nf(m.soglia):""].filter(Boolean).join(" ");
+  return `<div class="mat" onclick="openQuick('${m.id}')">
+    <div class="info">
       <div class="nome">${esc(m.nome)}</div>
-      <div class="meta">${bassa?'<span class="pill bad">sotto scorta</span>':""}${m.soglia>0?"soglia "+nf(m.soglia):""}<span class="link">modifica</span></div>
+      <div class="meta">${meta||'<span class="muted">tocca per registrare</span>'}</div>
     </div>
-    <div class="qta" onclick="openMat('${m.id}')"><b style="${bassa?'color:var(--out)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
-    <div class="stepper">
-      <button class="minus" onclick="quick('${m.id}',-1)">−</button>
-      <button class="plus" onclick="quick('${m.id}',1)">＋</button>
-    </div>
+    <div class="qta"><b style="${bassa?'color:var(--out)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
+    <div class="go">›</div>
   </div>`;
 }
 
-function quick(id,seg){
+/* Pannello movimento rapido di un materiale */
+function openQuick(id){
   const m=matOf(id); if(!m) return;
-  if(seg<0 && m.giacenza<=0){ toast("Giacenza già a zero"); return; }
-  DB.movimenti.push({id:uid(),materialeId:id,tipo:seg<0?"uscita":"carico",qta:1,data:todayISO(),nota:""});
-  m.giacenza=Math.round((m.giacenza+seg)*1000)/1000;
-  save(); render();
+  const chips=DB.presets.length
+    ? DB.presets.map(p=>`<button class="qbtn out" onclick="quickOut('${id}',${p})">−${nf(p)}</button>`).join("")
+    : `<span class="muted">Nessun tasto rapido. Aggiungili nelle Impostazioni ⚙️</span>`;
+  openSheet(`
+    <h3>${esc(m.nome)}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="qhead">Giacenza attuale<b id="qGiac">${nf(m.giacenza)} ${esc(m.unita)}</b></div>
+    <label>Tasti rapidi · uscita a blocchi</label>
+    <div class="qgrid" style="margin-bottom:6px">${chips}</div>
+    <div class="qgrid2">
+      <button class="stepbig minus" onclick="quickOut('${id}',1)">− 1</button>
+      <button class="stepbig plus" onclick="quickIn('${id}',1)">＋ 1</button>
+    </div>
+    <button class="btn danger" onclick="openMov('uscita','${id}')">➖ Uscita con nota (quando / perché)</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openMov('carico','${id}')">➕ Registra carico</button>
+    <hr class="sep"/>
+    <button class="btn ghost" onclick="openMat('${id}')">✏️ Modifica materiale</button>
+  `);
+}
+function quickOut(id,qty){
+  const m=matOf(id); if(!m) return;
+  if(qty>m.giacenza && !confirm(`Dare via ${nf(qty)} ${m.unita}? In giacenza ce ne sono ${nf(m.giacenza)}.`)) return;
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:"uscita",qta:qty,data:todayISO(),nota:""});
+  m.giacenza=r(m.giacenza-qty); save(); toast(`− ${nf(qty)} ${m.unita} · uscita`);
+  const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
+  render();
+}
+function quickIn(id,qty){
+  const m=matOf(id); if(!m) return;
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:"carico",qta:qty,data:todayISO(),nota:""});
+  m.giacenza=r(m.giacenza+qty); save(); toast(`＋ ${nf(qty)} ${m.unita} · carico`);
+  const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
+  render();
 }
 
 function renderMov(){
@@ -472,7 +531,18 @@ function renderSet(){
   $("pinStato").className="pill "+(on?"ok":"");
   $("pinBtn").textContent=on?"Disattiva PIN":"Attiva PIN";
   $("pinBtn").className="btn "+(on?"danger":"");
+  $("presetList").innerHTML = DB.presets.length
+    ? DB.presets.map((p,i)=>`<span class="qbtn tag2">${nf(p)}<button class="rmv" onclick="delPreset(${i})" aria-label="Rimuovi">✕</button></span>`).join("")
+    : '<span class="muted">Nessun tasto rapido impostato.</span>';
 }
+function addPreset(){
+  const v=parseFloat($("presetNew").value);
+  if(!(v>0)){ toast("Inserisci un numero maggiore di 0"); return; }
+  if(DB.presets.includes(v)){ toast("Già presente"); $("presetNew").value=""; return; }
+  DB.presets.push(v); DB.presets.sort((a,b)=>a-b);
+  save(); $("presetNew").value=""; renderSet(); toast("Tasto rapido aggiunto");
+}
+function delPreset(i){ DB.presets.splice(i,1); save(); renderSet(); }
 
 function openSheet(html){ $("sheet").innerHTML='<div class="grip"></div>'+html; $("modal").classList.add("show"); }
 function closeModal(){ $("modal").classList.remove("show"); }
@@ -518,28 +588,40 @@ function delMat(id){
   save(); closeModal(); render(); toast("Materiale eliminato");
 }
 
-function openMov(tipo){
+function editMov(id){ openMov(null,null,id); }
+function openMov(tipo, matId, movId){
   if(!DB.materiali.length){ toast("Aggiungi prima un materiale"); closeModal(); go("mat"); return; }
-  const opz=DB.materiali.map(m=>`<option value="${m.id}">${esc(m.nome)} (${nf(m.giacenza)} ${esc(m.unita)})</option>`).join("");
+  const ed = movId ? DB.movimenti.find(x=>x.id===movId) : null;
+  if(ed){ tipo=ed.tipo; matId=ed.materialeId; }
+  if(!tipo) tipo="uscita";
+  const opz=DB.materiali.map(m=>`<option value="${m.id}" ${m.id===matId?"selected":""}>${esc(m.nome)} (${nf(m.giacenza)} ${esc(m.unita)})</option>`).join("");
+  const chips=DB.presets.map(p=>`<button type="button" class="qbtn" onclick="addQta(${p})">+${nf(p)}</button>`).join("")
+    + `<button type="button" class="qbtn clr" onclick="setQta(0)">azzera</button>`;
   openSheet(`
-    <h3>Registra movimento<span class="x" onclick="closeModal()">×</span></h3>
+    <h3>${ed?"Modifica movimento":"Registra movimento"}<span class="x" onclick="closeModal()">×</span></h3>
     <div class="seg">
       <button id="segU" class="${tipo==="uscita"?"on":""}" onclick="setSeg('uscita')">📤 Uscita (dato via)</button>
       <button id="segC" class="${tipo==="carico"?"on":""}" onclick="setSeg('carico')">📥 Carico</button>
     </div>
     <input type="hidden" id="mvTipo" value="${tipo}" />
+    <input type="hidden" id="mvEdit" value="${movId||""}" />
     <div class="field"><label>Materiale</label><select id="mvMat">${opz}</select></div>
-    <div class="row">
-      <div class="field"><label>Quantità</label><input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" /></div>
-      <div class="field"><label>Giorno</label><input id="mvData" type="date" value="${$("movData").value||todayISO()}" /></div>
+    <div class="field"><label>Quantità (anche a blocchi)</label>
+      <input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${ed?nf(ed.qta):""}" />
+      <div class="qgrid" style="margin-top:8px">${chips}</div>
     </div>
-    <div class="field"><label>Nota (facoltativa)</label><input id="mvNota" placeholder="Es. cliente, reparto…" /></div>
-    <button class="btn" onclick="saveMov()">Registra</button>
+    <div class="field"><label>Quando · giorno</label><input id="mvData" type="date" value="${ed?ed.data:($("movData").value||todayISO())}" /></div>
+    <div class="field"><label>Perché · nota</label><input id="mvNota" value="${ed?esc(ed.nota):""}" placeholder="Es. cliente, reparto, motivo…" /></div>
+    <button class="btn" onclick="saveMov()">${ed?"Salva modifiche":"Registra"}</button>
+    ${ed?`<button class="btn danger" style="margin-top:10px" onclick="delMov('${movId}')">Elimina movimento</button>`:""}
   `);
-  setTimeout(()=>$("mvQta").focus(),120);
+  if(!ed) setTimeout(()=>{ const q=$("mvQta"); if(q) q.focus(); },120);
 }
 function setSeg(t){ $("mvTipo").value=t; $("segU").classList.toggle("on",t==="uscita"); $("segC").classList.toggle("on",t==="carico"); }
+function addQta(p){ const el=$("mvQta"); el.value=nf((parseFloat(el.value)||0)+p); }
+function setQta(v){ const el=$("mvQta"); el.value=v?nf(v):""; }
 function saveMov(){
+  const editId=$("mvEdit").value||"";
   const tipo=$("mvTipo").value;
   const materialeId=$("mvMat").value;
   const qta=parseFloat($("mvQta").value);
@@ -547,23 +629,32 @@ function saveMov(){
   const nota=$("mvNota").value.trim();
   if(!(qta>0)){ toast("Inserisci una quantità"); return; }
   const m=matOf(materialeId); if(!m) return;
+
+  const old = editId ? DB.movimenti.find(x=>x.id===editId) : null;
+  // annulla temporaneamente l'effetto del movimento in modifica
+  if(old){ const om=matOf(old.materialeId); if(om) om.giacenza=r(om.giacenza+(old.tipo==="uscita"?old.qta:-old.qta)); }
+
   if(tipo==="uscita" && qta>m.giacenza){
-    if(!confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(m.giacenza)}.\nProcedere comunque?`)) return;
+    if(!confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(m.giacenza)}.\nProcedere comunque?`)){
+      if(old){ const om=matOf(old.materialeId); if(om) om.giacenza=r(om.giacenza-(old.tipo==="uscita"?old.qta:-old.qta)); } // ripristina
+      return;
+    }
   }
-  DB.movimenti.push({id:uid(),materialeId,tipo,qta,data,nota});
-  m.giacenza=Math.round((m.giacenza+(tipo==="uscita"?-qta:qta))*1000)/1000;
+  m.giacenza=r(m.giacenza+(tipo==="uscita"?-qta:qta));
+  if(old){ Object.assign(old,{materialeId,tipo,qta,data,nota}); toast("Movimento aggiornato"); }
+  else { DB.movimenti.push({id:uid(),materialeId,tipo,qta,data,nota}); toast(tipo==="uscita"?"Uscita registrata":"Carico registrato"); }
+
   save(); closeModal();
   if(vista==="mov") $("movData").value=data;
   render();
-  toast(tipo==="uscita"?"Uscita registrata":"Carico registrato");
 }
 function delMov(id){
   const x=DB.movimenti.find(m=>m.id===id); if(!x) return;
   if(!confirm("Eliminare questo movimento? La giacenza verrà ripristinata.")) return;
   const m=matOf(x.materialeId);
-  if(m) m.giacenza=Math.round((m.giacenza+(x.tipo==="uscita"?x.qta:-x.qta))*1000)/1000;
+  if(m) m.giacenza=r(m.giacenza+(x.tipo==="uscita"?x.qta:-x.qta));
   DB.movimenti=DB.movimenti.filter(m=>m.id!==id);
-  save(); render(); toast("Movimento eliminato");
+  save(); closeModal(); render(); toast("Movimento eliminato");
 }
 
 let tipoColore=COLORI[0];
@@ -616,7 +707,7 @@ function importa(ev){
       const d=obj.data||obj;
       if(!d.materiali||!d.tipi||!d.movimenti) throw 0;
       if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
-      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti};
+      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti,presets:Array.isArray(d.presets)?d.presets:DB.presets};
       save(); render(); toast("Backup importato");
     }catch(e){ toast("File non valido"); }
   };
@@ -629,7 +720,7 @@ function azzeraMovimenti(){
 function azzeraTutto(){
   if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nNon annullabile.")) return;
   if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
-  DB={tipi:[],materiali:[],movimenti:[]}; save(); render(); toast("Database azzerato");
+  DB={tipi:[],materiali:[],movimenti:[],presets:DB.presets}; save(); render(); toast("Database azzerato");
 }
 
 async function sha(s){
