@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#4C8DF6" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Inventario" />
+<title>Inventario · offline</title>
+<!--
+  App inventario 100% offline.
+  - Nessuna connessione a internet, nessuna libreria esterna, nessun font remoto.
+  - Tutti i dati sono salvati SOLO su questo telefono (localStorage del browser).
+  - Non c'e' alcun server: niente da attaccare dall'esterno.
+-->
+<style>
+:root{
+  --bg:#F4F7FE; --sup:#fff; --bordo:#E4E9F5; --ink:#1B2440; --dim:#5D6B8A; --tenue:#8B97B5;
+  --blu:#4C8DF6; --viola:#8A63F4; --verde:#2FA97C; --ambra:#E8A13C; --rosso:#E5533C;
+  --grad:linear-gradient(135deg,#4C8DF6 0%,#8A63F4 60%,#D96AC0 115%);
+  --ombra:0 10px 30px -18px rgba(60,90,180,.28);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,textarea{font-family:inherit;font-size:16px}
+button{cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{
+  width:100%;padding:12px 14px;border:1.5px solid var(--bordo);border-radius:14px;
+  background:var(--sup);color:var(--ink);outline:none;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--blu)}
+label{display:block;font-size:13px;font-weight:700;color:var(--dim);margin:0 0 6px 2px}
+.field{margin-bottom:14px}
+
+/* layout */
+.app{max-width:560px;margin:0 auto;min-height:100%;padding-bottom:calc(84px + var(--safe-b))}
+header{background:var(--grad);color:#fff;padding:18px 18px 20px;position:sticky;top:0;z-index:20;
+  box-shadow:0 8px 24px -14px rgba(90,80,220,.6)}
+header .top{display:flex;align-items:center;gap:10px}
+header .logo{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+header h1{font-size:19px;font-weight:800;line-height:1.15}
+header .sub{font-size:12px;opacity:.9;font-weight:600}
+.view{padding:18px}
+.view.hidden{display:none}
+
+/* bottom nav */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.96);
+  backdrop-filter:blur(8px);border-top:1px solid var(--bordo);
+  display:flex;padding:6px 4px calc(6px + var(--safe-b));max-width:560px;margin:0 auto}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 2px;border-radius:12px;color:var(--tenue);font-size:10.5px;font-weight:700}
+nav button .ic{font-size:21px;line-height:1}
+nav button.on{color:var(--blu)}
+nav button.on .ic{transform:translateY(-1px)}
+
+/* cards & bits */
+.carta{background:var(--sup);border:1px solid var(--bordo);border-radius:20px;padding:16px;
+  box-shadow:var(--ombra);margin-bottom:14px}
+.carta h2,.sez-tit{font-size:16px;font-weight:800}
+.sez{margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.muted{color:var(--dim);font-size:13px}
+.btn{background:var(--grad);color:#fff;font-weight:800;padding:13px 16px;border-radius:14px;
+  width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px}
+.btn:active{opacity:.9}
+.btn.ghost{background:#EEF2FC;color:var(--blu)}
+.btn.danger{background:#FDECE8;color:var(--rosso)}
+.btn.sm{padding:9px 12px;font-size:13px;width:auto;border-radius:11px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  padding:4px 10px;border-radius:99px;background:#EEF2FC;color:var(--blu)}
+.pill.warn{background:#FBF0E1;color:var(--ambra)}
+.pill.bad{background:#FBE7E2;color:var(--rosso)}
+.pill.ok{background:#E4F6EE;color:var(--verde)}
+
+/* material list */
+.mat{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--bordo)}
+.mat:last-child{border-bottom:none}
+.mat .info{flex:1;min-width:0}
+.mat .nome{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mat .meta{font-size:12px;color:var(--dim);margin-top:1px}
+.mat .qta{text-align:right;flex-shrink:0}
+.mat .qta b{font-size:19px;font-weight:800;display:block;line-height:1}
+.mat .qta small{font-size:11px;color:var(--tenue);font-weight:700}
+.stepper{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.stepper button{width:34px;height:34px;border-radius:11px;font-size:20px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;background:#EEF2FC;color:var(--blu)}
+.stepper button.minus{background:#FDECE8;color:var(--rosso)}
+
+.grp-tit{font-size:12px;font-weight:800;color:var(--tenue);text-transform:uppercase;
+  letter-spacing:.5px;margin:18px 2px 8px}
+.grp-tit:first-child{margin-top:2px}
+
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat .carta{text-align:center;padding:16px 10px;margin:0}
+.stat b{font-size:26px;font-weight:800;display:block;line-height:1.1}
+.stat span{font-size:11.5px;color:var(--dim);font-weight:700}
+
+.empty{text-align:center;color:var(--tenue);padding:34px 16px;font-size:14px}
+.empty .big{font-size:40px;margin-bottom:8px}
+
+.log{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bordo)}
+.log:last-child{border-bottom:none}
+.log .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0}
+.log.out .dot{background:#FBE7E2}
+.log.in .dot{background:#E4F6EE}
+.log .info{flex:1;min-width:0}
+.log .info b{font-size:14px;font-weight:800}
+.log .info .d{font-size:12px;color:var(--dim)}
+.log .amt{font-weight:800;font-size:15px;flex-shrink:0}
+.log .amt.out{color:var(--rosso)} .log .amt.in{color:var(--verde)}
+.log .x{color:var(--tenue);font-size:18px;padding:4px 6px}
+
+.tipo{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bordo)}
+.tipo:last-child{border-bottom:none}
+.tipo .sw{width:14px;height:14px;border-radius:5px;flex-shrink:0}
+.tipo .nome{flex:1;font-weight:700}
+.tipo .cnt{font-size:12px;color:var(--dim);font-weight:700}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center}
+.modal.show{display:flex}
+.modal .bg{position:absolute;inset:0;background:rgba(20,26,50,.45)}
+.sheet{position:relative;background:var(--sup);width:100%;max-width:560px;
+  border-radius:24px 24px 0 0;padding:20px 18px calc(20px + var(--safe-b));
+  max-height:92vh;overflow:auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+.sheet h3{font-size:18px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.sheet h3 .x{color:var(--tenue);font-size:24px;font-weight:400}
+.seg{display:flex;gap:6px;background:#EEF2FC;padding:4px;border-radius:14px;margin-bottom:16px}
+.seg button{flex:1;padding:9px;border-radius:10px;font-weight:800;font-size:13px;color:var(--dim)}
+.seg button.on{background:var(--sup);color:var(--blu);box-shadow:var(--ombra)}
+
+.color-row{display:flex;gap:8px;flex-wrap:wrap}
+.color-row .c{width:32px;height:32px;border-radius:10px;border:3px solid transparent}
+.color-row .c.on{border-color:var(--ink)}
+
+/* lock screen */
+.lock{position:fixed;inset:0;z-index:100;background:var(--grad);color:#fff;
+  display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.lock.show{display:flex}
+.lock .logo{width:72px;height:72px;border-radius:22px;background:rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px}
+.lock h2{font-size:22px;font-weight:800}
+.lock p{opacity:.9;font-size:14px;margin-top:4px}
+.pinbox{display:flex;gap:10px;margin:22px 0}
+.pinbox .d{width:16px;height:16px;border-radius:99px;border:2px solid rgba(255,255,255,.7)}
+.pinbox .d.f{background:#fff}
+.keys{display:grid;grid-template-columns:repeat(3,72px);gap:14px}
+.keys button{height:72px;border-radius:99px;background:rgba(255,255,255,.15);
+  font-size:26px;font-weight:700;color:#fff}
+.keys button:active{background:rgba(255,255,255,.3)}
+.keys button.blank{background:none}
+.lock .err{min-height:20px;font-size:13px;font-weight:700;color:#FFE0D8}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + var(--safe-b));
+  background:var(--ink);color:#fff;padding:11px 18px;border-radius:14px;font-size:13.5px;font-weight:700;
+  z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+.tag{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;color:#fff}
+hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
+.hint{background:#F1EDFE;border:1px solid #DCD2FA;border-radius:14px;padding:12px 14px;font-size:12.5px;color:var(--ink)}
+.link{color:var(--blu);font-weight:800;text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- SCHERMATA BLOCCO (PIN opzionale, tutto locale) -->
+<div class="lock" id="lock">
+  <div class="logo">🔒</div>
+  <h2 id="lockTit">Inserisci PIN</h2>
+  <p id="lockSub">Accesso protetto locale</p>
+  <div class="pinbox" id="pinbox"></div>
+  <div class="err" id="lockErr"></div>
+  <div class="keys" id="keys"></div>
+</div>
+
+<div class="app">
+  <header>
+    <div class="top">
+      <div class="logo">📦</div>
+      <div>
+        <h1 id="hTitle">Inventario</h1>
+        <div class="sub">Offline · dati solo su questo telefono</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- RIEPILOGO -->
+  <section class="view" id="v-home">
+    <div class="stat">
+      <div class="carta"><b id="kMat">0</b><span>materiali</span></div>
+      <div class="carta"><b id="kTipi">0</b><span>tipologie</span></div>
+      <div class="carta"><b id="kOggi" style="color:var(--rosso)">0</b><span>usciti oggi</span></div>
+      <div class="carta"><b id="kScorta" style="color:var(--ambra)">0</b><span>sotto scorta</span></div>
+    </div>
+
+    <div class="carta" id="cardScorta" style="display:none">
+      <div class="sez"><span class="sez-tit">⚠️ Sotto scorta</span></div>
+      <div id="listScorta"></div>
+    </div>
+
+    <div class="carta">
+      <div class="sez">
+        <span class="sez-tit">Uscite di oggi</span>
+        <button class="btn ghost sm" onclick="openMov('uscita')">+ Uscita</button>
+      </div>
+      <div id="homeOggi"></div>
+    </div>
+  </section>
+
+  <!-- MATERIALI -->
+  <section class="view hidden" id="v-mat">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn" onclick="openMat()">＋ Nuovo materiale</button>
+    </div>
+    <div class="field" style="margin-bottom:8px">
+      <input id="cerca" placeholder="🔎 Cerca materiale…" oninput="renderMat()" />
+    </div>
+    <div id="listMat"></div>
+  </section>
+
+  <!-- USCITE / MOVIMENTI -->
+  <section class="view hidden" id="v-mov">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn danger" onclick="openMov('uscita')">➖ Registra uscita</button>
+      <button class="btn ghost" onclick="openMov('carico')">➕ Carico</button>
+    </div>
+    <div class="field" style="margin-bottom:6px">
+      <label>Giorno</label>
+      <input type="date" id="movData" onchange="renderMov()" />
+    </div>
+    <div class="carta">
+      <div class="sez"><span class="sez-tit" id="movTitolo">Movimenti</span>
+        <span class="pill bad" id="movTot">0 usciti</span></div>
+      <div id="listMov"></div>
+    </div>
+  </section>
+
+  <!-- TIPOLOGIE -->
+  <section class="view hidden" id="v-tipi">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn" onclick="openTipo()">＋ Nuova tipologia</button>
+    </div>
+    <div class="carta">
+      <div id="listTipi"></div>
+    </div>
+    <p class="muted" style="text-align:center;margin-top:8px">Le tipologie servono a raggruppare i materiali per categoria.</p>
+  </section>
+
+  <!-- IMPOSTAZIONI -->
+  <section class="view hidden" id="v-set">
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🔐 Protezione con PIN</span>
+        <span class="pill" id="pinStato">Off</span></div>
+      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre. Il PIN resta salvato solo su questo telefono.</p>
+      <button class="btn" id="pinBtn" onclick="togglePin()">Attiva PIN</button>
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">💾 Backup dei dati</span></div>
+      <p class="muted" style="margin-bottom:12px">Salva o ripristina tutto l'inventario come file. Utile prima di cambiare telefono. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
+      <div class="row">
+        <button class="btn ghost" onclick="esporta()">⬇︎ Esporta</button>
+        <button class="btn ghost" onclick="fileImp.click()">⬆︎ Importa</button>
+      </div>
+      <input type="file" id="fileImp" accept="application/json,.json" style="display:none" onchange="importa(event)" />
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🗑 Azzeramento</span></div>
+      <p class="muted" style="margin-bottom:12px">Cancella tutti i movimenti oppure l'intero database. Operazione non annullabile: esporta un backup prima.</p>
+      <button class="btn danger" style="margin-bottom:10px" onclick="azzeraMovimenti()">Cancella tutti i movimenti</button>
+      <button class="btn danger" onclick="azzeraTutto()">Cancella tutto</button>
+    </div>
+
+    <div class="hint">
+      🛡️ <b>Sicurezza.</b> Questa app non usa internet: non ci sono server, account o connessioni. I dati vivono solo nella memoria di questo browser. Per non perderli, esporta ogni tanto un backup e non cancellare i dati del sito dalle impostazioni del telefono.
+    </div>
+    <p class="muted" style="text-align:center;margin-top:14px">Inventario offline · v1</p>
+  </section>
+</div>
+
+<!-- NAV -->
+<nav>
+  <button class="on" data-v="home" onclick="go('home')"><span class="ic">🏠</span>Riepilogo</button>
+  <button data-v="mat" onclick="go('mat')"><span class="ic">📦</span>Materiali</button>
+  <button data-v="mov" onclick="go('mov')"><span class="ic">📉</span>Uscite</button>
+  <button data-v="tipi" onclick="go('tipi')"><span class="ic">🏷️</span>Tipologie</button>
+  <button data-v="set" onclick="go('set')"><span class="ic">⚙️</span>Impost.</button>
+</nav>
+
+<!-- MODALE GENERICA -->
+<div class="modal" id="modal">
+  <div class="bg" onclick="closeModal()"></div>
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ===== Storage locale ===== */
+const KEY = "inventario_offline_v1";
+const PINKEY = "inventario_pin_v1";
+const COLORI = ["#4C8DF6","#8A63F4","#D96AC0","#2FA97C","#E8A13C","#22B8CF","#E5533C","#5D6B8A"];
+
+let DB = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); return {tipi:d.tipi||[], materiali:d.materiali||[], movimenti:d.movimenti||[]}; }
+  }catch(e){}
+  return {tipi:[], materiali:[], movimenti:[]};
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch(e){ toast("Memoria piena o non disponibile"); }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ===== Utilita' ===== */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function nf(n){ n = Math.round(n*1000)/1000; return (n%1===0)? n.toString() : n.toFixed(3).replace(/0+$/,"").replace(/\.$/,""); }
+function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function fmtData(iso){
+  try{ const [y,m,g]=iso.split("-"); return `${g}/${m}/${y}`; }catch(e){ return iso; }
+}
+let toastT;
+function toast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200);
+}
+function tipoOf(id){ return DB.tipi.find(t=>t.id===id); }
+function matOf(id){ return DB.materiali.find(m=>m.id===id); }
+
+/* ===== Navigazione ===== */
+let vista="home";
+function go(v){
+  vista=v;
+  document.querySelectorAll(".view").forEach(s=>s.classList.add("hidden"));
+  $("v-"+v).classList.remove("hidden");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
+  const titoli={home:"Inventario",mat:"Materiali",mov:"Uscite & carichi",tipi:"Tipologie",set:"Impostazioni"};
+  $("hTitle").textContent=titoli[v];
+  render();
+  window.scrollTo(0,0);
+}
+
+/* ===== Render principale ===== */
+function render(){
+  if(vista==="home") renderHome();
+  else if(vista==="mat") renderMat();
+  else if(vista==="mov") renderMov();
+  else if(vista==="tipi") renderTipi();
+  else if(vista==="set") renderSet();
+}
+
+function scortaBassa(m){ return m.soglia>0 && m.giacenza<=m.soglia; }
+
+function renderHome(){
+  $("kMat").textContent=DB.materiali.length;
+  $("kTipi").textContent=DB.tipi.length;
+  const oggi=todayISO();
+  const usciteOggi=DB.movimenti.filter(x=>x.tipo==="uscita" && x.data===oggi);
+  $("kOggi").textContent=usciteOggi.length;
+  const sotto=DB.materiali.filter(scortaBassa);
+  $("kScorta").textContent=sotto.length;
+
+  // sotto scorta
+  if(sotto.length){
+    $("cardScorta").style.display="";
+    $("listScorta").innerHTML=sotto.map(m=>{
+      const t=tipoOf(m.tipoId);
+      return `<div class="mat"><div class="info"><div class="nome">${esc(m.nome)}</div>
+        <div class="meta">${t?esc(t.nome)+" · ":""}soglia ${nf(m.soglia)} ${esc(m.unita)}</div></div>
+        <div class="qta"><b style="color:var(--rosso)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`;
+    }).join("");
+  } else $("cardScorta").style.display="none";
+
+  // uscite di oggi
+  if(usciteOggi.length){
+    $("homeOggi").innerHTML=usciteOggi.slice().reverse().map(logRow).join("");
+  } else {
+    $("homeOggi").innerHTML=`<div class="empty"><div class="big">☀️</div>Nessuna uscita registrata oggi.</div>`;
+  }
+}
+
+function logRow(x){
+  const m=matOf(x.materialeId);
+  const nome=m?m.nome:"(materiale eliminato)";
+  const unita=m?m.unita:"";
+  const out=x.tipo==="uscita";
+  return `<div class="log ${out?"out":"in"}">
+    <div class="dot">${out?"📤":"📥"}</div>
+    <div class="info"><b>${esc(nome)}</b><div class="d">${fmtData(x.data)}${x.nota?" · "+esc(x.nota):""}</div></div>
+    <div class="amt ${out?"out":"in"}">${out?"−":"+"}${nf(x.qta)} ${esc(unita)}</div>
+    <button class="x" onclick="delMov('${x.id}')" aria-label="Elimina">✕</button>
+  </div>`;
+}
+
+function renderMat(){
+  const q=($("cerca").value||"").toLowerCase().trim();
+  const cont=$("listMat");
+  if(!DB.materiali.length){
+    cont.innerHTML=`<div class="empty"><div class="big">📦</div>Nessun materiale.<br>Tocca <b>Nuovo materiale</b> per iniziare.</div>`;
+    return;
+  }
+  // gruppi per tipologia
+  const gruppi=[];
+  DB.tipi.forEach(t=>gruppi.push({tit:t.nome,col:t.colore,items:DB.materiali.filter(m=>m.tipoId===t.id)}));
+  gruppi.push({tit:"Senza tipologia",col:"#8B97B5",items:DB.materiali.filter(m=>!tipoOf(m.tipoId))});
+  let html="";
+  gruppi.forEach(g=>{
+    let items=g.items;
+    if(q) items=items.filter(m=>m.nome.toLowerCase().includes(q));
+    if(!items.length) return;
+    html+=`<div class="grp-tit" style="color:${g.col}">${esc(g.tit)} · ${items.length}</div><div class="carta">`;
+    html+=items.map(matRow).join("");
+    html+=`</div>`;
+  });
+  cont.innerHTML=html||`<div class="empty"><div class="big">🔎</div>Nessun risultato.</div>`;
+}
+
+function matRow(m){
+  const bassa=scortaBassa(m);
+  return `<div class="mat">
+    <div class="info" onclick="openMat('${m.id}')">
+      <div class="nome">${esc(m.nome)}</div>
+      <div class="meta">${bassa?'<span class="pill bad">sotto scorta</span> ':""}${m.soglia>0?"soglia "+nf(m.soglia)+" · ":""}<span class="link">modifica</span></div>
+    </div>
+    <div class="qta" onclick="openMat('${m.id}')"><b style="${bassa?'color:var(--rosso)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
+    <div class="stepper">
+      <button class="minus" onclick="quick('${m.id}',-1)">−</button>
+      <button onclick="quick('${m.id}',1)">＋</button>
+    </div>
+  </div>`;
+}
+
+// +/- rapido: -1 registra uscita, +1 registra carico
+function quick(id,seg){
+  const m=matOf(id); if(!m) return;
+  if(seg<0 && m.giacenza<=0){ toast("Giacenza gia' a zero"); return; }
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:seg<0?"uscita":"carico",qta:1,data:todayISO(),nota:""});
+  m.giacenza=Math.round((m.giacenza+seg)*1000)/1000;
+  save(); render();
+}
+
+function renderMov(){
+  if(!$("movData").value) $("movData").value=todayISO();
+  const giorno=$("movData").value;
+  const movs=DB.movimenti.filter(x=>x.data===giorno);
+  const usc=movs.filter(x=>x.tipo==="uscita");
+  const totUsc=usc.reduce((s,x)=>s+x.qta,0);
+  $("movTitolo").textContent = giorno===todayISO()?"Oggi":fmtData(giorno);
+  $("movTot").textContent = `${usc.length} uscite`;
+  const cont=$("listMov");
+  if(!movs.length){
+    cont.innerHTML=`<div class="empty"><div class="big">🗓️</div>Nessun movimento in questo giorno.</div>`;
+    return;
+  }
+  cont.innerHTML=movs.slice().reverse().map(logRow).join("");
+}
+
+function renderTipi(){
+  const cont=$("listTipi");
+  if(!DB.tipi.length){
+    cont.innerHTML=`<div class="empty"><div class="big">🏷️</div>Nessuna tipologia.<br>Creane una per raggruppare i materiali.</div>`;
+    return;
+  }
+  cont.innerHTML=DB.tipi.map(t=>{
+    const n=DB.materiali.filter(m=>m.tipoId===t.id).length;
+    return `<div class="tipo" onclick="openTipo('${t.id}')">
+      <span class="sw" style="background:${t.colore}"></span>
+      <span class="nome">${esc(t.nome)}</span>
+      <span class="cnt">${n} materiali</span>
+      <span class="link">modifica</span></div>`;
+  }).join("");
+}
+
+function renderSet(){
+  const on=!!localStorage.getItem(PINKEY);
+  $("pinStato").textContent=on?"Attivo":"Off";
+  $("pinStato").className="pill "+(on?"ok":"");
+  $("pinBtn").textContent=on?"Disattiva PIN":"Attiva PIN";
+  $("pinBtn").className="btn "+(on?"danger":"");
+}
+
+/* ===== Modale ===== */
+function openSheet(html){ $("sheet").innerHTML=html; $("modal").classList.add("show"); }
+function closeModal(){ $("modal").classList.remove("show"); }
+
+/* --- Materiale --- */
+function openMat(id){
+  const m=id?matOf(id):null;
+  const opz=DB.tipi.map(t=>`<option value="${t.id}" ${m&&m.tipoId===t.id?"selected":""}>${esc(t.nome)}</option>`).join("");
+  openSheet(`
+    <h3>${m?"Modifica materiale":"Nuovo materiale"}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="field"><label>Nome</label><input id="fNome" value="${m?esc(m.nome):""}" placeholder="Es. Farina 00" /></div>
+    <div class="field"><label>Tipologia</label>
+      <select id="fTipo"><option value="">— nessuna —</option>${opz}</select>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="closeModal();openTipo()">＋ Nuova tipologia</button>
+    </div>
+    <div class="row">
+      <div class="field"><label>Unità di misura</label><input id="fUnita" value="${m?esc(m.unita):""}" placeholder="pz, kg, L…" /></div>
+      <div class="field"><label>Giacenza attuale</label><input id="fGiac" type="number" inputmode="decimal" value="${m?nf(m.giacenza):"0"}" /></div>
+    </div>
+    <div class="field"><label>Soglia minima (avviso sotto scorta · 0 = off)</label>
+      <input id="fSoglia" type="number" inputmode="decimal" value="${m?nf(m.soglia):"0"}" /></div>
+    <button class="btn" onclick="saveMat('${id||""}')">${m?"Salva modifiche":"Aggiungi materiale"}</button>
+    ${m?`<button class="btn danger" style="margin-top:10px" onclick="delMat('${id}')">Elimina materiale</button>`:""}
+  `);
+  setTimeout(()=>$("fNome").focus(),120);
+}
+function saveMat(id){
+  const nome=$("fNome").value.trim();
+  if(!nome){ toast("Inserisci un nome"); return; }
+  const tipoId=$("fTipo").value||null;
+  const unita=$("fUnita").value.trim()||"pz";
+  const giacenza=parseFloat($("fGiac").value)||0;
+  const soglia=parseFloat($("fSoglia").value)||0;
+  if(id){
+    const m=matOf(id); Object.assign(m,{nome,tipoId,unita,giacenza,soglia});
+    toast("Materiale aggiornato");
+  } else {
+    DB.materiali.push({id:uid(),nome,tipoId,unita,giacenza,soglia});
+    toast("Materiale aggiunto");
+  }
+  save(); closeModal(); render();
+}
+function delMat(id){
+  const m=matOf(id); if(!m) return;
+  const n=DB.movimenti.filter(x=>x.materialeId===id).length;
+  if(!confirm(`Eliminare "${m.nome}"?${n?`\nVerranno rimossi anche ${n} movimenti collegati.`:""}`)) return;
+  DB.materiali=DB.materiali.filter(x=>x.id!==id);
+  DB.movimenti=DB.movimenti.filter(x=>x.materialeId!==id);
+  save(); closeModal(); render(); toast("Materiale eliminato");
+}
+
+/* --- Movimento (uscita / carico) --- */
+function openMov(tipo){
+  if(!DB.materiali.length){ toast("Aggiungi prima un materiale"); go("mat"); return; }
+  const opz=DB.materiali.map(m=>`<option value="${m.id}">${esc(m.nome)} (${nf(m.giacenza)} ${esc(m.unita)})</option>`).join("");
+  openSheet(`
+    <h3>Registra movimento<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="seg">
+      <button id="segU" class="${tipo==="uscita"?"on":""}" onclick="setSeg('uscita')">📤 Uscita (dato via)</button>
+      <button id="segC" class="${tipo==="carico"?"on":""}" onclick="setSeg('carico')">📥 Carico</button>
+    </div>
+    <input type="hidden" id="mvTipo" value="${tipo}" />
+    <div class="field"><label>Materiale</label><select id="mvMat">${opz}</select></div>
+    <div class="row">
+      <div class="field"><label>Quantità</label><input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" /></div>
+      <div class="field"><label>Giorno</label><input id="mvData" type="date" value="${$("movData").value||todayISO()}" /></div>
+    </div>
+    <div class="field"><label>Nota (facoltativa)</label><input id="mvNota" placeholder="Es. cliente, reparto…" /></div>
+    <button class="btn" onclick="saveMov()">Registra</button>
+  `);
+  setTimeout(()=>$("mvQta").focus(),120);
+}
+function setSeg(t){
+  $("mvTipo").value=t;
+  $("segU").classList.toggle("on",t==="uscita");
+  $("segC").classList.toggle("on",t==="carico");
+}
+function saveMov(){
+  const tipo=$("mvTipo").value;
+  const materialeId=$("mvMat").value;
+  const qta=parseFloat($("mvQta").value);
+  const data=$("mvData").value||todayISO();
+  const nota=$("mvNota").value.trim();
+  if(!(qta>0)){ toast("Inserisci una quantità"); return; }
+  const m=matOf(materialeId); if(!m) return;
+  if(tipo==="uscita" && qta>m.giacenza){
+    if(!confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(m.giacenza)}.\nProcedere comunque?`)) return;
+  }
+  DB.movimenti.push({id:uid(),materialeId,tipo,qta,data,nota});
+  m.giacenza=Math.round((m.giacenza+(tipo==="uscita"?-qta:qta))*1000)/1000;
+  save(); closeModal();
+  if(vista==="mov") $("movData").value=data;
+  render();
+  toast(tipo==="uscita"?"Uscita registrata":"Carico registrato");
+}
+function delMov(id){
+  const x=DB.movimenti.find(m=>m.id===id); if(!x) return;
+  if(!confirm("Eliminare questo movimento? La giacenza verrà ripristinata.")) return;
+  const m=matOf(x.materialeId);
+  if(m) m.giacenza=Math.round((m.giacenza+(x.tipo==="uscita"?x.qta:-x.qta))*1000)/1000;
+  DB.movimenti=DB.movimenti.filter(m=>m.id!==id);
+  save(); render(); toast("Movimento eliminato");
+}
+
+/* --- Tipologia --- */
+let tipoColore=COLORI[0];
+function openTipo(id){
+  const t=id?tipoOf(id):null;
+  tipoColore=t?t.colore:COLORI[0];
+  const sw=COLORI.map(c=>`<button class="c ${c===tipoColore?"on":""}" data-c="${c}" style="background:${c}" onclick="pickColore('${c}')"></button>`).join("");
+  openSheet(`
+    <h3>${t?"Modifica tipologia":"Nuova tipologia"}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="field"><label>Nome</label><input id="tNome" value="${t?esc(t.nome):""}" placeholder="Es. Bevande, Imballaggi…" /></div>
+    <div class="field"><label>Colore</label><div class="color-row" id="colori">${sw}</div></div>
+    <button class="btn" onclick="saveTipo('${id||""}')">${t?"Salva":"Aggiungi"}</button>
+    ${t?`<button class="btn danger" style="margin-top:10px" onclick="delTipo('${id}')">Elimina tipologia</button>`:""}
+  `);
+  setTimeout(()=>$("tNome").focus(),120);
+}
+function pickColore(c){ tipoColore=c; document.querySelectorAll("#colori .c").forEach(b=>b.classList.toggle("on",b.dataset.c===c)); }
+function saveTipo(id){
+  const nome=$("tNome").value.trim();
+  if(!nome){ toast("Inserisci un nome"); return; }
+  if(id){ const t=tipoOf(id); t.nome=nome; t.colore=tipoColore; toast("Tipologia aggiornata"); }
+  else { DB.tipi.push({id:uid(),nome,colore:tipoColore}); toast("Tipologia aggiunta"); }
+  save(); closeModal(); render();
+}
+function delTipo(id){
+  const t=tipoOf(id); if(!t) return;
+  const n=DB.materiali.filter(m=>m.tipoId===id).length;
+  if(!confirm(`Eliminare la tipologia "${t.nome}"?${n?`\n${n} materiali resteranno senza tipologia.`:""}`)) return;
+  DB.materiali.forEach(m=>{ if(m.tipoId===id) m.tipoId=null; });
+  DB.tipi=DB.tipi.filter(x=>x.id!==id);
+  save(); closeModal(); render(); toast("Tipologia eliminata");
+}
+
+/* ===== Backup ===== */
+function esporta(){
+  const dati=JSON.stringify({app:"inventario_offline",v:1,data:DB},null,2);
+  const blob=new Blob([dati],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=`inventario-backup-${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast("Backup esportato");
+}
+function importa(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const obj=JSON.parse(r.result);
+      const d=obj.data||obj;
+      if(!d.materiali||!d.tipi||!d.movimenti) throw 0;
+      if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
+      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti};
+      save(); render(); toast("Backup importato");
+    }catch(e){ toast("File non valido"); }
+  };
+  r.readAsText(f);
+  ev.target.value="";
+}
+function azzeraMovimenti(){
+  if(!confirm("Cancellare TUTTI i movimenti? Le giacenze restano invariate.")) return;
+  DB.movimenti=[]; save(); render(); toast("Movimenti cancellati");
+}
+function azzeraTutto(){
+  if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nQuesta operazione non è annullabile.")) return;
+  if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
+  DB={tipi:[],materiali:[],movimenti:[]}; save(); render(); toast("Database azzerato");
+}
+
+/* ===== PIN (solo locale) ===== */
+async function sha(s){
+  try{
+    const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }catch(e){ // fallback semplice se crypto non disponibile (contesto file://)
+    let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return "f"+(h>>>0).toString(16);
+  }
+}
+let pinMode="verify"; // verify | set | confirm
+let pinBuf=""; let pinFirst="";
+function togglePin(){
+  if(localStorage.getItem(PINKEY)){
+    if(confirm("Disattivare la protezione con PIN?")){ localStorage.removeItem(PINKEY); renderSet(); toast("PIN disattivato"); }
+  } else { pinMode="set"; pinFirst=""; pinBuf=""; showLock("Crea un PIN","Scegli 4 cifre"); }
+}
+function showLock(tit,sub){
+  $("lockTit").textContent=tit; $("lockSub").textContent=sub||""; $("lockErr").textContent="";
+  pinBuf=""; drawPin(); $("lock").classList.add("show");
+}
+function hideLock(){ $("lock").classList.remove("show"); }
+function drawPin(){
+  $("pinbox").innerHTML=[0,1,2,3].map(i=>`<div class="d ${i<pinBuf.length?"f":""}"></div>`).join("");
+}
+function buildKeys(){
+  const k=$("keys"); k.innerHTML="";
+  ["1","2","3","4","5","6","7","8","9","","0","⌫"].forEach(v=>{
+    const b=document.createElement("button");
+    if(v===""){ b.className="blank"; b.disabled=true; }
+    else { b.textContent=v; b.onclick=()=>pinPress(v); }
+    k.appendChild(b);
+  });
+}
+async function pinPress(v){
+  if(v==="⌫"){ pinBuf=pinBuf.slice(0,-1); drawPin(); return; }
+  if(pinBuf.length>=4) return;
+  pinBuf+=v; drawPin();
+  if(pinBuf.length===4){ setTimeout(pinDone,150); }
+}
+async function pinDone(){
+  const h=await sha(pinBuf);
+  if(pinMode==="verify"){
+    if(h===localStorage.getItem(PINKEY)){ hideLock(); }
+    else { $("lockErr").textContent="PIN errato"; pinBuf=""; drawPin(); }
+  } else if(pinMode==="set"){
+    pinFirst=h; pinMode="confirm"; showLock("Conferma PIN","Ripeti le 4 cifre");
+  } else if(pinMode==="confirm"){
+    if(h===pinFirst){ localStorage.setItem(PINKEY,h); hideLock(); renderSet(); toast("PIN attivato"); }
+    else { $("lockErr").textContent="Non corrisponde, riprova"; pinMode="set"; pinFirst=""; showLock("Crea un PIN","Scegli 4 cifre"); }
+  }
+}
+
+/* ===== Avvio ===== */
+buildKeys();
+$("movData").value=todayISO();
+if(localStorage.getItem(PINKEY)){ pinMode="verify"; showLock("Inserisci PIN","Accesso protetto locale"); }
+go("home");
+</script>
+</body>
+</html>
