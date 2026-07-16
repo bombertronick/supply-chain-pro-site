@@ -163,6 +163,14 @@ nav button.on .ic{filter:none;opacity:1}
 .qhead b{color:var(--ink);font-size:18px;font-weight:800}
 .mat .go{color:var(--faint);font-size:20px;flex-shrink:0;padding-left:2px}
 
+/* cestino */
+.cestitem{padding:6px 0 12px;border-bottom:1px solid var(--line)}
+.cestitem:last-child{border-bottom:none}
+.cestitem .log{padding:8px 0}
+.cestitem .btn.sm{flex:1;width:auto}
+.delnote{color:var(--faint);font-size:11px}
+#cestBadge{color:var(--out);font-weight:800}
+
 .lock{position:fixed;inset:0;z-index:100;background:var(--bg);color:var(--ink);
   display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
 .lock.show{display:flex}
@@ -261,6 +269,18 @@ nav button.on .ic{filter:none;opacity:1}
         <span class="pill bad" id="movTot">0 uscite</span></div>
       <div id="listMov"></div>
     </div>
+    <button class="btn ghost" onclick="go('cestino')">🗑 Cestino movimenti <span id="cestBadge"></span></button>
+  </section>
+
+  <!-- CESTINO -->
+  <section class="view hidden" id="v-cestino">
+    <button class="btn ghost" style="margin-bottom:14px" onclick="go('mov')">‹ Torna alle uscite</button>
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🗑 Movimenti cancellati</span>
+        <button class="btn danger sm" onclick="svuotaCestino()">Svuota</button></div>
+      <div id="listCest"></div>
+    </div>
+    <p class="muted" style="text-align:center">Ripristina un movimento per rimetterlo tra le uscite, oppure eliminalo definitivamente.</p>
   </section>
 
   <!-- TIPOLOGIE -->
@@ -341,12 +361,15 @@ function load(){
     const raw = localStorage.getItem(KEY);
     if(raw){ const d = JSON.parse(raw); return {
       tipi:d.tipi||[], materiali:d.materiali||[], movimenti:d.movimenti||[],
-      presets: Array.isArray(d.presets)? d.presets : PRESET_DEF.slice()
+      presets: Array.isArray(d.presets)? d.presets : PRESET_DEF.slice(),
+      cestino: Array.isArray(d.cestino)? d.cestino : []
     }; }
   }catch(e){}
-  return {tipi:[], materiali:[], movimenti:[], presets:PRESET_DEF.slice()};
+  return {tipi:[], materiali:[], movimenti:[], presets:PRESET_DEF.slice(), cestino:[]};
 }
 function r(n){ return Math.round(n*1000)/1000; }
+function nowStamp(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
   catch(e){ toast("Memoria piena o non disponibile"); }
@@ -370,7 +393,7 @@ function go(v){
   document.querySelectorAll(".view").forEach(s=>s.classList.add("hidden"));
   $("v-"+v).classList.remove("hidden");
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
-  const titoli={home:"Magazzino",mat:"Materiali",mov:"Uscite & carichi",tipi:"Tipologie",set:"Impostazioni"};
+  const titoli={home:"Magazzino",mat:"Materiali",mov:"Uscite & carichi",cestino:"Cestino",tipi:"Tipologie",set:"Impostazioni"};
   $("hTitle").textContent=titoli[v];
   render(); window.scrollTo(0,0);
 }
@@ -379,6 +402,7 @@ function render(){
   if(vista==="home") renderHome();
   else if(vista==="mat") renderMat();
   else if(vista==="mov") renderMov();
+  else if(vista==="cestino") renderCestino();
   else if(vista==="tipi") renderTipi();
   else if(vista==="set") renderSet();
 }
@@ -504,10 +528,54 @@ function renderMov(){
   const usc=movs.filter(x=>x.tipo==="uscita");
   $("movTitolo").textContent = giorno===todayISO()?"Oggi":fmtData(giorno);
   $("movTot").textContent = `${usc.length} uscite`;
+  const cb=$("cestBadge"); if(cb) cb.textContent = DB.cestino.length ? `(${DB.cestino.length})` : "";
   const cont=$("listMov");
   cont.innerHTML = movs.length
     ? movs.slice().reverse().map(logRow).join("")
     : `<div class="empty"><div class="big">🗓️</div>Nessun movimento in questo giorno.</div>`;
+}
+
+function cestRow(x){
+  const m=matOf(x.materialeId);
+  const nome=x.matNome || (m&&m.nome) || "(materiale eliminato)";
+  const unita=x.unita || (m&&m.unita) || "";
+  const out=x.tipo==="uscita";
+  return `<div class="cestitem">
+    <div class="log ${out?"out":"in"}">
+      <div class="dot">${out?"📤":"📥"}</div>
+      <div class="info"><b>${esc(nome)}</b><div class="d">${fmtData(x.data)}${x.nota?" · "+esc(x.nota):""}<br><span class="delnote">cancellato il ${esc(x.del||"")}</span></div></div>
+      <div class="amt ${out?"out":"in"}">${out?"−":"+"}${nf(x.qta)} ${esc(unita)}</div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:2px">
+      <button class="btn ghost sm" onclick="ripristinaMov('${x.id}')">↩︎ Ripristina</button>
+      <button class="btn danger sm" onclick="eliminaDef('${x.id}')">Elimina def.</button>
+    </div>
+  </div>`;
+}
+function renderCestino(){
+  const cont=$("listCest");
+  cont.innerHTML = DB.cestino.length
+    ? DB.cestino.map(cestRow).join("")
+    : `<div class="empty"><div class="big">🗑</div>Il cestino è vuoto.</div>`;
+}
+function ripristinaMov(id){
+  const x=DB.cestino.find(c=>c.id===id); if(!x) return;
+  const m=matOf(x.materialeId);
+  if(m) m.giacenza=r(m.giacenza+(x.tipo==="uscita"?-x.qta:x.qta));
+  const mov={id:x.id,materialeId:x.materialeId,tipo:x.tipo,qta:x.qta,data:x.data,nota:x.nota};
+  DB.movimenti.push(mov);
+  DB.cestino=DB.cestino.filter(c=>c.id!==id);
+  save(); render(); toast(m?"Movimento ripristinato":"Ripristinato (materiale mancante)");
+}
+function eliminaDef(id){
+  if(!confirm("Eliminare definitivamente questo movimento? Non sarà più recuperabile.")) return;
+  DB.cestino=DB.cestino.filter(c=>c.id!==id);
+  save(); renderCestino(); toast("Eliminato definitivamente");
+}
+function svuotaCestino(){
+  if(!DB.cestino.length){ toast("Il cestino è già vuoto"); return; }
+  if(!confirm(`Svuotare il cestino (${DB.cestino.length} movimenti)? Non saranno più recuperabili.`)) return;
+  DB.cestino=[]; save(); renderCestino(); toast("Cestino svuotato");
 }
 
 function renderTipi(){
@@ -582,9 +650,12 @@ function saveMat(id){
 function delMat(id){
   const m=matOf(id); if(!m) return;
   const n=DB.movimenti.filter(x=>x.materialeId===id).length;
-  if(!confirm(`Eliminare "${m.nome}"?${n?`\nVerranno rimossi anche ${n} movimenti collegati.`:""}`)) return;
-  DB.materiali=DB.materiali.filter(x=>x.id!==id);
+  if(!confirm(`Eliminare "${m.nome}"?${n?`\n${n} movimenti collegati finiranno nel cestino.`:""}`)) return;
+  DB.movimenti.filter(x=>x.materialeId===id).forEach(x=>{
+    DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m.nome, unita:m.unita}));
+  });
   DB.movimenti=DB.movimenti.filter(x=>x.materialeId!==id);
+  DB.materiali=DB.materiali.filter(x=>x.id!==id);
   save(); closeModal(); render(); toast("Materiale eliminato");
 }
 
@@ -650,11 +721,12 @@ function saveMov(){
 }
 function delMov(id){
   const x=DB.movimenti.find(m=>m.id===id); if(!x) return;
-  if(!confirm("Eliminare questo movimento? La giacenza verrà ripristinata.")) return;
+  if(!confirm("Spostare questo movimento nel cestino? La giacenza verrà ripristinata.")) return;
   const m=matOf(x.materialeId);
   if(m) m.giacenza=r(m.giacenza+(x.tipo==="uscita"?x.qta:-x.qta));
-  DB.movimenti=DB.movimenti.filter(m=>m.id!==id);
-  save(); closeModal(); render(); toast("Movimento eliminato");
+  DB.movimenti=DB.movimenti.filter(mm=>mm.id!==id);
+  DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m?m.nome:x.matNome, unita:m?m.unita:x.unita}));
+  save(); closeModal(); render(); toast("Spostato nel cestino");
 }
 
 let tipoColore=COLORI[0];
@@ -707,7 +779,9 @@ function importa(ev){
       const d=obj.data||obj;
       if(!d.materiali||!d.tipi||!d.movimenti) throw 0;
       if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
-      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti,presets:Array.isArray(d.presets)?d.presets:DB.presets};
+      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti,
+          presets:Array.isArray(d.presets)?d.presets:DB.presets,
+          cestino:Array.isArray(d.cestino)?d.cestino:[]};
       save(); render(); toast("Backup importato");
     }catch(e){ toast("File non valido"); }
   };
@@ -720,7 +794,7 @@ function azzeraMovimenti(){
 function azzeraTutto(){
   if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nNon annullabile.")) return;
   if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
-  DB={tipi:[],materiali:[],movimenti:[],presets:DB.presets}; save(); render(); toast("Database azzerato");
+  DB={tipi:[],materiali:[],movimenti:[],presets:DB.presets,cestino:[]}; save(); render(); toast("Database azzerato");
 }
 
 async function sha(s){
