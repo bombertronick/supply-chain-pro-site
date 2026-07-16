@@ -3,24 +3,25 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#4C8DF6" />
+<meta name="theme-color" content="#0E1116" />
+<meta name="color-scheme" content="dark" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Inventario" />
-<title>Inventario · offline</title>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Magazzino" />
+<title>Magazzino · inventario offline</title>
 <!--
-  App inventario 100% offline.
+  App inventario 100% offline e indipendente.
   - Nessuna connessione a internet, nessuna libreria esterna, nessun font remoto.
-  - Tutti i dati sono salvati SOLO su questo telefono (localStorage del browser).
-  - Non c'e' alcun server: niente da attaccare dall'esterno.
+  - Tutti i dati sono salvati SOLO su questo dispositivo (localStorage del browser).
+  - Nessun server: niente da raggiungere o attaccare dall'esterno.
 -->
 <style>
 :root{
-  --bg:#F4F7FE; --sup:#fff; --bordo:#E4E9F5; --ink:#1B2440; --dim:#5D6B8A; --tenue:#8B97B5;
-  --blu:#4C8DF6; --viola:#8A63F4; --verde:#2FA97C; --ambra:#E8A13C; --rosso:#E5533C;
-  --grad:linear-gradient(135deg,#4C8DF6 0%,#8A63F4 60%,#D96AC0 115%);
-  --ombra:0 10px 30px -18px rgba(60,90,180,.28);
+  --bg:#0E1116; --bg2:#12161D; --sur:#1A1F29; --sur2:#232A36; --line:#2B3340;
+  --ink:#EDF2F8; --dim:#96A2B4; --faint:#5B6675;
+  --acc:#34D399; --acc2:#22D3EE; --out:#FB7185; --warn:#FBBF24;
+  --grad:linear-gradient(135deg,#34D399 0%,#22D3EE 100%);
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
@@ -30,153 +31,152 @@ body{
   background:var(--bg);color:var(--ink);line-height:1.5;
   -webkit-text-size-adjust:100%;
 }
-button,input,select,textarea{font-family:inherit;font-size:16px}
-button{cursor:pointer;border:none;background:none;color:inherit}
+button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+button{cursor:pointer;border:none;background:none}
 input,select,textarea{
-  width:100%;padding:12px 14px;border:1.5px solid var(--bordo);border-radius:14px;
-  background:var(--sup);color:var(--ink);outline:none;
+  width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:13px;
+  background:var(--bg2);outline:none;
 }
-input:focus,select:focus,textarea:focus{border-color:var(--blu)}
-label{display:block;font-size:13px;font-weight:700;color:var(--dim);margin:0 0 6px 2px}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+label{display:block;font-size:12.5px;font-weight:700;color:var(--dim);margin:0 0 6px 2px}
 .field{margin-bottom:14px}
 
-/* layout */
-.app{max-width:560px;margin:0 auto;min-height:100%;padding-bottom:calc(84px + var(--safe-b))}
-header{background:var(--grad);color:#fff;padding:18px 18px 20px;position:sticky;top:0;z-index:20;
-  box-shadow:0 8px 24px -14px rgba(90,80,220,.6)}
-header .top{display:flex;align-items:center;gap:10px}
-header .logo{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);
-  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
-header h1{font-size:19px;font-weight:800;line-height:1.15}
-header .sub{font-size:12px;opacity:.9;font-weight:600}
-.view{padding:18px}
+.app{max-width:560px;margin:0 auto;min-height:100%;padding-bottom:calc(88px + var(--safe-b))}
+header{padding:20px 18px 16px;position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,var(--bg) 60%,rgba(14,17,22,.86));backdrop-filter:blur(6px)}
+header .top{display:flex;align-items:center;gap:12px}
+header .logo{width:42px;height:42px;border-radius:13px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+  box-shadow:0 8px 22px -10px rgba(52,211,153,.6)}
+header h1{font-size:20px;font-weight:800;line-height:1.1;letter-spacing:-.3px}
+header .sub{font-size:11.5px;color:var(--dim);font-weight:600;margin-top:1px}
+.view{padding:4px 18px 18px}
 .view.hidden{display:none}
 
-/* bottom nav */
-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.96);
-  backdrop-filter:blur(8px);border-top:1px solid var(--bordo);
-  display:flex;padding:6px 4px calc(6px + var(--safe-b));max-width:560px;margin:0 auto}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(18,22,29,.94);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  display:flex;padding:7px 4px calc(7px + var(--safe-b));max-width:560px;margin:0 auto}
 nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:6px 2px;border-radius:12px;color:var(--tenue);font-size:10.5px;font-weight:700}
-nav button .ic{font-size:21px;line-height:1}
-nav button.on{color:var(--blu)}
-nav button.on .ic{transform:translateY(-1px)}
+  padding:6px 2px;border-radius:12px;color:var(--faint);font-size:10.5px;font-weight:700}
+nav button .ic{font-size:20px;line-height:1;filter:grayscale(.4);opacity:.7}
+nav button.on{color:var(--acc)}
+nav button.on .ic{filter:none;opacity:1}
 
-/* cards & bits */
-.carta{background:var(--sup);border:1px solid var(--bordo);border-radius:20px;padding:16px;
-  box-shadow:var(--ombra);margin-bottom:14px}
-.carta h2,.sez-tit{font-size:16px;font-weight:800}
-.sez{margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.carta{background:var(--sur);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.sez{margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sez-tit{font-size:15px;font-weight:800;letter-spacing:-.2px}
 .muted{color:var(--dim);font-size:13px}
-.btn{background:var(--grad);color:#fff;font-weight:800;padding:13px 16px;border-radius:14px;
-  width:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px}
-.btn:active{opacity:.9}
-.btn.ghost{background:#EEF2FC;color:var(--blu)}
-.btn.danger{background:#FDECE8;color:var(--rosso)}
-.btn.sm{padding:9px 12px;font-size:13px;width:auto;border-radius:11px}
-.row{display:flex;gap:10px}
-.row>*{flex:1}
-.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
-  padding:4px 10px;border-radius:99px;background:#EEF2FC;color:var(--blu)}
-.pill.warn{background:#FBF0E1;color:var(--ambra)}
-.pill.bad{background:#FBE7E2;color:var(--rosso)}
-.pill.ok{background:#E4F6EE;color:var(--verde)}
+.btn{background:var(--grad);color:#04121A;font-weight:800;padding:13px 16px;border-radius:13px;
+  width:100%;display:flex;align-items:center;justify-content:center;gap:7px;font-size:15px}
+.btn:active{opacity:.88}
+.btn.ghost{background:var(--sur2);color:var(--ink)}
+.btn.danger{background:rgba(251,113,133,.14);color:var(--out)}
+.btn.sm{padding:9px 13px;font-size:13px;width:auto;border-radius:11px}
+.row{display:flex;gap:10px}.row>*{flex:1}
 
-/* material list */
-.mat{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--bordo)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;
+  padding:4px 9px;border-radius:99px;background:var(--sur2);color:var(--dim)}
+.pill.warn{background:rgba(251,191,36,.15);color:var(--warn)}
+.pill.bad{background:rgba(251,113,133,.15);color:var(--out)}
+.pill.ok{background:rgba(52,211,153,.15);color:var(--acc)}
+
+.mat{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
 .mat:last-child{border-bottom:none}
 .mat .info{flex:1;min-width:0}
-.mat .nome{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mat .meta{font-size:12px;color:var(--dim);margin-top:1px}
-.mat .qta{text-align:right;flex-shrink:0}
+.mat .nome{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mat .meta{font-size:11.5px;color:var(--dim);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mat .qta{text-align:right;flex-shrink:0;min-width:52px}
 .mat .qta b{font-size:19px;font-weight:800;display:block;line-height:1}
-.mat .qta small{font-size:11px;color:var(--tenue);font-weight:700}
+.mat .qta small{font-size:10.5px;color:var(--faint);font-weight:700}
 .stepper{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.stepper button{width:34px;height:34px;border-radius:11px;font-size:20px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;background:#EEF2FC;color:var(--blu)}
-.stepper button.minus{background:#FDECE8;color:var(--rosso)}
+.stepper button{width:34px;height:34px;border-radius:10px;font-size:20px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;background:var(--sur2);color:var(--ink)}
+.stepper button.minus{background:rgba(251,113,133,.14);color:var(--out)}
+.stepper button.plus{background:rgba(52,211,153,.14);color:var(--acc)}
 
-.grp-tit{font-size:12px;font-weight:800;color:var(--tenue);text-transform:uppercase;
-  letter-spacing:.5px;margin:18px 2px 8px}
+.grp-tit{font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.6px;margin:16px 2px 8px;display:flex;align-items:center;gap:7px}
 .grp-tit:first-child{margin-top:2px}
+.grp-tit .sw{width:10px;height:10px;border-radius:3px}
 
-.stat{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.stat .carta{text-align:center;padding:16px 10px;margin:0}
-.stat b{font-size:26px;font-weight:800;display:block;line-height:1.1}
-.stat span{font-size:11.5px;color:var(--dim);font-weight:700}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px}
+.stat .box{background:var(--sur);border:1px solid var(--line);border-radius:16px;padding:15px;text-align:left}
+.stat b{font-size:28px;font-weight:800;display:block;line-height:1;letter-spacing:-1px}
+.stat span{font-size:11px;color:var(--dim);font-weight:700;display:block;margin-top:6px}
 
-.empty{text-align:center;color:var(--tenue);padding:34px 16px;font-size:14px}
-.empty .big{font-size:40px;margin-bottom:8px}
+.empty{text-align:center;color:var(--faint);padding:32px 16px;font-size:14px}
+.empty .big{font-size:38px;margin-bottom:8px;filter:grayscale(.3)}
 
-.log{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bordo)}
+.log{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
 .log:last-child{border-bottom:none}
-.log .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-  font-size:16px;flex-shrink:0}
-.log.out .dot{background:#FBE7E2}
-.log.in .dot{background:#E4F6EE}
+.log .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.log.out .dot{background:rgba(251,113,133,.14)}
+.log.in .dot{background:rgba(52,211,153,.14)}
 .log .info{flex:1;min-width:0}
-.log .info b{font-size:14px;font-weight:800}
-.log .info .d{font-size:12px;color:var(--dim)}
+.log .info b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.log .info .d{font-size:11.5px;color:var(--dim)}
 .log .amt{font-weight:800;font-size:15px;flex-shrink:0}
-.log .amt.out{color:var(--rosso)} .log .amt.in{color:var(--verde)}
-.log .x{color:var(--tenue);font-size:18px;padding:4px 6px}
+.log .amt.out{color:var(--out)} .log .amt.in{color:var(--acc)}
+.log .x{color:var(--faint);font-size:17px;padding:4px 4px 4px 8px}
 
-.tipo{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bordo)}
+.tipo{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--line)}
 .tipo:last-child{border-bottom:none}
 .tipo .sw{width:14px;height:14px;border-radius:5px;flex-shrink:0}
 .tipo .nome{flex:1;font-weight:700}
-.tipo .cnt{font-size:12px;color:var(--dim);font-weight:700}
+.tipo .cnt{font-size:11.5px;color:var(--dim);font-weight:700}
+.tipo .go{color:var(--faint);font-size:18px}
 
-/* modal */
 .modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center}
 .modal.show{display:flex}
-.modal .bg{position:absolute;inset:0;background:rgba(20,26,50,.45)}
-.sheet{position:relative;background:var(--sup);width:100%;max-width:560px;
-  border-radius:24px 24px 0 0;padding:20px 18px calc(20px + var(--safe-b));
-  max-height:92vh;overflow:auto;animation:up .22s ease}
-@keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+.modal .bg{position:absolute;inset:0;background:rgba(4,7,12,.68)}
+.sheet{position:relative;background:var(--sur);width:100%;max-width:560px;
+  border-radius:22px 22px 0 0;border:1px solid var(--line);border-bottom:none;
+  padding:20px 18px calc(22px + var(--safe-b));max-height:92vh;overflow:auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(28px);opacity:.5}to{transform:none;opacity:1}}
+.sheet .grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:-6px auto 14px}
 .sheet h3{font-size:18px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-.sheet h3 .x{color:var(--tenue);font-size:24px;font-weight:400}
-.seg{display:flex;gap:6px;background:#EEF2FC;padding:4px;border-radius:14px;margin-bottom:16px}
-.seg button{flex:1;padding:9px;border-radius:10px;font-weight:800;font-size:13px;color:var(--dim)}
-.seg button.on{background:var(--sup);color:var(--blu);box-shadow:var(--ombra)}
-
-.color-row{display:flex;gap:8px;flex-wrap:wrap}
-.color-row .c{width:32px;height:32px;border-radius:10px;border:3px solid transparent}
+.sheet h3 .x{color:var(--faint);font-size:26px;font-weight:400;line-height:1}
+.seg{display:flex;gap:5px;background:var(--bg2);padding:4px;border-radius:13px;margin-bottom:16px}
+.seg button{flex:1;padding:9px;border-radius:9px;font-weight:800;font-size:13px;color:var(--dim)}
+.seg button.on{background:var(--sur2);color:var(--ink)}
+.color-row{display:flex;gap:9px;flex-wrap:wrap}
+.color-row .c{width:34px;height:34px;border-radius:10px;border:3px solid transparent}
 .color-row .c.on{border-color:var(--ink)}
 
-/* lock screen */
-.lock{position:fixed;inset:0;z-index:100;background:var(--grad);color:#fff;
+.lock{position:fixed;inset:0;z-index:100;background:var(--bg);color:var(--ink);
   display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
 .lock.show{display:flex}
-.lock .logo{width:72px;height:72px;border-radius:22px;background:rgba(255,255,255,.18);
-  display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:18px}
-.lock h2{font-size:22px;font-weight:800}
-.lock p{opacity:.9;font-size:14px;margin-top:4px}
-.pinbox{display:flex;gap:10px;margin:22px 0}
-.pinbox .d{width:16px;height:16px;border-radius:99px;border:2px solid rgba(255,255,255,.7)}
-.pinbox .d.f{background:#fff}
-.keys{display:grid;grid-template-columns:repeat(3,72px);gap:14px}
-.keys button{height:72px;border-radius:99px;background:rgba(255,255,255,.15);
-  font-size:26px;font-weight:700;color:#fff}
-.keys button:active{background:rgba(255,255,255,.3)}
-.keys button.blank{background:none}
-.lock .err{min-height:20px;font-size:13px;font-weight:700;color:#FFE0D8}
+.lock .logo{width:70px;height:70px;border-radius:20px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:16px;color:#04121A;
+  box-shadow:0 10px 30px -8px rgba(52,211,153,.5)}
+.lock h2{font-size:21px;font-weight:800}
+.lock p{color:var(--dim);font-size:13.5px;margin-top:4px}
+.pinbox{display:flex;gap:12px;margin:22px 0}
+.pinbox .d{width:15px;height:15px;border-radius:99px;border:2px solid var(--line)}
+.pinbox .d.f{background:var(--acc);border-color:var(--acc)}
+.keys{display:grid;grid-template-columns:repeat(3,70px);gap:14px}
+.keys button{height:70px;border-radius:99px;background:var(--sur);border:1px solid var(--line);
+  font-size:26px;font-weight:700;color:var(--ink)}
+.keys button:active{background:var(--sur2)}
+.keys button.blank{background:none;border:none}
+.lock .err{min-height:20px;font-size:13px;font-weight:700;color:var(--out);margin-top:2px}
 
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + var(--safe-b));
-  background:var(--ink);color:#fff;padding:11px 18px;border-radius:14px;font-size:13.5px;font-weight:700;
-  z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90%;text-align:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--safe-b));
+  background:var(--sur2);border:1px solid var(--line);color:var(--ink);padding:11px 18px;border-radius:13px;
+  font-size:13.5px;font-weight:700;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
 
-.tag{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;color:#fff}
-hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
-.hint{background:#F1EDFE;border:1px solid #DCD2FA;border-radius:14px;padding:12px 14px;font-size:12.5px;color:var(--ink)}
-.link{color:var(--blu);font-weight:800;text-decoration:underline}
+.tag{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px}
+.hint{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:12.5px;color:var(--dim)}
+.link{color:var(--acc2);font-weight:700}
 </style>
 </head>
 <body>
 
-<!-- SCHERMATA BLOCCO (PIN opzionale, tutto locale) -->
+<!-- BLOCCO PIN (opzionale, tutto locale) -->
 <div class="lock" id="lock">
   <div class="logo">🔒</div>
   <h2 id="lockTit">Inserisci PIN</h2>
@@ -189,10 +189,10 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
 <div class="app">
   <header>
     <div class="top">
-      <div class="logo">📦</div>
+      <div class="logo">📥</div>
       <div>
-        <h1 id="hTitle">Inventario</h1>
-        <div class="sub">Offline · dati solo su questo telefono</div>
+        <h1 id="hTitle">Magazzino</h1>
+        <div class="sub">Offline · dati solo su questo dispositivo</div>
       </div>
     </div>
   </header>
@@ -200,10 +200,10 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
   <!-- RIEPILOGO -->
   <section class="view" id="v-home">
     <div class="stat">
-      <div class="carta"><b id="kMat">0</b><span>materiali</span></div>
-      <div class="carta"><b id="kTipi">0</b><span>tipologie</span></div>
-      <div class="carta"><b id="kOggi" style="color:var(--rosso)">0</b><span>usciti oggi</span></div>
-      <div class="carta"><b id="kScorta" style="color:var(--ambra)">0</b><span>sotto scorta</span></div>
+      <div class="box"><b>0</b><span id="kMat">materiali</span></div>
+      <div class="box"><b class="acc" style="color:var(--out)">0</b><span id="kOggi">usciti oggi</span></div>
+      <div class="box"><b style="color:var(--acc)">0</b><span id="kTipi">tipologie</span></div>
+      <div class="box"><b style="color:var(--warn)">0</b><span id="kScorta">sotto scorta</span></div>
     </div>
 
     <div class="carta" id="cardScorta" style="display:none">
@@ -214,7 +214,7 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
     <div class="carta">
       <div class="sez">
         <span class="sez-tit">Uscite di oggi</span>
-        <button class="btn ghost sm" onclick="openMov('uscita')">+ Uscita</button>
+        <button class="btn danger sm" onclick="openMov('uscita')">➖ Uscita</button>
       </div>
       <div id="homeOggi"></div>
     </div>
@@ -222,10 +222,8 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
 
   <!-- MATERIALI -->
   <section class="view hidden" id="v-mat">
-    <div class="row" style="margin-bottom:14px">
-      <button class="btn" onclick="openMat()">＋ Nuovo materiale</button>
-    </div>
-    <div class="field" style="margin-bottom:8px">
+    <button class="btn" style="margin-bottom:14px" onclick="openMat()">＋ Nuovo materiale</button>
+    <div class="field" style="margin-bottom:10px">
       <input id="cerca" placeholder="🔎 Cerca materiale…" oninput="renderMat()" />
     </div>
     <div id="listMat"></div>
@@ -234,29 +232,25 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
   <!-- USCITE / MOVIMENTI -->
   <section class="view hidden" id="v-mov">
     <div class="row" style="margin-bottom:14px">
-      <button class="btn danger" onclick="openMov('uscita')">➖ Registra uscita</button>
+      <button class="btn danger" onclick="openMov('uscita')">➖ Uscita</button>
       <button class="btn ghost" onclick="openMov('carico')">➕ Carico</button>
     </div>
-    <div class="field" style="margin-bottom:6px">
+    <div class="field">
       <label>Giorno</label>
       <input type="date" id="movData" onchange="renderMov()" />
     </div>
     <div class="carta">
       <div class="sez"><span class="sez-tit" id="movTitolo">Movimenti</span>
-        <span class="pill bad" id="movTot">0 usciti</span></div>
+        <span class="pill bad" id="movTot">0 uscite</span></div>
       <div id="listMov"></div>
     </div>
   </section>
 
   <!-- TIPOLOGIE -->
   <section class="view hidden" id="v-tipi">
-    <div class="row" style="margin-bottom:14px">
-      <button class="btn" onclick="openTipo()">＋ Nuova tipologia</button>
-    </div>
-    <div class="carta">
-      <div id="listTipi"></div>
-    </div>
-    <p class="muted" style="text-align:center;margin-top:8px">Le tipologie servono a raggruppare i materiali per categoria.</p>
+    <button class="btn" style="margin-bottom:14px" onclick="openTipo()">＋ Nuova tipologia</button>
+    <div class="carta"><div id="listTipi"></div></div>
+    <p class="muted" style="text-align:center;margin-top:4px">Le tipologie raggruppano i materiali per categoria.</p>
   </section>
 
   <!-- IMPOSTAZIONI -->
@@ -264,13 +258,13 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
     <div class="carta">
       <div class="sez"><span class="sez-tit">🔐 Protezione con PIN</span>
         <span class="pill" id="pinStato">Off</span></div>
-      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre. Il PIN resta salvato solo su questo telefono.</p>
+      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre, salvato solo su questo dispositivo.</p>
       <button class="btn" id="pinBtn" onclick="togglePin()">Attiva PIN</button>
     </div>
 
     <div class="carta">
       <div class="sez"><span class="sez-tit">💾 Backup dei dati</span></div>
-      <p class="muted" style="margin-bottom:12px">Salva o ripristina tutto l'inventario come file. Utile prima di cambiare telefono. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
+      <p class="muted" style="margin-bottom:12px">Salva o ripristina tutto l'inventario come file. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
       <div class="row">
         <button class="btn ghost" onclick="esporta()">⬇︎ Esporta</button>
         <button class="btn ghost" onclick="fileImp.click()">⬆︎ Importa</button>
@@ -280,19 +274,18 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
 
     <div class="carta">
       <div class="sez"><span class="sez-tit">🗑 Azzeramento</span></div>
-      <p class="muted" style="margin-bottom:12px">Cancella tutti i movimenti oppure l'intero database. Operazione non annullabile: esporta un backup prima.</p>
+      <p class="muted" style="margin-bottom:12px">Operazioni non annullabili: esporta un backup prima.</p>
       <button class="btn danger" style="margin-bottom:10px" onclick="azzeraMovimenti()">Cancella tutti i movimenti</button>
       <button class="btn danger" onclick="azzeraTutto()">Cancella tutto</button>
     </div>
 
     <div class="hint">
-      🛡️ <b>Sicurezza.</b> Questa app non usa internet: non ci sono server, account o connessioni. I dati vivono solo nella memoria di questo browser. Per non perderli, esporta ogni tanto un backup e non cancellare i dati del sito dalle impostazioni del telefono.
+      🛡️ <b>Sicurezza.</b> Questa app non usa internet: niente server, account o connessioni. I dati vivono solo nella memoria di questo browser. Per non perderli, esporta ogni tanto un backup e non cancellare i dati del sito dalle impostazioni del dispositivo.
     </div>
-    <p class="muted" style="text-align:center;margin-top:14px">Inventario offline · v1</p>
+    <p class="muted" style="text-align:center;margin-top:14px">Magazzino · inventario offline · v1</p>
   </section>
 </div>
 
-<!-- NAV -->
 <nav>
   <button class="on" data-v="home" onclick="go('home')"><span class="ic">🏠</span>Riepilogo</button>
   <button data-v="mat" onclick="go('mat')"><span class="ic">📦</span>Materiali</button>
@@ -301,7 +294,6 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
   <button data-v="set" onclick="go('set')"><span class="ic">⚙️</span>Impost.</button>
 </nav>
 
-<!-- MODALE GENERICA -->
 <div class="modal" id="modal">
   <div class="bg" onclick="closeModal()"></div>
   <div class="sheet" id="sheet"></div>
@@ -311,10 +303,9 @@ hr.sep{border:none;border-top:1px solid var(--bordo);margin:14px 0}
 
 <script>
 "use strict";
-/* ===== Storage locale ===== */
-const KEY = "inventario_offline_v1";
-const PINKEY = "inventario_pin_v1";
-const COLORI = ["#4C8DF6","#8A63F4","#D96AC0","#2FA97C","#E8A13C","#22B8CF","#E5533C","#5D6B8A"];
+const KEY = "magazzino_offline_v1";
+const PINKEY = "magazzino_pin_v1";
+const COLORI = ["#34D399","#22D3EE","#60A5FA","#A78BFA","#F472B6","#FB7185","#FBBF24","#94A3B8"];
 
 let DB = load();
 function load(){
@@ -330,36 +321,28 @@ function save(){
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
-/* ===== Utilita' ===== */
 const $ = id => document.getElementById(id);
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function nf(n){ n = Math.round(n*1000)/1000; return (n%1===0)? n.toString() : n.toFixed(3).replace(/0+$/,"").replace(/\.$/,""); }
 function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
-function fmtData(iso){
-  try{ const [y,m,g]=iso.split("-"); return `${g}/${m}/${y}`; }catch(e){ return iso; }
-}
+function fmtData(iso){ try{ const [y,m,g]=iso.split("-"); return `${g}/${m}/${y}`; }catch(e){ return iso; } }
 let toastT;
-function toast(msg){
-  const t=$("toast"); t.textContent=msg; t.classList.add("show");
-  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200);
-}
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
 function tipoOf(id){ return DB.tipi.find(t=>t.id===id); }
 function matOf(id){ return DB.materiali.find(m=>m.id===id); }
+function scortaBassa(m){ return m.soglia>0 && m.giacenza<=m.soglia; }
 
-/* ===== Navigazione ===== */
 let vista="home";
 function go(v){
   vista=v;
   document.querySelectorAll(".view").forEach(s=>s.classList.add("hidden"));
   $("v-"+v).classList.remove("hidden");
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
-  const titoli={home:"Inventario",mat:"Materiali",mov:"Uscite & carichi",tipi:"Tipologie",set:"Impostazioni"};
+  const titoli={home:"Magazzino",mat:"Materiali",mov:"Uscite & carichi",tipi:"Tipologie",set:"Impostazioni"};
   $("hTitle").textContent=titoli[v];
-  render();
-  window.scrollTo(0,0);
+  render(); window.scrollTo(0,0);
 }
 
-/* ===== Render principale ===== */
 function render(){
   if(vista==="home") renderHome();
   else if(vista==="mat") renderMat();
@@ -368,34 +351,33 @@ function render(){
   else if(vista==="set") renderSet();
 }
 
-function scortaBassa(m){ return m.soglia>0 && m.giacenza<=m.soglia; }
-
+function setStat(i,val,label){
+  const boxes=document.querySelectorAll("#v-home .stat .box");
+  boxes[i].querySelector("b").textContent=val;
+}
 function renderHome(){
-  $("kMat").textContent=DB.materiali.length;
-  $("kTipi").textContent=DB.tipi.length;
   const oggi=todayISO();
   const usciteOggi=DB.movimenti.filter(x=>x.tipo==="uscita" && x.data===oggi);
-  $("kOggi").textContent=usciteOggi.length;
   const sotto=DB.materiali.filter(scortaBassa);
-  $("kScorta").textContent=sotto.length;
+  const boxes=document.querySelectorAll("#v-home .stat .box b");
+  boxes[0].textContent=DB.materiali.length;
+  boxes[1].textContent=usciteOggi.length;
+  boxes[2].textContent=DB.tipi.length;
+  boxes[3].textContent=sotto.length;
 
-  // sotto scorta
   if(sotto.length){
     $("cardScorta").style.display="";
     $("listScorta").innerHTML=sotto.map(m=>{
       const t=tipoOf(m.tipoId);
       return `<div class="mat"><div class="info"><div class="nome">${esc(m.nome)}</div>
         <div class="meta">${t?esc(t.nome)+" · ":""}soglia ${nf(m.soglia)} ${esc(m.unita)}</div></div>
-        <div class="qta"><b style="color:var(--rosso)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`;
+        <div class="qta"><b style="color:var(--out)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`;
     }).join("");
   } else $("cardScorta").style.display="none";
 
-  // uscite di oggi
-  if(usciteOggi.length){
-    $("homeOggi").innerHTML=usciteOggi.slice().reverse().map(logRow).join("");
-  } else {
-    $("homeOggi").innerHTML=`<div class="empty"><div class="big">☀️</div>Nessuna uscita registrata oggi.</div>`;
-  }
+  $("homeOggi").innerHTML = usciteOggi.length
+    ? usciteOggi.slice().reverse().map(logRow).join("")
+    : `<div class="empty"><div class="big">🌙</div>Nessuna uscita registrata oggi.</div>`;
 }
 
 function logRow(x){
@@ -418,16 +400,15 @@ function renderMat(){
     cont.innerHTML=`<div class="empty"><div class="big">📦</div>Nessun materiale.<br>Tocca <b>Nuovo materiale</b> per iniziare.</div>`;
     return;
   }
-  // gruppi per tipologia
   const gruppi=[];
   DB.tipi.forEach(t=>gruppi.push({tit:t.nome,col:t.colore,items:DB.materiali.filter(m=>m.tipoId===t.id)}));
-  gruppi.push({tit:"Senza tipologia",col:"#8B97B5",items:DB.materiali.filter(m=>!tipoOf(m.tipoId))});
+  gruppi.push({tit:"Senza tipologia",col:"#5B6675",items:DB.materiali.filter(m=>!tipoOf(m.tipoId))});
   let html="";
   gruppi.forEach(g=>{
     let items=g.items;
     if(q) items=items.filter(m=>m.nome.toLowerCase().includes(q));
     if(!items.length) return;
-    html+=`<div class="grp-tit" style="color:${g.col}">${esc(g.tit)} · ${items.length}</div><div class="carta">`;
+    html+=`<div class="grp-tit"><span class="sw" style="background:${g.col}"></span>${esc(g.tit)} · ${items.length}</div><div class="carta">`;
     html+=items.map(matRow).join("");
     html+=`</div>`;
   });
@@ -439,20 +420,19 @@ function matRow(m){
   return `<div class="mat">
     <div class="info" onclick="openMat('${m.id}')">
       <div class="nome">${esc(m.nome)}</div>
-      <div class="meta">${bassa?'<span class="pill bad">sotto scorta</span> ':""}${m.soglia>0?"soglia "+nf(m.soglia)+" · ":""}<span class="link">modifica</span></div>
+      <div class="meta">${bassa?'<span class="pill bad">sotto scorta</span>':""}${m.soglia>0?"soglia "+nf(m.soglia):""}<span class="link">modifica</span></div>
     </div>
-    <div class="qta" onclick="openMat('${m.id}')"><b style="${bassa?'color:var(--rosso)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
+    <div class="qta" onclick="openMat('${m.id}')"><b style="${bassa?'color:var(--out)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
     <div class="stepper">
       <button class="minus" onclick="quick('${m.id}',-1)">−</button>
-      <button onclick="quick('${m.id}',1)">＋</button>
+      <button class="plus" onclick="quick('${m.id}',1)">＋</button>
     </div>
   </div>`;
 }
 
-// +/- rapido: -1 registra uscita, +1 registra carico
 function quick(id,seg){
   const m=matOf(id); if(!m) return;
-  if(seg<0 && m.giacenza<=0){ toast("Giacenza gia' a zero"); return; }
+  if(seg<0 && m.giacenza<=0){ toast("Giacenza già a zero"); return; }
   DB.movimenti.push({id:uid(),materialeId:id,tipo:seg<0?"uscita":"carico",qta:1,data:todayISO(),nota:""});
   m.giacenza=Math.round((m.giacenza+seg)*1000)/1000;
   save(); render();
@@ -463,15 +443,12 @@ function renderMov(){
   const giorno=$("movData").value;
   const movs=DB.movimenti.filter(x=>x.data===giorno);
   const usc=movs.filter(x=>x.tipo==="uscita");
-  const totUsc=usc.reduce((s,x)=>s+x.qta,0);
   $("movTitolo").textContent = giorno===todayISO()?"Oggi":fmtData(giorno);
   $("movTot").textContent = `${usc.length} uscite`;
   const cont=$("listMov");
-  if(!movs.length){
-    cont.innerHTML=`<div class="empty"><div class="big">🗓️</div>Nessun movimento in questo giorno.</div>`;
-    return;
-  }
-  cont.innerHTML=movs.slice().reverse().map(logRow).join("");
+  cont.innerHTML = movs.length
+    ? movs.slice().reverse().map(logRow).join("")
+    : `<div class="empty"><div class="big">🗓️</div>Nessun movimento in questo giorno.</div>`;
 }
 
 function renderTipi(){
@@ -485,8 +462,7 @@ function renderTipi(){
     return `<div class="tipo" onclick="openTipo('${t.id}')">
       <span class="sw" style="background:${t.colore}"></span>
       <span class="nome">${esc(t.nome)}</span>
-      <span class="cnt">${n} materiali</span>
-      <span class="link">modifica</span></div>`;
+      <span class="cnt">${n} materiali</span><span class="go">›</span></div>`;
   }).join("");
 }
 
@@ -498,11 +474,9 @@ function renderSet(){
   $("pinBtn").className="btn "+(on?"danger":"");
 }
 
-/* ===== Modale ===== */
-function openSheet(html){ $("sheet").innerHTML=html; $("modal").classList.add("show"); }
+function openSheet(html){ $("sheet").innerHTML='<div class="grip"></div>'+html; $("modal").classList.add("show"); }
 function closeModal(){ $("modal").classList.remove("show"); }
 
-/* --- Materiale --- */
 function openMat(id){
   const m=id?matOf(id):null;
   const opz=DB.tipi.map(t=>`<option value="${t.id}" ${m&&m.tipoId===t.id?"selected":""}>${esc(t.nome)}</option>`).join("");
@@ -531,13 +505,8 @@ function saveMat(id){
   const unita=$("fUnita").value.trim()||"pz";
   const giacenza=parseFloat($("fGiac").value)||0;
   const soglia=parseFloat($("fSoglia").value)||0;
-  if(id){
-    const m=matOf(id); Object.assign(m,{nome,tipoId,unita,giacenza,soglia});
-    toast("Materiale aggiornato");
-  } else {
-    DB.materiali.push({id:uid(),nome,tipoId,unita,giacenza,soglia});
-    toast("Materiale aggiunto");
-  }
+  if(id){ Object.assign(matOf(id),{nome,tipoId,unita,giacenza,soglia}); toast("Materiale aggiornato"); }
+  else { DB.materiali.push({id:uid(),nome,tipoId,unita,giacenza,soglia}); toast("Materiale aggiunto"); }
   save(); closeModal(); render();
 }
 function delMat(id){
@@ -549,9 +518,8 @@ function delMat(id){
   save(); closeModal(); render(); toast("Materiale eliminato");
 }
 
-/* --- Movimento (uscita / carico) --- */
 function openMov(tipo){
-  if(!DB.materiali.length){ toast("Aggiungi prima un materiale"); go("mat"); return; }
+  if(!DB.materiali.length){ toast("Aggiungi prima un materiale"); closeModal(); go("mat"); return; }
   const opz=DB.materiali.map(m=>`<option value="${m.id}">${esc(m.nome)} (${nf(m.giacenza)} ${esc(m.unita)})</option>`).join("");
   openSheet(`
     <h3>Registra movimento<span class="x" onclick="closeModal()">×</span></h3>
@@ -570,11 +538,7 @@ function openMov(tipo){
   `);
   setTimeout(()=>$("mvQta").focus(),120);
 }
-function setSeg(t){
-  $("mvTipo").value=t;
-  $("segU").classList.toggle("on",t==="uscita");
-  $("segC").classList.toggle("on",t==="carico");
-}
+function setSeg(t){ $("mvTipo").value=t; $("segU").classList.toggle("on",t==="uscita"); $("segC").classList.toggle("on",t==="carico"); }
 function saveMov(){
   const tipo=$("mvTipo").value;
   const materialeId=$("mvMat").value;
@@ -602,7 +566,6 @@ function delMov(id){
   save(); render(); toast("Movimento eliminato");
 }
 
-/* --- Tipologia --- */
 let tipoColore=COLORI[0];
 function openTipo(id){
   const t=id?tipoOf(id):null;
@@ -634,13 +597,12 @@ function delTipo(id){
   save(); closeModal(); render(); toast("Tipologia eliminata");
 }
 
-/* ===== Backup ===== */
 function esporta(){
-  const dati=JSON.stringify({app:"inventario_offline",v:1,data:DB},null,2);
+  const dati=JSON.stringify({app:"magazzino_offline",v:1,data:DB},null,2);
   const blob=new Blob([dati],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download=`inventario-backup-${todayISO()}.json`;
+  a.href=url; a.download=`magazzino-backup-${todayISO()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
   toast("Backup esportato");
@@ -658,43 +620,33 @@ function importa(ev){
       save(); render(); toast("Backup importato");
     }catch(e){ toast("File non valido"); }
   };
-  r.readAsText(f);
-  ev.target.value="";
+  r.readAsText(f); ev.target.value="";
 }
 function azzeraMovimenti(){
   if(!confirm("Cancellare TUTTI i movimenti? Le giacenze restano invariate.")) return;
   DB.movimenti=[]; save(); render(); toast("Movimenti cancellati");
 }
 function azzeraTutto(){
-  if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nQuesta operazione non è annullabile.")) return;
+  if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nNon annullabile.")) return;
   if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
   DB={tipi:[],materiali:[],movimenti:[]}; save(); render(); toast("Database azzerato");
 }
 
-/* ===== PIN (solo locale) ===== */
 async function sha(s){
   try{
     const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-  }catch(e){ // fallback semplice se crypto non disponibile (contesto file://)
-    let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return "f"+(h>>>0).toString(16);
-  }
+  }catch(e){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return "f"+(h>>>0).toString(16); }
 }
-let pinMode="verify"; // verify | set | confirm
-let pinBuf=""; let pinFirst="";
+let pinMode="verify", pinBuf="", pinFirst="";
 function togglePin(){
   if(localStorage.getItem(PINKEY)){
     if(confirm("Disattivare la protezione con PIN?")){ localStorage.removeItem(PINKEY); renderSet(); toast("PIN disattivato"); }
-  } else { pinMode="set"; pinFirst=""; pinBuf=""; showLock("Crea un PIN","Scegli 4 cifre"); }
+  } else { pinMode="set"; pinFirst=""; showLock("Crea un PIN","Scegli 4 cifre"); }
 }
-function showLock(tit,sub){
-  $("lockTit").textContent=tit; $("lockSub").textContent=sub||""; $("lockErr").textContent="";
-  pinBuf=""; drawPin(); $("lock").classList.add("show");
-}
+function showLock(tit,sub){ $("lockTit").textContent=tit; $("lockSub").textContent=sub||""; $("lockErr").textContent=""; pinBuf=""; drawPin(); $("lock").classList.add("show"); }
 function hideLock(){ $("lock").classList.remove("show"); }
-function drawPin(){
-  $("pinbox").innerHTML=[0,1,2,3].map(i=>`<div class="d ${i<pinBuf.length?"f":""}"></div>`).join("");
-}
+function drawPin(){ $("pinbox").innerHTML=[0,1,2,3].map(i=>`<div class="d ${i<pinBuf.length?"f":""}"></div>`).join(""); }
 function buildKeys(){
   const k=$("keys"); k.innerHTML="";
   ["1","2","3","4","5","6","7","8","9","","0","⌫"].forEach(v=>{
@@ -704,16 +656,16 @@ function buildKeys(){
     k.appendChild(b);
   });
 }
-async function pinPress(v){
+function pinPress(v){
   if(v==="⌫"){ pinBuf=pinBuf.slice(0,-1); drawPin(); return; }
   if(pinBuf.length>=4) return;
   pinBuf+=v; drawPin();
-  if(pinBuf.length===4){ setTimeout(pinDone,150); }
+  if(pinBuf.length===4) setTimeout(pinDone,150);
 }
 async function pinDone(){
   const h=await sha(pinBuf);
   if(pinMode==="verify"){
-    if(h===localStorage.getItem(PINKEY)){ hideLock(); }
+    if(h===localStorage.getItem(PINKEY)) hideLock();
     else { $("lockErr").textContent="PIN errato"; pinBuf=""; drawPin(); }
   } else if(pinMode==="set"){
     pinFirst=h; pinMode="confirm"; showLock("Conferma PIN","Ripeti le 4 cifre");
@@ -723,7 +675,6 @@ async function pinDone(){
   }
 }
 
-/* ===== Avvio ===== */
 buildKeys();
 $("movData").value=todayISO();
 if(localStorage.getItem(PINKEY)){ pinMode="verify"; showLock("Inserisci PIN","Accesso protetto locale"); }
