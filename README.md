@@ -11,12 +11,17 @@ Non ha nulla a che vedere con il sito di presentazione qui sopra: è un'applicaz
 - **Uscite giornaliere**: registri quanto materiale è stato "dato via" ogni giorno; le giacenze si scalano da sole.
 - **Tipologie**: raggruppi i prodotti per categoria (con colore).
 - **Riepilogo**: totali, avvisi sotto scorta, uscite di oggi.
-- **PIN** locale opzionale e **backup** esporta/importa su file.
+- **Cestino** dei movimenti cancellati, con ripristino o eliminazione definitiva.
+- **PIN** locale opzionale.
+- **Copertura**: l'app si apre come una calcolatrice funzionante; si entra digitando un codice segreto e premendo `=`. Pulsante 🔒 per ri-coprire all'istante.
+- **Backup cifrato** (AES-256 con password): il file è illeggibile senza password, riapribile solo dall'app.
+- **Installabile** con icona propria (manifest + icona generata, neutra quando la copertura è attiva).
 - Tema **scuro**.
 
 ### Sicurezza
 Nessuna connessione a internet, nessun server, nessuna libreria esterna: i dati restano solo nella
-memoria del browser del dispositivo, quindi non c'è nulla di raggiungibile dall'esterno.
+memoria del browser del dispositivo, quindi non c'è nulla di raggiungibile dall'esterno. I backup sono
+cifrati con password (AES-256-GCM, chiave derivata via PBKDF2).
 
 ### Come usarla sul telefono
 1. Apri `inventario.html` nel browser del telefono (o scaricalo e aprilo dai File).

@@ -201,8 +201,16 @@ nav button.on .ic{filter:none;opacity:1}
 .calc .pad button:active{filter:brightness(1.35)}
 .calc .pad .fn{background:#a5a5a5;color:#000;font-weight:600}
 .calc .pad .op{background:#ff9f0a;color:#fff;font-weight:600}
-.calc .pad .zero{grid-column:span 2;text-align:left;padding-left:28px;border-radius:99px}
+.calc .pad .op.active{background:#fff;color:#ff9f0a}
+.calc .pad .zero{grid-column:span 2;text-align:left;padding-left:30px;border-radius:99px}
 .calc .pad .gap{background:none;visibility:hidden}
+.calc .disp .big{font-size:60px}
+
+/* pulsante ri-copertura rapida */
+header .top{align-items:center}
+.lockbtn{margin-left:auto;width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.10);
+  color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lockbtn:active{background:rgba(255,255,255,.2)}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--safe-b));
   background:var(--sur2);border:1px solid var(--line);color:var(--ink);padding:11px 18px;border-radius:13px;
@@ -240,6 +248,7 @@ nav button.on .ic{filter:none;opacity:1}
         <h1 id="hTitle">Magazzino</h1>
         <div class="sub">Offline · dati solo su questo dispositivo</div>
       </div>
+      <button id="lockNow" class="lockbtn" onclick="showDecoy()" title="Nascondi ora" style="display:none">🔒</button>
     </div>
   </header>
 
@@ -326,7 +335,7 @@ nav button.on .ic{filter:none;opacity:1}
     <div class="carta">
       <div class="sez"><span class="sez-tit">🔐 Protezione con PIN</span>
         <span class="pill" id="pinStato">Off</span></div>
-      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre, salvato solo su questo dispositivo.</p>
+      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre, salvato solo su questo dispositivo. Nota: se attivi anche la copertura, all'apertura comparirà <b>solo la calcolatrice</b> e il PIN non verrà mostrato.</p>
       <button class="btn" id="pinBtn" onclick="togglePin()">Attiva PIN</button>
     </div>
 
@@ -346,13 +355,13 @@ nav button.on .ic{filter:none;opacity:1}
     </div>
 
     <div class="carta">
-      <div class="sez"><span class="sez-tit">💾 Backup dei dati</span></div>
-      <p class="muted" style="margin-bottom:12px">Salva o ripristina tutto l'inventario come file. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
+      <div class="sez"><span class="sez-tit">💾 Backup cifrato</span></div>
+      <p class="muted" style="margin-bottom:12px">Salva o ripristina l'inventario in un file <b>cifrato con password</b> (AES-256). Senza la password il file è illeggibile per chiunque; puoi riaprirlo solo reimportandolo qui. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
       <div class="row">
         <button class="btn ghost" onclick="esporta()">⬇︎ Esporta</button>
         <button class="btn ghost" onclick="fileImp.click()">⬆︎ Importa</button>
       </div>
-      <input type="file" id="fileImp" accept="application/json,.json" style="display:none" onchange="importa(event)" />
+      <input type="file" id="fileImp" accept=".mgz,.json,application/json" style="display:none" onchange="importa(event)" />
     </div>
 
     <div class="carta">
@@ -802,32 +811,73 @@ function delTipo(id){
   save(); closeModal(); render(); toast("Tipologia eliminata");
 }
 
-function esporta(){
-  const dati=JSON.stringify({app:"magazzino_offline",v:1,data:DB},null,2);
-  const blob=new Blob([dati],{type:"application/json"});
+/* --- Backup cifrato (AES-256-GCM, chiave da password via PBKDF2) --- */
+function b64(buf){ const b=new Uint8Array(buf); let s=""; const CH=0x8000;
+  for(let i=0;i<b.length;i+=CH){ s+=String.fromCharCode.apply(null,b.subarray(i,i+CH)); } return btoa(s); }
+function unb64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
+async function deriveKey(pass, salt, it){
+  const km=await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:it, hash:"SHA-256"},
+    km, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+function download(text, name){
+  const blob=new Blob([text],{type:"application/octet-stream"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download=`magazzino-backup-${todayISO()}.json`;
+  const a=document.createElement("a"); a.href=url; a.download=name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast("Backup esportato");
+}
+async function esporta(){
+  if(!(window.crypto&&crypto.subtle)){ toast("Cifratura non disponibile qui"); return; }
+  const pass=prompt("Imposta una PASSWORD per proteggere il backup.\nSenza questa password il file non è leggibile da nessuno.");
+  if(pass==null) return;
+  if(pass.length<4){ toast("Password troppo corta (min 4 caratteri)"); return; }
+  try{
+    const it=150000;
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await deriveKey(pass, salt, it);
+    const plain=new TextEncoder().encode(JSON.stringify(DB));
+    const ct=await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, plain);
+    const out=JSON.stringify({app:"magazzino_enc", v:1, kdf:"PBKDF2", hash:"SHA-256", it,
+      salt:b64(salt), iv:b64(iv), ct:b64(ct)});
+    download(out, `magazzino-backup-${todayISO()}.mgz`);
+    toast("Backup cifrato esportato");
+  }catch(e){ toast("Errore durante la cifratura"); }
 }
 function importa(ev){
   const f=ev.target.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async ()=>{
+    let obj; try{ obj=JSON.parse(r.result); }catch(e){ toast("File non valido"); ev.target.value=""; return; }
     try{
-      const obj=JSON.parse(r.result);
-      const d=obj.data||obj;
-      if(!d.materiali||!d.tipi||!d.movimenti) throw 0;
-      if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
-      DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti,
-          presets:Array.isArray(d.presets)?d.presets:DB.presets,
-          cestino:Array.isArray(d.cestino)?d.cestino:[]};
-      save(); render(); toast("Backup importato");
+      if(obj && obj.app==="magazzino_enc"){
+        if(!(window.crypto&&crypto.subtle)){ toast("Decifratura non disponibile qui"); return; }
+        const pass=prompt("Password del backup:");
+        if(pass==null) return;
+        const key=await deriveKey(pass, unb64(obj.salt), obj.it||150000);
+        let ptBuf;
+        try{ ptBuf=await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(obj.iv)}, key, unb64(obj.ct)); }
+        catch(e){ toast("Password errata o file danneggiato"); return; }
+        applyImport(JSON.parse(new TextDecoder().decode(ptBuf)));
+      } else {
+        const d=obj.data||obj;
+        if(!d.materiali||!d.tipi||!d.movimenti){ toast("File non valido"); return; }
+        if(!confirm("Attenzione: questo backup NON è cifrato. Importarlo comunque?")) return;
+        applyImport(d);
+      }
     }catch(e){ toast("File non valido"); }
+    finally{ ev.target.value=""; }
   };
-  r.readAsText(f); ev.target.value="";
+  r.readAsText(f);
+}
+function applyImport(d){
+  if(!d||!d.materiali||!d.tipi||!d.movimenti){ toast("Backup incompleto"); return; }
+  if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
+  DB={tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti,
+      presets:Array.isArray(d.presets)?d.presets:DB.presets,
+      cestino:Array.isArray(d.cestino)?d.cestino:[]};
+  save(); render(); toast("Backup importato");
 }
 function azzeraMovimenti(){
   if(!confirm("Cancellare TUTTI i movimenti? Le giacenze restano invariate.")) return;
@@ -882,69 +932,149 @@ async function pinDone(){
   }
 }
 
-/* ===== Copertura: calcolatrice ===== */
-const PAD=[
-  ["C","fn","C"],["⌫","fn","⌫"],["÷","op","÷"],["×","op","×"],
-  ["7","","7"],["8","","8"],["9","","9"],["−","op","−"],
-  ["4","","4"],["5","","5"],["6","","6"],["+","op","+"],
-  ["1","","1"],["2","","2"],["3","","3"],["=","op","="],
-  ["0","zero","0"],[".","","."],["","gap",""]
-];
-let decoyExpr="";
+/* ===== Copertura: calcolatrice realistica ===== */
+let decoy={cur:"0",prev:null,op:null,fresh:true,justEval:false};
+function resetCalc(){ decoy={cur:"0",prev:null,op:null,fresh:true,justEval:false}; drawCalc(); }
+function showDecoy(){ resetCalc(); $("calc").classList.add("show"); }
+function hideDecoy(){ $("calc").classList.remove("show"); }
 function buildDecoy(){
   const pad=$("calcPad"); pad.innerHTML="";
-  PAD.forEach(([lbl,cls,val])=>{
+  const rows=[
+    [["AC","fn"],["±","fn"],["%","fn"],["÷","op"]],
+    [["7"],["8"],["9"],["×","op"]],
+    [["4"],["5"],["6"],["−","op"]],
+    [["1"],["2"],["3"],["+","op"]],
+    [["0","zero"],["."],["=","op"]]
+  ];
+  rows.forEach(row=>row.forEach(([lbl,cls])=>{
     const b=document.createElement("button");
     b.textContent=lbl; if(cls) b.className=cls;
-    if(cls==="gap") b.disabled=true; else b.onclick=()=>decoyPress(val);
+    if(cls==="op"){ b.dataset.op=lbl; b.onclick=()=> lbl==="=" ? cEquals() : cOp(lbl); }
+    else if(lbl==="AC"){ b.id="calcClear"; b.onclick=cClear; }
+    else if(lbl==="±"){ b.onclick=cNeg; }
+    else if(lbl==="%"){ b.onclick=cPct; }
+    else if(lbl==="."){ b.onclick=()=>cDigit("."); }
+    else { b.onclick=()=>cDigit(lbl); }
     pad.appendChild(b);
-  });
+  }));
 }
-function drawDecoy(txt){ $("calcDisp").textContent = txt!=null ? txt : (decoyExpr||"0"); }
-function showDecoy(){ decoyExpr=""; drawDecoy(); $("calc").classList.add("show"); }
-function hideDecoy(){ $("calc").classList.remove("show"); }
-function decoyPress(k){
-  if(k==="C"){ decoyExpr=""; }
-  else if(k==="⌫"){ decoyExpr=decoyExpr.slice(0,-1); }
-  else if(k==="="){ decoyEquals(); return; }
-  else if("+−×÷".includes(k)){
-    if(decoyExpr==="") { drawDecoy(); return; }
-    if("+−×÷".includes(decoyExpr.slice(-1))) decoyExpr=decoyExpr.slice(0,-1)+k;
-    else decoyExpr+=k;
-  } else decoyExpr+=k;
-  drawDecoy();
+function trim(n){ if(!isFinite(n)) return "Errore"; return String(Math.round(n*1e10)/1e10); }
+function compute(a,op,b){ switch(op){case"+":return a+b;case"−":return a-b;case"×":return a*b;case"÷":return b===0?NaN:a/b;} return b; }
+function fmtCalc(s){
+  if(s==="Errore") return s;
+  const neg=s.startsWith("-"); if(neg) s=s.slice(1);
+  const dot=s.indexOf("."); let i=dot>=0?s.slice(0,dot):s, d=dot>=0?s.slice(dot):"";
+  i=i.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  return (neg?"-":"")+i+d;
 }
-async function decoyEquals(){
-  if(/^\d{4,}$/.test(decoyExpr)){
-    const h=await sha(decoyExpr);
-    if(h===localStorage.getItem(DECOYKEY)){ decoyExpr=""; drawDecoy(); hideDecoy(); return; }
+function drawCalc(active){
+  $("calcDisp").textContent=fmtCalc(decoy.cur);
+  document.querySelectorAll("#calcPad .op").forEach(b=>b.classList.toggle("active", !!active && b.dataset.op===active && !decoy.justEval));
+  const cb=$("calcClear"); if(cb) cb.textContent=(decoy.cur!=="0"||decoy.op!==null||decoy.prev!==null)?"C":"AC";
+}
+function cDigit(d){
+  if(decoy.justEval){ decoy.cur="0"; decoy.fresh=true; decoy.justEval=false; }
+  if(decoy.fresh){ decoy.cur = d==="."?"0.":d; decoy.fresh=false; }
+  else if(d==="."){ if(!decoy.cur.includes(".")) decoy.cur+="."; }
+  else { decoy.cur = decoy.cur==="0"? d : decoy.cur+d; }
+  drawCalc();
+}
+function cOp(o){
+  if(decoy.op!==null && !decoy.fresh){ decoy.prev=compute(decoy.prev,decoy.op,parseFloat(decoy.cur)); decoy.cur=trim(decoy.prev); }
+  else { decoy.prev=parseFloat(decoy.cur); }
+  decoy.op=o; decoy.fresh=true; decoy.justEval=false; drawCalc(o);
+}
+function cNeg(){ if(decoy.cur!=="0"&&decoy.cur!=="Errore"){ decoy.cur=decoy.cur.startsWith("-")?decoy.cur.slice(1):"-"+decoy.cur; drawCalc(); } }
+function cPct(){ if(decoy.cur!=="Errore"){ decoy.cur=trim(parseFloat(decoy.cur)/100); decoy.fresh=false; drawCalc(); } }
+function cClear(){
+  if(decoy.cur!=="0"){ decoy.cur="0"; decoy.fresh=true; }
+  else { decoy.prev=null; decoy.op=null; decoy.fresh=true; }
+  decoy.justEval=false; drawCalc();
+}
+async function cEquals(){
+  if(decoy.op===null && /^[1-9]\d{3,}$/.test(decoy.cur)){
+    const h=await sha(decoy.cur);
+    if(h===localStorage.getItem(DECOYKEY)){ resetCalc(); hideDecoy(); return; }
   }
-  try{
-    const s=decoyExpr.replace(/×/g,"*").replace(/÷/g,"/").replace(/−/g,"-");
-    if(!/^[-+*/.\d]+$/.test(s)) throw 0;
-    const val=Function('"use strict";return('+s+')')();
-    if(typeof val!=="number" || !isFinite(val)) throw 0;
-    decoyExpr=String(Math.round(val*1e8)/1e8); drawDecoy();
-  }catch(e){ drawDecoy("Errore"); decoyExpr=""; }
+  if(decoy.op!==null){
+    decoy.cur=trim(compute(decoy.prev,decoy.op,parseFloat(decoy.cur)));
+    decoy.op=null; decoy.prev=null; decoy.fresh=true; decoy.justEval=true;
+  }
+  drawCalc();
 }
 async function attivaDecoy(){
   const code=($("decoyCode").value||"").trim();
-  if(!/^\d{4,}$/.test(code)){ toast("Usa almeno 4 cifre"); return; }
+  if(!/^[1-9]\d{3,}$/.test(code)){ toast("Almeno 4 cifre, senza iniziare da 0"); return; }
   localStorage.setItem(DECOYKEY, await sha(code));
-  document.title="Calcolatrice";
-  $("decoyCode").value=""; renderSet(); toast("Copertura attivata");
+  $("decoyCode").value=""; renderSet(); applyIdentity(); toast("Copertura attivata");
 }
 function disattivaDecoy(){
   if(!confirm("Disattivare la copertura? All'apertura non comparirà più la calcolatrice.")) return;
   localStorage.removeItem(DECOYKEY);
-  document.title="Magazzino · inventario offline";
-  renderSet(); toast("Copertura disattivata");
+  renderSet(); applyIdentity(); toast("Copertura disattivata");
+}
+function updateLockBtn(){ const b=$("lockNow"); if(b) b.style.display=localStorage.getItem(DECOYKEY)?"":"none"; }
+
+/* ===== Identità installabile (nome + icona), adattata alla copertura ===== */
+function makeIcon(size, mode){
+  const c=document.createElement("canvas"); c.width=c.height=size; const x=c.getContext("2d");
+  const rad=size*0.22;
+  // sfondo arrotondato
+  x.fillStyle = mode==="calc" ? "#1c1c1e" : "#12161d";
+  roundRect(x,0,0,size,size,rad); x.fill();
+  if(mode==="calc"){
+    // griglia tasti stilizzata
+    const m=size*0.16, gap=size*0.07, cell=(size-2*m-2*gap)/3;
+    const cols=["#333","#333","#ff9f0a"];
+    for(let r=0;r<3;r++) for(let col=0;col<3;col++){
+      x.fillStyle = col===2? "#ff9f0a" : (r===0&&col<2? "#a5a5a5":"#4a4a4c");
+      const px=m+col*(cell+gap), py=m+size*0.14+r*(cell+gap);
+      roundRect(x,px,py,cell,cell,cell*0.28); x.fill();
+    }
+    x.fillStyle="#fff"; x.font=`700 ${size*0.11}px system-ui,sans-serif`; x.textAlign="right";
+    x.fillText("0", size-m, m+size*0.11);
+  } else {
+    // gradiente + scatola
+    const g=x.createLinearGradient(0,0,size,size); g.addColorStop(0,"#34D399"); g.addColorStop(1,"#22D3EE");
+    x.fillStyle=g; x.font=`${size*0.5}px sans-serif`; x.textAlign="center"; x.textBaseline="middle";
+    x.fillText("📥", size*0.5, size*0.56);
+  }
+  return c.toDataURL("image/png");
+}
+function roundRect(x,px,py,w,h,r){ x.beginPath(); x.moveTo(px+r,py);
+  x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r);
+  x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath(); }
+let manifestUrl=null;
+function applyIdentity(){
+  const covered=!!localStorage.getItem(DECOYKEY);
+  const nome = covered ? "Calcolatrice" : "Magazzino";
+  document.title = covered ? "Calcolatrice" : "Magazzino · inventario offline";
+  const mode = covered ? "calc" : "app";
+  try{
+    const icon180=makeIcon(180,mode), icon192=makeIcon(192,mode), icon512=makeIcon(512,mode);
+    let al=document.querySelector('link[rel="apple-touch-icon"]');
+    if(!al){ al=document.createElement("link"); al.rel="apple-touch-icon"; document.head.appendChild(al); }
+    al.href=icon180;
+    let fav=document.querySelector('link[rel="icon"]');
+    if(!fav){ fav=document.createElement("link"); fav.rel="icon"; document.head.appendChild(fav); }
+    fav.href=icon180;
+    const manifest={ name:nome, short_name:nome, display:"standalone", background_color:"#0e1116",
+      theme_color: covered?"#0b0b0d":"#0e1116", start_url:".", scope:".",
+      icons:[{src:icon192,sizes:"192x192",type:"image/png"},{src:icon512,sizes:"512x512",type:"image/png"}] };
+    if(manifestUrl) URL.revokeObjectURL(manifestUrl);
+    manifestUrl=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/manifest+json"}));
+    let ml=document.querySelector('link[rel="manifest"]');
+    if(!ml){ ml=document.createElement("link"); ml.rel="manifest"; document.head.appendChild(ml); }
+    ml.href=manifestUrl;
+    let atl=document.querySelector('meta[name="apple-mobile-web-app-title"]'); if(atl) atl.content=nome;
+  }catch(e){}
+  updateLockBtn();
 }
 
 /* ===== Avvio ===== */
-buildKeys(); buildDecoy();
+buildKeys(); buildDecoy(); applyIdentity();
 $("movData").value=todayISO();
-if(localStorage.getItem(DECOYKEY)){ document.title="Calcolatrice"; showDecoy(); }
+if(localStorage.getItem(DECOYKEY)){ showDecoy(); }               // copertura attiva → SOLO calcolatrice (PIN ignorato)
 else if(localStorage.getItem(PINKEY)){ pinMode="verify"; showLock("Inserisci PIN","Accesso protetto locale"); }
 go("home");
 </script>
