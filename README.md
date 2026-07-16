@@ -23,7 +23,13 @@ Nessuna connessione a internet, nessun server, nessuna libreria esterna: i dati 
 memoria del browser del dispositivo, quindi non c'è nulla di raggiungibile dall'esterno. I backup sono
 cifrati con password (AES-256-GCM, chiave derivata via PBKDF2).
 
-### Come usarla sul telefono
-1. Apri `inventario.html` nel browser del telefono (o scaricalo e aprilo dai File).
-2. Menu del browser → **Aggiungi a Home** per averla come icona.
-3. Esporta ogni tanto un backup dalle Impostazioni per non perdere i dati.
+### Due formati
+- **`inventario.html`** — file unico e autonomo. Perfetto per aprirlo al volo o servirlo in rete locale; niente da installare.
+- **`app/`** — versione **PWA installabile** (stessa app + `manifest.webmanifest`, `sw.js`, icone). Servita via HTTPS si installa con icona propria su **iPhone e Android** e funziona offline grazie al service worker.
+
+### Installazione
+- **iPhone** (Safari): apri la pagina `app/` da un indirizzo HTTPS → Condividi → **Aggiungi a Home**. Da lì funziona offline.
+- **Android** (Chrome): apri `app/` → menu → **Installa app**. Oppure genera un APK dalla PWA con [PWABuilder](https://www.pwabuilder.com/).
+- **Privato senza nulla di pubblico**: servi `inventario.html` da un computer sulla stessa Wi‑Fi e fai *Aggiungi a Home* dall'indirizzo locale (essendo file unico funziona offline anche senza service worker).
+
+Esporta ogni tanto un backup cifrato dalle Impostazioni per non perdere i dati.
