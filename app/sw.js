@@ -1,7 +1,7 @@
 /* Service worker: rende l'app installabile e pienamente offline.
    Mette in cache la shell dell'app; nessuna richiesta esce mai verso internet
    (l'app non ne fa), quindi il fetch serve solo dalla cache locale. */
-const CACHE = "magazzino-pwa-v1";
+const CACHE = "magazzino-pwa-v2";
 const ASSETS = [
   "./",
   "./index.html",
