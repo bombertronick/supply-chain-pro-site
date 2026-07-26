@@ -7,8 +7,10 @@
 App **indipendente** e **100% offline**, in un unico file, pensata per vivere solo sul telefono.
 Non ha nulla a che vedere con il sito di presentazione qui sopra: è un'applicazione a sé.
 
-- **Materiali**: inserimento con giacenza, unità di misura e soglia di sotto scorta.
-- **Uscite giornaliere**: registri quanto materiale è stato "dato via" ogni giorno; le giacenze si scalano da sole.
+- **Prodotti**: inserimento con giacenza, unità di misura, soglia, **prezzo di vendita** e **distinta base** (materie prime consumate).
+- **Materie prime**: magazzino a parte con **costo** e giacenza; si scala da solo quando dai via un prodotto che le usa (modello a due livelli).
+- **Guadagno**: costo prodotto = somma dei costi delle materie; margine = prezzo − costo; guadagno del giorno e per singola uscita.
+- **Uscite giornaliere**: registri quanto è stato "dato via" ogni giorno; giacenze prodotto e materie aggiornate in automatico.
 - **Tipologie**: raggruppi i prodotti per categoria (con colore).
 - **Riepilogo**: totali, avvisi sotto scorta, uscite di oggi.
 - **Cestino** dei movimenti cancellati, con ripristino o eliminazione definitiva.
