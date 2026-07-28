@@ -284,26 +284,13 @@ header .top{align-items:center}
     </div>
   </section>
 
-  <!-- PRODOTTI -->
+  <!-- MATERIALI -->
   <section class="view hidden" id="v-mat">
-    <div class="row" style="margin-bottom:14px">
-      <button class="btn" onclick="openMat()">＋ Nuovo prodotto</button>
-      <button class="btn ghost" style="flex:0 0 auto;padding:13px 15px" onclick="go('tipi')" title="Tipologie">🏷️</button>
-    </div>
+    <button class="btn" style="margin-bottom:14px" onclick="openMat()">＋ Nuovo materiale</button>
     <div class="field" style="margin-bottom:10px">
-      <input id="cerca" placeholder="🔎 Cerca prodotto…" oninput="renderMat()" />
+      <input id="cerca" placeholder="🔎 Cerca materiale…" oninput="renderMat()" />
     </div>
     <div id="listMat"></div>
-  </section>
-
-  <!-- MATERIE PRIME -->
-  <section class="view hidden" id="v-materie">
-    <button class="btn" style="margin-bottom:14px" onclick="openMateria()">＋ Nuova materia prima</button>
-    <div class="field" style="margin-bottom:10px">
-      <input id="cercaM" placeholder="🔎 Cerca materia prima…" oninput="renderMaterie()" />
-    </div>
-    <div id="listMaterie"></div>
-    <p class="muted" style="text-align:center;margin-top:8px">Il magazzino delle materie prime. Si scala da solo quando dai via un prodotto che le usa.</p>
   </section>
 
   <!-- USCITE / MOVIMENTI -->
@@ -337,10 +324,9 @@ header .top{align-items:center}
 
   <!-- TIPOLOGIE -->
   <section class="view hidden" id="v-tipi">
-    <button class="btn ghost" style="margin-bottom:14px" onclick="go('mat')">‹ Torna ai prodotti</button>
     <button class="btn" style="margin-bottom:14px" onclick="openTipo()">＋ Nuova tipologia</button>
     <div class="carta"><div id="listTipi"></div></div>
-    <p class="muted" style="text-align:center;margin-top:4px">Le tipologie raggruppano i prodotti per categoria.</p>
+    <p class="muted" style="text-align:center;margin-top:4px">Le tipologie raggruppano i materiali per categoria.</p>
   </section>
 
   <!-- IMPOSTAZIONI -->
@@ -406,9 +392,9 @@ header .top{align-items:center}
 
 <nav>
   <button class="on" data-v="home" onclick="go('home')"><span class="ic">🏠</span>Riepilogo</button>
-  <button data-v="mat" onclick="go('mat')"><span class="ic">📦</span>Prodotti</button>
-  <button data-v="materie" onclick="go('materie')"><span class="ic">🧱</span>Materie</button>
+  <button data-v="mat" onclick="go('mat')"><span class="ic">📦</span>Materiali</button>
   <button data-v="mov" onclick="go('mov')"><span class="ic">📉</span>Uscite</button>
+  <button data-v="tipi" onclick="go('tipi')"><span class="ic">🏷️</span>Tipologie</button>
   <button data-v="set" onclick="go('set')"><span class="ic">⚙️</span>Impost.</button>
 </nav>
 
@@ -430,16 +416,34 @@ const PRESET_DEF = [5,10,25];
 let DB = load();
 function normalize(db){
   db=db||{};
-  db.tipi=db.tipi||[]; db.materie=db.materie||[]; db.materiali=db.materiali||[]; db.movimenti=db.movimenti||[];
+  db.tipi=db.tipi||[]; db.materiali=db.materiali||[]; db.movimenti=db.movimenti||[];
   db.presets=Array.isArray(db.presets)?db.presets:PRESET_DEF.slice();
   db.cestino=Array.isArray(db.cestino)?db.cestino:[];
-  db.materiali.forEach(m=>{ if(typeof m.prezzo!=="number")m.prezzo=0; if(!Array.isArray(m.bom))m.bom=[]; if(typeof m.giacenza!=="number")m.giacenza=0; });
-  db.materie.forEach(m=>{ if(typeof m.costo!=="number")m.costo=0; if(typeof m.giacenza!=="number")m.giacenza=0; });
+  delete db.materie;
+  if(db.v!==3){
+    // migrazione a magazzino unico con costo medio ponderato
+    db.materiali.forEach(m=>{
+      const car=db.movimenti.filter(x=>x.materialeId===m.id&&x.tipo==="carico").reduce((s,x)=>s+(x.qta||0),0);
+      const usc=db.movimenti.filter(x=>x.materialeId===m.id&&x.tipo==="uscita").reduce((s,x)=>s+(x.qta||0),0);
+      const cur=(typeof m.giacenza==="number")?m.giacenza:0;
+      m.apGiac=Math.round((cur-car+usc)*1000)/1000;   // giacenza prima dei movimenti registrati
+      m.apCosto=0; delete m.bom;
+    });
+    db.movimenti.forEach(x=>{ if(x.consumi) delete x.consumi; });
+    db.v=3;
+  }
+  db.materiali.forEach(m=>{
+    if(typeof m.prezzo!=="number")m.prezzo=0;
+    if(typeof m.apGiac!=="number")m.apGiac=0;
+    if(typeof m.apCosto!=="number")m.apCosto=0;
+    if(typeof m.soglia!=="number")m.soglia=0;
+    if(typeof m.giacenza!=="number")m.giacenza=m.apGiac;
+    if(typeof m.costo!=="number")m.costo=m.apCosto;
+  });
   return db;
 }
 function load(){
-  try{ const raw=localStorage.getItem(KEY); if(raw) return normalize(JSON.parse(raw)); }catch(e){}
-  return normalize({});
+  try{ const raw=localStorage.getItem(KEY); return raw? normalize(JSON.parse(raw)) : normalize({}); }catch(e){ return normalize({}); }
 }
 function r(n){ return Math.round(n*1000)/1000; }
 function money(n){ n=Math.round((n||0)*100)/100; return "€ "+n.toFixed(2).replace(".",","); }
@@ -460,12 +464,30 @@ let toastT;
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
 function tipoOf(id){ return DB.tipi.find(t=>t.id===id); }
 function matOf(id){ return DB.materiali.find(m=>m.id===id); }
-function materiaOf(id){ return DB.materie.find(m=>m.id===id); }
 function scortaBassa(m){ return m.soglia>0 && m.giacenza<=m.soglia; }
-function costoProdotto(p){ return (p.bom||[]).reduce((s,l)=>{ const mp=materiaOf(l.materiaId); return s+(mp?mp.costo:0)*(l.qta||0); },0); }
-function margineUnit(p){ return (p.prezzo||0)-costoProdotto(p); }
-/* applica (segno -1 consuma, +1 ripristina) i consumi di materie prime di un movimento uscita */
-function applyConsumi(mov, segno){ (mov.consumi||[]).forEach(c=>{ const mp=materiaOf(c.materiaId); if(mp) mp.giacenza=r(mp.giacenza+segno*c.qta); }); }
+function margineUnit(p){ return (p.prezzo||0)-(p.costo||0); }
+/* Costo medio ponderato: rigioca i movimenti sull'apertura e ricalcola
+   giacenza, costo medio e il margine di ogni uscita col costo del momento. */
+function recalc(id){
+  const m=matOf(id); if(!m) return;
+  let qty=m.apGiac||0, avg=m.apCosto||0;
+  DB.movimenti.filter(x=>x.materialeId===id).forEach(x=>{
+    if(x.tipo==="carico"){
+      const add=x.qta||0;
+      const spesa=(typeof x.spesa==="number")? x.spesa : add*avg;  // se non indicata, non cambia il medio
+      const nq=qty+add;
+      if(nq>0) avg=(qty*avg+spesa)/nq;
+      qty=nq;
+    } else {
+      x.costoUnit=Math.round(avg*10000)/10000;
+      x.margine=r((x.qta||0)*((m.prezzo||0)-avg));
+      qty-=(x.qta||0);
+    }
+  });
+  m.giacenza=r(qty);
+  m.costo=Math.round(avg*10000)/10000;
+}
+function recalcAll(){ DB.materiali.forEach(m=>recalc(m.id)); }
 
 let vista="home";
 function go(v){
@@ -473,7 +495,7 @@ function go(v){
   document.querySelectorAll(".view").forEach(s=>s.classList.add("hidden"));
   $("v-"+v).classList.remove("hidden");
   document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
-  const titoli={home:"Magazzino",mat:"Prodotti",materie:"Materie prime",mov:"Uscite & carichi",cestino:"Cestino",tipi:"Tipologie",set:"Impostazioni"};
+  const titoli={home:"Magazzino",mat:"Materiali",mov:"Uscite & carichi",cestino:"Cestino",tipi:"Tipologie",set:"Impostazioni"};
   $("hTitle").textContent=titoli[v];
   render(); window.scrollTo(0,0);
 }
@@ -481,7 +503,6 @@ function go(v){
 function render(){
   if(vista==="home") renderHome();
   else if(vista==="mat") renderMat();
-  else if(vista==="materie") renderMaterie();
   else if(vista==="mov") renderMov();
   else if(vista==="cestino") renderCestino();
   else if(vista==="tipi") renderTipi();
@@ -492,24 +513,20 @@ function guadagnoDi(movs){ return movs.filter(x=>x.tipo==="uscita").reduce((s,x)
 function renderHome(){
   const oggi=todayISO();
   const usciteOggi=DB.movimenti.filter(x=>x.tipo==="uscita" && x.data===oggi);
-  const sottoP=DB.materiali.filter(scortaBassa);
-  const sottoM=DB.materie.filter(scortaBassa);
+  const sotto=DB.materiali.filter(scortaBassa);
   const boxes=document.querySelectorAll("#v-home .stat .box b");
   boxes[0].textContent=DB.materiali.length;
   boxes[1].textContent=money(guadagnoDi(usciteOggi));
   boxes[2].textContent=usciteOggi.length;
-  boxes[3].textContent=sottoP.length+sottoM.length;
+  boxes[3].textContent=sotto.length;
 
-  if(sottoP.length+sottoM.length){
+  if(sotto.length){
     $("cardScorta").style.display="";
-    const rowP=m=>{ const t=tipoOf(m.tipoId);
+    $("listScorta").innerHTML=sotto.map(m=>{ const t=tipoOf(m.tipoId);
       return `<div class="mat"><div class="info"><div class="nome">${esc(m.nome)}</div>
         <div class="meta">${t?esc(t.nome)+" · ":""}soglia ${nf(m.soglia)} ${esc(m.unita)}</div></div>
-        <div class="qta"><b style="color:var(--out)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`; };
-    const rowM=m=>`<div class="mat"><div class="info"><div class="nome">🧱 ${esc(m.nome)}</div>
-        <div class="meta">materia prima · soglia ${nf(m.soglia)} ${esc(m.unita)}</div></div>
         <div class="qta"><b style="color:var(--out)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`;
-    $("listScorta").innerHTML=sottoP.map(rowP).join("")+sottoM.map(rowM).join("");
+    }).join("");
   } else $("cardScorta").style.display="none";
 
   $("homeOggi").innerHTML = usciteOggi.length
@@ -558,7 +575,8 @@ function matRow(m){
   const marg=margineUnit(m);
   const bits=[];
   if(bassa) bits.push('<span class="pill bad">sotto scorta</span>');
-  if(m.prezzo>0 || m.bom.length) bits.push(`<span style="color:${marg>=0?'var(--acc)':'var(--out)'}">margine ${money(marg)}</span>`);
+  if(m.prezzo>0) bits.push(`<span style="color:${marg>=0?'var(--acc)':'var(--out)'}">margine ${money(marg)}</span>`);
+  else if(m.costo>0) bits.push(`costo ${money(m.costo)}`);
   const meta=bits.join(" ");
   return `<div class="mat" onclick="openQuick('${m.id}')">
     <div class="info">
@@ -570,112 +588,42 @@ function matRow(m){
   </div>`;
 }
 
-/* ===== Materie prime ===== */
-function renderMaterie(){
-  const q=($("cercaM").value||"").toLowerCase().trim();
-  const cont=$("listMaterie");
-  if(!DB.materie.length){
-    cont.innerHTML=`<div class="empty"><div class="big">🧱</div>Nessuna materia prima.<br>Tocca <b>Nuova materia prima</b> per creare il magazzino.</div>`;
-    return;
-  }
-  let items=DB.materie.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
-  if(q) items=items.filter(m=>m.nome.toLowerCase().includes(q));
-  if(!items.length){ cont.innerHTML=`<div class="empty"><div class="big">🔎</div>Nessun risultato.</div>`; return; }
-  cont.innerHTML=`<div class="carta">`+items.map(m=>{
-    const bassa=scortaBassa(m);
-    return `<div class="mat">
-      <div class="info" onclick="openMateria('${m.id}')">
-        <div class="nome">${esc(m.nome)}</div>
-        <div class="meta">${bassa?'<span class="pill bad">sotto scorta</span> ':""}costo ${money(m.costo)}/${esc(m.unita)}</div>
-      </div>
-      <div class="qta" onclick="openMateria('${m.id}')"><b style="${bassa?'color:var(--out)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
-      <div class="stepper">
-        <button class="minus" onclick="materiaQuick('${m.id}',-1)">−</button>
-        <button class="plus" onclick="materiaQuick('${m.id}',1)">＋</button>
-      </div>
-    </div>`;
-  }).join("")+`</div>`;
-}
-function materiaQuick(id,seg){
-  const m=materiaOf(id); if(!m) return;
-  if(seg<0 && m.giacenza<=0){ toast("Giacenza già a zero"); return; }
-  m.giacenza=r(m.giacenza+seg); save(); render();
-}
-function openMateria(id){
-  const m=id?materiaOf(id):null;
-  const usato = m ? DB.materiali.filter(p=>(p.bom||[]).some(l=>l.materiaId===id)).length : 0;
-  openSheet(`
-    <h3>${m?"Modifica materia prima":"Nuova materia prima"}<span class="x" onclick="closeModal()">×</span></h3>
-    <div class="field"><label>Nome</label><input id="mmNome" value="${m?esc(m.nome):""}" placeholder="Es. Cartone, Zucchero…" /></div>
-    <div class="row">
-      <div class="field"><label>Unità di misura</label><input id="mmUnita" value="${m?esc(m.unita):""}" placeholder="kg, pz, m…" /></div>
-      <div class="field"><label>Costo per unità</label><input id="mmCosto" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.costo):"0"}" /></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Giacenza in magazzino</label><input id="mmGiac" type="number" inputmode="decimal" step="any" value="${m?nf(m.giacenza):"0"}" /></div>
-      <div class="field"><label>Soglia minima (0 = off)</label><input id="mmSoglia" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.soglia):"0"}" /></div>
-    </div>
-    <button class="btn" onclick="saveMateria('${id||""}')">${m?"Salva modifiche":"Aggiungi materia"}</button>
-    ${m?`<button class="btn danger" style="margin-top:10px" onclick="delMateria('${id}')">Elimina materia prima${usato?` (usata in ${usato} prodotti)`:""}</button>`:""}
-  `);
-  setTimeout(()=>$("mmNome").focus(),120);
-}
-function saveMateria(id){
-  const nome=$("mmNome").value.trim();
-  if(!nome){ toast("Inserisci un nome"); return; }
-  const unita=$("mmUnita").value.trim()||"pz";
-  const costo=parseFloat($("mmCosto").value)||0;
-  const giacenza=parseFloat($("mmGiac").value)||0;
-  const soglia=parseFloat($("mmSoglia").value)||0;
-  if(id){ Object.assign(materiaOf(id),{nome,unita,costo,giacenza,soglia}); toast("Materia aggiornata"); }
-  else { DB.materie.push({id:uid(),nome,unita,costo,giacenza,soglia}); toast("Materia prima aggiunta"); }
-  save(); closeModal(); render();
-}
-function delMateria(id){
-  const m=materiaOf(id); if(!m) return;
-  const usato=DB.materiali.filter(p=>(p.bom||[]).some(l=>l.materiaId===id));
-  if(!confirm(`Eliminare la materia prima "${m.nome}"?${usato.length?`\nVerrà rimossa dalla distinta di ${usato.length} prodotti.`:""}`)) return;
-  usato.forEach(p=>{ p.bom=p.bom.filter(l=>l.materiaId!==id); });
-  DB.materie=DB.materie.filter(x=>x.id!==id);
-  save(); closeModal(); render(); toast("Materia prima eliminata");
-}
-
 /* Pannello movimento rapido di un materiale */
 function openQuick(id){
   const m=matOf(id); if(!m) return;
   const chips=DB.presets.length
     ? DB.presets.map(p=>`<button class="qbtn out" onclick="quickOut('${id}',${p})">−${nf(p)}</button>`).join("")
     : `<span class="muted">Nessun tasto rapido. Aggiungili nelle Impostazioni ⚙️</span>`;
+  const marg=margineUnit(m);
   openSheet(`
     <h3>${esc(m.nome)}<span class="x" onclick="closeModal()">×</span></h3>
     <div class="qhead">Giacenza attuale<b id="qGiac">${nf(m.giacenza)} ${esc(m.unita)}</b></div>
-    <label>Tasti rapidi · uscita a blocchi</label>
+    <div class="qhead">Costo medio · Prezzo<b>${money(m.costo)} · ${money(m.prezzo)}</b></div>
+    <div class="qhead">Margine a ${esc(m.unita)}<b style="color:${marg>=0?'var(--acc)':'var(--out)'}">${money(marg)}</b></div>
+    <label>Tasti rapidi · vendita a blocchi</label>
     <div class="qgrid" style="margin-bottom:6px">${chips}</div>
     <div class="qgrid2">
       <button class="stepbig minus" onclick="quickOut('${id}',1)">− 1</button>
       <button class="stepbig plus" onclick="quickIn('${id}',1)">＋ 1</button>
     </div>
-    <button class="btn danger" onclick="openMov('uscita','${id}')">➖ Uscita con nota (quando / perché)</button>
-    <button class="btn ghost" style="margin-top:10px" onclick="openMov('carico','${id}')">➕ Registra carico</button>
+    <button class="btn danger" onclick="openMov('uscita','${id}')">➖ Vendita / uscita (nota)</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openMov('carico','${id}')">➕ Carico (con costo)</button>
     <hr class="sep"/>
-    <button class="btn ghost" onclick="openMat('${id}')">✏️ Modifica prodotto</button>
+    <button class="btn ghost" onclick="openMat('${id}')">✏️ Modifica materiale</button>
   `);
 }
-function calcConsumi(m,qty){ return (m.bom||[]).map(l=>({materiaId:l.materiaId, qta:r((l.qta||0)*qty)})); }
 function quickOut(id,qty){
   const m=matOf(id); if(!m) return;
   if(qty>m.giacenza && !confirm(`Dare via ${nf(qty)} ${m.unita}? In giacenza ce ne sono ${nf(m.giacenza)}.`)) return;
-  const consumi=calcConsumi(m,qty);
-  const mov={id:uid(),materialeId:id,tipo:"uscita",qta:qty,data:todayISO(),nota:"",consumi,margine:r(qty*margineUnit(m))};
-  DB.movimenti.push(mov); applyConsumi(mov,-1);
-  m.giacenza=r(m.giacenza-qty); save(); toast(`− ${nf(qty)} ${m.unita} · uscita`);
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:"uscita",qta:qty,data:todayISO(),nota:""});
+  recalc(id); save(); toast(`− ${nf(qty)} ${m.unita} · uscita`);
   const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
   render();
 }
 function quickIn(id,qty){
   const m=matOf(id); if(!m) return;
   DB.movimenti.push({id:uid(),materialeId:id,tipo:"carico",qta:qty,data:todayISO(),nota:""});
-  m.giacenza=r(m.giacenza+qty); save(); toast(`＋ ${nf(qty)} ${m.unita} · carico`);
+  recalc(id); save(); toast(`＋ ${nf(qty)} ${m.unita} · carico`);
   const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
   render();
 }
@@ -720,12 +668,10 @@ function renderCestino(){
 }
 function ripristinaMov(id){
   const x=DB.cestino.find(c=>c.id===id); if(!x) return;
-  const m=matOf(x.materialeId);
-  if(m) m.giacenza=r(m.giacenza+(x.tipo==="uscita"?-x.qta:x.qta));
-  const mov={id:x.id,materialeId:x.materialeId,tipo:x.tipo,qta:x.qta,data:x.data,nota:x.nota,consumi:x.consumi||[],margine:x.margine||0};
-  if(mov.tipo==="uscita") applyConsumi(mov,-1);
+  const mov={id:x.id,materialeId:x.materialeId,tipo:x.tipo,qta:x.qta,data:x.data,nota:x.nota,spesa:x.spesa};
   DB.movimenti.push(mov);
   DB.cestino=DB.cestino.filter(c=>c.id!==id);
+  const m=matOf(x.materialeId); if(m) recalc(m.id);
   save(); render(); toast(m?"Movimento ripristinato":"Ripristinato (materiale mancante)");
 }
 function eliminaDef(id){
@@ -781,90 +727,70 @@ function delPreset(i){ DB.presets.splice(i,1); save(); renderSet(); }
 function openSheet(html){ $("sheet").innerHTML='<div class="grip"></div>'+html; $("modal").classList.add("show"); }
 function closeModal(){ $("modal").classList.remove("show"); }
 
-let bomTmp=[];
+let editMatId="";
 function openMat(id){
+  editMatId=id||"";
   const m=id?matOf(id):null;
-  bomTmp = m ? (m.bom||[]).map(l=>({materiaId:l.materiaId, qta:l.qta})) : [];
   const opz=DB.tipi.map(t=>`<option value="${t.id}" ${m&&m.tipoId===t.id?"selected":""}>${esc(t.nome)}</option>`).join("");
+  const attuale = m ? `<div class="hint" style="margin-bottom:14px">Attuale in magazzino: <b>${nf(m.giacenza)} ${esc(m.unita)}</b> · costo medio <b>${money(m.costo)}</b>. Giacenza e costo si aggiornano da soli con carichi e vendite.</div>` : "";
   openSheet(`
-    <h3>${m?"Modifica prodotto":"Nuovo prodotto"}<span class="x" onclick="closeModal()">×</span></h3>
-    <div class="field"><label>Nome</label><input id="fNome" value="${m?esc(m.nome):""}" placeholder="Es. Confezione regalo" /></div>
+    <h3>${m?"Modifica materiale":"Nuovo materiale"}<span class="x" onclick="closeModal()">×</span></h3>
+    ${attuale}
+    <div class="field"><label>Nome</label><input id="fNome" value="${m?esc(m.nome):""}" placeholder="Es. Vite M6" /></div>
     <div class="field"><label>Tipologia</label>
       <select id="fTipo"><option value="">— nessuna —</option>${opz}</select>
       <button class="btn ghost sm" style="margin-top:8px" onclick="closeModal();openTipo()">＋ Nuova tipologia</button>
     </div>
     <div class="row">
       <div class="field"><label>Unità di misura</label><input id="fUnita" value="${m?esc(m.unita):""}" placeholder="pz, kg, L…" oninput="updateMargineLive()" /></div>
-      <div class="field"><label>Giacenza prodotto</label><input id="fGiac" type="number" inputmode="decimal" step="any" value="${m?nf(m.giacenza):"0"}" /></div>
-    </div>
-    <div class="row">
       <div class="field"><label>Prezzo di vendita (a unità)</label><input id="fPrezzo" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.prezzo):"0"}" oninput="updateMargineLive()" /></div>
-      <div class="field"><label>Soglia minima (0 = off)</label><input id="fSoglia" type="number" inputmode="decimal" step="any" value="${m?nf(m.soglia):"0"}" /></div>
     </div>
+    <div class="field"><label>Soglia minima (avviso sotto scorta · 0 = off)</label>
+      <input id="fSoglia" type="number" inputmode="decimal" step="any" value="${m?nf(m.soglia):"0"}" /></div>
     <hr class="sep"/>
-    <div class="sez"><span class="sez-tit">🧱 Distinta base</span></div>
-    <p class="muted" style="margin-bottom:10px">Materie prime consumate per <b>1 unità</b> di prodotto: ad ogni uscita vengono scalate dal magazzino.</p>
-    <div id="bomList"></div>
-    <button class="btn ghost sm" style="margin-top:2px" onclick="addBomLine()">＋ Aggiungi materia prima</button>
-    <div class="hint" id="margBox" style="margin-top:12px"></div>
-    <button class="btn" style="margin-top:14px" onclick="saveMat('${id||""}')">${m?"Salva modifiche":"Aggiungi prodotto"}</button>
-    ${m?`<button class="btn danger" style="margin-top:10px" onclick="delMat('${id}')">Elimina prodotto</button>`:""}
+    <div class="sez"><span class="sez-tit">📦 Situazione iniziale</span></div>
+    <p class="muted" style="margin-bottom:10px">Giacenza e costo di partenza (prima dei carichi/vendite). Poi aggiorna con i <b>carichi</b>.</p>
+    <div class="row">
+      <div class="field"><label>Giacenza iniziale</label><input id="fApGiac" type="number" inputmode="decimal" step="any" value="${m?nf(m.apGiac):"0"}" /></div>
+      <div class="field"><label>Costo iniziale (a unità)</label><input id="fApCosto" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.apCosto):"0"}" oninput="updateMargineLive()" /></div>
+    </div>
+    <div class="hint" id="margBox" style="margin-top:4px"></div>
+    <button class="btn" style="margin-top:14px" onclick="saveMat('${id||""}')">${m?"Salva modifiche":"Aggiungi materiale"}</button>
+    ${m?`<button class="btn danger" style="margin-top:10px" onclick="delMat('${id}')">Elimina materiale</button>`:""}
   `);
-  renderBom();
+  updateMargineLive();
   setTimeout(()=>$("fNome").focus(),120);
 }
-function renderBom(){
-  const cont=$("bomList"); if(!cont) return;
-  if(!DB.materie.length){
-    cont.innerHTML='<p class="muted">Nessuna materia prima disponibile. Creane nella sezione 🧱 Materie per collegarle qui.</p>';
-    updateMargineLive(); return;
-  }
-  cont.innerHTML = bomTmp.length ? bomTmp.map((l,i)=>{
-    const opts=DB.materie.map(mp=>`<option value="${mp.id}" ${mp.id===l.materiaId?"selected":""}>${esc(mp.nome)} (${money(mp.costo)}/${esc(mp.unita)})</option>`).join("");
-    return `<div class="bomline">
-      <select onchange="bomSet(${i},'materiaId',this.value)">${opts}</select>
-      <input type="number" inputmode="decimal" step="any" min="0" value="${nf(l.qta)}" onchange="bomSet(${i},'qta',this.value)" />
-      <button class="bomx" onclick="bomDel(${i})">✕</button>
-    </div>`;
-  }).join("") : '<p class="muted">Nessuna materia collegata: il costo sarà 0.</p>';
-  updateMargineLive();
-}
-function bomSet(i,k,v){ if(k==="qta") v=parseFloat(v)||0; bomTmp[i][k]=v; updateMargineLive(); }
-function bomDel(i){ bomTmp.splice(i,1); renderBom(); }
-function addBomLine(){ if(!DB.materie.length){ toast("Crea prima una materia prima"); return; } bomTmp.push({materiaId:DB.materie[0].id, qta:1}); renderBom(); }
-function bomCosto(){ return bomTmp.reduce((s,l)=>{ const mp=materiaOf(l.materiaId); return s+(mp?mp.costo:0)*(parseFloat(l.qta)||0); },0); }
 function updateMargineLive(){
   const box=$("margBox"); if(!box) return;
-  const costo=bomCosto();
+  const m=editMatId?matOf(editMatId):null;
+  const costo = m ? m.costo : (parseFloat(($("fApCosto")||{}).value)||0);
   const prezzo=parseFloat(($("fPrezzo")||{}).value)||0;
   const marg=prezzo-costo;
   const u=(($("fUnita")||{}).value||"unità").trim()||"unità";
-  box.innerHTML=`Costo materie: <b>${money(costo)}</b> · Prezzo: <b>${money(prezzo)}</b> · Margine: <b style="color:${marg>=0?'var(--acc)':'var(--out)'}">${money(marg)}</b> per ${esc(u)}`;
+  box.innerHTML=`Costo ${m?"medio":"iniziale"}: <b>${money(costo)}</b> · Prezzo: <b>${money(prezzo)}</b> · Margine: <b style="color:${marg>=0?'var(--acc)':'var(--out)'}">${money(marg)}</b> per ${esc(u)}`;
 }
 function saveMat(id){
   const nome=$("fNome").value.trim();
   if(!nome){ toast("Inserisci un nome"); return; }
   const tipoId=$("fTipo").value||null;
   const unita=$("fUnita").value.trim()||"pz";
-  const giacenza=parseFloat($("fGiac").value)||0;
   const soglia=parseFloat($("fSoglia").value)||0;
   const prezzo=parseFloat($("fPrezzo").value)||0;
-  const bom=bomTmp.filter(l=>l.materiaId && (parseFloat(l.qta)||0)>0).map(l=>({materiaId:l.materiaId, qta:parseFloat(l.qta)||0}));
-  if(id){ Object.assign(matOf(id),{nome,tipoId,unita,giacenza,soglia,prezzo,bom}); toast("Prodotto aggiornato"); }
-  else { DB.materiali.push({id:uid(),nome,tipoId,unita,giacenza,soglia,prezzo,bom}); toast("Prodotto aggiunto"); }
+  const apGiac=parseFloat($("fApGiac").value)||0;
+  const apCosto=parseFloat($("fApCosto").value)||0;
+  if(id){ Object.assign(matOf(id),{nome,tipoId,unita,soglia,prezzo,apGiac,apCosto}); recalc(id); toast("Materiale aggiornato"); }
+  else { const nid=uid(); DB.materiali.push({id:nid,nome,tipoId,unita,soglia,prezzo,apGiac,apCosto,giacenza:apGiac,costo:apCosto}); recalc(nid); toast("Materiale aggiunto"); }
   save(); closeModal(); render();
 }
 function delMat(id){
   const m=matOf(id); if(!m) return;
   const movs=DB.movimenti.filter(x=>x.materialeId===id);
   if(!confirm(`Eliminare "${m.nome}"?${movs.length?`\n${movs.length} movimenti collegati finiranno nel cestino.`:""}`)) return;
-  movs.forEach(x=>{
-    if(x.tipo==="uscita") applyConsumi(x,+1);   // ripristina materie prime consumate
-    DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m.nome, unita:m.unita}));
-  });
+  movs.forEach(x=>{ DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m.nome, unita:m.unita})); });
   DB.movimenti=DB.movimenti.filter(x=>x.materialeId!==id);
   DB.materiali=DB.materiali.filter(x=>x.id!==id);
-  save(); closeModal(); render(); toast("Prodotto eliminato");
+  save(); closeModal(); render(); toast("Materiale eliminato");
 }
 
 function editMov(id){ openMov(null,null,id); }
@@ -884,21 +810,48 @@ function openMov(tipo, matId, movId){
     </div>
     <input type="hidden" id="mvTipo" value="${tipo}" />
     <input type="hidden" id="mvEdit" value="${movId||""}" />
-    <div class="field"><label>Prodotto</label><select id="mvMat">${opz}</select></div>
+    <div class="field"><label>Materiale</label><select id="mvMat" onchange="updateMovInfo()">${opz}</select></div>
     <div class="field"><label>Quantità (anche a blocchi)</label>
-      <input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${ed?nf(ed.qta):""}" />
+      <input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${ed?nf(ed.qta):""}" oninput="updateMovInfo()" />
       <div class="qgrid" style="margin-top:8px">${chips}</div>
     </div>
+    <div class="field" id="mvSpesaWrap" style="${tipo==="carico"?"":"display:none"}">
+      <label>Costo speso per questo carico (€, totale)</label>
+      <input id="mvSpesa" type="number" inputmode="decimal" step="any" min="0" value="${ed&&typeof ed.spesa==="number"?nf(ed.spesa):""}" placeholder="quanto hai pagato in tutto" oninput="updateMovInfo()" />
+    </div>
+    <div class="hint" id="mvInfo" style="margin-bottom:14px"></div>
     <div class="field"><label>Quando · giorno</label><input id="mvData" type="date" value="${ed?ed.data:($("movData").value||todayISO())}" /></div>
     <div class="field"><label>Perché · nota</label><input id="mvNota" value="${ed?esc(ed.nota):""}" placeholder="Es. cliente, reparto, motivo…" /></div>
     <button class="btn" onclick="saveMov()">${ed?"Salva modifiche":"Registra"}</button>
     ${ed?`<button class="btn danger" style="margin-top:10px" onclick="delMov('${movId}')">Elimina movimento</button>`:""}
   `);
+  updateMovInfo();
   if(!ed) setTimeout(()=>{ const q=$("mvQta"); if(q) q.focus(); },120);
 }
-function setSeg(t){ $("mvTipo").value=t; $("segU").classList.toggle("on",t==="uscita"); $("segC").classList.toggle("on",t==="carico"); }
-function addQta(p){ const el=$("mvQta"); el.value=nf((parseFloat(el.value)||0)+p); }
-function setQta(v){ const el=$("mvQta"); el.value=v?nf(v):""; }
+function setSeg(t){
+  $("mvTipo").value=t; $("segU").classList.toggle("on",t==="uscita"); $("segC").classList.toggle("on",t==="carico");
+  const w=$("mvSpesaWrap"); if(w) w.style.display=(t==="carico")?"":"none";
+  updateMovInfo();
+}
+function addQta(p){ const el=$("mvQta"); el.value=nf((parseFloat(el.value)||0)+p); updateMovInfo(); }
+function setQta(v){ const el=$("mvQta"); el.value=v?nf(v):""; updateMovInfo(); }
+function updateMovInfo(){
+  const box=$("mvInfo"); if(!box) return;
+  const tipo=$("mvTipo").value, m=matOf($("mvMat").value), qta=parseFloat(($("mvQta")||{}).value)||0;
+  if(!m){ box.innerHTML=""; return; }
+  if(tipo==="uscita"){
+    const g=qta*margineUnit(m);
+    box.innerHTML=`Costo medio <b>${money(m.costo)}</b> · prezzo <b>${money(m.prezzo)}</b> → guadagno stimato <b style="color:${g>=0?'var(--acc)':'var(--out)'}">${money(g)}</b>`;
+  } else {
+    const spesa=parseFloat(($("mvSpesa")||{}).value);
+    if(qta>0 && spesa>=0 && !isNaN(spesa)){
+      const nuovo=(m.giacenza+qta)>0 ? (m.giacenza*m.costo+spesa)/(m.giacenza+qta) : 0;
+      box.innerHTML=`Costo unitario di questo carico <b>${money(spesa/qta)}</b> → nuovo costo medio ≈ <b>${money(nuovo)}</b>`;
+    } else {
+      box.innerHTML=`Se non indichi il costo, il costo medio (<b>${money(m.costo)}</b>) resta invariato.`;
+    }
+  }
+}
 function saveMov(){
   const editId=$("mvEdit").value||"";
   const tipo=$("mvTipo").value;
@@ -906,33 +859,28 @@ function saveMov(){
   const qta=parseFloat($("mvQta").value);
   const data=$("mvData").value||todayISO();
   const nota=$("mvNota").value.trim();
+  const spesaRaw=(tipo==="carico") ? $("mvSpesa").value : "";
   if(!(qta>0)){ toast("Inserisci una quantità"); return; }
   const m=matOf(materialeId); if(!m) return;
 
+  // controllo scorta per l'uscita (usa la giacenza al netto dell'eventuale vecchio movimento)
+  if(tipo==="uscita"){
+    let disp=m.giacenza;
+    const old0 = editId ? DB.movimenti.find(x=>x.id===editId) : null;
+    if(old0 && old0.materialeId===materialeId){ disp += (old0.tipo==="uscita"?old0.qta:-old0.qta); }
+    if(qta>disp && !confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(disp)}.\nProcedere comunque?`)) return;
+  }
+
+  const dato={materialeId,tipo,qta,data,nota};
+  if(tipo==="carico" && spesaRaw!=="" && !isNaN(parseFloat(spesaRaw))) dato.spesa=parseFloat(spesaRaw);
+
   const old = editId ? DB.movimenti.find(x=>x.id===editId) : null;
-  // annulla temporaneamente l'effetto del movimento in modifica (giacenza prodotto + materie prime)
-  if(old){
-    const om=matOf(old.materialeId); if(om) om.giacenza=r(om.giacenza+(old.tipo==="uscita"?old.qta:-old.qta));
-    if(old.tipo==="uscita") applyConsumi(old,+1);
-  }
+  const prevMat = old ? old.materialeId : null;
+  if(old){ Object.assign(old,{consumi:undefined,margine:undefined,spesa:undefined},dato); toast("Movimento aggiornato"); }
+  else { DB.movimenti.push(Object.assign({id:uid()},dato)); toast(tipo==="uscita"?"Uscita registrata":"Carico registrato"); }
 
-  if(tipo==="uscita" && qta>m.giacenza){
-    if(!confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(m.giacenza)}.\nProcedere comunque?`)){
-      if(old){ // ripristina lo stato annullato
-        const om=matOf(old.materialeId); if(om) om.giacenza=r(om.giacenza-(old.tipo==="uscita"?old.qta:-old.qta));
-        if(old.tipo==="uscita") applyConsumi(old,-1);
-      }
-      return;
-    }
-  }
-  m.giacenza=r(m.giacenza+(tipo==="uscita"?-qta:qta));
-  let consumi=[], margine=0;
-  if(tipo==="uscita"){ consumi=calcConsumi(m,qta); margine=r(qta*margineUnit(m)); }
-  const dato={materialeId,tipo,qta,data,nota,consumi,margine};
-  if(old){ Object.assign(old,dato); toast("Movimento aggiornato"); }
-  else { const mov=Object.assign({id:uid()},dato); DB.movimenti.push(mov); toast(tipo==="uscita"?"Uscita registrata":"Carico registrato"); }
-  if(tipo==="uscita") applyConsumi(dato,-1);  // scala le materie prime
-
+  recalc(materialeId);
+  if(prevMat && prevMat!==materialeId) recalc(prevMat);
   save(); closeModal();
   if(vista==="mov") $("movData").value=data;
   render();
@@ -941,9 +889,8 @@ function delMov(id){
   const x=DB.movimenti.find(m=>m.id===id); if(!x) return;
   if(!confirm("Spostare questo movimento nel cestino? La giacenza verrà ripristinata.")) return;
   const m=matOf(x.materialeId);
-  if(m) m.giacenza=r(m.giacenza+(x.tipo==="uscita"?x.qta:-x.qta));
-  if(x.tipo==="uscita") applyConsumi(x,+1);   // restituisce le materie prime al magazzino
   DB.movimenti=DB.movimenti.filter(mm=>mm.id!==id);
+  if(m) recalc(m.id);
   DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m?m.nome:x.matNome, unita:m?m.unita:x.unita}));
   save(); closeModal(); render(); toast("Spostato nel cestino");
 }
@@ -1046,18 +993,18 @@ function applyImport(d){
   if(!d||!d.materiali||!d.tipi||!d.movimenti){ toast("Backup incompleto"); return; }
   if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
   const presets=Array.isArray(d.presets)?d.presets:DB.presets;
-  DB=normalize({tipi:d.tipi,materie:d.materie,materiali:d.materiali,movimenti:d.movimenti,
-      presets, cestino:d.cestino});
-  save(); render(); toast("Backup importato");
+  DB=normalize({v:d.v,tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti, presets, cestino:d.cestino});
+  recalcAll(); save(); render(); toast("Backup importato");
 }
 function azzeraMovimenti(){
   if(!confirm("Cancellare TUTTI i movimenti? Le giacenze restano invariate.")) return;
-  DB.movimenti=[]; save(); render(); toast("Movimenti cancellati");
+  DB.materiali.forEach(m=>{ m.apGiac=m.giacenza; m.apCosto=m.costo; });  // fissa lo stato attuale come apertura
+  DB.movimenti=[]; recalcAll(); save(); render(); toast("Movimenti cancellati");
 }
 function azzeraTutto(){
   if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nNon annullabile.")) return;
   if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
-  DB={tipi:[],materie:[],materiali:[],movimenti:[],presets:DB.presets,cestino:[]}; save(); render(); toast("Database azzerato");
+  DB={v:3,tipi:[],materiali:[],movimenti:[],presets:DB.presets,cestino:[]}; save(); render(); toast("Database azzerato");
 }
 
 async function sha(s){
@@ -1252,6 +1199,7 @@ function applyIdentity(){
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
 
 /* ===== Avvio ===== */
+recalcAll(); save();
 buildKeys(); buildDecoy(); applyIdentity();
 $("movData").value=todayISO();
 if(localStorage.getItem(DECOYKEY)){ showDecoy(); }               // copertura attiva → SOLO calcolatrice (PIN ignorato)

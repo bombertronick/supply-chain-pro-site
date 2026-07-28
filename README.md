@@ -7,11 +7,11 @@
 App **indipendente** e **100% offline**, in un unico file, pensata per vivere solo sul telefono.
 Non ha nulla a che vedere con il sito di presentazione qui sopra: è un'applicazione a sé.
 
-- **Prodotti**: inserimento con giacenza, unità di misura, soglia, **prezzo di vendita** e **distinta base** (materie prime consumate).
-- **Materie prime**: magazzino a parte con **costo** e giacenza; si scala da solo quando dai via un prodotto che le usa (modello a due livelli).
-- **Guadagno**: costo prodotto = somma dei costi delle materie; margine = prezzo − costo; guadagno del giorno e per singola uscita.
-- **Uscite giornaliere**: registri quanto è stato "dato via" ogni giorno; giacenze prodotto e materie aggiornate in automatico.
-- **Tipologie**: raggruppi i prodotti per categoria (con colore).
+- **Materiali**: un solo magazzino, ogni materiale con tipologia, unità, **prezzo di vendita**, giacenza e soglia sotto scorta.
+- **Costo medio ponderato**: ad ogni **carico** indichi quanto hai speso; il costo unitario si aggiorna da solo (il costo di 10 pezzi può essere diverso da quello di 5). Giacenza, costo medio e margini sono ricalcolati dai movimenti.
+- **Guadagno**: margine = prezzo − costo medio; mostrato per singola vendita, come totale del giorno e come "guadagno oggi".
+- **Uscite/carichi**: registri vendite e rifornimenti con data e nota; giacenza e costo aggiornati in automatico.
+- **Tipologie**: raggruppi i materiali per categoria (con colore).
 - **Riepilogo**: totali, avvisi sotto scorta, uscite di oggi.
 - **Cestino** dei movimenti cancellati, con ripristino o eliminazione definitiva.
 - **PIN** locale opzionale.
