@@ -1,0 +1,2 @@
+  const [soloFuori, setSoloFuori] = useState(false);  // solo i prodotti in nessun magazzino
+  const [dove, setDove] = useState(null);             // "in quali magazzini sta" di un prodotto

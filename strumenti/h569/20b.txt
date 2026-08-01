@@ -1,0 +1,9 @@
+      {extra}
+      {/* «Dove sta» viene PRIMA di modifica ed elimina, ed è voluto: è la cosa
+          che si fa più spesso subito dopo aver creato un prodotto, ed è quella
+          che oggi costringeva a uscire dal Catalogo e andarla a cercare nei
+          Magazzini. Le azioni di un oggetto stanno sull'oggetto. */}
+      {onDove && <button onClick={onDove} aria-label={`Magazzini di ${titolo}`} className="rounded-full p-2.5"
+        style={{ background: "#EAF7F1", color: T.verde }}><Boxes size={15} /></button>}
+      {onMod && <button onClick={onMod} aria-label={`Modifica ${titolo}`} className="rounded-full p-2.5"
+        style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={15} /></button>}

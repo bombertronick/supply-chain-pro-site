@@ -1,0 +1,20 @@
+          {/* IL RIMEDIO STA DENTRO IL MESSAGGIO.
+              Prima qui c'era un tasto solo, e filtrava: l'avviso diceva «vanno
+              assegnati a un magazzino» e poi ti lasciava a guardarli. Il tasto
+              che li assegna esisteva, ma stava in Magazzini. Un cartello che
+              nomina un problema deve portare con sé la strada per risolverlo,
+              se no e' solo un rimprovero. */}
+          <div className="flex gap-2 flex-wrap mt-2">
+            <button onClick={() => setDove(fuoriMag[0])}
+              className="rounded-full px-3 py-2 text-xs font-extrabold"
+              style={{ background: T.verde, color: "#fff" }}>
+              Assegna «{fuoriMag[0]?.nome}» adesso
+            </button>
+            <button onClick={() => setSoloFuori((v) => !v)}
+              className="rounded-full px-3 py-2 text-xs font-extrabold"
+              style={filtroFuori
+                ? { background: T.blu, color: "#fff" }
+                : { background: "#E7ECF7", color: T.blu }}>
+              {filtroFuori ? "Mostra tutti i prodotti" : `Mostra solo questi ${fuoriMag.length}`}
+            </button>
+          </div>

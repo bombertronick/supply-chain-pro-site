@@ -1,0 +1,4 @@
+node_modules/
+collaudi/bundle.js
+*.png
+collaudi/.censimento-in-corso

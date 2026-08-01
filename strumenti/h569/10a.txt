@@ -1,0 +1,1 @@
+function Riga({ icona: I, colore = T.blu, titolo, sotto, perEsteso, extra, onMod, onDel }) {

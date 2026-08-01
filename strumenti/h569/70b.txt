@@ -1,0 +1,5 @@
+      <Foglio aperto={!!dove} titolo={`In quali magazzini sta «${dove?.nome || ""}»`} onChiudi={() => setDove(null)} larga>
+        {dove && <FormDoveSta key={dove.id} stato={stato} prod={dove} muta={muta}
+          mostraToast={mostraToast} onChiudi={() => setDove(null)} profilo={profilo} />}
+      </Foglio>
+      <Foglio aperto={bulk} titolo="Modifica prodotti in blocco" onChiudi={() => setBulk(false)} larga>

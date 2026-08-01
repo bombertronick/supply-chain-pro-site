@@ -1,0 +1,1 @@
+      <Foglio aperto={bulk} titolo="Modifica prodotti in blocco" onChiudi={() => setBulk(false)} larga>
