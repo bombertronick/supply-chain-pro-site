@@ -101,6 +101,14 @@ ho invalidato tre censimenti ricostruendo il pacchetto mentre giravano: i file
 provati prima e quelli dopo avevano visto due versioni diverse. Non è una
 distrazione da ricordare, è una possibilità da togliere.*
 
+**Una lacuna nota di `corri.mjs`**: in modalità censimento non conserva l'output
+dei file rossi, quindi di una suite che fallisce *solo sotto carico* non si
+riesce a sapere quale controllo sia caduto. Tre suite lo fanno
+(`pintest`, `pin2test`, `pin535test`): passano da sole, cadono ogni tanto in
+mezzo alle altre. Hanno attese a tempo fisso invece di aspettare che la
+schermata sia pronta. Da sistemare: salvare l'output dei rossi, poi togliere
+le attese fisse.
+
 **Ogni collaudo si spiega da solo.** In cima a ognuno c'è un commento che dice
 quale difetto ha preso e perché quel controllo esiste. Leggeteli: valgono più
 di questo documento.
@@ -126,8 +134,7 @@ rossi senza che l'app abbia niente che non va.
 
 ## 4. Cos'è online adesso
 
-**gen-5.69** è **costruita e collaudata ma NON ancora online.** L'ultima in
-produzione è **gen-5.68**.
+**In produzione: gen-5.69.** Censimento completo verde prima di ogni rilascio.
 
 | versione | cosa |
 |---|---|
@@ -135,7 +142,7 @@ produzione è **gen-5.68**.
 | gen-5.66 | marcare in blocco chi fa un prodotto · **e le due porte verso il fornitore che non ordinano più fuori i preparati** |
 | gen-5.67 | il tutorial: 9 guide che mancavano, il tasto del « ? » che non dice più «Guida di "Home"» |
 | gen-5.68 | **le ricette**: il gesto «Ho prodotto» che scala gli ingredienti |
-| gen-5.69 | **pronta, non online**: «In quali magazzini sta» dalla riga del prodotto |
+| gen-5.69 | «In quali magazzini sta» dalla riga del prodotto, e l'avviso dei prodotti orfani che porta il rimedio con sé |
 
 **Rimasto da fare, richiesto e non fatto:**
 
@@ -162,7 +169,7 @@ tiene ferma una funzione che è già costruita e collaudata.
 | **12 righe d'ordine finte** | Righe di tipo `lab` in stato «ricevuto» per cose che il laboratorio si fa da sé: acquisti mai avvenuti. Si possono cancellare. |
 | **I prezzi** | 0 prodotti su 102 ce l'hanno. Senza, «quanto vale la merce» salta le righe e lo dichiara. |
 | **34 conversioni stimate** | L'app le tiene marcate come stime. Vanno pesate. |
-| **7 prodotti in nessun magazzino** | Nessuno li conta, non entrano in nessun ordine. Da gen-5.69 si sistemano dal Catalogo. |
+| **7 prodotti in nessun magazzino** | Nessuno li conta, non entrano in nessun ordine. Da gen-5.69 si sistemano dal Catalogo, senza cambiare schermata. |
 | **Duplicati** | fiori di zucca ×2, pecorino, grana, peperoni, basilico, carta forno. |
 
 ---
