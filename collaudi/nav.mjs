@@ -1,0 +1,21 @@
+import { chromium } from "playwright";
+import { readFileSync, existsSync } from "fs";
+import path from "path"; import crypto from "crypto";
+const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
+const hash = (p) => crypto.createHash("sha256").update("scp·"+p,"utf8").digest("hex");
+const seed = JSON.parse(readFileSync("seed-state.json","utf8"));
+seed.profili = [{...seed.profili[0], id:"pr-admin", nome:"Admin", ruolo:"admin", pinHash:hash("1234")},
+ {...seed.profili[1], id:"pr-gigi", nome:"Gigi", ruolo:"laboratorio", sedeId:seed.sedi.find(s=>s.tipo==="laboratorio")?.id, pinHash:hash("1111")}];
+const b = await chromium.launch({executablePath:exe,args:["--no-sandbox"]});
+const p = await (await b.newContext({viewport:{width:440,height:950}})).newPage();
+await p.addInitScript((s)=>{ if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s);
+ localStorage.setItem("scp:tour:v1","1");
+ window.storage={async get(k){const v=localStorage.getItem("db:"+k);return v==null?null:{value:v}},async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}};}, JSON.stringify(seed));
+await p.goto("file://"+path.resolve("index.html")); await p.waitForTimeout(1500);
+await p.getByText("Admin",{exact:false}).first().click(); await p.waitForTimeout(400);
+for (const d of "1234") await p.getByRole("button",{name:d,exact:true}).first().click();
+await p.waitForTimeout(1500);
+await p.screenshot({path:"nav-1-home.png",fullPage:false});
+console.log("--- testo visibile in home ---");
+console.log((await p.locator("body").innerText()).split("\n").filter(Boolean).slice(0,50).join(" | "));
+await b.close();

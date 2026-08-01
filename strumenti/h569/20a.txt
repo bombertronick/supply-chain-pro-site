@@ -1,0 +1,3 @@
+      {extra}
+      {onMod && <button onClick={onMod} aria-label={`Modifica ${titolo}`} className="rounded-full p-2.5"
+        style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={15} /></button>}

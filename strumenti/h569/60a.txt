@@ -1,0 +1,7 @@
+          <button onClick={() => setSoloFuori((v) => !v)}
+            className="mt-2 rounded-full px-3 py-2 text-xs font-extrabold"
+            style={filtroFuori
+              ? { background: T.blu, color: "#fff" }
+              : { background: "#E7ECF7", color: T.blu }}>
+            {filtroFuori ? "Mostra tutti i prodotti" : `Mostra solo questi ${fuoriMag.length}`}
+          </button>

@@ -1,0 +1,110 @@
+/* == IN QUALI MAGAZZINI STA — un prodotto si porta dietro i suoi posti ==
+
+   Nasce da una frase precisa: «se mi capita di aggiungere un prodotto non devo
+   fare il giro dell'app per andare a inserirlo in un magazzino». Aveva ragione,
+   e il conto era peggio di così: mettere un prodotto in un magazzino si poteva
+   fare in QUATTRO modi, con quattro nomi diversi, in tre schermate diverse
+   («Assegna a più magazzini», «Aggiungi articolo», «Aggiungi più prodotti»,
+   «Copia da un magazzino»). Nessuno dei quattro stava dove sta il prodotto.
+
+   Peggio ancora: il Catalogo scriveva «questi prodotti vanno assegnati a un
+   magazzino» e teneva l'unico tasto che li assegna in un'altra sezione. Un
+   messaggio che nomina un problema e non porta il rimedio con sé è un cartello
+   stradale senza la strada.
+
+   Qui la regola è una: la spunta dice DOVE STA, e si può togliere solo se
+   quella giacenza è a zero. Togliere un magazzino con della roba dentro
+   vorrebbe dire far sparire delle quantità vere con una spunta, e per quello
+   c'è «Sposta o rimuovi», che almeno lo dice. */
+function FormDoveSta({ stato, prod, muta, mostraToast, onChiudi, profilo }) {
+  const mags = stato.magazzini.filter((m) => puoModificare(profilo, m));
+  const dentro = (m) => (m.articoli || []).find((a) => a.prodottoId === prod.id);
+  const conRoba = new Set(mags.filter((m) => { const a = dentro(m); return a && Math.abs(a.qty) > 1e-9; }).map((m) => m.id));
+  const [sel, setSel] = useState(() => new Set(mags.filter((m) => dentro(m)).map((m) => m.id)));
+  const [par, setPar] = useState("");
+  const eraDentro = new Set(mags.filter((m) => dentro(m)).map((m) => m.id));
+
+  const toggle = (m) => {
+    if (sel.has(m.id) && conRoba.has(m.id)) {
+      return mostraToast(`«${m.nome}» ha ancora della merce: svuotalo o usa «Sposta o rimuovi»`, "avviso");
+    }
+    setSel((s) => { const n = new Set(s); n.has(m.id) ? n.delete(m.id) : n.add(m.id); return n; });
+  };
+
+  const daAggiungere = [...sel].filter((id) => !eraDentro.has(id));
+  const daTogliere = [...eraDentro].filter((id) => !sel.has(id));
+
+  const salva = () => {
+    if (!daAggiungere.length && !daTogliere.length) return mostraToast("Non è cambiato niente", "avviso");
+    const nPar = num(par) ?? 0;
+    if (nPar < 0) return mostraToast("Livello previsto non valido", "errore");
+    muta((s) => {
+      for (const id of daAggiungere) {
+        const m = trova(s.magazzini, id);
+        if (!m || m.articoli.some((a) => a.prodottoId === prod.id)) continue;
+        m.articoli.push({ prodottoId: prod.id, uomId: prod.uomBase, par: nPar, qty: 0 });
+      }
+      for (const id of daTogliere) {
+        const m = trova(s.magazzini, id);
+        if (!m) continue;
+        const i = m.articoli.findIndex((a) => a.prodottoId === prod.id);
+        /* seconda rete: anche qui si controlla la giacenza, perché fra
+           l'apertura del foglio e il salvataggio qualcuno può aver contato */
+        if (i >= 0 && Math.abs(m.articoli[i].qty) <= 1e-9) m.articoli.splice(i, 1);
+      }
+    }, `«${prod.nome}»: ${daAggiungere.length} magazzini in più, ${daTogliere.length} in meno`);
+    mostraToast(daTogliere.length
+      ? `${daAggiungere.length} aggiunti · ${daTogliere.length} tolti`
+      : `«${prod.nome}» ora sta in ${sel.size} ${sel.size === 1 ? "magazzino" : "magazzini"}`);
+    onChiudi();
+  };
+
+  if (!mags.length) return <p className="text-sm font-semibold" style={{ color: T.ambra }}>Non hai magazzini su cui puoi lavorare.</p>;
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm" style={{ color: T.dim }}>
+        Spunta i magazzini dove questo prodotto deve stare. Quelli nuovi entrano a
+        <b> quantità zero</b>: la conti tu la prima volta.
+      </p>
+      {daAggiungere.length > 0 && (
+        <Campo label="Livello previsto per i nuovi" valore={par} onCambia={(v) => setPar(puliziaNum(v))}
+          inputMode="decimal" placeholder="0"
+          suggerimento="Vale solo per i magazzini che stai aggiungendo adesso; quelli che c'erano già non si toccano." />
+      )}
+      <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "46vh" }}>
+        {mags.map((m) => {
+          const on = sel.has(m.id);
+          const a = dentro(m);
+          const bloccato = on && conRoba.has(m.id);
+          const sede = trova(stato.sedi, m.sedeId);
+          return (
+            <button key={m.id} type="button" onClick={() => toggle(m)}
+              className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left"
+              style={{ background: on ? "#EAF7F1" : "#F7F9FE", border: `1.5px solid ${on ? T.verde : T.bordo}` }}>
+              <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                style={{ background: on ? T.verde : "#fff", border: `1.5px solid ${on ? T.verde : T.tenue}` }}>
+                {on && <Check size={13} color="#fff" />}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="font-bold truncate block" style={{ color: T.ink }}>{m.nome}</span>
+                <span className="text-xs" style={{ color: bloccato ? T.ambra : T.tenue }}>
+                  {sede?.nome || "—"} · {m.tipo}
+                  {a ? ` · c'è: ${fmtQ(a.qty)} ${simboloU(stato, a.uomId)}` : ""}
+                  {bloccato ? " · non si toglie con della merce dentro" : ""}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2 justify-end pt-1">
+        <Bottone variante="fantasma" onClick={onChiudi}>Annulla</Bottone>
+        <Bottone icona={Check} onClick={salva} disabilitato={!daAggiungere.length && !daTogliere.length}>
+          {daTogliere.length ? `Salva (+${daAggiungere.length} / −${daTogliere.length})` : `Salva${daAggiungere.length ? ` (+${daAggiungere.length})` : ""}`}
+        </Bottone>
+      </div>
+    </div>
+  );
+}
+
+function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {

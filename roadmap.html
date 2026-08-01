@@ -1,0 +1,593 @@
+<script>
+/* Rete di sicurezza. L'involucro di claude.ai dovrebbe già mettere il
+   <meta viewport>, ma non ho potuto verificarlo: la pagina pubblicata non è
+   leggibile in chiaro da qui. Senza quel tag un telefono impagina a 980px e
+   tutto diventa illeggibile. Se c'è già, questa riga non fa niente. */
+if (!document.querySelector('meta[name="viewport"]')) {
+  const m = document.createElement("meta");
+  m.name = "viewport";
+  m.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+  (document.head || document.documentElement).prepend(m);
+}
+</script>
+<title>Supply Chain Pro · scegli l'ordine dei lavori</title>
+<style>
+  /* Il documento parla dell'app e porta i colori dell'app: gli stessi
+     blu/ambra/verde che Valerio vede nelle schermate. Grigi con dentro una
+     punta di blu, come nel prodotto. Nessun webfont: il CSP le blocca e si
+     finirebbe con un ripiego silenzioso — meglio scegliere lo stack di
+     sistema e impostarlo per bene. */
+  :root {
+    color-scheme: light dark;
+    --fondo:#F7F9FC; --carta:#FFFFFF; --riga:#E4E9F5; --velo:#EFF3FB;
+    --ink:#161E36; --dim:#4F5D7C; --tenue:#6C7899;
+    --blu:#3D7DEA; --verde:#1F9A6E; --ambra:#C4780D; --rosso:#D94A66;
+    --scelto:#2C63C7; --su-scelto:#FFFFFF;
+    --v-blu:rgba(61,125,234,.10); --v-verde:rgba(31,154,110,.11);
+    --v-ambra:rgba(196,120,13,.12); --v-rosso:rgba(217,74,102,.11);
+    --ombra:0 1px 2px rgba(20,30,60,.05);
+    --ombra-alta:0 -6px 24px rgba(20,30,60,.13);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo:#101529; --carta:#191F36; --riga:#28304E; --velo:#212944;
+      --ink:#EDF1FA; --dim:#A5B1CE; --tenue:#8290B4;
+      --blu:#78A8F7; --verde:#4FC79A; --ambra:#E8A94A; --rosso:#F0798F;
+      --scelto:#78A8F7; --su-scelto:#0E1428;
+      --v-blu:rgba(120,168,247,.15); --v-verde:rgba(79,199,154,.15);
+      --v-ambra:rgba(232,169,74,.16); --v-rosso:rgba(240,121,143,.15);
+      --ombra:0 1px 2px rgba(0,0,0,.3);
+      --ombra-alta:0 -6px 24px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --fondo:#101529; --carta:#191F36; --riga:#28304E; --velo:#212944;
+    --ink:#EDF1FA; --dim:#A5B1CE; --tenue:#8290B4;
+    --blu:#78A8F7; --verde:#4FC79A; --ambra:#E8A94A; --rosso:#F0798F;
+    --scelto:#78A8F7; --su-scelto:#0E1428;
+    --v-blu:rgba(120,168,247,.15); --v-verde:rgba(79,199,154,.15);
+    --v-ambra:rgba(232,169,74,.16); --v-rosso:rgba(240,121,143,.15);
+    --ombra:0 1px 2px rgba(0,0,0,.3); --ombra-alta:0 -6px 24px rgba(0,0,0,.5);
+  }
+  :root[data-theme="light"] {
+    --fondo:#F7F9FC; --carta:#FFFFFF; --riga:#E4E9F5; --velo:#EFF3FB;
+    --ink:#161E36; --dim:#4F5D7C; --tenue:#6C7899;
+    --blu:#3D7DEA; --verde:#1F9A6E; --ambra:#C4780D; --rosso:#D94A66;
+    --scelto:#2C63C7; --su-scelto:#FFFFFF;
+    --v-blu:rgba(61,125,234,.10); --v-verde:rgba(31,154,110,.11);
+    --v-ambra:rgba(196,120,13,.12); --v-rosso:rgba(217,74,102,.11);
+    --ombra:0 1px 2px rgba(20,30,60,.05); --ombra-alta:0 -6px 24px rgba(20,30,60,.13);
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:46rem; margin:0 auto; padding:2rem 1.15rem 10rem; }
+
+  .occhiello { font-size:.7rem; font-weight:800; letter-spacing:.11em;
+    text-transform:uppercase; color:var(--tenue); margin:0 0 .5rem; }
+  h1 { font-size:clamp(1.7rem,5.4vw,2.3rem); line-height:1.14; font-weight:800;
+    letter-spacing:-.022em; margin:0 0 .6rem; text-wrap:balance; }
+  .apertura { color:var(--dim); font-size:1rem; margin:0; max-width:34rem; }
+
+  /* ── istruzione: è il cuore della pagina, va detta una volta e bene ── */
+  .istruzione { margin:1.6rem 0 0; padding:1rem 1.15rem; border-radius:1rem;
+    background:var(--v-blu); border:1px solid color-mix(in srgb,var(--blu) 32%,transparent);
+    font-size:.95rem; }
+  .istruzione b { font-weight:800; }
+  .istruzione ol { margin:.6rem 0 0; padding-left:1.15rem; color:var(--dim); }
+  .istruzione li { margin-bottom:.25rem; }
+  .istruzione li strong { color:var(--ink); }
+
+  section { margin-top:2.4rem; }
+  .eti { font-size:.7rem; font-weight:800; letter-spacing:.11em; text-transform:uppercase;
+    margin:0 0 .3rem; }
+  h2 { font-size:clamp(1.12rem,3.6vw,1.35rem); font-weight:800; letter-spacing:-.014em;
+    margin:0 0 .3rem; text-wrap:balance; }
+  .guida { color:var(--dim); font-size:.9rem; margin:0 0 1rem; max-width:34rem; }
+
+  .schede { display:flex; flex-direction:column; gap:.6rem; }
+
+  /* ── la voce scegliibile ── */
+  .voce { display:flex; align-items:flex-start; gap:.85rem; width:100%; text-align:left;
+    background:var(--carta); border:1.5px solid var(--riga); border-radius:1rem;
+    padding:.95rem 1rem; box-shadow:var(--ombra); cursor:pointer; color:inherit;
+    font:inherit; transition:border-color .16s, background .16s, transform .1s; }
+  .voce:hover { border-color:color-mix(in srgb,var(--blu) 45%,var(--riga)); }
+  .voce:active { transform:scale(.995); }
+  .voce:focus-visible { outline:2.5px solid var(--blu); outline-offset:2px; }
+  .voce[aria-pressed="true"] { border-color:var(--scelto); background:var(--v-blu); }
+
+  .num { flex:0 0 auto; width:2rem; height:2rem; border-radius:99px; display:grid;
+    place-items:center; font-size:.85rem; font-weight:800; font-variant-numeric:tabular-nums;
+    border:1.5px solid var(--riga); background:var(--velo); color:var(--tenue);
+    transition:background .16s, color .16s, border-color .16s; }
+  .voce[aria-pressed="true"] .num { background:var(--scelto); color:var(--su-scelto);
+    border-color:var(--scelto); }
+
+  .corpo { flex:1 1 auto; min-width:0; }
+  .titolo { font-size:.98rem; font-weight:800; letter-spacing:-.008em; margin:0 0 .2rem;
+    text-wrap:balance; }
+  .desc { margin:0; color:var(--dim); font-size:.89rem; }
+  .meta { margin:.45rem 0 0; display:flex; flex-wrap:wrap; gap:.35rem; }
+  .tag { font-size:.65rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+    padding:.2rem .5rem; border-radius:99px; }
+  .t-str { background:var(--v-blu); color:var(--blu); }
+  .t-vis { background:var(--v-verde); color:var(--verde); }
+  .t-dati{ background:var(--v-ambra); color:var(--ambra); }
+  .t-sic { background:var(--v-rosso); color:var(--rosso); }
+  .t-mis { background:var(--velo); color:var(--tenue); }
+
+  /* ── barra in basso: sempre a portata di pollice ── */
+  .barra { position:fixed; left:0; right:0; bottom:0; z-index:20;
+    background:var(--carta); border-top:1.5px solid var(--riga); box-shadow:var(--ombra-alta);
+    padding:.75rem 1rem calc(.75rem + env(safe-area-inset-bottom)); }
+  .barra-in { max-width:46rem; margin:0 auto; display:flex; align-items:center; gap:.6rem; }
+  .conteggio { flex:1 1 auto; min-width:0; font-size:.88rem; font-weight:700; color:var(--dim); }
+  .conteggio b { color:var(--ink); font-weight:800; }
+  button.azione { flex:0 0 auto; border:none; border-radius:.8rem; padding:.7rem 1.05rem;
+    font:inherit; font-size:.88rem; font-weight:800; cursor:pointer; min-height:2.75rem;
+    background:var(--scelto); color:var(--su-scelto); transition:opacity .15s; }
+  button.azione[disabled] { opacity:.4; cursor:default; }
+  button.azione:focus-visible { outline:2.5px solid var(--ink); outline-offset:2px; }
+  button.neutra { background:var(--velo); color:var(--dim); }
+
+  /* ── anteprima del messaggio ── */
+  .anteprima { margin-top:1rem; }
+  .anteprima textarea { width:100%; border:1.5px solid var(--riga); border-radius:1rem;
+    background:var(--carta); color:var(--ink); padding:.9rem 1rem; font:inherit;
+    font-size:.87rem; line-height:1.55; resize:vertical; min-height:8rem;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .anteprima textarea:focus-visible { outline:2.5px solid var(--blu); outline-offset:1px; }
+  .aiuto { margin:.55rem 0 0; padding:.6rem .8rem; border-radius:.7rem; font-size:.85rem;
+    background:var(--v-ambra); color:var(--ink);
+    border:1px solid color-mix(in srgb,var(--ambra) 40%,transparent); }
+  .aiuto[hidden] { display:none; }
+
+  /* ── parti secondarie, richiudibili ── */
+  details { margin-top:.6rem; background:var(--carta); border:1px solid var(--riga);
+    border-radius:1rem; padding:.85rem 1.05rem; box-shadow:var(--ombra); }
+  summary { cursor:pointer; font-weight:800; font-size:.95rem; list-style:none; }
+  summary::-webkit-details-marker { display:none; }
+  summary::after { content:" ▾"; color:var(--tenue); font-weight:700; }
+  details[open] summary::after { content:" ▴"; }
+  summary:focus-visible { outline:2.5px solid var(--blu); outline-offset:3px; border-radius:.4rem; }
+  details .dentro { margin-top:.7rem; color:var(--dim); font-size:.89rem; }
+  details h4 { margin:.9rem 0 .15rem; font-size:.9rem; font-weight:800; color:var(--ink); }
+  details h4:first-child { margin-top:0; }
+  details p { margin:0; }
+
+  .tabwrap { overflow-x:auto; margin-top:.5rem; }
+  table { border-collapse:collapse; width:100%; min-width:22rem; font-size:.85rem; }
+  th,td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--riga); }
+  tr:last-child td { border-bottom:none; }
+  th { font-size:.64rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--tenue); }
+  td:last-child, th:last-child { text-align:right; white-space:nowrap; font-weight:700;
+    color:var(--verde); font-variant-numeric:tabular-nums; }
+
+  strong { color:var(--ink); font-weight:700; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.84em;
+    background:var(--v-blu); color:var(--blu); padding:.08em .38em; border-radius:.3rem; }
+  .coda { margin-top:2.4rem; padding-top:1.1rem; border-top:1px solid var(--riga);
+    color:var(--tenue); font-size:.82rem; }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+
+  <p class="occhiello">Supply Chain Pro · gen-5.64 online</p>
+  <h1>Scegli l'ordine dei lavori</h1>
+  <p class="apertura">Cinque modifiche possibili. <b>Nota:</b> le tre versioni raccontate qui sotto sono <b>pronte e verificate, ma non ancora online</b> — stanno finendo i collaudi. Le trovi nell'app fra poco. Intanto: La prima me l'hai segnalata tu: nella <b>modifica in blocco</b> del Catalogo non si poteva dire quali prodotti li fa il laboratorio — si potevano marcare solo uno per uno, e ne hai una ventina. Adesso si fa in blocco, si torna indietro in blocco, e si vede a colpo d'occhio com'è messo ognuno. La seconda non l'aveva chiesta nessuno: in <b>Gestione rapida</b> <b>tre tasti su sei non si potevano premere</b>. Si vedevano benissimo, ma il dito ci passava attraverso e chiudeva tutto. Toccale nell'ordine in cui le vuoi.</p>
+
+  <div class="istruzione">
+    <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
+    canale che glielo permetta, e non voglio farti credere il contrario.
+    <ol>
+      <li><strong>Tocca</strong> le voci nell'ordine di priorità: la prima che tocchi diventa 1.</li>
+      <li><strong>Copia</strong> con il tasto in fondo.</li>
+      <li><strong>Incolla</strong> in chat. Parto da lì, dall'alto.</li>
+    </ol>
+  </div>
+
+  <section>
+    <p class="eti" style="color:var(--blu)">Da scegliere</p>
+    <h2>Cosa posso mettere in cantiere</h2>
+    <p class="guida">Accanto a ognuna c'è quanto pesa davvero, non a occhio: <em>piccolo</em>
+    è mezza giornata mia, <em>grosso</em> tocca il modello dei dati e va fatto con calma.</p>
+    <div class="schede" id="lista"></div>
+  </section>
+
+  <div class="anteprima">
+    <label class="occhiello" for="msg" style="display:block">Il messaggio che copierai</label>
+    <textarea id="msg" readonly aria-live="polite"></textarea>
+    <p id="aiutoCopia" class="aiuto" hidden>Gli appunti qui sono bloccati. Il testo è già
+    selezionato: tieni premuto sopra e scegli <b>Copia</b> dal menù del telefono.</p>
+  </div>
+
+  <section>
+    <p class="eti" style="color:var(--tenue)">Per memoria</p>
+    <h2>Quello che è già successo</h2>
+    <details>
+      <summary>Quello che è già stato fatto e messo online</summary>
+      <div class="dentro">
+        <h4>Pronto il 31 luglio · dire in blocco quali prodotti li fa il laboratorio</h4>
+        <p>Segnalazione tua, e con un conto dietro che la rende piu' seria di quanto sembri: in
+        catalogo ci sono <b>102 prodotti</b> e una ventina li fate voi. La spunta «lo fa il
+        laboratorio» esisteva solo nella scheda del singolo prodotto — venti aperture, venti
+        spunte, venti salvataggi. E uno saltato non lo vedi: te ne accorgi quando parte un ordine
+        a un fornitore per una cosa che vi fate da soli.</p>
+        <p>Adesso in <b>Catalogo → Prodotti → Modifica in blocco</b>, fra le cose che si possono
+        cambiare, c'e' anche <b>«Chi lo fa · laboratorio o fornitore»</b>. Filtri per categoria o
+        cerchi per nome, tocchi «Tutti», e li marchi tutti insieme.</p>
+        <p>Tre cose che ho tenuto insieme, e la terza e' quella che di solito manca:</p>
+        <ol>
+          <li><b>Si torna indietro allo stesso modo.</b> Se sbagli, li rimetti su «si compra da un
+          fornitore» in blocco — e ognuno si ritrova il fornitore che aveva prima, perche' non
+          l'ho mai cancellato dai dati. Uno sbaglio si ripara in trenta secondi.</li>
+          <li><b>Si vede com'e' adesso prima di toccare.</b> Ogni riga dell'elenco porta la
+          targhetta <b>«in casa»</b> se e' gia' marcata, e c'e' un filtro «solo quelli fatti in
+          laboratorio». Senza, si sceglie alla cieca e si riscrive sopra a quello che era gia'
+          giusto.</li>
+          <li><b>Le eccezioni per sede se ne vanno.</b> Se un prodotto aveva «a Fiumicino lo compro
+          da un altro fornitore», marcandolo come preparato quell'eccezione sparisce: su una cosa
+          che fa il laboratorio non c'e' nessun fornitore da eccepire. E' la stessa regola che
+          gia' vale nella scheda del singolo prodotto — non ne ho inventata una seconda.</li>
+        </ol>
+        <p><b>E una cosa che ho trovato mentre la scrivevo, che vale piu' della modifica stessa.</b>
+        Il <b>report da mandare al fornitore</b> non guardava se un prodotto e' fatto in casa. La
+        riga «da ordinare» puo' essere piu' vecchia della spunta — nasce quando il prodotto era
+        ancora un acquisto, e sparisce solo al «Ricalcola» successivo. Nel frattempo finiva dritta
+        nel testo che copi su WhatsApp: <b>ordinavi fuori una cosa che vi fate da soli</b>, e ti
+        arrivava merce che non serviva, pagata. Adesso il report non aspetta piu' il ricalcolo: un
+        preparato non ci entra e basta. Non e' un difetto nato oggi — c'era dal 30 luglio, da
+        quando esistono i preparati. Non si era mai visto perche' di prodotti marcati ce n'erano
+        zero: sarebbe saltato fuori <b>il primo giorno che ne marcavi uno</b>.</p>
+        <p>Trovato il primo, invece di correggerlo e passare oltre sono andato a cercare <b>tutti</b>
+        i punti da cui esce del testo diretto a un fornitore. Sono <b>due</b>, e il secondo aveva lo
+        stesso identico buco: la scheda verde <b>«Da mandare adesso»</b> in cima a Ordini, quella col
+        tasto WhatsApp — che poi e' quella che si usa di piu'. Adesso sono chiusi tutti e due, e il
+        collaudo controlla il <b>testo esatto che finisce negli appunti</b>, non quello che si vede a
+        schermo. Se avessi corretto solo il primo ti avrei detto che il buco era chiuso mentre la
+        porta piu' larga restava aperta.</p>
+        <p>Una precisazione, perche' e' il tipo di correzione che si fa volentieri troppo larga:
+        le righe «lab» nel report ci restano. Quelle sono gli <b>acquisti del laboratorio</b> a un
+        fornitore vero, non le richieste al laboratorio — che stanno in un elenco a parte. Toglierle
+        avrebbe fatto sparire ordini veri senza che nessuno se ne accorgesse fino a merce mancante.
+        Il collaudo controlla tutte e due le direzioni: che il preparato esca <i>e</i> che la riga
+        del laboratorio resti.</p>
+        <p>Undici controlli automatici nuovi. <b>Quello che resta a te</b> e' la cosa che non posso
+        fare io: <b>dirmi quali sono</b>. Oggi in catalogo ce ne sono <b>zero</b> marcati, quindi
+        tutto il lavoro sui preparati — l'avviso quando una sede non ha laboratorio, le richieste
+        al posto degli ordini — e' in piedi ma non tocca nessun prodotto vero.</p>
+
+        <h4>Pronto il 31 luglio · i tasti che non si potevano premere</h4>
+        <p><b>Come e' saltato fuori.</b> Ti avevo detto che il censimento dei collaudi non aveva
+        trovato nessun difetto vero dell'app: venti file rossi, tutti e venti perche' il collaudo
+        era rimasto indietro rispetto alle modifiche mie. Uno pero' non ero riuscito a farlo
+        tornare verde e l'avevo messo da parte dopo quattro tentativi, dando la colpa a lui.
+        Riprendendolo in mano si e' visto che aveva ragione: c'era un difetto vero, e grosso.</p>
+        <p><b>Il difetto.</b> Dentro la scheda di un magazzino c'e' il tasto «Gestione rapida»,
+        che apre un menu' con sei voci. Quel menu' e' una finestra che si apre <i>dentro</i>
+        un'altra finestra, e restava agganciata al riquadro di quella sotto invece che allo
+        schermo. Risultato: la sua parte sensibile al tocco era molto piu' piccola di quello che
+        si vedeva, e le voci finite fuori diventavano decorazioni. Si vedevano nere, con la
+        freccina a destra, ma il dito prendeva lo sfondo — e lo sfondo chiude tutto. Toccavi
+        «Aggiungi piu' prodotti» e ti ritrovavi nell'elenco dei magazzini, senza un messaggio,
+        senza niente: sembrava che il telefono non avesse sentito.</p>
+        <p><b>Quante erano.</b> Sul telefono tre voci su sei, le prime tre: «Aggiungi piu'
+        prodotti», «Copia da un magazzino», «Sposta o rimuovi prodotti». Sul computer tre su sei
+        pure, ma diverse: la prima e le ultime due («Soglie per giorno» e «Trasferisci scorte»).
+        Da qui la cosa strana: chiunque avesse provato ad aggiungere prodotti in blocco dal
+        telefono non ci sarebbe mai riuscito, e non avrebbe avuto modo di capire perche'.</p>
+        <p><b>La correzione</b> e' una parola sola, in fondo, ed e' il motivo per cui vale la pena
+        raccontarla: l'animazione con cui le finestre entrano scivolando lasciava addosso al
+        riquadro una traccia anche dopo essere finita, e quella traccia bastava a far perdere
+        l'aggancio allo schermo a tutto quello che ci stava dentro. Adesso la traccia se ne va
+        quando l'animazione finisce. Vale per <b>tutte</b> le finestre dell'app, non solo per
+        questa: qualunque altro punto avesse lo stesso problema e' sistemato insieme.</p>
+        <p><b>E per non ricascarci:</b> il collaudo che l'aveva trovato adesso non guarda piu'
+        solo cosa fanno i tasti, guarda che si possano premere — mette il dito al centro di ognuna
+        delle sei voci e controlla chi se lo prende, sul telefono e sul computer. In tutto fa 27
+        controlli. L'ho provato prima contro la versione di ieri (e boccia, con l'elenco esatto
+        dei tasti morti) e poi contro quella di oggi (e passa). Nello stesso giro ho riscritto le
+        ultime quattro «sonde» — file che giravano stampando righe senza mai bocciare niente — in
+        collaudi veri: quello del report da mandare al fornitore adesso verifica che una riga gia'
+        ordinata non finisca dentro una seconda volta, che sarebbe merce pagata due volte.</p>
+
+        <h4>Fatti il 30 luglio · l'admin, gli ordini, la fisarmonica</h4>
+        <p><b>Gli ordini «spariti»:</b> prima di toccare niente ho guardato i dati veri. Le tue
+        otto righe d'ordine erano tutte lì, nessuna persa: erano tutte nello stato «ricevuto», e
+        la pagina Ordini si apriva SEMPRE sulla scheda «Da ordinare», che era vuota. Uscivi,
+        rientravi, ancora vuota. Due cose lo causavano, e le ho sistemate entrambe: ora la
+        pagina si apre sulla prima scheda che ha qualcosa, e quando una scheda e' vuota ma le
+        altre no c'e' scritto quante righe ci sono e dove, con un tasto per andarci. In piu',
+        se apri con un profilo che non vede nessuno di quegli ordini, l'app spiega il perche'
+        invece di mostrarti il nulla. E ho messo una <b>finestra di 45 giorni</b> come avevi
+        chiesto: le righe ancora DA FARE non si toccano mai — sono lavoro, non archivio — e di
+        quelle chiuse si tengono 45 giorni e al massimo 150 righe. Nel caso peggiore sono
+        cinquanta kilobyte su uno stato che oggi ne pesa centoquindici. Per tenerle per sempre
+        ci sono le esportazioni CSV in Sistema.
+        <b>L'admin sceglie la sede:</b> aprendo l'inventario ora ti chiede su quale sede fare
+        il giro, e se una squadra ne ha già uno aperto entri nel suo invece di aprirne un
+        secondo. C'e' anche «tutte le sedi in un giro solo», con scritto accanto che mentre e'
+        aperto le squadre non possono aprire il loro.
+        <b>I conteggi a fisarmonica:</b> nei conteggi di linea le categorie si aprono e si
+        chiudono, e l'intestazione porta «3 su 8 contati» — cosi' un gruppo chiuso non e' una
+        scatola nera. Partono tutte aperte, perche' il conteggio e' un giro che si fa
+        dall'inizio alla fine. La cosa che ho voluto provare col test: <b>chiudere un gruppo non
+        perde niente</b>. Chiuso un gruppo con un numero già battuto dentro, quel numero arriva
+        al conferma e fa partire la sua richiesta come gli altri.</p>
+        <h4>Fatti il 30 luglio · i due che avevi scelto</h4>
+        <p><b>La singola riga rispetta la coda:</b> se il laboratorio conferma una richiesta
+        alla volta, il tasto si ferma al livello quando l'extra non ci sta dopo i livelli di
+        tutte le linee che pescano dalla stessa merce. Prima quella riga si portava via anche
+        l'extra e all'ultima linea restava meno. Il tasto dice sempre il numero che manda
+        davvero, la riga spiega perche' e nomina la linea che resterebbe corta, e l'extra si
+        puo' mandare comunque da «Cambia». Due controlli negativi tengono a bada gli allarmi
+        falsi: con abbondanza in laboratorio il freno non scatta, e non scatta nemmeno se
+        l'altra linea e' corta su un prodotto diverso.
+        <b>Due sedi, due inventari:</b> l'inventario in corso ora e' uno per sede. Fiumicino e
+        Roma contano insieme senza vedersi i magazzini a vicenda, e chiudendo il proprio non
+        toccano quello dell'altra. Resta vero che due persone della stessa sede contano due
+        magazzini diversi vedendo l'avanzamento l'una dell'altra. Uno stesso magazzino non
+        puo' finire in due inventari aperti: se capita l'app lo tiene fuori e dice chi lo sta
+        contando, perche' la stessa casella contata in due giri diversi finirebbe col numero
+        di chi chiude per ultimo. Un inventario aperto con la versione di prima si ritrova e
+        si chiude senza perdere i conteggi gia' fatti.</p>
+        <h4>Fatti il 29 luglio · i tre che avevi scelto</h4>
+        <p><b>Il laboratorio sa quanto e' «in piu'»:</b> la richiesta si porta dietro quale
+        parte serve a stare a livello e quale e' stata chiesta in aggiunta, e in laboratorio
+        si legge «3 di livello + 2 in piu'». Il tasto «Confermo tutto» fa <b>due passate</b>:
+        prima copre il livello di tutte le linee, poi distribuisce gli extra con quello che
+        avanza. Prima ne faceva una sola, e la prima linea in elenco si portava via anche
+        l'extra lasciando l'ultima sotto il previsto. La prova: laboratorio con 6, una linea
+        chiede 3+2 e un'altra 3 — prima finivano 5 e 1, ora 3 e 3.
+        <b>Niente magazzini che si rifornisco da se stessi:</b> il caso che avevo trovato e
+        riprodotto e' chiuso in due punti. Un retro assegnato per sbaglio a una persona non
+        compare piu' fra i contabili (e l'app dice quale e perche'), e anche una linea il cui
+        riferimento punta a se stessa non preleva piu' da se': dice che non ha un rifornitore
+        e non scrive nessun movimento inventato ne' righe d'ordine di nessuno.
+        <b>I prodotti in nessun magazzino:</b> la Plancia ora li conta nella fila dei
+        controlli e li nomina; nel Catalogo, sulla linguetta Prodotti, c'e' l'avviso con un
+        tasto che mostra solo quelli, cosi' li assegni o li togli. Assegnarli da solo a un
+        magazzino non lo faccio: quale sia quello giusto lo sai solo tu.</p>
+        <h4>Fatte il 29 luglio · il foglio dell'inventario e la richiesta in piu'</h4>
+        <p><b>Rivedere un inventario chiuso:</b> quando chiudi, il foglio di quel giorno resta —
+        chi ha contato, quante caselle, e le differenze una sotto l'altra col prima e il dopo.
+        Si tengono gli ultimi quattro inventari: sono dati che viaggiano sul telefono a ogni
+        scrittura, e non voglio far pesare l'app per una cronologia infinita. Le rettifiche
+        restano comunque tutte nello Storico: il tetto perde il foglio, non il dato.
+        <b>Chiedere piu' del previsto:</b> nel conteggio di linea tieni premuto il meno e scendi
+        sotto zero. <b>−2</b> vuol dire «non ne ho, e chiedimene 2 in piu'». Una cosa che ho
+        deciso io e che va detta: la giacenza scritta resta <b>zero</b>, non meno di zero. Se
+        scrivessi davvero −2 sullo scaffale, quando il laboratorio consegna la linea farebbe
+        −2 + consegnato e resterebbe indietro di quei 2 per sempre. Provato fino in fondo:
+        chiesti 3 + 2, consegnati, sulla linea ci sono 5. E se il dito scappa sul meno, prima
+        di scrivere niente il riepilogo avvisa che stai chiedendo piu' del doppio.</p>
+        <h4>Fatti il 29 luglio · fornitori per sede e inventario guidato</h4>
+        <p><b>Fornitori diversi per sede:</b> il fornitore che hai sempre usato resta dov'era e
+        vale per tutte le sedi; sopra si mette solo l'eccezione, sede per sede. Non ho dovuto
+        toccare nessuno dei 102 prodotti per farlo funzionare. La prova che conta: la riga di
+        Roma finisce a «Carne» mentre quella di Fiumicino resta a «Verdure».
+        <b>Inventario guidato:</b> ti porta magazzino per magazzino, ricorda dove eri anche se
+        chiudi l'app o passi a un altro telefono, ti mostra le differenze prima di scriverle e
+        non fa partire nessun ordine. Scrive un movimento solo dove il numero e' davvero
+        cambiato, non uno per ogni casella contata.
+        <b>Un errore vero trovato per strada:</b> un fornitore usato solo come eccezione in una
+        sede risultava «nessun prodotto collegato», e cancellandolo le righe d'ordine di quella
+        sede sarebbero rimaste senza destinatario. Corretto.</p>
+        <h4>Fatti il 29 luglio · i tre che avevi scelto</h4>
+        <p><b>Il Catalogo sul telefono:</b> 102 prodotti raggruppati per categoria e chiusi
+        di partenza — la pagina è passata da chilometrica a una schermata. La ricerca resta
+        in cima mentre scorri, e mentre cerchi i gruppi si aprono da soli.
+        <b>I tasti piccoli:</b> nove bottoni da 30px portati a 34, in tutta l'app.
+        <b>Quanto vale la merce:</b> c'è, ma ha fatto emergere che nessuno dei 102 prodotti
+        ha un prezzo — così invece di un finto «€ 0,00» dice perché non può calcolare, e
+        c'è una schermata nuova per mettere tutti i prezzi da un posto solo.</p>
+        <h4>Le conversioni mancanti non sono più invisibili</h4>
+        <p>Quando manca il fattore che lega due unità, il codice tornava «non lo so» e ogni
+        punto dell'app lo trasformava in «allora sono uguali»: <strong>3 kg di broccoletti
+        contati come 3 GN 1/6</strong>. Riguarda 35 caselle su 293. Ora un avviso rosso in cima
+        ai controlli della Plancia li conta e li nomina.</p>
+        <h4>Etichette non più tagliate in Analisi</h4>
+        <p>Mostrava «Movime…», «Copertu…»: il numero restava senza significato.</p>
+        <h4>Le date del grafico stanno dentro lo schermo</h4>
+        <p>Uscivano fuori di 74 punti su un telefono stretto.</p>
+        <h4>I tasti di Ordini si prendono con un dito</h4>
+        <p>Erano 30 punti per 30, ora 36.</p>
+      </div>
+    </details>
+    <details>
+      <summary>Cosa ho controllato e stava già bene</summary>
+      <div class="dentro">
+        <div class="tabwrap">
+          <table>
+            <thead><tr><th scope="col">Controllo</th><th scope="col">Esito</th></tr></thead>
+            <tbody>
+              <tr><td>Articoli che puntano a prodotti inesistenti</td><td>0</td></tr>
+              <tr><td>Articoli con unità di misura inesistente</td><td>0</td></tr>
+              <tr><td>Articoli senza soglia o con giacenza negativa</td><td>0</td></tr>
+              <tr><td>Richieste e ordini verso prodotti cancellati</td><td>0</td></tr>
+              <tr><td>Magazzini senza rifornitore, o vuoti</td><td>0</td></tr>
+              <tr><td>Errori JavaScript · 3 ruoli × 9 schermate</td><td>0</td></tr>
+              <tr><td>Pagine che scorrono in orizzontale</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <p class="coda">
+    Ogni versione ha il suo backup sul database, da <code>backup:pre-gen532</code> a
+    <code>backup:pre-gen557</code>: se qualcosa non va, si torna indietro in un minuto.
+  </p>
+</div>
+
+<div class="barra">
+  <div class="barra-in">
+    <span class="conteggio" id="conteggio">Nessuna scelta ancora</span>
+    <button type="button" class="azione neutra" id="azzera" disabled>Azzera</button>
+    <button type="button" class="azione" id="copia" disabled>Copia</button>
+  </div>
+</div>
+
+<script>
+/* Le voci. «peso» è onesto: quanto costa a me, non quanto suona bene. */
+const VOCI = [
+  { id:"pesatura", tag:["struttura","medio"], cls:["t-str","t-mis"],
+    titolo:"Una sessione di pesatura, con la bilancia in mano",
+    desc:"Ho stimato 34 conversioni e l'app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un'altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell'elenco ogni volta. Alla fine non resta piu' nessuna stima." },
+  { id:"pin-forte", tag:["sicurezza","piccolo"], cls:["t-sic","t-mis"],
+    titolo:"PIN più robusti",
+    desc:"Quattro cifre sono poche e quello dell'admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000." },
+  { id:"ricette-preparati", tag:["struttura","grande"], cls:["t-str","t-mis"],
+    titolo:"Le ricette: quando il laboratorio prepara, scalare gli ingredienti",
+    desc:"E' la seconda tappa dei preparati, adesso che la prima e' online. Oggi quando in laboratorio si fanno venti breccole l'app fa salire le breccole e basta: la farina, il pecorino e il guanciale che ci sono finiti dentro restano fermi ai numeri di prima, e a fine settimana il magazzino centrale dice che c'e' roba che non c'e'. Se mi dai le ricette — quanto di A e quanto di B per fare un C — quando il laboratorio segna quello che ha prodotto l'app scala gli ingredienti da sola. La parte lunga e' tua: raccogliere le dosi. Il codice viene dopo, ed e' la meta' facile." },
+  { id:"collaudi-soli", tag:["dati","medio"], cls:["t-dati","t-mis"],
+    titolo:"I collaudi girano solo quando glielo dico io",
+    desc:"E' la coda del lavoro appena finito, e secondo me e' la parte che conta di piu'. Adesso i collaudi automatici sono 54 e fanno piu' di ottocento controlli veri: girano tutti, e ognuno boccia davvero quando qualcosa non va. Ma partono solo quando li lancio io. E' esattamente per questo che tre erano rimasti rotti per mesi senza che nessuno se ne accorgesse, e che i tasti morti di Gestione rapida sono stati li' finche' non mi e' venuto in mente di riprendere in mano un file che avevo scartato. Posso farli partire da soli a orario fisso, ogni notte, e farmi trovare il rapporto: se qualcosa si e' rotto lo so la mattina dopo invece che fra tre mesi. A te non cambia niente nell'uso quotidiano — cambia quanto tempo un difetto resta in giro prima che qualcuno lo veda." },
+  { id:"ordini-operatore", tag:["struttura","piccolo"], cls:["t-str","t-mis"],
+    titolo:"Chi deve vedere gli acquisti del laboratorio?",
+    desc:"Oggi ho scelto io e ti dico cosa ho scelto: un operatore di sede vede gli acquisti della SUA sede, non quelli del laboratorio, e il laboratorio vede i suoi. Prima chi apriva la pagina e non ne vedeva nessuno pensava che fossero spariti; adesso c'e' scritto il perche'. Ma la regola in se' e' una tua decisione, non mia: se vuoi che i tuoi ragazzi di sede vedano anche cosa compra il laboratorio, o al contrario che ognuno veda solo il suo, si cambia in una riga. Dimmi come lavori tu." },
+];
+
+const lista = document.getElementById("lista");
+const msg = document.getElementById("msg");
+const conteggio = document.getElementById("conteggio");
+const bCopia = document.getElementById("copia");
+const bAzzera = document.getElementById("azzera");
+const aiutoCopia = document.getElementById("aiutoCopia");
+const scelte = [];   // gli id, nell'ordine in cui sono stati toccati
+
+for (const v of VOCI) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "voce";
+  b.setAttribute("aria-pressed", "false");
+  b.dataset.id = v.id;
+  b.innerHTML =
+    '<span class="num" aria-hidden="true">·</span>' +
+    '<span class="corpo">' +
+      '<span class="titolo" style="display:block"></span>' +
+      '<p class="desc"></p>' +
+      '<span class="meta"></span>' +
+    '</span>';
+  b.querySelector(".titolo").textContent = v.titolo;
+  b.querySelector(".desc").textContent = v.desc;
+  const meta = b.querySelector(".meta");
+  v.tag.forEach((t, i) => {
+    const s = document.createElement("span");
+    s.className = "tag " + v.cls[i];
+    s.textContent = t;
+    meta.appendChild(s);
+  });
+  b.addEventListener("click", () => tocca(v.id));
+  lista.appendChild(b);
+}
+
+function tocca(id) {
+  const i = scelte.indexOf(id);
+  if (i >= 0) scelte.splice(i, 1); else scelte.push(id);
+  disegna();
+}
+
+function disegna() {
+  for (const b of lista.querySelectorAll(".voce")) {
+    const pos = scelte.indexOf(b.dataset.id);
+    const dentro = pos >= 0;
+    b.setAttribute("aria-pressed", dentro ? "true" : "false");
+    const n = b.querySelector(".num");
+    n.textContent = dentro ? String(pos + 1) : "·";
+    const t = b.querySelector(".titolo").textContent;
+    b.setAttribute("aria-label", dentro
+      ? `${t} — scelta numero ${pos + 1}. Tocca per toglierla.`
+      : `${t} — tocca per aggiungerla alla lista.`);
+  }
+  const n = scelte.length;
+  conteggio.textContent = n === 0 ? "Nessuna scelta ancora"
+    : n === 1 ? "1 lavoro scelto" : `${n} lavori scelti, in ordine`;
+  bCopia.disabled = n === 0;
+  bAzzera.disabled = n === 0;
+  bCopia.textContent = "Copia";
+  msg.value = componi();
+  msg.rows = Math.min(16, Math.max(4, msg.value.split("\n").length));
+}
+
+function componi() {
+  if (!scelte.length) return "Tocca le voci qui sopra nell'ordine che vuoi.";
+  const righe = ["Ecco l'ordine dei lavori che ho scelto dalla roadmap:", ""];
+  scelte.forEach((id, i) => {
+    const v = VOCI.find((x) => x.id === id);
+    righe.push(`${i + 1}. ${v.titolo}`);
+  });
+  righe.push("", "Parti dal primo. Fammi sapere se qualcosa cambia le carte in tavola.");
+  return righe.join("\n");
+}
+
+/* Copiare da dentro una pagina pubblicata non è scontato: l'inquadratura in
+   cui gira può non concedere il permesso agli appunti, e la via moderna
+   fallisce in silenzio. Quindi tre vie, in ordine, e se cascano tutte lo si
+   dice invece di far finta di niente. */
+function selezionaTutto(el) {
+  /* su iOS un campo in sola lettura non si seleziona con select(): va tolto
+     il blocco per un attimo e usato un intervallo vero */
+  const eraSolaLettura = el.readOnly;
+  el.readOnly = false;
+  el.focus();
+  el.setSelectionRange(0, el.value.length);
+  try {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  } catch {}
+  el.readOnly = eraSolaLettura;
+}
+
+function esito(testo, ok) {
+  bCopia.textContent = testo;
+  bCopia.style.background = ok ? "" : "var(--ambra)";
+  setTimeout(() => {
+    if (bCopia.disabled) return;
+    bCopia.textContent = "Copia";
+    bCopia.style.background = "";
+  }, ok ? 2200 : 4000);
+}
+
+bCopia.addEventListener("click", async () => {
+  const testo = componi();
+
+  /* 1. la via moderna: chiede un permesso che qui spesso non c'è */
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(testo);
+      esito("Copiato ✓", true);
+      return;
+    }
+  } catch {}
+
+  /* 2. la via vecchia: non chiede permessi, le basta il tocco appena fatto */
+  try {
+    selezionaTutto(msg);
+    if (document.execCommand("copy")) {
+      window.getSelection()?.removeAllRanges();
+      esito("Copiato ✓", true);
+      return;
+    }
+  } catch {}
+
+  /* 3. niente da fare: il testo resta selezionato e si dice cosa fare */
+  selezionaTutto(msg);
+  msg.scrollIntoView({ block: "center", behavior: "smooth" });
+  aiutoCopia.hidden = false;
+  esito("Copia a mano", false);
+});
+
+bAzzera.addEventListener("click", () => { scelte.length = 0; aiutoCopia.hidden = true; disegna(); });
+
+disegna();
+</script>

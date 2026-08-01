@@ -1,0 +1,1 @@
+if (vista === "catalogo") return <VistaCatalogo stato={stato} muta={muta} mostraToast={mostraToast} />;

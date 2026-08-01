@@ -1,0 +1,3 @@
+                onDove={() => setDove(p)}
+                onMod={() => setModal({ tipo: "prodotti", item: p })}
+                onDel={() => setDel({ tipo: "prodotti", item: p })} />
