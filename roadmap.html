@@ -179,12 +179,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · gen-5.72 online</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Il primo dei tre che hai scelto è online</b>: la lente 🔍 adesso si
-  raggiunge anche con una scheda aperta — dentro un magazzino, dentro un prodotto, dentro un
-  modulo. Prima bisognava chiudere quello che si stava facendo. Com’è andata è raccontato sotto,
-  in <em>Quello che è già successo</em>: non è filato liscio, e le due cose che sono andate storte
-  valgono più della modifica. Restano <b>cinque</b> modifiche possibili, e le prime due sono già
-  nell’ordine che mi hai dato.</p>
+  <p class="apertura"><b>I collaudi adesso girano da soli, ogni notte.</b> Se qualcosa si rompe
+  lo si sa la mattina dopo invece che fra tre mesi. Ma prima di automatizzarli ho scoperto che
+  <b>non potevano girare da nessuna parte se non sul mio computer</b>, e che il loro foglio di
+  stile era fermo al 30 luglio: è raccontato qui sotto, e vale più della modifica. Restano
+  <b>quattro</b> modifiche possibili, con le dosi delle ricette in cima come mi hai detto.</p>
 
   <div class="istruzione">
     <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
@@ -217,6 +216,35 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 2 agosto · i collaudi girano da soli, ogni notte</h4>
+        <p>Da adesso il censimento completo parte da solo alle 5 del mattino, e a ogni modifica
+        del codice. Se qualcosa si rompe <b>ti arriva una mail</b>. È la risposta alla frase che
+        avevi scelto tu: <em>«partono solo quando li lancio io — ed è esattamente per questo che
+        tre erano rimasti rotti per mesi senza che nessuno se ne accorgesse»</em>.</p>
+        <p><b>Ma prima di automatizzarli ho guardato se potevano girare fuori dal mio computer.
+        Non potevano</b>, e quello che è saltato fuori vale più della modifica.</p>
+        <ol>
+          <li><b>Mancava un file</b> senza il quale la costruzione si ferma subito. Provato
+          clonando davvero il repository: non partiva.</li>
+          <li><b>Il foglio di stile dei collaudi era del 30 luglio</b> e non si rigenerava mai.
+          Ogni classe grafica scritta dopo — nove giorni — nel banco di prova non c’era: quegli
+          elementi venivano misurati senza il loro aspetto.</li>
+          <li><b>E cinque collaudi provavano la logica dell’app com’era il 29 luglio.</b> Non
+          conoscevano né le ricette né la tabella della ricerca: davano verde su codice che non
+          esisteva più. <em>Erano verdi per il motivo sbagliato.</em> Rigenerati sul codice di
+          oggi passano tutti, quindi non stavano nascondendo un difetto — ma quel verde non
+          valeva niente lo stesso.</li>
+        </ol>
+        <p>Adesso <b>tutto quello che è costruito si ricostruisce a ogni giro</b>, e se non ci
+        riesce la costruzione si ferma invece di andare avanti zoppa.</p>
+        <p><b>Il primo giro automatico è andato rosso</b>, e mi ha detto esattamente cosa mancava:
+        è così che ho trovato il punto 3. Il secondo è verde: <b>55 collaudi, 976 controlli veri,
+        nessuno muto, nessuno rosso</b>, in 26 minuti — più veloce del computer su cui lavoro.</p>
+        <p><em>Una cosa che devo correggere di mio: nel primo salvataggio avevo scritto
+        «verificato clonando il repository, le suite passano». Ne avevo provate quattro su
+        cinquantacinque. Il giro automatico ha trovato quello che il mio assaggio non poteva
+        trovare — che è il lavoro per cui esiste.</em></p>
+
         <h4>Il 2 agosto · la lente si raggiunge sempre, anche con una scheda aperta</h4>
         <p>Il primo dei tre che hai scelto. Prima, per cercare qualcosa dovevi chiudere quello che
         stavi facendo: dentro un magazzino, dentro un prodotto, dentro un modulo, l’intestazione
@@ -526,9 +554,6 @@ const VOCI = [
   { id:"dosi-ricette", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Le dosi delle ricette, scritte in fretta invece che una alla volta",
     desc:"La macchina delle ricette è online e funziona: il laboratorio segna «ho prodotto venti breccole» e l’app scala farina, pecorino e guanciale da sola. Solo che le ricette in catalogo sono ZERO, quindi non scala niente. Oggi si inseriscono dalla scheda del singolo prodotto, una alla volta, ed è la ragione per cui non ne è ancora entrata nemmeno una. Posso fare una schermata sola che ti porta di preparato in preparato — «per fare 1 di questo serve: …», aggiungi ingrediente, avanti — pensata per chi ha davanti il quaderno delle ricette e vuole finire in mezz’ora. Il lavoro vero resta tuo: le dosi le sai solo tu. Questo serve a togliere la fatica del come, non del cosa." },
-  { id:"collaudi-soli", tag:["dati","medio"], cls:["t-dati","t-mis"],
-    titolo:"I collaudi girano solo quando glielo dico io",
-    desc:"E’ la coda di tutto il resto, e secondo me è la parte che conta di più. I collaudi automatici adesso sono 62 e fanno più di millecento controlli veri: girano tutti, e ognuno boccia davvero quando qualcosa non va. Ma partono solo quando li lancio io. È esattamente per questo che tre erano rimasti rotti per mesi senza che nessuno se ne accorgesse, e che i tasti morti di «Gestione rapida» sono stati lì finché non mi è venuto in mente di riprendere in mano un file che avevo scartato. Posso farli partire da soli ogni notte e farmi trovare il rapporto: se qualcosa si rompe lo so la mattina dopo invece che fra tre mesi. A te non cambia niente nell’uso quotidiano — cambia quanto tempo un difetto resta in giro prima che qualcuno lo veda." },
   { id:"pesatura", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Una sessione di pesatura, con la bilancia in mano",
     desc:"Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima." },

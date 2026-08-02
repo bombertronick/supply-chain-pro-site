@@ -191,24 +191,40 @@ vorrebbe dire mettere una chiave in un repository pubblico: non si fa. Le due
 copie coincidono perché **ogni rilascio le allinea nello stesso commit**; se un
 giorno non coincidessero, il posto dove accorgersene è il rilascio.
 
+**I primi due giri, per memoria.** Il primo è andato **rosso**, e ha trovato
+due file mai salvati — da cui la scoperta delle librerie congelate qui sopra.
+Il secondo: **55 verdi (976 controlli veri) · 0 mute · 0 rosse · 7 saltate**, in
+26 minuti, più veloce del contenitore in cui lavoro. *`pintest`, `pin2test` e
+`pin535test` — le tre dichiarate fragili sotto carico — sono verdi anche lì:
+quella fragilità non si è riprodotta, e non le ho toccate.*
+
 > **GitHub spegne i lavori a orario dopo 60 giorni senza attività sul
 > repository, e non lo dice.** Se per due mesi non si tocca niente, il
 > censimento notturno smette di partire. Si riaccende dalla scheda *Actions*.
 
-### Perché la costruzione rifà il foglio di stile ogni volta
+### Perché la costruzione rifà tutto quello che è costruito
 
-`build.mjs` rigenera `tw.css` dal sorgente in prova a ogni pacchetto, e se non
-ci riesce **si ferma** invece di costruire un pacchetto zoppo.
+`build.mjs` rigenera **tre cose** dal sorgente in prova, a ogni pacchetto, e se
+una fallisce **si ferma** invece di costruirne uno zoppo:
 
-*Il 2 agosto ho scoperto che `tw.css` era un file costruito una volta, il 30
-luglio, e mai più toccato. Ogni classe grafica scritta dopo quella data — nove
-giorni — nel banco di prova **non c'era**: quegli elementi venivano misurati
-senza il loro aspetto, e i collaudi che guardano dove finiscono le cose stavano
-guardando una pagina diversa da quella vera. Non è esploso niente per fortuna,
-non per costruzione.* Adesso non può più invecchiare, e chi clona il repository
-ne ottiene uno giusto senza sapere che esiste. Per lo stesso motivo `tw.css`,
-`app-under-test.jsx`, `bundle.js` e `rossi/` stanno nel `.gitignore`: sono
-prodotti della costruzione, e un prodotto salvato è un prodotto che invecchia.
+1. il pacchetto dell'app (`bundle.js`);
+2. il foglio di stile (`tw.css`);
+3. le **sei librerie di logica** (`*.cjs`) che cinque collaudi chiamano
+   direttamente, senza passare dalle schermate.
+
+*Perché tutte e tre. Il 2 agosto ho scoperto che le ultime due erano prodotti
+congelati: `tw.css` era del 30 luglio, le librerie del 29. Ogni classe grafica
+scritta dopo quella data nel banco di prova **non c'era**, e le librerie non
+conoscevano né `calcoloProduzione` né `AZIONI` — per nove giorni cinque
+collaudi hanno chiamato la logica di allora e dato verde su codice che non
+esisteva più. **Erano verdi per il motivo sbagliato.** Rigenerate dal codice di
+oggi passano tutte e cinque, quindi non stavano coprendo uno scostamento vero;
+ma il verde non valeva niente lo stesso.*
+
+`tw.css`, `*.cjs`, `*-lib-src.jsx`, `app-under-test.jsx`, `bundle.js` e
+`rossi/` stanno nel `.gitignore`. **Un prodotto della costruzione salvato è un
+prodotto che invecchia** — e invecchia in silenzio, che è la parte peggiore. I
+sorgenti sono i `mk*.mjs`, e quelli sì che vanno salvati.
 
 **Attenzione a `navtest.mjs`**: esporta `vaiA(p, dove)`, che sa che da gen-5.52
 Catalogo, Analisi, Storico, Sedi, Profili, Accessi e Sistema stanno sotto
