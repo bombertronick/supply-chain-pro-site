@@ -1,0 +1,23 @@
+      <Foglio aperto={menu} titolo="Gestione rapida" onChiudi={() => setMenu(false)}>
+        <div className="flex flex-col gap-2">
+          {[
+            { ic: Boxes, t: "Aggiungi più prodotti", d: "Scegli tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true), mostra: true },
+            { ic: Copy, t: "Copia da un magazzino", d: "Prendi la lista prodotti (e i livelli) da un altro magazzino", on: () => setCopia(true), mostra: true },
+            { ic: ArrowLeftRight, t: "Sposta o rimuovi prodotti", d: "Sposta in un altro magazzino, oppure togli in blocco", on: () => setSposta(true), mostra: mag.articoli.length > 0 },
+            { ic: Ruler, t: "Livello previsto in blocco", d: "Imposta la soglia prevista (anche in Gastronorm) su più prodotti", on: () => setParMulti(true), mostra: mag.articoli.length > 0 },
+            { ic: TrendingUp, t: "Soglie per giorno", d: "Imposta feriale/weekend su tanti prodotti in una volta", on: () => setSoglie(true), mostra: mag.articoli.length > 0 },
+            { ic: ArrowLeftRight, t: "Trasferisci scorte", d: "Sposta solo le quantità verso un altro magazzino", on: () => setTrasf(true), mostra: mag.articoli.length > 0 },
+          ].filter((a) => a.mostra).map((a, i) => (
+            <button key={i} onClick={() => { setMenu(false); a.on(); }} className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><a.ic size={18} /></span>
+              <span className="flex-1 min-w-0">
+                <span className="font-extrabold block" style={{ color: T.ink }}>{a.t}</span>
+                <span className="text-xs" style={{ color: T.dim }}>{a.d}</span>
+              </span>
+              <ChevronRight size={18} style={{ color: T.tenue }} />
+            </button>
+          ))}
+        </div>
+      </Foglio>
+

@@ -1163,7 +1163,7 @@ const GUIDA_SEZIONE = {
   magazzini: [
     { titolo: "I magazzini", testo: "Ogni scheda è un magazzino (linea, retro o laboratorio). Toccala per aprirlo e vederne i prodotti." },
     { illustra: "riga", titolo: "Dentro il magazzino", testo: "Ogni riga è un prodotto con livello previsto e quantità. La matita lo modifica, il cestino lo toglie, l'orologio mostra lo storico." },
-    { illustra: "gestione", titolo: "Gestione rapida", testo: "Il pulsante «Gestione rapida» raccoglie SEI scorciatoie, non quattro: aggiungi più prodotti insieme, copia da un altro magazzino, sposta o rimuovi in blocco, livello previsto in blocco, soglie per giorno, trasferisci scorte." },
+    { illustra: "gestione", titolo: "Gestione rapida", testo: "Il pulsante «Gestione rapida» è il pannello di comando del magazzino, diviso in tre gruppi. AGGIUNGERE: aggiungi più prodotti, oppure copia da un altro magazzino. SPOSTARE: sposta o rimuovi prodotti, trasferisci le scorte. LIVELLI: livello previsto in blocco, soglie per giorno. Sono gli stessi nomi che trovi cercando con la lente in alto." },
     { titolo: "Assegna a più magazzini", testo: "In alto nella lista, «Assegna a più magazzini» mette gli stessi prodotti in più magazzini in una volta sola." },
   ],
   ordini: [
@@ -1240,7 +1240,7 @@ function passiPanoramica(NAV) {
     { illustra: "conteggio", titolo: "1 · Conta", testo: "Inserisci quello che vedi in magazzino: l'app lo confronta col livello previsto del giorno e calcola in automatico quanto manca." },
     ...(ha("magazzini") ? [{ sel: `[data-tour="nav-magazzini"]`, attendi: true, titolo: "Prova tu!", testo: "Tocca «Magazzini» qui evidenziato per aprirli davvero. (Se preferisci, puoi saltare questo passo.)" }] : []),
     { illustra: "riga", titolo: "Dentro un magazzino", testo: "Ogni riga è un prodotto con livello previsto e quantità. La matita modifica, il cestino toglie, l'orologio mostra lo storico." },
-    { illustra: "gestione", titolo: "Le azioni veloci", testo: "Il tasto «Gestione rapida» raccoglie tutto ciò che fai in blocco: aggiungere più prodotti, copiare da un altro magazzino, spostare/rimuovere, soglie per giorno." },
+    { illustra: "gestione", titolo: "Le azioni veloci", testo: "Il tasto «Gestione rapida» raccoglie tutto quello che si fa in blocco, in tre gruppi: Aggiungere, Spostare, Livelli. Le voci che hanno bisogno di prodotti restano visibili anche quando il magazzino è vuoto, spente, e dicono perché." },
     { illustra: "arrivo", titolo: "2 · Ordina  ·  3 · Ricevi", testo: "In «Ordini» premi «Tutto ordinato» e invii al fornitore (anche su WhatsApp). All'arrivo, «Tutto arrivato» carica i magazzini con la quantità reale." },
     { sel: `[data-tour="aiuto"]`, titolo: "Rivedi quando vuoi", testo: "Trovi questa guida — e la guida di ogni singola sezione — toccando il « ? » qui in alto. Buon lavoro!" },
   ];
@@ -4154,6 +4154,125 @@ function VistaAltro({ stato, vaiA, nAcc }) {
    la si vuole da dentro qualunque schermata senza perdere il posto.
    Mostra solo i magazzini che quel profilo puo' vedere: un operatore non
    scopre le giacenze di un'altra sede passando da qui. */
+/* ═══════════ LA RICERCA TROVA ANCHE LE FUNZIONI ═══════════
+
+   Da una frase esatta: «devo poter fare tutto senza dovermi ricordare in che
+   parte dell'app ho quella determinata funzionalità che mi serve; un centro di
+   comando si chiama tale quando controlla tutte le sue periferiche».
+
+   Aveva ragione, e il conto lo dimostrava: mettere un prodotto in un magazzino
+   si poteva fare in quattro modi, con quattro nomi diversi, in tre schermate.
+   Chi cerca non poteva sapere quale.
+
+   La risposta non e' spostare i tasti — e' avere UN POSTO SOLO che li trova
+   tutti per nome, sempre lo stesso, raggiungibile da ogni schermata. Questa
+   lente qui e' quel posto.
+
+   Ogni voce porta delle PAROLE: come la cercherebbe una persona, non come si
+   chiama nel menu. Chi ha in testa «devo togliere della roba» scrive «togli»,
+   non «Sposta o rimuovi prodotti». Se una parola vi manca, aggiungetela: la
+   lista e' fatta per crescere. */
+const AZIONI = [
+  { n: "Aggiungi più prodotti", d: "magazzini", ic: Boxes, k: "mag-aggiungi",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["aggiungi", "prodotti", "inserire", "mettere", "nuovo", "blocco", "insieme"] },
+  { n: "In quali magazzini sta un prodotto", d: "catalogo", ic: Boxes,
+    c: "Catalogo → Prodotti → il tasto verde sulla riga",
+    p: ["magazzini", "assegnare", "assegna", "dove sta", "dove", "orfano", "nessun magazzino"] },
+  { n: "Sposta o rimuovi prodotti", d: "magazzini", ic: ArrowLeftRight, k: "mag-sposta",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["sposta", "spostare", "rimuovi", "rimuovere", "togli", "togliere", "muovi", "leva"] },
+  { n: "Trasferisci le scorte", d: "magazzini", ic: ArrowLeftRight, k: "mag-trasf",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["trasferisci", "trasferire", "scorte", "quantita", "porta", "sposta quantita"] },
+  { n: "Copia da un altro magazzino", d: "magazzini", ic: Copy, k: "mag-copia",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["copia", "copiare", "duplicare", "stessa lista", "uguale"] },
+  { n: "Soglie per giorno", d: "magazzini", ic: TrendingUp, k: "mag-soglie",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["soglie", "soglia", "giorno", "feriale", "weekend", "sabato", "domenica"] },
+  { n: "Livello previsto in blocco", d: "magazzini", ic: Ruler, k: "mag-par",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["livello", "previsto", "par", "scorta", "blocco", "minimo"] },
+  { n: "Ho prodotto (scala gli ingredienti)", d: "magazzini", ic: FlaskConical,
+    c: "Magazzini → magazzino di laboratorio → tasto verde sulla riga",
+    p: ["prodotto", "produzione", "preparato", "fatto", "ricetta", "ingredienti", "laboratorio"] },
+  { n: "Le ricette: le dosi dei preparati", d: "catalogo", ic: FlaskConical,
+    c: "Catalogo → Prodotti → matita → «La ricetta»",
+    p: ["ricetta", "ricette", "dosi", "dose", "ingredienti", "quanto ci vuole"] },
+  { n: "Modifica in blocco: categoria, fornitore, chi lo fa", d: "catalogo", ic: Pencil,
+    c: "Catalogo → Prodotti → Modifica in blocco",
+    p: ["blocco", "categoria", "fornitore", "unita", "chi lo fa", "preparato", "tanti insieme"] },
+  { n: "Prezzi e conversioni dei prodotti", d: "catalogo", ic: Tag,
+    c: "Catalogo → Prodotti → matita",
+    p: ["prezzo", "prezzi", "costo", "conversione", "conversioni", "quanto costa"] },
+  { n: "Report ordine da mandare al fornitore", d: "ordini", ic: Truck,
+    c: "Ordini → Report ordine",
+    p: ["report", "ordine", "ordinare", "fornitore", "whatsapp", "mandare", "inviare"] },
+  { n: "Da mandare adesso (tutto, sede per sede)", d: "ordini", ic: Truck,
+    c: "Ordini → la scheda verde in cima",
+    p: ["mandare", "inviare", "whatsapp", "spedire", "adesso", "messaggio"] },
+  { n: "Registrare la merce arrivata", d: "ordini", ic: PackageCheck,
+    c: "Ordini → scheda «Ordinati» → Tutto arrivato",
+    p: ["arrivata", "arrivato", "ricevere", "ricevuto", "consegna", "carico", "bolla"] },
+  { n: "Contare quello che c'è", d: "conteggi", ic: ClipboardList,
+    c: "Conteggi",
+    p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
+  { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
+    c: "Gestione → Analisi",
+    p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
+  { n: "Soglie consigliate dai consumi veri", d: "analisi", ic: Gauge,
+    c: "Gestione → Analisi",
+    p: ["soglie consigliate", "previsione", "fabbisogni", "consigli", "proposta"] },
+  { n: "Sprechi e scarti", d: "analisi", ic: PackageMinus,
+    c: "Gestione → Analisi",
+    p: ["spreco", "sprechi", "scarto", "scarti", "buttato", "perso"] },
+  { n: "Chi ha fatto cosa, e riportare indietro", d: "storico", ic: History,
+    c: "Gestione → Storico",
+    p: ["storico", "chi", "quando", "ripristina", "annulla", "torna indietro", "log"] },
+  { n: "Ordini fatti e conto per fornitore", d: "storico-ordini", ic: Truck,
+    c: "Gestione → Storico ordini",
+    p: ["storico ordini", "ordini vecchi", "conto", "quanto ho speso", "fornitore"] },
+  { n: "Sedi e quale laboratorio le rifornisce", d: "sedi", ic: Building2,
+    c: "Gestione → Sedi",
+    p: ["sede", "sedi", "laboratorio", "collegare", "rifornisce", "pizzeria"] },
+  { n: "Persone, ruoli e PIN", d: "profili", ic: Users,
+    c: "Gestione → Profili",
+    p: ["pin", "persone", "ruolo", "profilo", "profili", "chi entra", "password"] },
+  { n: "Inviti e richieste di accesso", d: "accessi", ic: KeyRound,
+    c: "Gestione → Accessi",
+    p: ["invito", "inviti", "codice", "accesso", "far entrare", "nuovo utente"] },
+  { n: "Backup, esportazioni e ripristino", d: "sistema", ic: Database,
+    c: "Gestione → Sistema",
+    p: ["backup", "esporta", "esportazione", "csv", "excel", "ripristino", "salvataggio", "importa"] },
+  { n: "La rete a colpo d'occhio", d: "plancia", ic: Gamepad2,
+    c: "Plancia",
+    p: ["plancia", "mappa", "rete", "colpo d'occhio", "collegamenti", "schema"] },
+];
+
+/* ── UNA VOCE SOLA, DUE POSTI ──
+   Il menù «Gestione rapida» non riscrive i nomi delle sue voci: li prende da
+   qui, dalla stessa tabella che risponde alla lente. Così quello che si legge
+   cercando è, parola per parola, quello che si legge nel menù — e non si può
+   scollare fra una versione e l'altra, perché il testo è scritto una volta
+   sola. Se un nome cambia, cambia in tutti e due i posti insieme. */
+const nomeAzione = (k) => (AZIONI.find((a) => a.k === k) || {}).n || "";
+
+/* Trova le funzioni che c'entrano con quello che è stato scritto. Cerca sia nel
+   nome sia nelle parole, e senza accenti: chi scrive di fretta scrive «unita»,
+   non «unità», e non deve essere punito per questo. */
+const senzaAccenti = (s) => (s || "").toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function azioniTrovate(profilo, q) {
+  const t = senzaAccenti(q).trim();
+  if (t.length < 2) return [];
+  /* un operatore non deve trovare porte che poi non può aprire */
+  const suo = (a) => profilo.ruolo === "admin"
+    || !["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema"].includes(a.d);
+  return AZIONI.filter(suo).filter((a) =>
+    senzaAccenti(a.n).includes(t) || a.p.some((x) => senzaAccenti(x).includes(t) || t.includes(senzaAccenti(x))));
+}
+
 function righeRicerca(stato, profilo, q) {
   const testo = (q || "").trim().toLowerCase();
   if (testo.length < 2) return [];
@@ -4186,6 +4305,7 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
   const rif = useRef(null);
   useEffect(() => { const t = setTimeout(() => rif.current?.focus(), 120); return () => clearTimeout(t); }, []);
   const righe = righeRicerca(stato, profilo, q);
+  const azioni = azioniTrovate(profilo, q);
   const corto = q.trim().length > 0 && q.trim().length < 2;
 
   return (
@@ -4194,8 +4314,8 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
         style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
         <Search size={18} style={{ color: T.tenue }} />
         <input ref={rif} value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Scrivi un prodotto: guanciale, provola…"
-          aria-label="Cerca un prodotto ovunque"
+          placeholder="Un prodotto o una cosa da fare: guanciale, sposta, ordine…"
+          aria-label="Cerca un prodotto o una funzione"
           className="flex-1 min-w-0 bg-transparent outline-none text-base font-semibold"
           style={{ color: T.ink }} />
         {q && <button onClick={() => setQ("")} aria-label="Pulisci la ricerca"
@@ -4204,15 +4324,47 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
 
       {!q.trim() && (
         <p className="text-sm" style={{ color: T.dim }}>
-          Ti dice <b style={{ color: T.ink }}>in quali magazzini sta</b>, quanto ce n'è,
-          se è sotto il livello previsto e chi lo fornisce. Cerca fra i magazzini che
-          puoi vedere tu.
+          Cerca <b style={{ color: T.ink }}>due cose insieme</b>. Un <b style={{ color: T.ink }}>prodotto</b>:
+          ti dice in quali magazzini sta, quanto ce n'è e se è sotto il livello previsto.
+          Oppure <b style={{ color: T.ink }}>una cosa da fare</b>: scrivi «sposta», «ordine»,
+          «soglie», «backup» e ti ci porta — senza doverti ricordare in che sezione sta.
         </p>
       )}
       {corto && <p className="text-sm" style={{ color: T.tenue }}>Scrivi almeno due lettere.</p>}
-      {q.trim().length >= 2 && righe.length === 0 && (
-        <Vuoto icona={Search} titolo="Nessun prodotto con questo nome"
-          testo="Controlla come è scritto a catalogo, oppure cerca solo un pezzo del nome." />
+
+      {/* LE FUNZIONI PRIMA DEI PRODOTTI.
+          Stanno in cima e non in fondo perche' chi scrive «sposta» sta cercando
+          un comando, non un prodotto che si chiama cosi'. Ogni riga dice anche
+          la strada per esteso: chi vuole impararla la impara, chi ha fretta
+          tocca e ci arriva. */}
+      {azioni.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>
+            {azioni.length === 1 ? "1 funzione" : `${azioni.length} funzioni`}
+          </span>
+          {azioni.slice(0, 6).map((a) => (
+            <button key={a.n} type="button" onClick={() => { onChiudi(); vaiA(a.d); }}
+              className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}>
+                <a.ic size={18} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="font-extrabold block" style={{ color: T.ink }}>{a.n}</span>
+                <span className="text-xs block" style={{ color: T.dim }}>{a.c}</span>
+              </span>
+              <ChevronRight size={18} style={{ color: T.tenue }} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length === 0 && (
+        <Vuoto icona={Search} titolo="Non trovo né un prodotto né una funzione"
+          testo="Prova con un pezzo del nome, o con la parola che useresti tu: «sposta», «ordine», «soglie», «backup»." />
+      )}
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length > 0 && (
+        <p className="text-sm" style={{ color: T.tenue }}>Nessun prodotto con questo nome.</p>
       )}
 
       <div className="flex flex-col gap-2.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "62vh" }}>
@@ -7002,24 +7154,58 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
       </div>
 
       <Foglio aperto={menu} titolo="Gestione rapida" onChiudi={() => setMenu(false)}>
-        <div className="flex flex-col gap-2">
+        {/* ── TRE GRUPPI, E LE STESSE IDENTICHE PAROLE DELLA RICERCA ──
+            Prima era una fila piatta di sei voci in ordine di quando le ho
+            scritte, e per trovarne una bisognava leggerle tutte. Adesso sono
+            in tre gruppi con l'intestazione: si aggiunge, si sposta, si
+            regolano i livelli. Un elenco di sei cose senza titoli è una lista;
+            con i titoli è un pannello di comando.
+
+            I nomi non sono scritti qui: arrivano da AZIONI tramite nomeAzione,
+            la stessa tabella che risponde alla lente della ricerca. Quello che
+            si legge cercando è parola per parola quello che si legge qui.
+
+            E le voci che hanno bisogno di prodotti non spariscono più quando il
+            magazzino è vuoto: restano al loro posto, spente, e dicono perché.
+            Una funzione che sparisce è una funzione da ricordare a memoria —
+            ed è esattamente la fatica che questo lavoro doveva togliere. */}
+        <div className="flex flex-col gap-3">
           {[
-            { ic: Boxes, t: "Aggiungi più prodotti", d: "Scegli tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true), mostra: true },
-            { ic: Copy, t: "Copia da un magazzino", d: "Prendi la lista prodotti (e i livelli) da un altro magazzino", on: () => setCopia(true), mostra: true },
-            { ic: ArrowLeftRight, t: "Sposta o rimuovi prodotti", d: "Sposta in un altro magazzino, oppure togli in blocco", on: () => setSposta(true), mostra: mag.articoli.length > 0 },
-            { ic: Ruler, t: "Livello previsto in blocco", d: "Imposta la soglia prevista (anche in Gastronorm) su più prodotti", on: () => setParMulti(true), mostra: mag.articoli.length > 0 },
-            { ic: TrendingUp, t: "Soglie per giorno", d: "Imposta feriale/weekend su tanti prodotti in una volta", on: () => setSoglie(true), mostra: mag.articoli.length > 0 },
-            { ic: ArrowLeftRight, t: "Trasferisci scorte", d: "Sposta solo le quantità verso un altro magazzino", on: () => setTrasf(true), mostra: mag.articoli.length > 0 },
-          ].filter((a) => a.mostra).map((a, i) => (
-            <button key={i} onClick={() => { setMenu(false); a.on(); }} className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
-              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
-              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><a.ic size={18} /></span>
-              <span className="flex-1 min-w-0">
-                <span className="font-extrabold block" style={{ color: T.ink }}>{a.t}</span>
-                <span className="text-xs" style={{ color: T.dim }}>{a.d}</span>
-              </span>
-              <ChevronRight size={18} style={{ color: T.tenue }} />
-            </button>
+            { g: "Aggiungere", voci: [
+              { k: "mag-aggiungi", ic: Boxes, d: "Tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true) },
+              { k: "mag-copia", ic: Copy, d: "La stessa lista, con gli stessi livelli", on: () => setCopia(true) },
+            ] },
+            { g: "Spostare", voci: [
+              { k: "mag-sposta", ic: ArrowLeftRight, d: "In un altro magazzino, oppure togli e basta", on: () => setSposta(true), serveRoba: true },
+              { k: "mag-trasf", ic: ArrowLeftRight, d: "Solo le quantità, verso un altro magazzino", on: () => setTrasf(true), serveRoba: true },
+            ] },
+            { g: "Livelli", voci: [
+              { k: "mag-par", ic: Ruler, d: "La soglia prevista, anche in Gastronorm", on: () => setParMulti(true), serveRoba: true },
+              { k: "mag-soglie", ic: TrendingUp, d: "Feriale e weekend, su tanti prodotti insieme", on: () => setSoglie(true), serveRoba: true },
+            ] },
+          ].map((gruppo) => (
+            <div key={gruppo.g} className="flex flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>{gruppo.g}</span>
+              {gruppo.voci.map((a) => {
+                const spenta = !!a.serveRoba && mag.articoli.length === 0;
+                return (
+                  <button key={a.k} type="button" data-azione={a.k}
+                    onClick={() => {
+                      if (spenta) { mostraToast("Questo magazzino è ancora vuoto: prima aggiungi dei prodotti", "avviso"); return; }
+                      setMenu(false); a.on();
+                    }}
+                    className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left"
+                    style={{ background: spenta ? "#F4F5F8" : "#F7F9FE", border: `1.5px solid ${T.bordo}`, opacity: spenta ? 0.66 : 1 }}>
+                    <span className="rounded-xl p-2.5 shrink-0" style={{ background: spenta ? "#ECEEF3" : "#EAF0FE", color: spenta ? T.tenue : T.blu }}><a.ic size={18} /></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="font-extrabold block" style={{ color: spenta ? T.dim : T.ink }}>{nomeAzione(a.k)}</span>
+                      <span className="text-xs" style={{ color: T.dim }}>{spenta ? "Serve almeno un prodotto qui dentro" : a.d}</span>
+                    </span>
+                    <ChevronRight size={18} style={{ color: T.tenue }} />
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </div>
       </Foglio>
@@ -7028,19 +7214,19 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
         {formArt && <FormArticolo key={formArt.art?.prodottoId || "n"} stato={stato} mag={mag} art={formArt.art}
           muta={muta} mostraToast={mostraToast} onChiudi={() => setFormArt(null)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={multi} titolo="Aggiungi più prodotti" onChiudi={() => setMulti(false)} larga>
+      <Foglio aperto={multi} titolo={nomeAzione("mag-aggiungi")} onChiudi={() => setMulti(false)} larga>
         {multi && <FormAggiungiMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setMulti(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={copia} titolo="Copia prodotti da un magazzino" onChiudi={() => setCopia(false)}>
+      <Foglio aperto={copia} titolo={nomeAzione("mag-copia")} onChiudi={() => setCopia(false)}>
         {copia && <FormCopiaMagazzino stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setCopia(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={soglie} titolo="Soglie per giorno in blocco" onChiudi={() => setSoglie(false)} larga>
+      <Foglio aperto={soglie} titolo={nomeAzione("mag-soglie")} onChiudi={() => setSoglie(false)} larga>
         {soglie && <FormSoglieMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setSoglie(false)} />}
       </Foglio>
-      <Foglio aperto={sposta} titolo="Sposta o rimuovi prodotti" onChiudi={() => setSposta(false)} larga>
+      <Foglio aperto={sposta} titolo={nomeAzione("mag-sposta")} onChiudi={() => setSposta(false)} larga>
         {sposta && <FormSpostaMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setSposta(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={parMulti} titolo="Livello previsto in blocco" onChiudi={() => setParMulti(false)} larga>
+      <Foglio aperto={parMulti} titolo={nomeAzione("mag-par")} onChiudi={() => setParMulti(false)} larga>
         {parMulti && <FormParMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setParMulti(false)} />}
       </Foglio>
       <Foglio aperto={!!produz} titolo={`Ho prodotto · ${trova(stato.prodotti, produz?.prodottoId)?.nome || ""}`} onChiudi={() => setProduz(null)}>
@@ -7059,7 +7245,7 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
         {kardex && <MovimentiArticolo stato={stato} mag={mag}
           art={mag.articoli.find((x) => x.prodottoId === kardex.prodottoId) || kardex} />}
       </Foglio>
-      <Foglio aperto={trasf} titolo="Trasferimento fra magazzini" onChiudi={() => setTrasf(false)}>
+      <Foglio aperto={trasf} titolo={nomeAzione("mag-trasf")} onChiudi={() => setTrasf(false)}>
         {trasf && <FormTrasferimento stato={stato} mag={mag} muta={muta} mostraToast={mostraToast}
           profilo={profilo} onChiudi={() => setTrasf(false)} />}
       </Foglio>

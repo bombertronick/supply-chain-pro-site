@@ -2,3 +2,12 @@ node_modules/
 collaudi/bundle.js
 *.png
 collaudi/.censimento-in-corso
+
+# I dump dello stato VERO di produzione: nomi prodotti, fornitori, ordini,
+# giacenze. Questo repository e' PUBBLICO — non ci vanno. Sette collaudi li
+# leggono (catalogotest, conv551test, convtest, gen552test, mappatest,
+# pesotest, ripristinotest): senza, quei sette non partono. Si rigenerano
+# esportando da Gestione → Sistema → Backup e rinominando il file.
+collaudi/stato-vero.json
+collaudi/stato-vero-conv.json
+collaudi/topologia-vera.json

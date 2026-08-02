@@ -1,0 +1,1 @@
+"Il tasto «Gestione rapida» raccoglie tutto quello che si fa in blocco, in tre gruppi: Aggiungere, Spostare, Livelli. Le voci che hanno bisogno di prodotti restano visibili anche quando il magazzino è vuoto, spente, e dicono perché."

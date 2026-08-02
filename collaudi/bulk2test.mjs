@@ -38,8 +38,13 @@ const scena = () => {
   return { s, magId: m.id, magNome: m.nome, gia: m.articoli[0].prodottoId, nProdotti: s.prodotti.length };
 };
 const { magId, magNome, gia, nProdotti } = scena();
-const VOCI = ["Aggiungi più prodotti", "Copia da un magazzino", "Sposta o rimuovi prodotti",
-  "Livello previsto in blocco", "Soglie per giorno", "Trasferisci scorte"];
+/* Da gen-5.71 questi nomi non sono piu' scritti a mano nel menu': arrivano
+   dalla tabella AZIONI, la stessa che risponde alla ricerca. Se qui bisogna
+   correggerli, vuol dire che i due posti si sono scollati — ed e' esattamente
+   la cosa che gen-5.71 doveva rendere impossibile. */
+const VOCI = ["Aggiungi più prodotti", "Copia da un altro magazzino",
+  "Sposta o rimuovi prodotti", "Livello previsto in blocco",
+  "Soglie per giorno", "Trasferisci le scorte"];
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
 const errs = [];

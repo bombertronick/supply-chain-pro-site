@@ -36,7 +36,7 @@ Il canale per scrivere è **solo** l'esecuzione SQL via MCP su Supabase
 bloccate dal proxy: non è un ostacolo da aggirare, è la regola della rete.
 
 `app/app.jsx` in questo repository è **la copia di lavoro**, allineata a
-gen-5.69. La verità resta il database.
+gen-5.71. La verità resta il database.
 
 ---
 
@@ -72,6 +72,14 @@ provato in locale.
    di fare un danno.
 8. **Aggiorna `meta`** (len + ver), **cancella i pezzi tmp**, **rileggi** con
    `app_bootstrap()` e verifica che `len` dichiarata = lunghezza vera.
+
+> **Da gen-5.71 i passi 5–8 non si scrivono più a mano.**
+> `strumenti/sql_deploy.mjs <vecchio.jsx> <hNNN> <nuovo.jsx> <tag>` verifica
+> l'unicità delle ancore, l'assenza di sovrapposizioni e la ricostruzione
+> locale, e poi **genera l'SQL completo** — backup, tessere, cancello md5,
+> UPDATE condizionato, meta, pulizia. Le coordinate le contava una persona
+> leggendo un elenco, ed è esattamente lì che il 30 luglio un pezzo è partito
+> lungo un byte in meno.
 
 > `app_bootstrap()` restituisce `meta` come **stringa** JSON: va convertita con
 > `(b.j->>'meta')::jsonb`, se no i confronti falliscono in silenzio.
@@ -109,6 +117,15 @@ mezzo alle altre. Hanno attese a tempo fisso invece di aspettare che la
 schermata sia pronta. Da sistemare: salvare l'output dei rossi, poi togliere
 le attese fisse.
 
+**Sette collaudi non partono da un clone appena fatto**, e non è una
+dimenticanza. `catalogotest`, `conv551test`, `convtest`, `gen552test`,
+`mappatest`, `pesotest` e `ripristinotest` leggono `stato-vero.json`,
+`stato-vero-conv.json` e `topologia-vera.json`: sono **i dati veri di
+produzione** — nomi dei prodotti, fornitori, ordini, giacenze. **Questo
+repository è pubblico**, quindi quei tre file stanno nel `.gitignore` e non ci
+entrano. Si rigenerano esportando da *Gestione → Sistema → Backup* e
+rinominando il file.
+
 **Ogni collaudo si spiega da solo.** In cima a ognuno c'è un commento che dice
 quale difetto ha preso e perché quel controllo esiste. Leggeteli: valgono più
 di questo documento.
@@ -134,7 +151,7 @@ rossi senza che l'app abbia niente che non va.
 
 ## 4. Cos'è online adesso
 
-**In produzione: gen-5.69.** Censimento completo verde prima di ogni rilascio.
+**In produzione: gen-5.71.** Censimento completo verde prima di ogni rilascio.
 
 | versione | cosa |
 |---|---|
@@ -143,15 +160,45 @@ rossi senza che l'app abbia niente che non va.
 | gen-5.67 | il tutorial: 9 guide che mancavano, il tasto del « ? » che non dice più «Guida di "Home"» |
 | gen-5.68 | **le ricette**: il gesto «Ho prodotto» che scala gli ingredienti |
 | gen-5.69 | «In quali magazzini sta» dalla riga del prodotto, e l'avviso dei prodotti orfani che porta il rimedio con sé |
+| gen-5.70 | **la lente 🔍 trova anche le funzioni**: 25 voci, cercabili con la parola che userebbe una persona |
+| gen-5.71 | **«Gestione rapida» diventa un pannello a tre gruppi**, con le stesse identiche parole della ricerca |
 
-**Rimasto da fare, richiesto e non fatto:**
+### Le ultime due, e perché sono una cosa sola
 
-- **B** — la ricerca 🔍 deve trovare anche **le funzioni**, non solo i prodotti.
-  Scrivi «sposta» e ti porta a «Sposta o rimuovi prodotti». È la risposta alla
-  frase: *«devo poter fare tutto senza dovermi ricordare in che parte dell'app
-  ho quella funzionalità»*.
-- **C** — «Gestione rapida» riordinata a gruppi (*Aggiungere · Spostare ·
-  Livelli*), con le stesse parole che usa la ricerca.
+Nascono da una frase: *«devo poter fare tutto senza dovermi ricordare in che
+parte dell'app ho quella determinata funzionalità che mi serve; un centro di
+comando si chiama tale quando controlla tutte le sue periferiche»*.
+
+Il conto le dava ragione: **mettere un prodotto in un magazzino si poteva fare
+in quattro modi, con quattro nomi diversi, in tre schermate.** Spostare i tasti
+non sarebbe bastato.
+
+**gen-5.70** — la tabella `AZIONI` (25 voci). Ognuna porta delle *parole*: come
+la cercherebbe una persona, non come si chiama nel menù. Chi ha in testa «devo
+togliere della roba» scrive «togli», non «Sposta o rimuovi prodotti». La
+ricerca ignora gli accenti (`senzaAccenti`) e **filtra per ruolo**: un operatore
+non trova porte che poi non può aprire.
+
+**gen-5.71** — il menù non riscrive più i nomi delle sue voci: li prende da
+`AZIONI` con `nomeAzione(k)`, e anche i **titoli dei fogli** che si aprono.
+Prima erano tre stringhe diverse per la stessa cosa. Adesso è una sola, e
+`collaudi/gestionerapidatest.mjs` §2 lo **prova senza scriverla**: legge il nome
+dal menù e poi lo cerca con la lente. Se qualcuno domani lo cambia in un posto
+solo, diventa rosso da solo.
+
+> **Il prezzo del posto sullo schermo, e il collaudo che lo fa pagare.**
+> Dando alle voci i nomi lunghi della ricerca, i titoli sono andati a capo e
+> l'ultima voce è finita sotto il bordo di un telefono 390×844. Si vedeva solo
+> scorrendo. I nomi sono stati accorciati fino a farceli stare tutti e sei, e
+> **§5 di `gestionerapidatest` boccia se una settima voce, o un nome più lungo,
+> rifà sbordare il pannello.** Su schermi da 360px il foglio scorre ancora: lì
+> non ci stanno, ed è dichiarato invece che scoperto per caso.
+
+**Trovato e non risolto** (è nella roadmap): la lente sta nell'intestazione, ed
+è raggiungibile da ogni *schermata* — ma **non mentre un `Foglio` è aperto**
+(dentro un magazzino, dentro un prodotto). Il foglio è `fixed inset-0 z-50` e
+copre l'intestazione. Non è rotto — è il comportamento normale di una scheda —
+ma «da ovunque» era una parola di troppo, e va detto.
 
 ---
 
@@ -165,7 +212,7 @@ tiene ferma una funzione che è già costruita e collaudata.
 | **Le dosi delle ricette** | La macchina c'è e funziona. Senza «quanta farina in una breccola» non scala niente. Basta **una sola ricetta** per provare il giro intero. |
 | **Da quale magazzino escono gli ingredienti** | Oggi: un magazzino della stessa sede che ce l'ha, preferendo chi ne ha abbastanza — e la schermata lo scrive prima di applicare. Se in cucina funziona diversamente, cambia solo quella preferenza. |
 | **Quali prodotti li fa il laboratorio** | In catalogo sono **zero**. Finché è zero, tutto il lavoro sui preparati è in piedi ma non tocca niente. Si marcano in blocco: Catalogo → Prodotti → Modifica in blocco → «Chi lo fa». |
-| **Il PIN dell'admin** | È ancora quello di partenza. Va cambiato. (Non è scritto qui, e non deve esserlo.) |
+| **Il PIN dell'admin** ⚠️ | È ancora quello di partenza, ed è **la cosa più urgente di questa tabella**. Non perché sia scritto qui — non lo è — ma perché **questo repository è pubblico** e i collaudi, per funzionare, contengono in chiaro i PIN dimostrativi. Finché quello vero coincide con quello dimostrativo, chi trova il repository trova la porta aperta. Va cambiato dall'app, oggi. |
 | **12 righe d'ordine finte** | Righe di tipo `lab` in stato «ricevuto» per cose che il laboratorio si fa da sé: acquisti mai avvenuti. Si possono cancellare. |
 | **I prezzi** | 0 prodotti su 102 ce l'hanno. Senza, «quanto vale la merce» salta le righe e lo dichiara. |
 | **34 conversioni stimate** | L'app le tiene marcate come stime. Vanno pesate. |

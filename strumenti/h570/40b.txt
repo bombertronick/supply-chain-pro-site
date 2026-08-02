@@ -1,0 +1,2 @@
+          placeholder="Un prodotto o una cosa da fare: guanciale, sposta, ordine…"
+          aria-label="Cerca un prodotto o una funzione"

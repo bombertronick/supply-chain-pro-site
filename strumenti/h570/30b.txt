@@ -1,0 +1,2 @@
+  const righe = righeRicerca(stato, profilo, q);
+  const azioni = azioniTrovate(profilo, q);

@@ -1,0 +1,5 @@
+      {corto && <p className="text-sm" style={{ color: T.tenue }}>Scrivi almeno due lettere.</p>}
+      {q.trim().length >= 2 && righe.length === 0 && (
+        <Vuoto icona={Search} titolo="Nessun prodotto con questo nome"
+          testo="Controlla come è scritto a catalogo, oppure cerca solo un pezzo del nome." />
+      )}

@@ -119,10 +119,21 @@ for (const [nome, r] of Object.entries(RUOLI)) {
 
 /* ═══ i contenuti rimasti indietro rispetto all'app ═══ */
 console.log(`\n══════ i testi non devono essere piu' vecchi dell'app ══════`);
-ok(/SEI scorciatoie/i.test(raccolto["Magazzini"] || ""),
-  "Magazzini: «Gestione rapida» dice sei voci — quante ne ha davvero, non quattro");
-ok(/Trasferisci scorte/i.test(raccolto["Magazzini"] || ""),
-  "e le nomina tutte, «Trasferisci scorte» compresa");
+/* Da gen-5.71 «Gestione rapida» e' divisa in tre gruppi. La guida non deve
+   limitarsi a dire quante voci ci sono: deve nominare i gruppi (perche' e' la
+   forma che si vede aprendola) e tutte e sei le voci, con le stesse identiche
+   parole che usa la ricerca. Se una voce cambia nome e la guida resta indietro,
+   qui diventa rosso. */
+for (const g of ["AGGIUNGERE", "SPOSTARE", "LIVELLI"]) {
+  ok(new RegExp(g, "i").test(raccolto["Magazzini"] || ""),
+    `Magazzini: la guida nomina il gruppo «${g}»`);
+}
+for (const v of ["Aggiungi più prodotti", "Copia da un altro magazzino",
+  "Sposta o rimuovi prodotti", "Trasferisci le scorte",
+  "Livello previsto in blocco", "Soglie per giorno"]) {
+  ok((raccolto["Magazzini"] || "").toLowerCase().includes(v.toLowerCase()),
+    `e la voce «${v}», con le parole esatte del menù`);
+}
 ok(/[Cc]hi lo fa/.test(raccolto["Catalogo"] || ""),
   "Catalogo: la guida spiega «Chi lo fa», che è la novità di oggi");
 ok(/laboratorio/i.test(raccolto["Catalogo"] || "") && /fornitore/i.test(raccolto["Catalogo"] || ""),

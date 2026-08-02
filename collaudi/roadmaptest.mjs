@@ -36,10 +36,12 @@ await p.waitForTimeout(400);
 const voci = p.locator(".voce");
 const n = await voci.count();
 const dichiarati = await p.evaluate(() => {
+  /* il numero puo' capitare a inizio frase o in mezzo: si confronta minuscolo,
+     se no un «sei» perfettamente italiano diventa un falso allarme */
   const m = document.querySelector(".apertura").textContent.match(/(\w+) modifiche possibili/);
-  const parole = { Una:1, Due:2, Tre:3, Quattro:4, Cinque:5, Sei:6, Sette:7, Otto:8,
-    Nove:9, Dieci:10, Undici:11, Dodici:12, Tredici:13 };
-  return parole[m?.[1]] ?? null;
+  const parole = { una:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
+    nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
+  return parole[(m?.[1] || "").toLowerCase()] ?? null;
 });
 ok(n >= 2, `ci sono lavori da scegliere (${n})`);
 ok(dichiarati === n, `il testo in cima dice il numero giusto (dichiara ${dichiarati}, ce ne sono ${n})`);

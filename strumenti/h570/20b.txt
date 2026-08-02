@@ -1,0 +1,36 @@
+      {corto && <p className="text-sm" style={{ color: T.tenue }}>Scrivi almeno due lettere.</p>}
+
+      {/* LE FUNZIONI PRIMA DEI PRODOTTI.
+          Stanno in cima e non in fondo perche' chi scrive «sposta» sta cercando
+          un comando, non un prodotto che si chiama cosi'. Ogni riga dice anche
+          la strada per esteso: chi vuole impararla la impara, chi ha fretta
+          tocca e ci arriva. */}
+      {azioni.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>
+            {azioni.length === 1 ? "1 funzione" : `${azioni.length} funzioni`}
+          </span>
+          {azioni.slice(0, 6).map((a) => (
+            <button key={a.n} type="button" onClick={() => { onChiudi(); vaiA(a.d); }}
+              className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}>
+                <a.ic size={18} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="font-extrabold block" style={{ color: T.ink }}>{a.n}</span>
+                <span className="text-xs block" style={{ color: T.dim }}>{a.c}</span>
+              </span>
+              <ChevronRight size={18} style={{ color: T.tenue }} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length === 0 && (
+        <Vuoto icona={Search} titolo="Non trovo né un prodotto né una funzione"
+          testo="Prova con un pezzo del nome, o con la parola che useresti tu: «sposta», «ordine», «soglie», «backup»." />
+      )}
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length > 0 && (
+        <p className="text-sm" style={{ color: T.tenue }}>Nessun prodotto con questo nome.</p>
+      )}

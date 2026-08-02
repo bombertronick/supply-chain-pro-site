@@ -1,0 +1,4 @@
+          Cerca <b style={{ color: T.ink }}>due cose insieme</b>. Un <b style={{ color: T.ink }}>prodotto</b>:
+          ti dice in quali magazzini sta, quanto ce n'è e se è sotto il livello previsto.
+          Oppure <b style={{ color: T.ink }}>una cosa da fare</b>: scrivi «sposta», «ordine»,
+          «soglie», «backup» e ti ci porta — senza doverti ricordare in che sezione sta.

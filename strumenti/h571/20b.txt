@@ -1,0 +1,9 @@
+/* ── UNA VOCE SOLA, DUE POSTI ──
+   Il menù «Gestione rapida» non riscrive i nomi delle sue voci: li prende da
+   qui, dalla stessa tabella che risponde alla lente. Così quello che si legge
+   cercando è, parola per parola, quello che si legge nel menù — e non si può
+   scollare fra una versione e l'altra, perché il testo è scritto una volta
+   sola. Se un nome cambia, cambia in tutti e due i posti insieme. */
+const nomeAzione = (k) => (AZIONI.find((a) => a.k === k) || {}).n || "";
+
+/* Trova le funzioni che c'entrano con quello che è stato scritto. Cerca sia nel

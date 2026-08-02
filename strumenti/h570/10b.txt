@@ -1,0 +1,112 @@
+/* ═══════════ LA RICERCA TROVA ANCHE LE FUNZIONI ═══════════
+
+   Da una frase esatta: «devo poter fare tutto senza dovermi ricordare in che
+   parte dell'app ho quella determinata funzionalità che mi serve; un centro di
+   comando si chiama tale quando controlla tutte le sue periferiche».
+
+   Aveva ragione, e il conto lo dimostrava: mettere un prodotto in un magazzino
+   si poteva fare in quattro modi, con quattro nomi diversi, in tre schermate.
+   Chi cerca non poteva sapere quale.
+
+   La risposta non e' spostare i tasti — e' avere UN POSTO SOLO che li trova
+   tutti per nome, sempre lo stesso, raggiungibile da ogni schermata. Questa
+   lente qui e' quel posto.
+
+   Ogni voce porta delle PAROLE: come la cercherebbe una persona, non come si
+   chiama nel menu. Chi ha in testa «devo togliere della roba» scrive «togli»,
+   non «Sposta o rimuovi prodotti». Se una parola vi manca, aggiungetela: la
+   lista e' fatta per crescere. */
+const AZIONI = [
+  { n: "Aggiungi più prodotti a un magazzino", d: "magazzini", ic: Boxes,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["aggiungi", "prodotti", "inserire", "mettere", "nuovo", "blocco", "insieme"] },
+  { n: "In quali magazzini sta un prodotto", d: "catalogo", ic: Boxes,
+    c: "Catalogo → Prodotti → il tasto verde sulla riga",
+    p: ["magazzini", "assegnare", "assegna", "dove sta", "dove", "orfano", "nessun magazzino"] },
+  { n: "Sposta o rimuovi prodotti", d: "magazzini", ic: ArrowLeftRight,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["sposta", "spostare", "rimuovi", "rimuovere", "togli", "togliere", "muovi", "leva"] },
+  { n: "Trasferisci scorte fra magazzini", d: "magazzini", ic: ArrowLeftRight,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["trasferisci", "trasferire", "scorte", "quantita", "porta", "sposta quantita"] },
+  { n: "Copia i prodotti da un altro magazzino", d: "magazzini", ic: Copy,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["copia", "copiare", "duplicare", "stessa lista", "uguale"] },
+  { n: "Soglie per giorno (feriale / weekend)", d: "magazzini", ic: TrendingUp,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["soglie", "soglia", "giorno", "feriale", "weekend", "sabato", "domenica"] },
+  { n: "Livello previsto in blocco", d: "magazzini", ic: Ruler,
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["livello", "previsto", "par", "scorta", "blocco", "minimo"] },
+  { n: "Ho prodotto (scala gli ingredienti)", d: "magazzini", ic: FlaskConical,
+    c: "Magazzini → magazzino di laboratorio → tasto verde sulla riga",
+    p: ["prodotto", "produzione", "preparato", "fatto", "ricetta", "ingredienti", "laboratorio"] },
+  { n: "Le ricette: le dosi dei preparati", d: "catalogo", ic: FlaskConical,
+    c: "Catalogo → Prodotti → matita → «La ricetta»",
+    p: ["ricetta", "ricette", "dosi", "dose", "ingredienti", "quanto ci vuole"] },
+  { n: "Modifica in blocco: categoria, fornitore, chi lo fa", d: "catalogo", ic: Pencil,
+    c: "Catalogo → Prodotti → Modifica in blocco",
+    p: ["blocco", "categoria", "fornitore", "unita", "chi lo fa", "preparato", "tanti insieme"] },
+  { n: "Prezzi e conversioni dei prodotti", d: "catalogo", ic: Tag,
+    c: "Catalogo → Prodotti → matita",
+    p: ["prezzo", "prezzi", "costo", "conversione", "conversioni", "quanto costa"] },
+  { n: "Report ordine da mandare al fornitore", d: "ordini", ic: Truck,
+    c: "Ordini → Report ordine",
+    p: ["report", "ordine", "ordinare", "fornitore", "whatsapp", "mandare", "inviare"] },
+  { n: "Da mandare adesso (tutto, sede per sede)", d: "ordini", ic: Truck,
+    c: "Ordini → la scheda verde in cima",
+    p: ["mandare", "inviare", "whatsapp", "spedire", "adesso", "messaggio"] },
+  { n: "Registrare la merce arrivata", d: "ordini", ic: PackageCheck,
+    c: "Ordini → scheda «Ordinati» → Tutto arrivato",
+    p: ["arrivata", "arrivato", "ricevere", "ricevuto", "consegna", "carico", "bolla"] },
+  { n: "Contare quello che c'è", d: "conteggi", ic: ClipboardList,
+    c: "Conteggi",
+    p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
+  { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
+    c: "Gestione → Analisi",
+    p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
+  { n: "Soglie consigliate dai consumi veri", d: "analisi", ic: Gauge,
+    c: "Gestione → Analisi",
+    p: ["soglie consigliate", "previsione", "fabbisogni", "consigli", "proposta"] },
+  { n: "Sprechi e scarti", d: "analisi", ic: PackageMinus,
+    c: "Gestione → Analisi",
+    p: ["spreco", "sprechi", "scarto", "scarti", "buttato", "perso"] },
+  { n: "Chi ha fatto cosa, e riportare indietro", d: "storico", ic: History,
+    c: "Gestione → Storico",
+    p: ["storico", "chi", "quando", "ripristina", "annulla", "torna indietro", "log"] },
+  { n: "Ordini fatti e conto per fornitore", d: "storico-ordini", ic: Truck,
+    c: "Gestione → Storico ordini",
+    p: ["storico ordini", "ordini vecchi", "conto", "quanto ho speso", "fornitore"] },
+  { n: "Sedi e quale laboratorio le rifornisce", d: "sedi", ic: Building2,
+    c: "Gestione → Sedi",
+    p: ["sede", "sedi", "laboratorio", "collegare", "rifornisce", "pizzeria"] },
+  { n: "Persone, ruoli e PIN", d: "profili", ic: Users,
+    c: "Gestione → Profili",
+    p: ["pin", "persone", "ruolo", "profilo", "profili", "chi entra", "password"] },
+  { n: "Inviti e richieste di accesso", d: "accessi", ic: KeyRound,
+    c: "Gestione → Accessi",
+    p: ["invito", "inviti", "codice", "accesso", "far entrare", "nuovo utente"] },
+  { n: "Backup, esportazioni e ripristino", d: "sistema", ic: Database,
+    c: "Gestione → Sistema",
+    p: ["backup", "esporta", "esportazione", "csv", "excel", "ripristino", "salvataggio", "importa"] },
+  { n: "La rete a colpo d'occhio", d: "plancia", ic: Gamepad2,
+    c: "Plancia",
+    p: ["plancia", "mappa", "rete", "colpo d'occhio", "collegamenti", "schema"] },
+];
+
+/* Trova le funzioni che c'entrano con quello che è stato scritto. Cerca sia nel
+   nome sia nelle parole, e senza accenti: chi scrive di fretta scrive «unita»,
+   non «unità», e non deve essere punito per questo. */
+const senzaAccenti = (s) => (s || "").toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function azioniTrovate(profilo, q) {
+  const t = senzaAccenti(q).trim();
+  if (t.length < 2) return [];
+  /* un operatore non deve trovare porte che poi non può aprire */
+  const suo = (a) => profilo.ruolo === "admin"
+    || !["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema"].includes(a.d);
+  return AZIONI.filter(suo).filter((a) =>
+    senzaAccenti(a.n).includes(t) || a.p.some((x) => senzaAccenti(x).includes(t) || t.includes(senzaAccenti(x))));
+}
+
+function righeRicerca(stato, profilo, q) {
