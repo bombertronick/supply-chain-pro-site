@@ -11,3 +11,11 @@ collaudi/.censimento-in-corso
 collaudi/stato-vero.json
 collaudi/stato-vero-conv.json
 collaudi/topologia-vera.json
+
+# Prodotti della costruzione: si rifanno da soli a ogni «node build.mjs».
+# tw.css in particolare NON va salvato: e' stato fermo dal 30 luglio al 2
+# agosto e nessuno se n'e' accorto — un foglio di stile vecchio fa misurare
+# ai collaudi una pagina diversa da quella vera.
+collaudi/tw.css
+collaudi/app-under-test.jsx
+collaudi/rossi/

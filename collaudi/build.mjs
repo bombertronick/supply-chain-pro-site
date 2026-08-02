@@ -1,5 +1,6 @@
 import { build } from "esbuild";
-import { copyFileSync } from "fs";
+import { copyFileSync, statSync } from "fs";
+import { execFileSync } from "child_process";
 
 import { existsSync } from "fs";
 /* Se c'è un censimento in corso, ricostruire il bundle glielo rovina a metà:
@@ -13,6 +14,40 @@ if (existsSync(".censimento-in-corso") && !process.argv.includes("--anche-sotto-
 }
 const target = process.argv[2] || "../app-prod.jsx";
 copyFileSync(target, "./app-under-test.jsx");
+
+/* ── IL FOGLIO DI STILE SI RIFÀ OGNI VOLTA ──
+   Fino al 2 agosto «tw.css» era un file costruito una volta, il 30 luglio, e
+   mai piu' toccato. Le classi grafiche nuove scritte dopo quella data nel
+   banco di prova NON C'ERANO: quegli elementi venivano misurati senza il loro
+   aspetto, e i collaudi che guardano dove finiscono le cose stavano guardando
+   una pagina diversa da quella vera. Non e' esploso niente per fortuna, non
+   per costruzione — ed e' il tipo di buco che si scopre solo quando ha gia'
+   fatto danno.
+   Adesso il foglio si ricostruisce dal sorgente in prova a ogni pacchetto: non
+   puo' piu' invecchiare, e chi clona il repository ne ottiene uno giusto senza
+   sapere che esiste. */
+const tw = ["./node_modules/.bin/tailwindcss", "./node_modules/tailwindcss/lib/cli.js"]
+  .find(existsSync);
+try {
+  if (tw && tw.endsWith(".js")) {
+    execFileSync(process.execPath, [tw, "-i", "tw-input.css", "-o", "tw.css",
+      "--content", "./app-under-test.jsx,./index.html", "--minify"], { stdio: "pipe" });
+  } else if (tw) {
+    execFileSync(tw, ["-i", "tw-input.css", "-o", "tw.css",
+      "--content", "./app-under-test.jsx,./index.html", "--minify"], { stdio: "pipe" });
+  } else {
+    execFileSync("npx", ["tailwindcss", "-i", "tw-input.css", "-o", "tw.css",
+      "--content", "./app-under-test.jsx,./index.html", "--minify"], { stdio: "pipe" });
+  }
+  const kb = (statSync("tw.css").size / 1024).toFixed(0);
+  console.log(`STILE OK  tw.css rifatto dal sorgente in prova (${kb}KB)`);
+} catch (e) {
+  console.error("STILE FALLITO: non sono riuscito a rifare tw.css.");
+  console.error("  Senza, le schermate si misurano senza il loro aspetto e i collaudi");
+  console.error("  che guardano dove finiscono le cose non provano niente.");
+  console.error("  " + (e.stderr?.toString().split("\n")[0] || e.message));
+  process.exit(3);
+}
 
 try {
   const r = await build({

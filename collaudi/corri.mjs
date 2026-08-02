@@ -18,7 +18,7 @@
    con zero e non stampa nemmeno un controllo e' MUTO, e per mesi l'ho contato
    come verde. Non prova niente. Chiamarlo col suo nome e' tutto il punto. */
 import { spawnSync } from "child_process";
-import { readdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 
 /* ── LA BANDIERINA ──
    Il bundle è una risorsa sola e condivisa: se qualcuno lo ricostruisce mentre
@@ -40,6 +40,24 @@ const NON_COLLAUDI = new Set([
   "navtest.mjs",     // la libreria che tutti importano per navigare
   "render-test.mjs", // fa il giro dell'app e scatta fotografie: e' un attrezzo, non un collaudo
 ]);
+/* ── QUATTRO ESITI, NON TRE ──
+   Sette collaudi leggono i dati VERI di produzione: nomi dei prodotti,
+   fornitori, ordini, giacenze. Quei file non stanno nel repository — e' un
+   repository pubblico — quindi su una macchina che non sia la mia non ci sono.
+   Prima diventavano ROSSI, e un rosso che non e' un difetto e' la cosa peggiore
+   che si possa mettere in un rapporto automatico: insegna a ignorare i rossi.
+   Adesso si chiamano SALTATE e dicono che file gli manca. Non contano come
+   difetto, ma non spariscono nemmeno dal conto. */
+const DATI_RICHIESTI = {
+  "catalogotest.mjs": "stato-vero.json",
+  "conv551test.mjs": "stato-vero.json",
+  "convtest.mjs": "stato-vero.json",
+  "gen552test.mjs": "stato-vero-conv.json",
+  "mappatest.mjs": "topologia-vera.json",
+  "pesotest.mjs": "topologia-vera.json",
+  "ripristinotest.mjs": "topologia-vera.json",
+};
+
 const lista = tutti
   ? readdirSync(".").filter((f) => /test\.mjs$/.test(f) && !NON_COLLAUDI.has(f)).sort()
   : arg.filter((a) => !a.startsWith("--"));
@@ -49,9 +67,22 @@ const giu = () => { try { if (existsSync(BANDIERINA)) unlinkSync(BANDIERINA); } 
 process.on("exit", giu); process.on("SIGINT", () => { giu(); process.exit(130); });
 process.on("SIGTERM", () => { giu(); process.exit(143); });
 
+/* ── L'OUTPUT DEI ROSSI SI CONSERVA ──
+   Finora, in censimento, di una suite rossa restava una riga sola. Di una che
+   cade solo sotto carico non si riusciva a sapere QUALE controllo fosse
+   caduto, e la diagnosi era impossibile. Adesso che il censimento gira di
+   notte da solo, questa non e' piu' una scomodita': senza, il rapporto della
+   mattina dice «rossa» e nessuno puo' farci niente. */
+const CARTELLA_ROSSI = "rossi";
 let rossa = null;
 const esiti = [];
 for (const f of lista) {
+  const manca = DATI_RICHIESTI[f];
+  if (manca && !existsSync(manca)) {
+    esiti.push({ f, nOk: 0, nKo: 0, sec: 0, male: false, muto: false, saltata: manca });
+    console.log(`SALTA  ${f.padEnd(22)} manca «${manca}» — i dati veri non stanno nel repository`);
+    continue;
+  }
   const t0 = Date.now();
   const r = spawnSync("node", [f], { encoding: "utf8", timeout: 900000 });
   const out = (r.stdout || "") + (r.stderr || "");
@@ -70,6 +101,9 @@ for (const f of lista) {
     ? (out.match(/^(?:.*(?:Error|error:|Timeout).*)$/m) || [""])[0].trim().slice(0, 110)
     : "";
   esiti.push({ f, nOk, nKo, sec, male, muto, perche });
+  if (male && censimento) {
+    try { mkdirSync(CARTELLA_ROSSI, { recursive: true }); writeFileSync(`${CARTELLA_ROSSI}/${f}.txt`, out); } catch {}
+  }
   console.log(`${male ? "ROSSA" : muto ? "MUTA " : "verde"}  ${f.padEnd(22)} `
     + `${String(nOk).padStart(3)} ok  ${nKo} KO  ${String(sec).padStart(3)}s`
     + (male && censimento ? `  ← ${perche}` : ""));
@@ -85,9 +119,15 @@ if (rossa) {
 
 const mute = esiti.filter((e) => e.muto);
 const rosse = esiti.filter((e) => e.male);
-const verdi = esiti.filter((e) => !e.male && !e.muto);
+const saltate = esiti.filter((e) => e.saltata);
+const verdi = esiti.filter((e) => !e.male && !e.muto && !e.saltata);
 console.log(`\n${verdi.length} verdi (${verdi.reduce((a, e) => a + e.nOk, 0)} controlli veri)`
-  + ` · ${mute.length} mute · ${rosse.length} rosse · ${esiti.length} file in tutto`);
+  + ` · ${mute.length} mute · ${rosse.length} rosse · ${saltate.length} saltate`
+  + ` · ${esiti.length} file in tutto`);
+if (saltate.length) {
+  console.log(`\nSALTATE — non sono difetti: gli manca un file di dati che non sta nel repository:`);
+  for (const e of saltate) console.log(`  ${e.f.padEnd(22)} manca «${e.saltata}»`);
+}
 if (mute.length) {
   console.log(`\nMUTE — girano senza provare niente, escono col verde comunque vada:`);
   for (const e of mute) console.log(`  ${e.f}`);
@@ -95,5 +135,15 @@ if (mute.length) {
 if (rosse.length) {
   console.log(`\nROSSE:`);
   for (const e of rosse) console.log(`  ${e.f.padEnd(22)} ${e.perche}`);
+  if (censimento) {
+    console.log(`\nL'output completo di ognuna sta in «${CARTELLA_ROSSI}/». Le ultime righe:`);
+    for (const e of rosse) {
+      console.log(`\n──────── ${e.f} ────────`);
+      try {
+        const t = readFileSync(`${CARTELLA_ROSSI}/${e.f}.txt`, "utf8").split("\n");
+        console.log(t.slice(-25).join("\n"));
+      } catch { console.log("  (output non conservato)"); }
+    }
+  }
 }
 process.exit(rosse.length ? 1 : 0);

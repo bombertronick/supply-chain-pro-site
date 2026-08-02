@@ -127,7 +127,7 @@ node corri.mjs --censimento    # li fa girare TUTTI, senza fermarsi
 node corri.mjs nometest.mjs    # uno solo
 ```
 
-**Tre esiti, non due.** `verde`, `ROSSA` e **`MUTA`**. Un file che gira, esce
+**Tre esiti diventati quattro.** `verde`, `ROSSA` e **`MUTA`**. Un file che gira, esce
 pulito e non stampa nemmeno un controllo non prova niente: per mesi ne ho
 contati diversi come verdi. Chiamarli col loro nome è metà del valore.
 
@@ -137,22 +137,29 @@ ho invalidato tre censimenti ricostruendo il pacchetto mentre giravano: i file
 provati prima e quelli dopo avevano visto due versioni diverse. Non è una
 distrazione da ricordare, è una possibilità da togliere.*
 
-**Una lacuna nota di `corri.mjs`**: in modalità censimento non conserva l'output
-dei file rossi, quindi di una suite che fallisce *solo sotto carico* non si
-riesce a sapere quale controllo sia caduto. Tre suite lo fanno
-(`pintest`, `pin2test`, `pin535test`): passano da sole, cadono ogni tanto in
-mezzo alle altre. Hanno attese a tempo fisso invece di aspettare che la
-schermata sia pronta. Da sistemare: salvare l'output dei rossi, poi togliere
-le attese fisse.
+**QUATTRO esiti, non tre.** Al `verde` / `ROSSA` / `MUTA` si è aggiunto
+**`SALTA`**: la suite non è partita perché le manca un file di dati che in
+questo repository non c'è (vedi sotto). *Un rosso che non è un difetto è la
+cosa peggiore da mettere in un rapporto automatico: insegna a ignorare i
+rossi.* Le saltate non contano come difetto e non spariscono dal conto.
 
-**Sette collaudi non partono da un clone appena fatto**, e non è una
+**L'output dei rossi si conserva** in `collaudi/rossi/<nome>.txt`, e le ultime
+25 righe di ognuno finiscono nel riassunto. *Era una lacuna dichiarata: di una
+suite che cade solo sotto carico non si riusciva a sapere quale controllo fosse
+caduto. Con il censimento che gira di notte da solo non era più una scomodità —
+senza, il rapporto della mattina dice «rossa» e nessuno può farci niente.*
+Restano da sistemare le attese a tempo fisso di `pintest`, `pin2test`,
+`pin535test`: passano da sole, cadono ogni tanto in mezzo alle altre.
+
+**Sette collaudi vengono saltati su un clone appena fatto**, e non è una
 dimenticanza. `catalogotest`, `conv551test`, `convtest`, `gen552test`,
 `mappatest`, `pesotest` e `ripristinotest` leggono `stato-vero.json`,
 `stato-vero-conv.json` e `topologia-vera.json`: sono **i dati veri di
 produzione** — nomi dei prodotti, fornitori, ordini, giacenze. **Questo
 repository è pubblico**, quindi quei tre file stanno nel `.gitignore` e non ci
 entrano. Si rigenerano esportando da *Gestione → Sistema → Backup* e
-rinominando il file.
+rinominando il file. Senza, `corri.mjs` li dichiara `SALTA` con il nome del
+file mancante — non rossi.
 
 **Ogni collaudo si spiega da solo.** In cima a ognuno c'è un commento che dice
 quale difetto ha preso e perché quel controllo esiste. Leggeteli: valgono più
@@ -169,6 +176,39 @@ I tre che contano di più:
   vedevano benissimo e il dito ci passava attraverso.
 - **`reporttest.mjs`** — le due porte da cui esce testo diretto a un fornitore.
   Controlla che un preparato non ci entri *e* che una riga «lab» ci resti.
+
+### Girano da soli, ogni notte
+
+`.github/workflows/collaudi.yml` — ogni notte alle **03:10 UTC**, a ogni push
+su `main` o su un ramo `claude/**` che tocchi `app/` o `collaudi/`, e a mano
+dalla scheda *Actions*. Se qualcosa diventa rosso **GitHub manda una mail al
+proprietario del repository**: è quello il rapporto della mattina dopo.
+L'output dei rossi resta scaricabile per 30 giorni.
+
+**Cosa prova, e cosa no.** Prova `app/app.jsx`, cioè la copia che sta qui — non
+quella online. La produzione sta in un database, e raggiungerla da un workflow
+vorrebbe dire mettere una chiave in un repository pubblico: non si fa. Le due
+copie coincidono perché **ogni rilascio le allinea nello stesso commit**; se un
+giorno non coincidessero, il posto dove accorgersene è il rilascio.
+
+> **GitHub spegne i lavori a orario dopo 60 giorni senza attività sul
+> repository, e non lo dice.** Se per due mesi non si tocca niente, il
+> censimento notturno smette di partire. Si riaccende dalla scheda *Actions*.
+
+### Perché la costruzione rifà il foglio di stile ogni volta
+
+`build.mjs` rigenera `tw.css` dal sorgente in prova a ogni pacchetto, e se non
+ci riesce **si ferma** invece di costruire un pacchetto zoppo.
+
+*Il 2 agosto ho scoperto che `tw.css` era un file costruito una volta, il 30
+luglio, e mai più toccato. Ogni classe grafica scritta dopo quella data — nove
+giorni — nel banco di prova **non c'era**: quegli elementi venivano misurati
+senza il loro aspetto, e i collaudi che guardano dove finiscono le cose stavano
+guardando una pagina diversa da quella vera. Non è esploso niente per fortuna,
+non per costruzione.* Adesso non può più invecchiare, e chi clona il repository
+ne ottiene uno giusto senza sapere che esiste. Per lo stesso motivo `tw.css`,
+`app-under-test.jsx`, `bundle.js` e `rossi/` stanno nel `.gitignore`: sono
+prodotti della costruzione, e un prodotto salvato è un prodotto che invecchia.
 
 **Attenzione a `navtest.mjs`**: esporta `vaiA(p, dove)`, che sa che da gen-5.52
 Catalogo, Analisi, Storico, Sedi, Profili, Accessi e Sistema stanno sotto

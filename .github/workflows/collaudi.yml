@@ -1,0 +1,106 @@
+# I collaudi girano da soli, ogni notte.
+#
+# Nasce da una frase: «i collaudi partono solo quando li lancio io — ed è
+# esattamente per questo che tre erano rimasti rotti per mesi senza che nessuno
+# se ne accorgesse».
+#
+# Cosa prova davvero, e cosa no. Prova la copia dell'app che sta in questo
+# repository (`app/app.jsx`), non quella online: la produzione sta in un
+# database e da qui non è raggiungibile senza mettere una chiave in chiaro in
+# un repository pubblico, e non si fa. Le due copie coincidono perché ogni
+# rilascio le allinea nello stesso commit — se un giorno non coincidessero, il
+# posto dove accorgersene è il rilascio, non questo file.
+#
+# Se qualcosa diventa rosso, GitHub manda una mail al proprietario del
+# repository. È quello il rapporto della mattina dopo.
+#
+# ATTENZIONE: GitHub spegne i lavori a orario dopo 60 giorni senza attività sul
+# repository. Se per due mesi non si tocca niente, questo smette di partire e
+# non lo dice. Si riaccende dalla scheda Actions.
+
+name: Collaudi
+
+on:
+  schedule:
+    # 03:10 UTC — le 05:10 in Italia d'estate, le 04:10 d'inverno.
+    # Il minuto non è zero apposta: allo scoccare dell'ora i runner di GitHub
+    # sono in coda e i lavori partono in ritardo.
+    - cron: "10 3 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "app/**"
+      - "collaudi/**"
+      - ".github/workflows/collaudi.yml"
+
+jobs:
+  censimento:
+    name: Censimento completo
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Prendi il repository
+        uses: actions/checkout@v4
+
+      - name: Prepara Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: collaudi/package-lock.json
+
+      - name: Installa le dipendenze
+        working-directory: collaudi
+        run: npm ci
+
+      - name: Installa Chromium
+        working-directory: collaudi
+        run: npx playwright install --with-deps chromium
+
+      - name: Costruisci il pacchetto da provare
+        working-directory: collaudi
+        run: node build.mjs ../app/app.jsx
+
+      - name: Falli girare tutti
+        id: censimento
+        working-directory: collaudi
+        run: |
+          set -o pipefail
+          node corri.mjs --censimento 2>&1 | tee esito.txt
+
+      - name: Scrivi il riassunto
+        if: always()
+        working-directory: collaudi
+        run: |
+          {
+            echo "## Censimento dei collaudi"
+            echo
+            if [ -f esito.txt ]; then
+              tail -n 3 esito.txt | head -n 1
+              echo
+              echo '<details><summary>Riga per riga</summary>'
+              echo
+              echo '```'
+              cat esito.txt
+              echo '```'
+              echo
+              echo '</details>'
+            else
+              echo "Il censimento non è arrivato a scrivere niente."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Conserva l'output dei rossi
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collaudi-rossi
+          path: |
+            collaudi/rossi/
+            collaudi/esito.txt
+          retention-days: 30
+          if-no-files-found: ignore
