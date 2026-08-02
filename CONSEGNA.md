@@ -175,8 +175,15 @@ I tre che contano di più:
 - **`generaletest.mjs`** — il giro completo: 44 schermate × 3 ruoli × 2 schermi.
   Verifica che ogni schermata si raggiunga, che non sia vuota, che non sbordi, e
   soprattutto che **ogni tasto che si vede si possa premere davvero** (mette il
-  dito al centro e guarda chi se lo prende). È l'unico che avrebbe preso il
-  difetto peggiore del 31 luglio.
+  dito al centro e guarda chi se lo prende).
+  **Limite da sapere, trovato dal consiglio del 2 agosto:** gira sulle 44
+  schermate e su **zero** delle ~40 schede che si aprono sopra (Gestione rapida,
+  Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione
+  merce, Evadi richiesta, Importa CSV). Fino al 2 agosto qui c'era scritto che
+  era «l'unico che avrebbe preso il difetto peggiore del 31 luglio»: **non è
+  vero**, quel difetto stava dentro una scheda che questo giro non apre mai, e
+  l'hanno preso `bulk2test.mjs` e `lentesempretest.mjs`. Estenderlo alle schede
+  è nella roadmap.
 - **`bulk2test.mjs`** — quel difetto: in «Gestione rapida» tre voci su sei si
   vedevano benissimo e il dito ci passava attraverso.
 - **`reporttest.mjs`** — le due porte da cui esce testo diretto a un fornitore.

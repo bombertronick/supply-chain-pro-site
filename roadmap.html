@@ -177,13 +177,14 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · gen-5.72 online</p>
+  <p class="occhiello">Supply Chain Pro · gen-5.73 online</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>I collaudi adesso girano da soli, ogni notte.</b> Se qualcosa si rompe
-  lo si sa la mattina dopo invece che fra tre mesi. Ma prima di automatizzarli ho scoperto che
-  <b>non potevano girare da nessuna parte se non sul mio computer</b>, e che il loro foglio di
-  stile era fermo al 30 luglio: è raccontato qui sotto, e vale più della modifica. Restano
-  <b>quattro</b> modifiche possibili, con le dosi delle ricette in cima come mi hai detto.</p>
+  <p class="apertura"><b>Sei revisori hanno passato l'app al setaccio, settore per settore.</b>
+  Hanno proposto 22 difetti; uno scettico incaricato di demolirli ne ha bocciati 12; ne restano
+  <b>otto veri</b>. La notizia buona è la prima riga del loro verbale: <em>l'app è messa bene, i
+  conti e i permessi reggono</em>. La notizia da guardare in faccia è che <b>due di questi otto
+  fanno arrivare il doppio della merce</b>, e succedono in giornate normali. Li trovi qui sotto,
+  in ordine di danno, insieme alle quattro modifiche che erano già in lista.</p>
 
   <div class="istruzione">
     <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
@@ -196,11 +197,26 @@ if (!document.querySelector('meta[name="viewport"]')) {
   </div>
 
   <section>
-    <p class="eti" style="color:var(--blu)">Da scegliere</p>
-    <h2>Cosa posso mettere in cantiere</h2>
-    <p class="guida">Accanto a ognuna c'è quanto pesa davvero, non a occhio: <em>piccolo</em>
-    è mezza giornata mia, <em>grosso</em> tocca il modello dei dati e va fatto con calma.</p>
-    <div class="schede" id="lista"></div>
+    <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
+    <h2>Otto cose che oggi funzionano male</h2>
+    <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
+    davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
+    giorno con le prove fatte per bene.</p>
+    <div class="istruzione" style="margin:0 0 1rem">
+      <b>Se puoi sceglierne una sola, scegli la prima.</b> È l'unica che costa soldi tutti i
+      giorni — merce ordinata due volte — e la correzione è di due righe per funzione, senza
+      toccare nient'altro. La seconda e la quarta le farei subito dopo, per lo stesso motivo:
+      sono le tre che fanno arrivare merce che non serve.
+    </div>
+    <div class="schede" id="lista-difetti"></div>
+  </section>
+
+  <section>
+    <p class="eti" style="color:var(--blu)">Da scegliere · migliorie</p>
+    <h2>E quattro cose che oggi mancano</h2>
+    <p class="guida">Erano già in lista prima del consiglio. Non sono rotture: sono lavori che
+    l'app non sa ancora fare, o decisioni che spettano a te.</p>
+    <div class="schede" id="lista-altro"></div>
   </section>
 
   <div class="anteprima">
@@ -216,6 +232,45 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 2 agosto · il consiglio di revisione</h4>
+        <p>Sei revisori indipendenti, sei settori diversi, mandati separati perché non si
+        influenzassero a vicenda. Hanno proposto <b>22 difetti</b>. Poi un settimo, incaricato
+        di demolirli uno per uno, ne ha bocciati la metà: <b>ne sono sopravvissuti otto</b> (due
+        proposte erano lo stesso difetto visto da due parti).</p>
+        <p><b>Cosa ho verificato io, personalmente, prima di mettertelo davanti.</b> I due in
+        cima — il doppio ordine e la doppia richiesta — li ho aperti nel codice con i miei occhi,
+        perché sono quelli che cambiano cosa succede domani in cucina. Sono veri tutti e due.
+        Gli altri sei li ho letti ma non riverificati uno per uno: hanno superato lo scettico,
+        non il mio controllo diretto. <em>Te lo dico perché la differenza conta, e perché un
+        elenco lungo fa sempre più impressione di uno corto anche quando dice meno.</em></p>
+        <p>Due cose che il consiglio ha corretto <b>a me</b>, e che tengo scritte qui: il peso
+        dello storico <em>non</em> cresce senza fine come pensavo — arriva a un tetto in otto
+        settimane e lì resta; e il documento di consegna dichiara che un certo collaudo avrebbe
+        preso il difetto peggiore del 31 luglio, <b>e non è vero</b>. Quel difetto stava dentro
+        una scheda che quel collaudo non apre mai. Quella frase l'ho corretta lo stesso giorno,
+        senza metterla in lista: una bugia in un documento non si programma, si toglie.</p>
+        <p><b>E la prima riga del verbale, che è quella che conta:</b> <em>l'app è messa bene —
+        i conti, i permessi e il motore che tiene allineati i telefoni sono scritti con cura e
+        reggono alla prova; gli otto punti stanno tutti ai bordi, e sette su otto si chiudono
+        con poche righe.</em></p>
+
+        <h4>Il 2 agosto · la scheda non si taglia più sul telefono, e l'ordine è per categoria</h4>
+        <p>Due cose che mi hai segnalato tu, e la prima <b>era un difetto mio</b>, nato il giorno
+        prima insieme alla lente sempre raggiungibile: alzando l'intestazione avevo lasciato alle
+        schede solo <b>tre punti</b> di margine sul telefono, misurati in un browser senza barre.
+        Sul telefono vero — con la barra dell'indirizzo e la tacca — quei tre punti non ci sono, e
+        il titolo della scheda finiva sotto. L'hai trovato con una fotografia; il collaudo che
+        avrebbe dovuto trovarlo passava, perché chiedeva un solo punto di margine. Adesso ne
+        chiede otto, su quattro schermi diversi.</p>
+        <p>La seconda: <b>anche l'elenco per il laboratorio adesso è diviso per categoria.</b>
+        Avevi ragione due volte. Il «Report ordine» raggruppava da sempre; il testo che si manda
+        davvero su WhatsApp no — quindi la stessa persona si trovava in mano due elenchi fatti in
+        due modi diversi a seconda del tasto premuto. Ho messo la divisione per categoria in
+        <b>tutti</b> i blocchi, fornitori compresi: sistemarne uno e lasciare l'altro sarebbe
+        stato spostare la confusione, non toglierla. Chi non ha categoria finisce in fondo sotto
+        «Senza categoria», dichiarato — quello che sparisce da un ordine è quello che poi manca
+        in cucina.</p>
+
         <h4>Il 2 agosto · i collaudi girano da soli, ogni notte</h4>
         <p>Da adesso il censimento completo parte da solo alle 5 del mattino, e a ogni modifica
         del codice. Se qualcosa si rompe <b>ti arriva una mail</b>. È la risposta alla frase che
@@ -514,7 +569,45 @@ if (!document.querySelector('meta[name="viewport"]')) {
       </div>
     </details>
     <details>
-      <summary>Cosa ho controllato e stava già bene</summary>
+      <summary>Dove il consiglio ha cercato il guasto e non l'ha trovato</summary>
+      <div class="dentro">
+        <p>Non è un elenco di cortesia: sono i punti che sei persone hanno provato a rompere
+        senza riuscirci. Vale la pena leggerlo quanto l'altro, perché è quello che dice di
+        cosa ci si può fidare.</p>
+        <h4>I conti</h4>
+        <p>Conversioni, arrotondamenti dei prodotti «solo interi» e il gesto «Ho prodotto» sono
+        stati verificati <b>facendo girare il codice, non leggendolo</b>: 30 pezzi su una resa di
+        20 danno esattamente una volta e mezza la ricetta, e gli ingredienti che andrebbero sotto
+        zero sono scritti in rosso <em>prima</em> di toccare qualcosa.</p>
+        <h4>La quantità arrivata comanda su tutto</h4>
+        <p>Alla ricezione vale quello che è arrivato davvero; il residuo torna «da ordinare» in
+        una riga nuova. È la parte più delicata del rifornimento ed è fatta senza scorciatoie.</p>
+        <h4>I permessi</h4>
+        <p><b>Nessuno è riuscito a trovare un punto in cui un operatore scriva sul magazzino di
+        un'altra sede.</b> C'è una regola sola per «chi vede cosa», e nei punti caldi il controllo
+        è rifatto <em>dentro</em> la scrittura, non solo sul tasto.</p>
+        <h4>Il motore che tiene allineati i telefoni</h4>
+        <p>Nonostante i due difetti che lo riguardano, è il pezzo più pensato di tutta l'app: le
+        modifiche viaggiano come istruzioni riapplicate sull'ultimo stato letto, non come
+        fotografie. È quello che ha chiuso per sempre la vecchia storia degli ordini «spariti».</p>
+        <h4>Tre allarmi rientrati</h4>
+        <p>Perché nessuno vada a caccia di fantasmi: l'app <b>non</b> rallenta a ogni tasto quando
+        manca la rete; lo storico <b>non</b> cresce all'infinito; e nel difetto n.1 il magazzino
+        <b>non</b> mente mai — le quantità restano oneste, il danno è solo soldi e merce buttata.</p>
+        <h4>Cosa il consiglio non ha potuto guardare</h4>
+        <p>Tre cose, e le scrivo perché un giudizio senza i suoi limiti vale poco. <b>Il pezzo che
+        salva davvero i dati non sta in questo progetto</b> e non è stato possibile leggerlo: per
+        questo sul difetto n.2 non so se il server offra già un modo per accorgersi delle scritture
+        sovrapposte. <b>Nessun collaudo è stato eseguito</b> durante il consiglio — il censimento
+        notturno era in corso e non volevo che si pestassero i piedi: tutto è stato verificato
+        leggendo il codice o riesumandone pezzi in programmini a parte. E <b>il ritmo vero della
+        vostra cucina</b> non si ricava dal codice: quando leggi «tutti i giorni» o «raro» sono
+        stime ragionate, non misure. Se una è sbagliata, cambia l'ordine della lista qui sopra —
+        e sei tu l'unico che può dirmelo.</p>
+      </div>
+    </details>
+    <details>
+      <summary>Cosa ho controllato io e stava già bene</summary>
       <div class="dentro">
         <div class="tabwrap">
           <table>
@@ -535,8 +628,10 @@ if (!document.querySelector('meta[name="viewport"]')) {
   </section>
 
   <p class="coda">
-    Ogni versione ha il suo backup sul database, da <code>backup:pre-gen532</code> a
-    <code>backup:pre-gen557</code>: se qualcosa non va, si torna indietro in un minuto.
+    Ogni versione ha il suo backup sul database — l'ultimo è <code>backup:pre-gen573</code>, e
+    prima di lui ce ne sono altri settantuno: se qualcosa non va, si torna indietro in un
+    minuto. Da adesso, in più, il censimento completo dei collaudi gira da solo ogni notte alle
+    5, e se trova rosso arriva una mail.
   </p>
 </div>
 
@@ -549,23 +644,51 @@ if (!document.querySelector('meta[name="viewport"]')) {
 </div>
 
 <script>
-/* Le voci. «peso» è onesto: quanto costa a me, non quanto suona bene. */
+/* Le voci. «peso» è onesto: quanto costa a me, non quanto suona bene.
+   I primi otto vengono dal consiglio del 2 agosto e stanno in ordine di danno:
+   quell'ordine è un giudizio, non una classifica automatica, e va lasciato
+   visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
-  { id:"dosi-ricette", tag:["struttura","medio"], cls:["t-str","t-mis"],
+  { id:"doppio-ordine", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
+    titolo:"Si riordina la merce che è già stata ordinata",
+    desc:"Il retro ha bisogno di 8 kg di farina, parte l’ordine, lo segni «ordinato». Il giorno dopo — la merce non è ancora arrivata — ricalcoli, e l’app rifà da capo la stessa richiesta di 8 kg accanto a quella già partita. Al fornitore ne chiedi 16 per un bisogno di 8: arriva il doppio, si paga il doppio, e su un fresco è roba da buttare. L’app non ha proprio il concetto di «già in viaggio»: non esiste da nessuna parte. Succede tutti i giorni, perché fra l’ordine e la consegna passa una notte e in quella notte ogni ricalcolo rifà la domanda. Correzione: due righe per funzione, due funzioni." },
+  { id:"sovrascrittura", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
+    titolo:"Due telefoni che salvano insieme: il lavoro di uno sparisce",
+    desc:"Giulia in laboratorio evade dodici richieste. Nello stesso istante Marco a Fiumicino chiude un conteggio: aveva letto la situazione un attimo prima, e salvando riscrive tutto com’era prima delle evasioni di Giulia. Le dodici evasioni non esistono più, e spariscono anche dallo schermo di Giulia. Nessun messaggio, nessuna riga di storico. C’è un aggravante che ho trovato durante la verifica: le versioni sono l’orologio del telefono, quindi un telefono con l’ora avanti scarta di proposito quello che scrivono gli altri — lì non è una finestra di millisecondi, è sistematico. È la correzione più delicata delle otto, e la farei con calma." },
+  { id:"csv-unita", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
+    titolo:"Un CSV con poche colonne cancella le unità di misura",
+    desc:"Importi un listino a due colonne (nome e prezzo). L’anteprima dice tranquillamente «1 aggiornato, 0 errori», e da quel momento ogni prodotto toccato ha perso l’unità base e tutte le conversioni: 4 buste di grana valgono 4 teglie invece di 12. Prelievi, richieste e ordini escono col numero sbagliato, e il magazzino continua a mostrare numeri credibili che non vogliono più dire niente. Non si torna indietro senza un ripristino da backup. Capita solo importando un file a colonne parziali — cioè un export dell’app ripulito in Excel, che è esattamente quello che il pannello invita a fare. Un’ora." },
+  { id:"doppia-richiesta", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
+    titolo:"Contare due volte la stessa linea fa arrivare il doppio della merce",
+    desc:"Conti la linea, parte la richiesta al laboratorio. Ti accorgi di aver battuto un numero sbagliato e riconti: nasce una seconda richiesta identica. Il laboratorio si trova due righe per lo stesso prodotto, «Confermo tutto» le serve entrambe, sulla linea arriva il doppio e all’altra sede il laboratorio risponde «non ce n’è». Lo stesso vale sulle linee rifornite dal retro, che si svuota due volte. La cosa da sapere: questa protezione nell’app c’è già, scritta bene, duemilacinquecento righe più su — semplicemente non è mai stata portata nella schermata di conteggio. Un quarto d’ora." },
+  { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
+    titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
+    desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
+  { id:"storico-peso", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
+    titolo:"Lo storico dei movimenti viaggia intero ogni tre secondi",
+    desc:"Ogni articolo contato scrive una riga di storico, e su quelle righe non c’è nessun tetto di numero — solo di età. Il pacchetto che ogni telefono scarica ogni tre secondi si assesta sui 200-600 KB di soli movimenti, contro i 115 KB di tutto il resto. Non è un guasto: è peso costante che paghi in dati mobili, batteria e lentezza di apertura, e che rende più probabili i mancati salvataggi del punto qui sopra. Correggo anche il racconto, perché il consiglio l’ha corretto a me: non cresce senza fine, arriva a un tetto in otto settimane e lì resta. Tre righe." },
+  { id:"plancia-permessi", dove:"difetti", tag:["dormiente","piccolo"], cls:["t-dati","t-mis"],
+    titolo:"La Plancia dice «fatto» per un lavoro che i permessi hanno bloccato",
+    desc:"Un profilo Laboratorio spunta «tutta la sede» e preme «Riempi al livello previsto». Vede il verde, il lampo su novanta caselle, e nello storico resta scritto per sempre «Riempite 90 caselle». Sul magazzino non si è mosso niente — giustamente, perché quei magazzini non sono suoi: il muro dei permessi tiene, ma nessuno glielo dice. Oggi non succede mai, perché nei dati veri non esiste nessun profilo Laboratorio: ci sono solo Admin e operatori. È un difetto vero ma dormiente, si sveglia il giorno che ne crei uno. Venti minuti, e nello stesso passaggio sistemo «Annulla l’ultima modifica», che i permessi non li guarda affatto." },
+  { id:"collaudi-schede", dove:"difetti", tag:["rete di sicurezza","piccolo"], cls:["t-vis","t-mis"],
+    titolo:"I collaudi non aprono nessuna delle 40 schede",
+    desc:"Il controllo più prezioso che ho — «ogni tasto che si vede si deve poter premere», col dito messo al centro — gira su 44 schermate e su zero delle 40 schede che si aprono sopra: Gestione rapida, Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione merce, Evadi richiesta, Importa CSV. È lì che sta il lavoro vero. E il documento di consegna dice che quel giro «è l’unico che avrebbe preso il difetto peggiore del 31 luglio»: non è vero, quel difetto stava dentro una scheda che il giro non apre mai. Sei righe dentro un ciclo che c’è già. Le due frasi sbagliate <b>le ho già corrette oggi</b>, senza aspettare: il documento di consegna è il posto dove si va a leggere di cosa fidarsi, e una frase falsa lì fa smettere di cercare. Quello che resta da scegliere è se estendere il giro alle schede." },
+  { id:"dosi-ricette", dove:"altro", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Le dosi delle ricette, scritte in fretta invece che una alla volta",
     desc:"La macchina delle ricette è online e funziona: il laboratorio segna «ho prodotto venti breccole» e l’app scala farina, pecorino e guanciale da sola. Solo che le ricette in catalogo sono ZERO, quindi non scala niente. Oggi si inseriscono dalla scheda del singolo prodotto, una alla volta, ed è la ragione per cui non ne è ancora entrata nemmeno una. Posso fare una schermata sola che ti porta di preparato in preparato — «per fare 1 di questo serve: …», aggiungi ingrediente, avanti — pensata per chi ha davanti il quaderno delle ricette e vuole finire in mezz’ora. Il lavoro vero resta tuo: le dosi le sai solo tu. Questo serve a togliere la fatica del come, non del cosa." },
-  { id:"pesatura", tag:["struttura","medio"], cls:["t-str","t-mis"],
+  { id:"pesatura", dove:"altro", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Una sessione di pesatura, con la bilancia in mano",
     desc:"Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima." },
-  { id:"pin-forte", tag:["sicurezza","piccolo"], cls:["t-sic","t-mis"],
+  { id:"pin-forte", dove:"altro", tag:["sicurezza","piccolo"], cls:["t-sic","t-mis"],
     titolo:"PIN più robusti",
     desc:"Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore." },
-  { id:"ordini-operatore", tag:["struttura","piccolo"], cls:["t-str","t-mis"],
+  { id:"ordini-operatore", dove:"altro", tag:["struttura","piccolo"], cls:["t-str","t-mis"],
     titolo:"Chi deve vedere gli acquisti del laboratorio?",
     desc:"Oggi ho scelto io e ti dico cosa ho scelto: un operatore di sede vede gli acquisti della SUA sede, non quelli del laboratorio, e il laboratorio vede i suoi. Prima chi apriva la pagina e non ne vedeva nessuno pensava che fossero spariti; adesso c’è scritto il perché. Ma la regola in sé è una tua decisione, non mia: se vuoi che i tuoi ragazzi di sede vedano anche cosa compra il laboratorio, o al contrario che ognuno veda solo il suo, si cambia in una riga. Dimmi come lavori tu." },
 ];
 
-const lista = document.getElementById("lista");
+const liste = { difetti: document.getElementById("lista-difetti"),
+                altro:   document.getElementById("lista-altro") };
 const msg = document.getElementById("msg");
 const conteggio = document.getElementById("conteggio");
 const bCopia = document.getElementById("copia");
@@ -596,8 +719,13 @@ for (const v of VOCI) {
     meta.appendChild(s);
   });
   b.addEventListener("click", () => tocca(v.id));
-  lista.appendChild(b);
+  liste[v.dove].appendChild(b);
 }
+
+/* i tasti stanno in due elenchi, ma la numerazione è una sola: chi sceglie
+   ragiona per priorità, non per riquadro */
+const tutteLeVoci = () => [...liste.difetti.querySelectorAll(".voce"),
+                           ...liste.altro.querySelectorAll(".voce")];
 
 function tocca(id) {
   const i = scelte.indexOf(id);
@@ -606,7 +734,7 @@ function tocca(id) {
 }
 
 function disegna() {
-  for (const b of lista.querySelectorAll(".voce")) {
+  for (const b of tutteLeVoci()) {
     const pos = scelte.indexOf(b.dataset.id);
     const dentro = pos >= 0;
     b.setAttribute("aria-pressed", dentro ? "true" : "false");

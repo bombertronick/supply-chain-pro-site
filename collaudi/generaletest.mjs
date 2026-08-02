@@ -20,8 +20,16 @@
      4. SPIEGATA — il « ? » deve dire qualcosa su QUESTA schermata, non una
         frase generica buona per tutte.
 
-   Il passaggio 3 e' quello che vale di piu': e' l'unico che avrebbe preso il
-   difetto di stamattina, ed e' l'unico che nessun altro collaudo faceva. */
+   Il passaggio 3 e' quello che vale di piu', ed e' l'unico che nessun altro
+   collaudo faceva in modo sistematico.
+
+   CORREZIONE DEL 2 AGOSTO, dal consiglio di revisione. Qui c'era scritto che il
+   passaggio 3 «e' l'unico che avrebbe preso il difetto di stamattina». Non e'
+   vero, ed e' il tipo di frase che fa smettere di cercare: quel difetto stava
+   dentro «Gestione rapida», che e' una SCHEDA, e questo giro non ne apre
+   nessuna delle ~40 che esistono. L'hanno preso bulk2test.mjs e
+   lentesempretest.mjs. Il dito al centro di ogni tasto qui si mette solo sulle
+   44 schermate di fondo — dove sta meno della meta' del lavoro vero. */
 import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path";

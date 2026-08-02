@@ -35,16 +35,33 @@ await p.waitForTimeout(400);
 
 const voci = p.locator(".voce");
 const n = await voci.count();
-const dichiarati = await p.evaluate(() => {
+/* Dal 2 agosto le voci stanno in due elenchi — i difetti trovati dal consiglio
+   e le migliorie — ma la numerazione resta una sola, perche' chi sceglie
+   ragiona per priorita', non per riquadro. Il controllo che conta e' che i
+   numeri scritti a parole in cima siano ancora veri: e' il punto in cui una
+   pagina come questa mente per prima, aggiungendo una voce e lasciando la
+   frase di ieri. */
+const conteggi = await p.evaluate(() => {
   /* il numero puo' capitare a inizio frase o in mezzo: si confronta minuscolo,
      se no un «sei» perfettamente italiano diventa un falso allarme */
-  const m = document.querySelector(".apertura").textContent.match(/(\w+) modifiche possibili/);
-  const parole = { una:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
+  const parole = { una:1, uno:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
     nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
-  return parole[(m?.[1] || "").toLowerCase()] ?? null;
+  const num = (t) => parole[(t || "").toLowerCase()] ?? null;
+  const testo = document.querySelector(".apertura").textContent;
+  return {
+    difetti: { detti: num(testo.match(/ne restano\s+(\w+)\s+ver/i)?.[1]),
+               contati: document.querySelectorAll("#lista-difetti .voce").length },
+    altro:   { detti: num(testo.match(/alle\s+(\w+)\s+modifiche/i)?.[1]),
+               contati: document.querySelectorAll("#lista-altro .voce").length },
+  };
 });
 ok(n >= 2, `ci sono lavori da scegliere (${n})`);
-ok(dichiarati === n, `il testo in cima dice il numero giusto (dichiara ${dichiarati}, ce ne sono ${n})`);
+ok(conteggi.difetti.contati + conteggi.altro.contati === n,
+  `ogni voce sta in uno dei due elenchi, nessuna fuori (${conteggi.difetti.contati}+${conteggi.altro.contati} di ${n})`);
+ok(conteggi.difetti.detti === conteggi.difetti.contati,
+  `il testo in cima dice quanti sono i difetti (dice ${conteggi.difetti.detti}, ce ne sono ${conteggi.difetti.contati})`);
+ok(conteggi.altro.detti === conteggi.altro.contati,
+  `e quante sono le migliorie (dice ${conteggi.altro.detti}, ce ne sono ${conteggi.altro.contati})`);
 ok((await p.locator("#copia").isDisabled()), "senza scelte il tasto Copia è spento");
 ok(/Nessuna scelta/.test(await p.locator("#conteggio").innerText()), "e il conteggio lo dice");
 await p.screenshot({ path: "rm-1-partenza.png", fullPage: true });
