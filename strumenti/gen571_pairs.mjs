@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { bilancia } from "./bilancia.mjs";
 const src = readFileSync("app-gen570.jsx", "utf8");
-const numeri = ["10", "20", "30", "40", "50", "60", "70", "80", "90", "92", "94"];
+const numeri = ["05", "10", "20", "30", "40", "50", "60", "70", "80", "90", "92", "94"];
 let ok = true;
 const pezzi = [];
 for (const n of numeri) {

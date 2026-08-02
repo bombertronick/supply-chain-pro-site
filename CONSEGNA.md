@@ -81,6 +81,34 @@ provato in locale.
 > leggendo un elenco, ed è esattamente lì che il 30 luglio un pezzo è partito
 > lungo un byte in meno.
 
+### `sql_diff.mjs` — e le due cose che ha reso impossibili
+
+`strumenti/sql_diff.mjs <vecchio.jsx> <nuovo.jsx> <tag> <ver>` fa lo stesso
+lavoro **senza coppie scritte a mano**: le zone che cambiano le trova `diff`.
+
+Serve quando fra la produzione e l'ultima versione ci sono più generazioni:
+gen-5.70 e gen-5.71 erano tutte e due pronte, ma **gen-5.70 non l'ha mai vista
+nessuno**. Passarci sopra avrebbe significato toccare la produzione due volte
+per niente. Una sola scrittura, da gen-5.69 a gen-5.71.
+
+Due protezioni che vengono da altrettanti sbagli veri:
+
+1. **I pezzi di testo viaggiano in base64.** Il 2 agosto un pezzo conteneva
+   `/[̀-ͯ]/` — la sequenza che in JavaScript indica gli accenti da
+   togliere. Nel passaggio verso il server quella sequenza è diventata il
+   *carattere* vero: il pezzo salvato era 10 caratteri più corto di quello
+   provato in locale. **Il cancello md5 l'ha preso prima che si scrivesse
+   qualcosa**, ma il modo di non correre il rischio è un altro: il base64 è
+   fatto di sole lettere e numeri, e non c'è niente dentro che qualcuno possa
+   interpretare per strada.
+2. **La `meta` si aggiorna solo se il sorgente è davvero cambiato.**
+   `... and (select md5(value) from kv_store where key='app:jsx:src') = '<md5
+   nuova>'`. Senza, un UPDATE che non ha scritto niente lascerebbe una
+   lunghezza dichiarata diversa da quella vera — ed è il caso esatto in cui il
+   caricatore rifiuta di partire e **l'app non si apre più**. Con questa
+   condizione l'intero file si può eseguire in un colpo solo: se il cancello
+   non si apre, non cambia niente da nessuna parte.
+
 > `app_bootstrap()` restituisce `meta` come **stringa** JSON: va convertita con
 > `(b.j->>'meta')::jsonb`, se no i confronti falliscono in silenzio.
 
@@ -236,3 +264,28 @@ contrario.** `bulk2test` era rosso da mesi e l'avevo messo da parte dando la
 colpa a lui, dopo quattro tentativi. Aveva ragione: c'era un difetto vero, e
 grosso. Lo stesso giorno `roadmaptest` ha trovato una parentesi che avevo
 dimenticato io. Due volte su due il collaudo aveva ragione e io torto.
+
+**«Ha ragione lui» non vuol dire «è colpa dell'app».** Il censimento di
+gen-5.71 è uscito con **tre rosse**, e le tre risposte erano tre cose diverse:
+
+| rossa | cos'era |
+|---|---|
+| `bulk3test` | cercava un nome di voce che avevo cambiato io — difetto **del collaudo**, causato dalla modifica |
+| `gen560test` | l'etichetta della lente cambiata a metà: tasto e campo dicevano due cose diverse — difetto **dell'app**, corretto nell'app |
+| `gen552test` | la stessa etichetta, **più** un secondo rosso che non c'entrava niente |
+
+Il secondo rosso di `gen552test` merita di essere raccontato. Il file seminava
+un evento a *«adesso meno tre ore»* e lo chiamava **oggi**. Il censimento è
+capitato all'1:37 di notte: tre ore prima era **ieri**. Non l'aveva mai preso
+nessuno perché non era mai girato a quell'ora.
+
+**Come l'ho dimostrato, invece di dedurlo:** ho ripreso il collaudo nella
+versione *precedente alle mie modifiche* e l'ho fatto girare contro
+**gen-5.69, cioè quello che era online in quel momento**. Stesso rosso, stesso
+numero. Se non l'avessi fatto, avrei potuto passare ore a cercare nella mia
+modifica un difetto che stava altrove.
+
+*Adesso i tempi di quel file sono ancorati alla mezzanotte di oggi, non a
+«adesso meno qualcosa»: quello che deve essere di oggi lo è a qualunque ora si
+giri.* **Un collaudo che dipende dall'ora è peggio di un collaudo che manca:
+manda a cercare un difetto che non c'è.**

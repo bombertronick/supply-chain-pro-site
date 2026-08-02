@@ -187,8 +187,8 @@ ok(/Preparato in laboratorio/.test(t5),
 await A5.p.screenshot({ path: "g560-3-catalogo.png", fullPage: true });
 /* la lente in alto e' l'ultima finestra che diceva il fornitore: se qui
    restasse «Fornitore: Verdure» due schermate direbbero due cose diverse */
-await A5.p.getByRole("button", { name: "Cerca un prodotto ovunque" }).click(); await A5.p.waitForTimeout(500);
-await A5.p.getByRole("textbox", { name: "Cerca un prodotto ovunque" }).fill(PA.nome.slice(0, 6)); await A5.p.waitForTimeout(900);
+await A5.p.getByRole("button", { name: "Cerca un prodotto o una funzione" }).click(); await A5.p.waitForTimeout(500);
+await A5.p.getByRole("textbox", { name: "Cerca un prodotto o una funzione" }).fill(PA.nome.slice(0, 6)); await A5.p.waitForTimeout(900);
 const t5b = await testo(A5.p);
 ok(/Preparato in laboratorio/.test(t5b), "anche la ricerca dice «Preparato in laboratorio»");
 ok(!new RegExp(`Fornitore: ${F1.nome}`).test(t5b), `e non «Fornitore: ${F1.nome}»`);

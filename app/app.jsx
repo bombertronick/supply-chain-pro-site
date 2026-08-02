@@ -3393,7 +3393,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
         </div>
         <div className="ml-auto flex items-center gap-2">
           <SincroChip sync={sync} />
-          <button onClick={() => setCerca(true)} aria-label="Cerca un prodotto ovunque"
+          <button onClick={() => setCerca(true)} aria-label="Cerca un prodotto o una funzione"
             className="rounded-full flex items-center justify-center shrink-0"
             style={{ width: 36, height: 36, background: "#EAF0FE", color: T.blu }}>
             <Search size={17} />
