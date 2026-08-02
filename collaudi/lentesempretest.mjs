@@ -171,20 +171,33 @@ for (const [w, h, nome] of [[390, 844, "telefono"], [1200, 950, "computer"]]) {
    fogli lasciano libera quella fascia. Questo controllo la tiene ferma: se
    qualcuno domani cambia l'altezza dell'intestazione o toglie «sc-foglio»,
    diventa rosso. */
-console.log("\n— 6. e nessuna scheda finisce sotto l'intestazione —");
-for (const [w, h, nome] of [[1200, 950, "computer"], [1440, 760, "portatile basso"], [390, 844, "telefono"]]) {
+/* IL MARGINE. In gen-5.72 questo controllo chiedeva «sopra >= headBot - 1»:
+   sul telefono passava con TRE PIXEL, misurati in un browser senza barre. Sul
+   telefono vero — con la barra dell'indirizzo e la tacca — quei tre pixel non
+   ci sono, e il titolo della scheda finiva sotto l'intestazione. Me l'ha
+   segnalato una fotografia, non il collaudo.
+   Adesso ne chiede almeno OTTO. Un controllo che passa per un pelo non e' un
+   controllo che passa: e' un controllo che sta per fallire da qualche altra
+   parte, dove non lo si sta guardando. */
+const MARGINE = 8;
+console.log("\n— 6. e nessuna scheda finisce sotto l'intestazione, con margine vero —");
+for (const [w, h, nome] of [[1200, 950, "computer"], [1440, 760, "portatile basso"],
+  [390, 844, "telefono"], [360, 640, "telefono piccolo"]]) {
   const D = await entra(w, h);
   await nelMagazzino(D.p);
   const m = await D.p.evaluate(() => {
     const head = document.querySelector("header").getBoundingClientRect();
     const su = document.querySelector(".fixed.inset-0.z-50 .sc-su").getBoundingClientRect();
     const h3 = document.querySelector(".sc-su h3").getBoundingClientRect();
-    return { headBot: Math.round(head.bottom), sopra: Math.round(su.top), titolo: Math.round(h3.top) };
+    return { headBot: Math.round(head.bottom), sopra: Math.round(su.top),
+      titolo: Math.round(h3.top), giu: Math.round(su.bottom), vh: innerHeight };
   });
-  ok(m.titolo >= m.headBot,
-    `${nome}: il titolo della scheda (${m.titolo}px) sta sotto l'intestazione (${m.headBot}px)`);
-  ok(m.sopra >= m.headBot - 1,
-    `${nome}: e anche il bordo alto della scheda (${m.sopra}px), quindi non si perde niente`);
+  ok(m.sopra >= m.headBot + MARGINE,
+    `${nome}: il bordo alto della scheda (${m.sopra}px) sta almeno ${MARGINE}px sotto l'intestazione (${m.headBot}px)`);
+  ok(m.titolo >= m.headBot + MARGINE,
+    `${nome}: e il titolo si legge tutto (${m.titolo}px)`);
+  ok(m.giu <= m.vh + 1,
+    `${nome}: e non sborda nemmeno di sotto (${m.giu}px su ${m.vh}px)`);
   await D.ctx.close();
 }
 

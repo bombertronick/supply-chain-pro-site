@@ -61,9 +61,21 @@ html,body,#root{height:100%;height:100dvh}
 /* Da md in su i fogli lasciano libera la fascia dell'intestazione, che da
    gen-5.72 sta sopra di loro. Sul telefono non serve: li' il foglio e' ancorato
    in basso e parte gia' sotto. */
+/* La fascia dell'intestazione resta libera a QUALUNQUE larghezza. Da gen-5.72
+   l'intestazione sta sopra i fogli, e sul telefono le avevo lasciato solo tre
+   pixel di margine: 68 contro 65, misurati in un browser senza barre. Sul
+   telefono vero — con la barra dell'indirizzo e la tacca — quei tre pixel non
+   ci sono, e il titolo della scheda finiva sotto l'intestazione. Segnalato con
+   una fotografia, non trovato da me.
+   L'altezza massima adesso e' il 100% del riquadro GIA' scontato della fascia,
+   non una percentuale di vh: sul telefono vh conta anche la parte coperta
+   dalla barra del browser, ed e' proprio li' che il conto sbagliava.
+   La fascia e' 5rem, non 4,2: con 4,2 il margine tornava a essere di due pixel,
+   e un margine di due pixel non e' un margine. */
+.sc-foglio{padding-top:calc(5rem + env(safe-area-inset-top))}
+.sc-foglio>.sc-su{max-height:100%}
 @media (min-width:768px){
-  .sc-foglio{padding-top:5rem;padding-bottom:2rem}
-  .sc-foglio>.sc-su{max-height:calc(100vh - 7rem)}
+  .sc-foglio{padding-bottom:2rem}
 }
 .sc-shake{animation:scShake .4s ease}
 .sc-gira{animation:scGira 1.2s linear infinite}
@@ -9295,14 +9307,47 @@ function FormRicezione({ stato, o, profilo, muta, mostraToast, onChiudi }) {
 /* ─────────── DA MANDARE ───────────
    Il testo è pensato per WhatsApp: niente tabelle, righe corte, un trattino
    per articolo. Chi lo riceve deve poterlo leggere sul telefono senza zoom. */
+/* ─────────── DIVISI PER CATEGORIA, ANCHE QUELLI DEL LABORATORIO ───────────
+   Chiesto da chi lo riceve: «anche al laboratorio i prodotti divisi per
+   categoria senza che vengano mischiati tutti insieme, almeno anche loro sono
+   facilitati nella lettura».
+
+   Aveva ragione due volte. Il «Report ordine» raggruppava per categoria da
+   sempre, questo testo no: la stessa persona si trovava in mano due elenchi
+   fatti in due modi diversi, a seconda del tasto premuto. Quindi qui va per
+   categoria TUTTO — laboratorio e fornitori — non solo il blocco chiesto:
+   sistemarne uno e lasciare l'altro sarebbe stato spostare l'incoerenza di un
+   posto, non toglierla.
+
+   Le cose senza categoria finiscono in fondo sotto un'intestazione che lo
+   dice, invece di sparire in silenzio: quello che non si vede in un ordine e'
+   quello che poi manca in cucina. */
 function testoDaMandare(stato, sede, righeLab, perForn) {
   const riga = (x) => "- " + (trova(stato.prodotti, x.prodottoId)?.nome || "?")
     + ": " + fmtQ(x.qty) + " " + simboloU(stato, x.uomId);
+  const nome = (x) => trova(stato.prodotti, x.prodottoId)?.nome || "";
+  const perAlfabeto = (a, b) => nome(a).localeCompare(nome(b));
+  const perCategoria = (righe) => {
+    const gruppi = stato.categorie
+      .map((c) => ({ nome: c.nome,
+        items: righe.filter((x) => trova(stato.prodotti, x.prodottoId)?.categoriaId === c.id) }))
+      .filter((g) => g.items.length);
+    const conCat = new Set(gruppi.flatMap((g) => g.items));
+    const fuori = righe.filter((x) => !conCat.has(x));
+    if (fuori.length) gruppi.push({ nome: "Senza categoria", items: fuori });
+    return gruppi.map((g) => ({ nome: g.nome, items: g.items.slice().sort(perAlfabeto) }));
+  };
+  const blocco = (r, righe) => {
+    for (const g of perCategoria(righe)) {
+      r.push("· " + g.nome);
+      g.items.forEach((x) => r.push(riga(x)));
+    }
+  };
   const r = [sede.nome.toUpperCase() + " · " + new Date().toLocaleDateString("it-IT")];
-  if (righeLab.length) { r.push("", "AL LABORATORIO"); righeLab.forEach((x) => r.push(riga(x))); }
+  if (righeLab.length) { r.push("", "AL LABORATORIO"); blocco(r, righeLab); }
   for (const g of perForn) {
     r.push("", g.f ? g.f.nome.toUpperCase() : "SENZA FORNITORE");
-    g.righe.forEach((x) => r.push(riga(x)));
+    blocco(r, g.righe);
   }
   return r.join("\n");
 }

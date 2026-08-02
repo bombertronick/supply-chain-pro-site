@@ -66,10 +66,22 @@ ok(!!pino, "il profilo «Pino» è stato creato");
 ok(pino?.pinHash === hash("5555"), "«Pino» ha in archivio il PIN che ha messo l'admin");
 
 /* ── B: Gigi, sul telefono rimasto aperto, prova il PIN NUOVO ── */
-await B.bringToFront(); await B.waitForTimeout(6000);   // il poller allinea ogni ~3s
+/* ── PERCHE' ANCHE QUESTO PUNTO ERA CAPRICCIOSO ──
+   Qui c'era «aspetta 6 secondi, tanto il poller allinea ogni 3». Da solo
+   bastava; dentro il censimento, con decine di browser che si contendono la
+   macchina, il poller arriva quando arriva — e il collaudo diventava rosso a
+   caso. Il 2 agosto e' successo, e l'output conservato dei rossi ha detto
+   esattamente questo: B vedeva ancora «Admin | Gigi» e non «Pino».
+   Adesso non si aspetta un TEMPO, si aspetta il FATTO: B e' allineato quando
+   in elenco compare «Pino», che un attimo prima non c'era. */
+await B.bringToFront();
+await B.getByText("Pino", { exact: false }).first().waitFor({ state: "visible", timeout: 30000 });
 console.log("   B vede:", (await B.locator("body").innerText()).replace(/\n/g," | ").slice(0,320));
 await B.getByText("Gigi",{exact:false}).first().click(); await B.waitForTimeout(400);
-await digita(B,"9999"); await B.waitForTimeout(1800);
+await digita(B,"9999");
+/* e anche l'ingresso si aspetta per quello che e', non per quanto dura */
+await B.getByText(/Buongiorno|Buonasera|Buon pomeriggio|Plancia/i).first()
+  .waitFor({ state: "visible", timeout: 30000 }).catch(() => {});
 ok(await dentro(B), "dispositivo B: Gigi entra col PIN nuovo senza ricaricare l'app");
 await B.screenshot({path:"pin2-B.png"});
 

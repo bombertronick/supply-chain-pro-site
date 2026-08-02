@@ -1,0 +1,4 @@
+@media (min-width:768px){
+  .sc-foglio{padding-top:5rem;padding-bottom:2rem}
+  .sc-foglio>.sc-su{max-height:calc(100vh - 7rem)}
+}

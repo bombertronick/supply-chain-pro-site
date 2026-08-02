@@ -36,7 +36,7 @@ Il canale per scrivere è **solo** l'esecuzione SQL via MCP su Supabase
 bloccate dal proxy: non è un ostacolo da aggirare, è la regola della rete.
 
 `app/app.jsx` in questo repository è **la copia di lavoro**, allineata a
-gen-5.72. La verità resta il database.
+gen-5.73. La verità resta il database.
 
 ---
 
@@ -116,7 +116,7 @@ Due protezioni che vengono da altrettanti sbagli veri:
 
 ## 3. I collaudi
 
-62 file in `collaudi/`, **1160 controlli veri**. Girano con Chromium senza rete:
+63 file in `collaudi/`, **1172 controlli veri**. Girano con Chromium senza rete:
 l'app viene compilata in un pacchetto locale e i dati sono finti.
 
 ```bash
@@ -148,8 +148,13 @@ rossi.* Le saltate non contano come difetto e non spariscono dal conto.
 suite che cade solo sotto carico non si riusciva a sapere quale controllo fosse
 caduto. Con il censimento che gira di notte da solo non era più una scomodità —
 senza, il rapporto della mattina dice «rossa» e nessuno può farci niente.*
-Restano da sistemare le attese a tempo fisso di `pintest`, `pin2test`,
-`pin535test`: passano da sole, cadono ogni tanto in mezzo alle altre.
+*E la prima volta che è servito davvero è stato subito.* Nel censimento di
+gen-5.73 `pin2test` è caduto: l'output conservato ha mostrato **quale**
+controllo e **perché** — il dispositivo B vedeva ancora `Admin | Gigi` e non
+`Pino`, cioè l'allineamento non era ancora arrivato. Lì c'era scritto «aspetta
+6 secondi, tanto il poller allinea ogni 3». Adesso non aspetta un tempo,
+**aspetta il fatto**: che «Pino» compaia. Restano da sistemare allo stesso modo
+`pintest` e `pin535test`.
 
 **Sette collaudi vengono saltati su un clone appena fatto**, e non è una
 dimenticanza. `catalogotest`, `conv551test`, `convtest`, `gen552test`,
@@ -235,7 +240,7 @@ rossi senza che l'app abbia niente che non va.
 
 ## 4. Cos'è online adesso
 
-**In produzione: gen-5.72.** Censimento completo verde prima di ogni rilascio.
+**In produzione: gen-5.73.** Censimento completo verde prima di ogni rilascio.
 
 | versione | cosa |
 |---|---|
@@ -247,6 +252,7 @@ rossi senza che l'app abbia niente che non va.
 | gen-5.70 | **la lente 🔍 trova anche le funzioni**: 25 voci, cercabili con la parola che userebbe una persona |
 | gen-5.71 | **«Gestione rapida» diventa un pannello a tre gruppi**, con le stesse identiche parole della ricerca |
 | gen-5.72 | **la lente si raggiunge sempre**, anche con una scheda aperta — e i salti dalla lente chiudono quello che avevi aperto |
+| gen-5.73 | la fascia libera **anche sul telefono** (la scheda non si taglia più) · **«Da mandare adesso» diviso per categoria**, laboratorio compreso |
 
 ### Le ultime due, e perché sono una cosa sola
 
