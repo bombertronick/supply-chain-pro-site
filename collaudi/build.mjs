@@ -49,6 +49,32 @@ try {
   process.exit(3);
 }
 
+/* ── LE LIBRERIE DI LOGICA SI RIFANNO ANCHE LORO ──
+   Cinque collaudi non guardano le schermate: chiamano direttamente le funzioni
+   dell'app — conversioni, interi, rete, pesi, controlli — attraverso una
+   libreria costruita dal sorgente. Quelle librerie erano ferme al 29 luglio.
+   Non conoscevano ne' «calcoloProduzione» ne' «AZIONI»: per nove giorni quei
+   cinque collaudi hanno dato verde sulla logica di prima, cioe' su codice che
+   non esisteva piu'. Erano verdi per il motivo sbagliato.
+   Adesso si rifanno dal sorgente in prova insieme al pacchetto. Se una
+   funzione che un collaudo si aspetta e' sparita, questo passo FALLISCE — ed
+   e' l'informazione giusta, molto meglio di un verde che non vuol dire
+   niente. */
+const LIBRERIE = ["mkconvlib", "mkcontrollilib", "mkinterilib", "mkpesolib", "mkretelib", "mktestlib"];
+for (const g of LIBRERIE) {
+  if (!existsSync(`${g}.mjs`)) continue;
+  try {
+    execFileSync(process.execPath, [`${g}.mjs`, "./app-under-test.jsx"], { stdio: "pipe" });
+  } catch (e) {
+    console.error(`LIBRERIA FALLITA: ${g}.mjs non riesce a costruirsi dal sorgente in prova.`);
+    console.error("  Di solito vuol dire che una funzione che un collaudo si aspetta non c'e' piu'");
+    console.error("  o ha cambiato nome. Va sistemato il collaudo, non aggirato questo passo.");
+    console.error("  " + (e.stderr?.toString().split("\n").filter(Boolean).slice(-2).join(" · ") || e.message));
+    process.exit(4);
+  }
+}
+console.log(`LOGICA OK  ${LIBRERIE.length} librerie rifatte dal sorgente in prova`);
+
 try {
   const r = await build({
     entryPoints: ["entry.jsx"],

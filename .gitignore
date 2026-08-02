@@ -19,3 +19,8 @@ collaudi/topologia-vera.json
 collaudi/tw.css
 collaudi/app-under-test.jsx
 collaudi/rossi/
+# Le librerie di logica: costruite dal sorgente in prova a ogni «node build.mjs».
+# Erano ferme al 29 luglio e cinque collaudi provavano codice che non esisteva
+# piu'. Sono prodotti, non sorgenti: i sorgenti sono i mk*.mjs.
+collaudi/*.cjs
+collaudi/*-lib-src.jsx
