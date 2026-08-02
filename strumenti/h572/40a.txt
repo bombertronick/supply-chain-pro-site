@@ -1,0 +1,4 @@
+      <Foglio aperto={cerca} titolo="Cerca un prodotto" onChiudi={() => setCerca(false)} larga>
+        {cerca && <RicercaGlobale stato={stato} profilo={profilo}
+          onChiudi={() => setCerca(false)} vaiA={setVista} />}
+      </Foglio>

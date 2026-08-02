@@ -177,15 +177,14 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · gen-5.71 online</p>
+  <p class="occhiello">Supply Chain Pro · gen-5.72 online</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Sette versioni sono andate online</b> dall’ultima volta che hai aperto
-  questa pagina, dalla gen-5.65 alla <b>gen-5.71</b>. Le ultime due nascono da una frase tua —
-  <em>«un centro di comando si chiama tale quando controlla tutte le sue periferiche»</em> — e sono
-  la stessa cosa vista da due lati: la <b>lente 🔍 adesso trova anche le funzioni</b>, non solo i
-  prodotti, e <b>«Gestione rapida» è diventata un pannello a tre gruppi</b> con le stesse identiche
-  parole. Le trovi raccontate sotto, in <em>Quello che è già successo</em>. Qui sotto ci sono
-  <b>sei</b> modifiche possibili: toccale nell’ordine in cui le vuoi.</p>
+  <p class="apertura"><b>Il primo dei tre che hai scelto è online</b>: la lente 🔍 adesso si
+  raggiunge anche con una scheda aperta — dentro un magazzino, dentro un prodotto, dentro un
+  modulo. Prima bisognava chiudere quello che si stava facendo. Com’è andata è raccontato sotto,
+  in <em>Quello che è già successo</em>: non è filato liscio, e le due cose che sono andate storte
+  valgono più della modifica. Restano <b>cinque</b> modifiche possibili, e le prime due sono già
+  nell’ordine che mi hai dato.</p>
 
   <div class="istruzione">
     <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
@@ -218,6 +217,30 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 2 agosto · la lente si raggiunge sempre, anche con una scheda aperta</h4>
+        <p>Il primo dei tre che hai scelto. Prima, per cercare qualcosa dovevi chiudere quello che
+        stavi facendo: dentro un magazzino, dentro un prodotto, dentro un modulo, l’intestazione
+        con la lente restava sotto e il dito non ci arrivava. Adesso ci arriva sempre.</p>
+        <p><b>Non è filata liscia, e le due cose andate storte valgono più della modifica.</b></p>
+        <ol>
+          <li><b>Il primo tentativo non è servito a niente.</b> Avevo alzato il <em>tasto</em> della
+          lente. L’intestazione ha una sfocatura di sfondo, e questo la rende <b>un contesto
+          chiuso</b>: quello che sta dentro non si confronta con quello che sta fuori, per quanto
+          in alto lo si metta. Va alzata l’intestazione intera. L’ho scoperto perché il collaudo è
+          rimasto rosso, non perché l’avessi previsto.</li>
+          <li><b>Alzare l’intestazione ha un prezzo, e l’ho misurato invece di immaginarlo.</b> Su
+          un portatile 1440×760 una scheda alta finiva <em>sotto</em> l’intestazione: spariva il
+          suo titolo. Adesso da computer in su le schede lasciano libera quella fascia, e c’è un
+          controllo che lo tiene fermo — se un domani qualcuno cambia l’altezza dell’intestazione,
+          diventa rosso.</li>
+        </ol>
+        <p><b>E un pezzo che non avevo previsto.</b> Se dalla lente salti a una funzione della
+        sezione in cui sei <em>già</em>, prima la scheda restava davanti e il tocco sembrava andato
+        a vuoto. Adesso quello che avevi aperto si chiude davvero. Una promessa mantenuta a metà è
+        peggio di una non fatta.</p>
+        <p><em>22 controlli nuovi, e il censimento completo: 62 collaudi verdi, 1160 controlli
+        veri, nessuno muto, nessuno rosso.</em></p>
+
         <h4>Il 1º agosto · la lente trova anche le funzioni, e «Gestione rapida» diventa un pannello di comando</h4>
         <p>Nascono tutte e due da una frase tua: <em>«devo poter fare tutto senza dovermi
         ricordare in che parte dell’app ho quella determinata funzionalità che mi serve; un centro
@@ -500,15 +523,12 @@ if (!document.querySelector('meta[name="viewport"]')) {
 <script>
 /* Le voci. «peso» è onesto: quanto costa a me, non quanto suona bene. */
 const VOCI = [
-  { id:"collaudi-soli", tag:["dati","medio"], cls:["t-dati","t-mis"],
-    titolo:"I collaudi girano solo quando glielo dico io",
-    desc:"E’ la coda di tutto il resto, e secondo me è la parte che conta di più. I collaudi automatici adesso sono 62 e fanno più di millecento controlli veri: girano tutti, e ognuno boccia davvero quando qualcosa non va. Ma partono solo quando li lancio io. È esattamente per questo che tre erano rimasti rotti per mesi senza che nessuno se ne accorgesse, e che i tasti morti di «Gestione rapida» sono stati lì finché non mi è venuto in mente di riprendere in mano un file che avevo scartato. Posso farli partire da soli ogni notte e farmi trovare il rapporto: se qualcosa si rompe lo so la mattina dopo invece che fra tre mesi. A te non cambia niente nell’uso quotidiano — cambia quanto tempo un difetto resta in giro prima che qualcuno lo veda." },
   { id:"dosi-ricette", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Le dosi delle ricette, scritte in fretta invece che una alla volta",
     desc:"La macchina delle ricette è online e funziona: il laboratorio segna «ho prodotto venti breccole» e l’app scala farina, pecorino e guanciale da sola. Solo che le ricette in catalogo sono ZERO, quindi non scala niente. Oggi si inseriscono dalla scheda del singolo prodotto, una alla volta, ed è la ragione per cui non ne è ancora entrata nemmeno una. Posso fare una schermata sola che ti porta di preparato in preparato — «per fare 1 di questo serve: …», aggiungi ingrediente, avanti — pensata per chi ha davanti il quaderno delle ricette e vuole finire in mezz’ora. Il lavoro vero resta tuo: le dosi le sai solo tu. Questo serve a togliere la fatica del come, non del cosa." },
-  { id:"lente-ovunque", tag:["struttura","piccolo"], cls:["t-str","t-mis"],
-    titolo:"La lente 🔍 non si raggiunge mentre una scheda è aperta",
-    desc:"Trovato mentre collaudavo il pannello di comando, e te lo dico perché sfuma una promessa che ti ho fatto io. La ricerca che trova anche le funzioni sta nell’intestazione, ed è raggiungibile da tutte le schermate — ma NON mentre hai aperto una scheda: dentro un magazzino, dentro un prodotto, dentro un modulo. Lì l’intestazione resta sotto e il dito non ci arriva: prima devi chiudere. Non è rotto ed è il comportamento normale delle schede, ma «da ogni schermata» era una parola di troppo. Posso portare la lente dentro le schede, o lasciarla dov’è e dirlo chiaramente. È piccola: mezza giornata." },
+  { id:"collaudi-soli", tag:["dati","medio"], cls:["t-dati","t-mis"],
+    titolo:"I collaudi girano solo quando glielo dico io",
+    desc:"E’ la coda di tutto il resto, e secondo me è la parte che conta di più. I collaudi automatici adesso sono 62 e fanno più di millecento controlli veri: girano tutti, e ognuno boccia davvero quando qualcosa non va. Ma partono solo quando li lancio io. È esattamente per questo che tre erano rimasti rotti per mesi senza che nessuno se ne accorgesse, e che i tasti morti di «Gestione rapida» sono stati lì finché non mi è venuto in mente di riprendere in mano un file che avevo scartato. Posso farli partire da soli ogni notte e farmi trovare il rapporto: se qualcosa si rompe lo so la mattina dopo invece che fra tre mesi. A te non cambia niente nell’uso quotidiano — cambia quanto tempo un difetto resta in giro prima che qualcuno lo veda." },
   { id:"pesatura", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Una sessione di pesatura, con la bilancia in mano",
     desc:"Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima." },

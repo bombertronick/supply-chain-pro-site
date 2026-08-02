@@ -58,6 +58,13 @@ html,body,#root{height:100%;height:100dvh}
 .sc-fade{animation:scFade .4s ease}
 .sc-pop{animation:scPop .3s ease backwards}
 .sc-su{animation:scSu .38s cubic-bezier(.2,.9,.3,1) backwards}
+/* Da md in su i fogli lasciano libera la fascia dell'intestazione, che da
+   gen-5.72 sta sopra di loro. Sul telefono non serve: li' il foglio e' ancorato
+   in basso e parte gia' sotto. */
+@media (min-width:768px){
+  .sc-foglio{padding-top:5rem;padding-bottom:2rem}
+  .sc-foglio>.sc-su{max-height:calc(100vh - 7rem)}
+}
 .sc-shake{animation:scShake .4s ease}
 .sc-gira{animation:scGira 1.2s linear infinite}
 .sc-conta{animation:scConta .34s cubic-bezier(.3,1.4,.5,1) both}
@@ -735,7 +742,16 @@ function Vuoto({ icona: I = Boxes, titolo, testo, azione }) {
 function Foglio({ aperto, titolo, onChiudi, children, larga }) {
   if (!aperto) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+    /* Da gen-5.72 l'intestazione sta SOPRA i fogli, perche' la lente dev'essere
+       raggiungibile anche da qui dentro. Conseguenza misurata, non immaginata:
+       su un portatile 1440×760 un foglio alto partiva a 30px e il suo TITOLO
+       finiva sotto l'intestazione.
+       La fascia libera la fa «sc-foglio» nel foglio di stile qui sopra, non una
+       classe di Tailwind: il banco di prova usa un CSS precompilato e il
+       caricatore di produzione non e' leggibile da qui — una classe nuova
+       poteva esserci in un posto e non nell'altro. Il nostro CSS sta dentro il
+       codice e vale in tutti e due. */
+    <div className="sc-foglio fixed inset-0 z-50 flex items-end md:items-center justify-center"
       style={{ background: "rgba(20,28,55,.4)", backdropFilter: "blur(4px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
       <div className={`sc-su w-full ${larga ? "md:max-w-2xl" : "md:max-w-md"} max-h-[92vh] overflow-y-auto sc-scroll rounded-t-3xl md:rounded-3xl p-5 md:p-6`}
@@ -3265,6 +3281,16 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
   const [cerca, setCerca] = useState(false);    // ricerca globale dall'intestazione
+  /* ── QUANDO LA LENTE TI PORTA DA QUALCHE PARTE, QUELLO CHE AVEVI APERTO SI CHIUDE ──
+     La lente adesso si raggiunge anche con una scheda aperta. Ma «portarti» in
+     una sezione dove sei gia' non cambiava la chiave del contenuto, quindi la
+     scheda restava davanti e sembrava che il tocco fosse andato a vuoto: la
+     promessa mantenuta a meta' e' peggio di quella non fatta.
+     Questo contatore sale a ogni salto fatto DALLA LENTE, e cambiando la chiave
+     rimonta il contenuto — le schede aperte se ne vanno con lui. La navigazione
+     normale non lo tocca e si comporta esattamente come prima. */
+  const [giro, setGiro] = useState(0);
+  const vaiDallaLente = (v) => { setVista(v); setGiro((g) => g + 1); };
   const nRic = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId && r.stato === "in-attesa").length;
   const nOrd = stato.ordini.filter((o) => o.stato === "da-ordinare" &&
     (profilo.ruolo === "admin" ? true :
@@ -3384,8 +3410,20 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
 
   return (
     <div className="relative z-10 h-full flex flex-col">
+      {/* ── L'INTESTAZIONE STA SOPRA LE SCHEDE ──
+          La lente e' qui dentro, e finche' l'intestazione stava sotto i Foglio
+          (fixed inset-0 z-50) per cercare qualcosa bisognava prima chiudere
+          quello che si stava facendo. «Da ogni schermata» era una parola di
+          troppo, e l'ho scoperto collaudando gen-5.71.
+
+          Attenzione a dove va messo lo z-index: il primo tentativo l'ho messo
+          sul TASTO della lente, e non e' servito a niente. Questa intestazione
+          ha backdropFilter, e backdrop-filter crea un contesto di
+          impilamento: lo z-index di un figlio resta prigioniero li' dentro e
+          non si confronta con i fogli. Va alzata l'intestazione intera.
+          60 sta sopra i fogli (50) e sotto il tutorial (80). */}
       <header className="flex items-center gap-3 px-4 md:px-6 py-3 shrink-0"
-        style={{ borderBottom: `1px solid ${T.bordo}`, background: "rgba(255,255,255,.75)", backdropFilter: "blur(14px)", paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}>
+        style={{ borderBottom: `1px solid ${T.bordo}`, background: "rgba(255,255,255,.75)", backdropFilter: "blur(14px)", paddingTop: "calc(0.75rem + env(safe-area-inset-top))", position: "relative", zIndex: 60 }}>
         <div className="rounded-2xl p-2" style={{ background: T.grad }}><Boxes size={18} color="#fff" /></div>
         <div className="min-w-0">
           <div className="font-extrabold leading-tight" style={{ color: T.ink }}>Supply Chain Pro</div>
@@ -3421,7 +3459,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
 
         <main className="flex-1 min-w-0 overflow-y-auto sc-scroll px-4 md:px-8 pt-5 md:pb-10"
           style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}>
-          <div key={vista} className="sc-fade max-w-5xl mx-auto">{contenuto()}</div>
+          <div key={`${vista}#${giro}`} className="sc-fade max-w-5xl mx-auto">{contenuto()}</div>
         </main>
       </div>
 
@@ -3431,9 +3469,9 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
         {NAV.map((v) => <VoceNav key={v.id} v={v} mobile />)}
       </nav>
 
-      <Foglio aperto={cerca} titolo="Cerca un prodotto" onChiudi={() => setCerca(false)} larga>
+      <Foglio aperto={cerca} titolo="Cerca un prodotto o una funzione" onChiudi={() => setCerca(false)} larga>
         {cerca && <RicercaGlobale stato={stato} profilo={profilo}
-          onChiudi={() => setCerca(false)} vaiA={setVista} />}
+          onChiudi={() => setCerca(false)} vaiA={vaiDallaLente} />}
       </Foglio>
 
       <Foglio aperto={aiuto} titolo="Guida e tutorial" onChiudi={() => setAiuto(false)}>

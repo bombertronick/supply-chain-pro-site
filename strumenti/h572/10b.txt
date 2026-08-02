@@ -1,0 +1,11 @@
+  const [cerca, setCerca] = useState(false);    // ricerca globale dall'intestazione
+  /* ── QUANDO LA LENTE TI PORTA DA QUALCHE PARTE, QUELLO CHE AVEVI APERTO SI CHIUDE ──
+     La lente adesso si raggiunge anche con una scheda aperta. Ma «portarti» in
+     una sezione dove sei gia' non cambiava la chiave del contenuto, quindi la
+     scheda restava davanti e sembrava che il tocco fosse andato a vuoto: la
+     promessa mantenuta a meta' e' peggio di quella non fatta.
+     Questo contatore sale a ogni salto fatto DALLA LENTE, e cambiando la chiave
+     rimonta il contenuto — le schede aperte se ne vanno con lui. La navigazione
+     normale non lo tocca e si comporta esattamente come prima. */
+  const [giro, setGiro] = useState(0);
+  const vaiDallaLente = (v) => { setVista(v); setGiro((g) => g + 1); };

@@ -1,0 +1,8 @@
+.sc-su{animation:scSu .38s cubic-bezier(.2,.9,.3,1) backwards}
+/* Da md in su i fogli lasciano libera la fascia dell'intestazione, che da
+   gen-5.72 sta sopra di loro. Sul telefono non serve: li' il foglio e' ancorato
+   in basso e parte gia' sotto. */
+@media (min-width:768px){
+  .sc-foglio{padding-top:5rem;padding-bottom:2rem}
+  .sc-foglio>.sc-su{max-height:calc(100vh - 7rem)}
+}

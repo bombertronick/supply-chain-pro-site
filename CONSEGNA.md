@@ -36,7 +36,7 @@ Il canale per scrivere è **solo** l'esecuzione SQL via MCP su Supabase
 bloccate dal proxy: non è un ostacolo da aggirare, è la regola della rete.
 
 `app/app.jsx` in questo repository è **la copia di lavoro**, allineata a
-gen-5.71. La verità resta il database.
+gen-5.72. La verità resta il database.
 
 ---
 
@@ -116,7 +116,7 @@ Due protezioni che vengono da altrettanti sbagli veri:
 
 ## 3. I collaudi
 
-61 file in `collaudi/`, **1076 controlli veri**. Girano con Chromium senza rete:
+62 file in `collaudi/`, **1160 controlli veri**. Girano con Chromium senza rete:
 l'app viene compilata in un pacchetto locale e i dati sono finti.
 
 ```bash
@@ -179,7 +179,7 @@ rossi senza che l'app abbia niente che non va.
 
 ## 4. Cos'è online adesso
 
-**In produzione: gen-5.71.** Censimento completo verde prima di ogni rilascio.
+**In produzione: gen-5.72.** Censimento completo verde prima di ogni rilascio.
 
 | versione | cosa |
 |---|---|
@@ -190,6 +190,7 @@ rossi senza che l'app abbia niente che non va.
 | gen-5.69 | «In quali magazzini sta» dalla riga del prodotto, e l'avviso dei prodotti orfani che porta il rimedio con sé |
 | gen-5.70 | **la lente 🔍 trova anche le funzioni**: 25 voci, cercabili con la parola che userebbe una persona |
 | gen-5.71 | **«Gestione rapida» diventa un pannello a tre gruppi**, con le stesse identiche parole della ricerca |
+| gen-5.72 | **la lente si raggiunge sempre**, anche con una scheda aperta — e i salti dalla lente chiudono quello che avevi aperto |
 
 ### Le ultime due, e perché sono una cosa sola
 
@@ -222,11 +223,32 @@ solo, diventa rosso da solo.
 > rifà sbordare il pannello.** Su schermi da 360px il foglio scorre ancora: lì
 > non ci stanno, ed è dichiarato invece che scoperto per caso.
 
-**Trovato e non risolto** (è nella roadmap): la lente sta nell'intestazione, ed
-è raggiungibile da ogni *schermata* — ma **non mentre un `Foglio` è aperto**
-(dentro un magazzino, dentro un prodotto). Il foglio è `fixed inset-0 z-50` e
-copre l'intestazione. Non è rotto — è il comportamento normale di una scheda —
-ma «da ovunque» era una parola di troppo, e va detto.
+### gen-5.72 — la lente si raggiunge sempre, e le due trappole per arrivarci
+
+Il difetto che gen-5.71 aveva trovato e lasciato aperto: l'intestazione con la
+lente stava **sotto** i `Foglio` (`fixed inset-0 z-50`), quindi per cercare
+qualcosa bisognava prima chiudere quello che si stava facendo.
+
+**Trappola 1 — dove va messo lo z-index.** Il primo tentativo l'ho messo sul
+*tasto* della lente, e non è servito a niente. L'intestazione ha
+`backdropFilter`, e **`backdrop-filter` crea un contesto di impilamento**: lo
+z-index di un figlio resta prigioniero lì dentro e non si confronta con i
+fogli. Va alzata **l'intestazione intera** — `position:relative; zIndex:60`,
+sopra i fogli (50) e sotto il tutorial (80).
+
+**Trappola 2 — il prezzo, misurato e non immaginato.** Con l'intestazione
+sopra, su un portatile **1440×760** un foglio alto partiva a 30px e il suo
+**titolo** finiva coperto. Da `md` in su i fogli lasciano libera quella fascia
+via `.sc-foglio` — **CSS nostro, dentro il codice, non una classe Tailwind
+nuova**: il banco di prova usa un CSS precompilato e il caricatore di
+produzione non è leggibile da qui, quindi una classe nuova poteva esserci in un
+posto e non nell'altro. `lentesempretest` §6 tiene ferma la fascia.
+
+**Il pezzo che non si vedeva.** Saltare dalla lente a una funzione della
+sezione in cui si è *già* non cambiava la chiave del contenuto: la scheda
+restava davanti e il tocco sembrava andato a vuoto. Un contatore (`giro`) sale
+a ogni salto fatto dalla lente e rimonta il contenuto; la navigazione normale
+non lo tocca. **Una promessa mantenuta a metà è peggio di una non fatta.**
 
 ---
 
