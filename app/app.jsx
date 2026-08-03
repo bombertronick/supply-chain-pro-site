@@ -4333,7 +4333,7 @@ const AZIONI = [
     c: "Magazzini → magazzino di laboratorio → tasto verde sulla riga",
     p: ["prodotto", "produzione", "preparato", "fatto", "ricetta", "ingredienti", "laboratorio"] },
   { n: "Le ricette: le dosi dei preparati", d: "catalogo", ic: FlaskConical,
-    c: "Catalogo → Prodotti → matita → «La ricetta»",
+    c: "Catalogo → Prodotti → Ricette",
     p: ["ricetta", "ricette", "dosi", "dose", "ingredienti", "quanto ci vuole"] },
   { n: "Modifica in blocco: categoria, fornitore, chi lo fa", d: "catalogo", ic: Pencil,
     c: "Catalogo → Prodotti → Modifica in blocco",
@@ -5155,6 +5155,237 @@ function valoreRete(stato, mags) {
 const fmtEuro = (n) => "€ " + (Math.round(n * 100) / 100).toLocaleString("it-IT",
   { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/* ─────────── LE DOSI, UNA DIETRO L'ALTRA ───────────
+   La macchina delle ricette è in piedi da gen-5.68 e funziona: il laboratorio
+   segna «ho prodotto venti breccole» e l'app scala farina, pecorino e
+   guanciale dai magazzini della sua sede. Solo che in catalogo di ricette ce
+   ne sono ZERO, quindi non scala niente — e la ragione non è la pigrizia di
+   nessuno: le dosi si scrivono aprendo la scheda del singolo prodotto, una
+   alla volta, in mezzo a categoria, fornitore, unità, conversioni e prezzo.
+   Per venti preparati vuol dire venti aperture, venti ricerche, venti
+   salvataggi, con la ricetta che è l'ultima cosa in fondo alla scheda.
+
+   Qui invece si sta fermi su una schermata e si va avanti: «per fare 1 di
+   questo serve…», salva, prossimo. Chi ha il quaderno delle ricette davanti
+   deve poter finire in mezz'ora senza mai cercare niente.
+
+   Due scelte che vale la pena dichiarare.
+   La prima: si salva a ogni passaggio, non alla fine. Una sessione di dieci
+   ricette che si perde perché il telefono si spegne non la rifà nessuno.
+   La seconda: da qui si può marcare un prodotto come «lo fa il laboratorio»
+   mentre gli si scrive la ricetta. Sembra fuori posto, e invece è il motivo
+   per cui questa schermata oggi non sarebbe utile a niente: in catalogo i
+   preparati sono zero, e mandare la persona in un'altra schermata a marcarli
+   prima di poter cominciare vorrebbe dire far fallire il lavoro sul primo
+   passo. Scrivere la ricetta di una cosa È dire che la si fa in casa. */
+function FormRicette({ stato, muta, mostraToast, onChiudi }) {
+  const preparati = stato.prodotti.filter((p) => preparato(p));
+  const [i, setI] = useState(() => {
+    /* si riparte dal primo che NON ha ancora le dosi: chi riapre la
+       schermata vuole continuare, non ricominciare */
+    const k = preparati.findIndex((p) => !conRicetta(p));
+    return k >= 0 ? k : 0;
+  });
+  const [q, setQ] = useState("");
+  const prod = preparati[i] || null;
+
+  /* la bozza della ricetta del prodotto su cui si è adesso */
+  const [resa, setResa] = useState("");
+  const [uomResa, setUomResa] = useState("");
+  const [ing, setIng] = useState([]);
+  const [tocco, setTocco] = useState(false);
+  const carica = (p) => {
+    setResa(p?.ricetta?.resa != null ? String(p.ricetta.resa).replace(".", ",") : "");
+    setUomResa(p?.ricetta?.uomResa || p?.uomLavorazione || p?.uomBase || "");
+    setIng((p?.ricetta?.ingredienti || []).map((x) => ({
+      prodottoId: x.prodottoId, qty: String(x.qty).replace(".", ","), uomId: x.uomId })));
+    setTocco(false);
+  };
+  const idRif = prod?.id;
+  useEffect(() => { carica(prod); /* eslint-disable-next-line */ }, [idRif]);
+
+  const unitaDi = (p) => {
+    /* le unità che hanno senso per QUEL prodotto: la sua base e quelle per
+       cui esiste una conversione. Offrire tutte le unità del catalogo vuol
+       dire offrire numeri che l'app poi non sa convertire. */
+    const ids = [p?.uomBase, ...Object.keys(p?.conv || {})].filter(Boolean);
+    return [...new Set(ids)].map((id) => ({ id, nome: labelU(trova(stato.unita, id)) }));
+  };
+
+  const salva = (poi) => {
+    if (!prod) return;
+    const r = num(resa);
+    if (r == null || r <= 0) return mostraToast("Scrivi quanto ne esce: senza la resa non si scala niente", "errore");
+    const pulite = [];
+    for (const x of ing) {
+      if (!x.prodottoId) continue;
+      const n = num(x.qty);
+      if (n == null || n <= 0) {
+        const nome = trova(stato.prodotti, x.prodottoId)?.nome || "un ingrediente";
+        return mostraToast(`Manca la quantità di «${nome}»`, "errore");
+      }
+      pulite.push({ prodottoId: x.prodottoId, qty: n, uomId: x.uomId });
+    }
+    if (!pulite.length) return mostraToast("Serve almeno un ingrediente", "errore");
+    muta((s) => {
+      const p = trova(s.prodotti, prod.id); if (!p) return;
+      p.preparato = true;
+      p.ricetta = { resa: r, uomResa: uomResa || p.uomBase, ingredienti: pulite };
+    }, `Ricetta di «${prod.nome}»: ${pulite.length} ingredienti per ${fmtQ(r)}`);
+    mostraToast(`«${prod.nome}» a posto`);
+    if (poi === "avanti") {
+      /* si salta al prossimo SENZA ricetta, non semplicemente al successivo:
+         chi sta riempiendo vuole andare dove manca */
+      const dopo = preparati.findIndex((p, k) => k > i && !conRicetta(p));
+      setI(dopo >= 0 ? dopo : Math.min(i + 1, preparati.length - 1));
+    } else onChiudi();
+  };
+
+  /* ── nessun preparato: è il caso di oggi, e va preso di petto ── */
+  const trovati = q.trim().length >= 2
+    ? stato.prodotti.filter((p) => !preparato(p)
+        && (p.nome || "").toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+    : [];
+  const marca = (p) => {
+    muta((s) => { const b = trova(s.prodotti, p.id); if (b) b.preparato = true; },
+      `«${p.nome}» lo fa il laboratorio`);
+    setQ("");
+    mostraToast(`«${p.nome}» adesso lo fa il laboratorio: scrivi le dosi`);
+  };
+
+  const fatte = preparati.filter(conRicetta).length;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl px-3.5 py-3 text-sm"
+        style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}`, color: T.dim }}>
+        Le dosi servono a una cosa sola, ma importante: quando il laboratorio segna
+        <b style={{ color: T.ink }}> «ho prodotto»</b>, gli ingredienti si scalano da soli.
+        Senza, la quantità sale e il magazzino continua a dire che c'è roba che non c'è.
+        {preparati.length > 0 && <> <b style={{ color: T.ink }}>{fatte} su {preparati.length}</b> ce l'hanno già.</>}
+      </div>
+
+      {/* Cercare un prodotto e marcarlo sta qui sopra e non in fondo perché
+          oggi i preparati sono zero: senza questo, la schermata si apre vuota
+          e non c'è niente da fare. */}
+      <div>
+        <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
+          style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+          <Search size={16} style={{ color: T.tenue }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Aggiungi un prodotto che fate voi…" aria-label="Cerca un prodotto da marcare come fatto in laboratorio"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-semibold"
+            style={{ color: T.ink }} />
+        </div>
+        {trovati.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-2">
+            {trovati.map((p) => (
+              <button key={p.id} type="button" onClick={() => marca(p)}
+                className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-left"
+                style={{ background: "#EFF7F3", border: "1px solid #CFEADD" }}>
+                <FlaskConical size={14} style={{ color: T.verde }} />
+                <span className="flex-1 min-w-0 truncate font-bold text-sm" style={{ color: T.ink }}>{p.nome}</span>
+                <span className="text-xs font-bold shrink-0" style={{ color: T.verde }}>lo facciamo noi</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!prod ? (
+        <p className="text-sm" style={{ color: T.ambra }}>
+          In catalogo non c'è ancora nessun prodotto marcato come <b>fatto in laboratorio</b>.
+          Cercalo qui sopra: marcarlo e scrivergli le dosi si fa in un gesto solo.
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setI(Math.max(0, i - 1))}
+              aria-label="Preparato precedente" className="rounded-full p-2.5 shrink-0"
+              style={{ background: "#EAF0FE", color: T.blu, opacity: i === 0 ? .4 : 1 }}>
+              <ChevronRight size={16} style={{ transform: "rotate(180deg)" }} /></button>
+            <div className="flex-1 min-w-0 text-center">
+              <div className="font-extrabold truncate" style={{ color: T.ink }}>{prod.nome}</div>
+              <div className="text-xs" style={{ color: T.tenue }}>
+                {i + 1} di {preparati.length}{conRicetta(prod) ? " · le dosi ci sono già" : " · dosi da scrivere"}
+              </div>
+            </div>
+            <button type="button" onClick={() => setI(Math.min(preparati.length - 1, i + 1))}
+              aria-label="Preparato successivo" className="rounded-full p-2.5 shrink-0"
+              style={{ background: "#EAF0FE", color: T.blu, opacity: i >= preparati.length - 1 ? .4 : 1 }}>
+              <ChevronRight size={16} /></button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Campo label="Ne escono" valore={resa} onCambia={(v) => { setResa(puliziaNum(v)); setTocco(true); }}
+              inputMode="decimal" placeholder="20" />
+            <Selettore label="di" valore={uomResa || prod.uomBase}
+              onCambia={(v) => { setUomResa(v); setTocco(true); }} opzioni={unitaDi(prod)} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {ing.map((r, k) => (
+              <div key={k} className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Selettore label={k === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId } : x))); setTocco(true); }}
+                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
+                      .filter((x) => x.id !== prod.id).map((x) => ({ id: x.id, nome: x.nome }))]} />
+                </div>
+                <div style={{ width: 88 }}>
+                  <Campo label={k === 0 ? "quanto" : ""} valore={r.qty}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k ? { ...x, qty: puliziaNum(v) } : x))); setTocco(true); }}
+                    inputMode="decimal" placeholder="0" />
+                </div>
+                <div style={{ width: 104 }}>
+                  <Selettore label={k === 0 ? "unità" : ""} valore={r.uomId}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k ? { ...x, uomId: v } : x))); setTocco(true); }}
+                    opzioni={r.prodottoId ? unitaDi(trova(stato.prodotti, r.prodottoId))
+                      : stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+                </div>
+                <button type="button" onClick={() => { setIng(ing.filter((_, j) => j !== k)); setTocco(true); }}
+                  aria-label="Togli ingrediente" className="rounded-full p-2.5 mb-0.5"
+                  style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end">
+            <Bottone piccolo variante="tonale" icona={Plus}
+              onClick={() => { setIng([...ing, { prodottoId: "", qty: "", uomId: prod.uomBase }]); setTocco(true); }}>
+              Aggiungi ingrediente
+            </Bottone>
+          </div>
+
+          {/* Le pastiglie in fondo servono a due cose: saltare dove si vuole, e
+              far vedere quanto manca. Un elenco che si accorcia a vista è la
+              ragione per cui uno finisce invece di smettere a metà. */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {preparati.map((p, k) => (
+              <button key={p.id} type="button" onClick={() => setI(k)}
+                aria-label={`Vai a ${p.nome}`}
+                className="rounded-full px-2.5 py-1 text-xs font-bold"
+                style={{
+                  background: k === i ? T.blu : conRicetta(p) ? "#E4F6EE" : "#F1F4FB",
+                  color: k === i ? "#fff" : conRicetta(p) ? T.verde : T.tenue,
+                }}>
+                {conRicetta(p) ? "✓ " : ""}{p.nome}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 justify-end mt-2 flex-wrap">
+            <Bottone variante="fantasma" onClick={onChiudi}>Chiudi</Bottone>
+            <Bottone variante="tonale" icona={Check} onClick={() => salva("chiudi")} disabilitato={!tocco && conRicetta(prod)}>
+              Salva
+            </Bottone>
+            <Bottone icona={ChevronRight} onClick={() => salva("avanti")}>Salva e vai al prossimo</Bottone>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* Un campo per prodotto, tutti nella stessa schermata: mettere 102 prezzi
    entrando e uscendo da 102 schede non lo farebbe nessuno. */
 function FormPrezzi({ stato, muta, mostraToast, onChiudi }) {
@@ -5343,6 +5574,7 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
   const [del, setDel] = useState(null);       // {tipo, item}
   const [bulk, setBulk] = useState(false);    // modifica prodotti in blocco
   const [prezzi, setPrezzi] = useState(false);       // prezzi, uno per uno ma tutti insieme
+  const [ricette, setRicette] = useState(false);     // le dosi, un preparato dietro l'altro
   const [conversioni, setConversioni] = useState(false);  // i fattori mancanti, tutti in una volta
   const [catAperte, setCatAperte] = useState(() => new Set());  // categorie aperte nell'elenco
   const [soloFuori, setSoloFuori] = useState(false);  // solo i prodotti in nessun magazzino
@@ -5385,6 +5617,9 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
           )}
           {tab === "prodotti" && stato.prodotti.length > 1 && (
             <Bottone variante="tonale" icona={Pencil} onClick={() => setBulk(true)}>Modifica in blocco</Bottone>
+          )}
+          {tab === "prodotti" && stato.prodotti.length > 0 && (
+            <Bottone variante="tonale" icona={FlaskConical} onClick={() => setRicette(true)}>Ricette</Bottone>
           )}
           {tab === "prodotti" && stato.prodotti.length > 0 && (
             <Bottone variante="tonale" icona={TrendingUp} onClick={() => setPrezzi(true)}>Prezzi</Bottone>
@@ -5592,6 +5827,9 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
       <Foglio aperto={!!del} titolo={del ? `Eliminare «${del.item.nome}»?` : ""} onChiudi={() => setDel(null)}>
         {del && <EliminaGuidata key={del.item.id} stato={stato} tipo={del.tipo} item={del.item}
           muta={muta} mostraToast={mostraToast} onChiudi={() => setDel(null)} />}
+      </Foglio>
+      <Foglio aperto={ricette} titolo="Le dosi delle ricette" onChiudi={() => setRicette(false)} larga>
+        {ricette && <FormRicette stato={stato} muta={muta} mostraToast={mostraToast} onChiudi={() => setRicette(false)} />}
       </Foglio>
       <Foglio aperto={prezzi} titolo="Prezzi dei prodotti" onChiudi={() => setPrezzi(false)} larga>
         {prezzi && <FormPrezzi stato={stato} muta={muta} mostraToast={mostraToast} onChiudi={() => setPrezzi(false)} />}
