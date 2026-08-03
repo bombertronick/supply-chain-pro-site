@@ -8582,9 +8582,31 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
       const magB = trova(s.magazzini, magId);
       if (!magB) return;
       const { righe, sede } = calcolaEsito(s, magB, vNum);
-      let nRich = 0, nPrel = 0, nParz = 0, nOrd = 0, nOk = 0;
+      let nRich = 0, nPrel = 0, nParz = 0, nOrd = 0, nOk = 0, nAgg = 0, nTolte = 0;
+      /* ── CONTARE DUE VOLTE NON DEVE FAR ARRIVARE IL DOPPIO ──
+         Difetto n.4 del consiglio del 2 agosto. Conti la linea, parte la
+         richiesta al laboratorio. Ti accorgi di aver battuto un numero
+         sbagliato e riconti: nasceva una SECONDA richiesta identica, perché la
+         merce non è ancora arrivata e il fabbisogno è ancora tutto lì. Il
+         laboratorio si trovava due righe per lo stesso prodotto, «Confermo
+         tutto» le serviva entrambe, e sulla linea arrivava il doppio mentre
+         all'altra sede rispondeva «non ce n'è».
+         Questa protezione nell'app c'era già, scritta bene e col suo commento,
+         in «chiediAlLaboratorio» — duemilacinquecento righe più su. Non era
+         mai stata portata qui. Adesso ce n'è una sola, e vale l'ultimo
+         conteggio: chi ricorregge un numero sbagliato deve poterlo fare senza
+         che il primo resti in giro. */
+      const richiestaAperta = (prodottoId) => (s.richieste || []).find((x) =>
+        x.stato === "in-attesa" && x.prodottoId === prodottoId && x.daMagazzinoId === magB.id);
       for (const r of righe) {
         if (r.saltato) continue;
+        /* Se questa riga NON produce una richiesta ma una era rimasta in
+           attesa, va tolta: è la stessa regola dell'altra funzione, e senza
+           di essa il laboratorio prepara roba che nessuno aspetta più. */
+        if (r.azione !== "richiesta") {
+          const vecchia = richiestaAperta(r.prod.id);
+          if (vecchia) { s.richieste = s.richieste.filter((x) => x !== vecchia); nTolte++; }
+        }
         const primaLinea = r.art.qty;
         /* r.giacenza e non r.contato: se ha chiesto di più il contato è negativo,
            ma sullo scaffale ci sono zero pezzi, non meno di zero */
@@ -8592,16 +8614,24 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
         registraMov(s, { magId: magB.id, prodottoId: r.prod.id, uomId: r.art.uomId, delta: r.giacenza - primaLinea, dopo: r.giacenza, causale: "conteggio", chi: profilo.nome });
         if (r.azione === "ok") { nOk++; continue; }
         if (r.azione === "richiesta") {
-          nRich++;
-          s.richieste.unshift({
-            id: uid("ric"), t: Date.now(), daSedeId: magB.sedeId, aSedeLabId: sede?.labSedeId,
+          const vecchia = richiestaAperta(r.prod.id);
+          const riga = {
+            id: vecchia?.id || uid("ric"), t: Date.now(), daSedeId: magB.sedeId, aSedeLabId: sede?.labSedeId,
             daMagazzinoId: magB.id, magNome: magB.nome, prodottoId: r.prod.id,
             qty: r.qtyLav, uomId: r.uomLav, qtyLinea: r.mancante, uomLineaId: r.art.uomId,
             /* l'extra viaggia con la richiesta solo quando c'è: una richiesta
                normale non deve portarsi dietro due campi che valgono zero */
             ...(r.extra > 0 ? { extraLinea: r.extra, qtyLivello: r.qtyLivello } : {}),
             stato: "in-attesa", creataDa: profilo.nome,
-          });
+          };
+          if (vecchia) {
+            /* la vecchia poteva portarsi dietro l'extra e questa no:
+               riscriverci sopra senza togliere quei due campi lascerebbe in
+               laboratorio un «+2 in più» che nessuno ha più chiesto */
+            if (!(r.extra > 0)) { delete vecchia.extraLinea; delete vecchia.qtyLivello; }
+            Object.assign(vecchia, riga);
+            nAgg++;
+          } else { s.richieste.unshift(riga); nRich++; }
         } else if (r.azione === "prelievo" || r.azione === "parziale") {
           /* con i pezzi interi il prelievo può risultare zero (nel retro c'è
              mezza confezione): in quel caso non si scrive nessun movimento */
@@ -8621,7 +8651,7 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
           }
         }
       }
-      ris = { nOk, nRich, nPrel, nParz, nOrd, nomeMag };
+      ris = { nOk, nRich, nPrel, nParz, nOrd, nAgg, nTolte, nomeMag };
     }, `Conteggio «${nomeMag}» di ${profilo.nome}: aggiornate le giacenze`);
     setRiepilogo(null); setValori({}); setMagId(null);
     setFatto(ris);
@@ -8641,6 +8671,12 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
         <div className="flex gap-2 flex-wrap justify-center">
           {fatto.nOk > 0 && <Chip colore={T.verde}>{fatto.nOk} a livello</Chip>}
           {fatto.nRich > 0 && <Chip colore={T.ciano}><FlaskConical size={11} /> {fatto.nRich} richieste al lab</Chip>}
+          {/* Ricontando, «aggiornate» e «tolte» sono la notizia vera: dicono
+              che il primo conteggio non è rimasto in giro a far arrivare il
+              doppio. Senza, si vedrebbe «0 richieste» e sembrerebbe che il
+              conteggio non abbia fatto niente. */}
+          {fatto.nAgg > 0 && <Chip colore={T.ciano}><FlaskConical size={11} /> {fatto.nAgg} {fatto.nAgg === 1 ? "richiesta corretta" : "richieste corrette"}</Chip>}
+          {fatto.nTolte > 0 && <Chip colore={T.dim}>{fatto.nTolte} {fatto.nTolte === 1 ? "richiesta ritirata" : "richieste ritirate"}</Chip>}
           {fatto.nPrel > 0 && <Chip colore={T.blu}>{fatto.nPrel} prelievi dal retro</Chip>}
           {fatto.nParz > 0 && <Chip colore={T.parziale}>{fatto.nParz} parziali</Chip>}
           {fatto.nOrd > 0 && <Chip colore={T.rosa}><Truck size={11} /> {fatto.nOrd} righe ordine</Chip>}
