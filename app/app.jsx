@@ -5994,14 +5994,74 @@ function chiediAlLaboratorio(bozza, prod, artR, sedeId, magR) {
   return qty;
 }
 
+/* ─────────── QUELLO CHE È GIÀ PARTITO E NON È ANCORA ARRIVATO ───────────
+   Il difetto n.1 del consiglio del 2 agosto, e l'unico che costava soldi tutti
+   i giorni. Il retro ha bisogno di 8 kg di farina, parte l'ordine, lo si segna
+   «ordinato». Il giorno dopo la merce non è ancora arrivata — quindi in
+   magazzino non c'è, quindi il fabbisogno è ancora 8 — e ogni «Ricalcola»,
+   ogni conteggio di linea che attinge dal retro, ogni evasione del laboratorio
+   rifaceva la domanda da capo accanto a quella già partita. Al fornitore se ne
+   chiedevano 16 per un bisogno di 8.
+
+   La riga in stato «ordinato» è esattamente la merce in viaggio: partita, non
+   ancora scaricata. Quelle «ricevute» hanno già caricato il magazzino, quindi
+   stanno già dentro artR.qty e sottrarle sarebbe l'errore opposto — ordinare
+   di meno. Quelle «da ordinare» non sono partite: sono la riga che stiamo per
+   riscrivere.
+
+   Ogni riga porta la SUA unità di misura, che può non essere più quella di
+   oggi se nel frattempo è cambiata l'unità del fornitore. Se non si sa
+   convertirla NON si sottrae: fra i due sbagli possibili, ordinare due volte
+   costa dei soldi, non ordinare abbastanza ferma la cucina.
+
+   E per la stessa ragione la fiducia in una riga «ordinato» SCADE. Nessuno
+   obbliga a registrare una consegna: basta che una volta ci si dimentichi, e
+   quella riga resterebbe lì a dire «tranquillo, sta arrivando» per sempre —
+   il prodotto smetterebbe di comparire negli ordini e l'unico modo per
+   accorgersene sarebbe la cucina che rimane a secco. Dopo GIORNI_IN_VIAGGIO
+   la riga non fa più da tappo: l'app torna a chiederla, com'era prima di
+   questa correzione. Ordinare due volte una cosa che tarda da una settimana
+   costa dei soldi; non ordinarla mai più costa il servizio. Il numero è
+   scritto qui in un posto solo apposta: se i fornitori sono più lenti, si
+   cambia questo. */
+const GIORNI_IN_VIAGGIO = 7;
+const giaInViaggio = (bozza, prod, sedeId, tipo, uom) => {
+  const limite = Date.now() - GIORNI_IN_VIAGGIO * 86400000;
+  return (bozza.ordini || []).reduce((tot, o) => {
+    if (o.stato !== "ordinato" || o.tipo !== tipo || o.sedeId !== sedeId || o.prodottoId !== prod.id) return tot;
+    if ((o.tOrdine || o.t || 0) < limite) return tot;
+    const q = o.uomId === uom ? o.qty : converti(prod, o.qty, o.uomId, uom);
+    return q == null ? tot : tot + q;
+  }, 0);
+};
+
+/* Di righe «da ordinare» per la stessa cosa ce ne deve essere UNA. Prima di
+   questa correzione se ne potevano formare due — due ordini partiti per lo
+   stesso fabbisogno, consegnati tutti e due a metà, due residui — e il
+   ricalcolo ne aggiornava solo la prima: l'altra restava lì per sempre a
+   chiedere merce che non serviva. Qui si tiene la prima e si tolgono le altre,
+   così i doppioni già in giro si riassorbono al primo ricalcolo invece di
+   restare a vita. Si scorre all'indietro perché togliere una riga più avanti
+   non sposta quelle che devono ancora essere guardate. */
+function unicaRigaAperta(bozza, prod, sedeId, tipo) {
+  let tenuta = -1;
+  for (let i = bozza.ordini.length - 1; i >= 0; i--) {
+    const o = bozza.ordini[i];
+    if (o.tipo !== tipo || o.sedeId !== sedeId || o.prodottoId !== prod.id || o.stato !== "da-ordinare") continue;
+    if (tenuta >= 0) bozza.ordini.splice(tenuta, 1);
+    tenuta = i;
+  }
+  return tenuta;
+}
+
 /* aggiorna la riga d'ordine «diretto» in base al deficit del retro */
-function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR) {
+function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR, conta) {
   const uom = prod.uomFornitoreDiretto || prod.uomBase;
   const deficit = Math.max(0, parOggi(artR) - artR.qty);
   const conv = converti(prod, deficit, artR.uomId, uom) ?? deficit;
-  const qty = Math.ceil(conv - 1e-9);
-  const idx = bozza.ordini.findIndex((o) =>
-    o.tipo === "diretto" && o.sedeId === sedeId && o.prodottoId === prod.id && o.stato === "da-ordinare");
+  const viaggio = giaInViaggio(bozza, prod, sedeId, "diretto", uom);
+  const qty = Math.ceil(conv - viaggio - 1e-9);
+  const idx = unicaRigaAperta(bozza, prod, sedeId, "diretto");
   /* Un preparato il retro non lo ordina: lo chiede al laboratorio, come farebbe
      una linea. E se una riga d'ordine era rimasta lì da prima della spunta va
      tolta: tenerla vorrebbe dire portarsi dietro un acquisto che nessuno farà. */
@@ -6009,7 +6069,14 @@ function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR) {
     if (idx >= 0) bozza.ordini.splice(idx, 1);
     return chiediAlLaboratorio(bozza, prod, artR, sedeId, magR);
   }
-  if (qty <= 0) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
+  if (qty <= 0) {
+    /* «serve, ma è già in arrivo» non è la stessa cosa di «non serve»: chi
+       preme Ricalcola e non vede comparire niente deve sapere quale dei due è,
+       se no va a riordinare a mano ed è come se il difetto ci fosse ancora. */
+    if (conta && conv > 1e-9 && viaggio > 1e-9) conta.inArrivo++;
+    if (idx >= 0) bozza.ordini.splice(idx, 1);
+    return 0;
+  }
   const riga = {
     id: idx >= 0 ? bozza.ordini[idx].id : uid("ord"), t: Date.now(), tipo: "diretto",
     sedeId, prodottoId: prod.id, fornitoreId: fornitoreDi(prod, sedeId), qty, uomId: uom, stato: "da-ordinare",
@@ -8751,20 +8818,25 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
 }
 
 /* ═══════════════ GENERAZIONE 3 ═══════════════ */
-function aggiornaOrdineLab(bozza, prod, artLab, sedeId) {
+function aggiornaOrdineLab(bozza, prod, artLab, sedeId, conta) {
   const uom = prod.uomFornitore || prod.uomBase;
   const deficit = Math.max(0, parOggi(artLab) - artLab.qty);
   const conv = converti(prod, deficit, artLab.uomId, uom) ?? deficit;
-  const qty = Math.ceil(conv - 1e-9);
-  const idx = bozza.ordini.findIndex((o) =>
-    o.tipo === "lab" && o.sedeId === sedeId && o.prodottoId === prod.id && o.stato === "da-ordinare");
+  /* stessa regola del retro: quello che è già partito non si richiede */
+  const viaggio = giaInViaggio(bozza, prod, sedeId, "lab", uom);
+  const qty = Math.ceil(conv - viaggio - 1e-9);
+  const idx = unicaRigaAperta(bozza, prod, sedeId, "lab");
   /* Un preparato il laboratorio non lo compra: lo fa lui. Qui non nasce nessuna
      riga d'ordine — e nemmeno una richiesta, perché il laboratorio non può
      chiedere a se stesso. Quello che serve sapere («ne manca, va preparato») si
      ricava dai livelli dei magazzini laboratorio e si legge in Ordini, senza
      bisogno di inventare un fornitore né di scrivere niente nei dati. */
   if (preparato(prod)) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
-  if (qty <= 0) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
+  if (qty <= 0) {
+    if (conta && conv > 1e-9 && viaggio > 1e-9) conta.inArrivo++;
+    if (idx >= 0) bozza.ordini.splice(idx, 1);
+    return 0;
+  }
   const riga = {
     id: idx >= 0 ? bozza.ordini[idx].id : uid("ord"), t: Date.now(), tipo: "lab",
     sedeId, prodottoId: prod.id, fornitoreId: fornitoreDi(prod, sedeId), qty, uomId: uom, stato: "da-ordinare",
@@ -8773,8 +8845,13 @@ function aggiornaOrdineLab(bozza, prod, artLab, sedeId) {
   return qty;
 }
 
+/* Torna due numeri, non uno: quante righe sono state scritte e quanti prodotti
+   servivano ma erano già in viaggio. Il secondo serve a dirlo a chi ha premuto
+   il tasto — vedere «Report aggiornato» e poi niente in elenco, senza sapere
+   perché, è il modo più veloce per farsi riordinare la roba a mano. */
 function ricalcolaFabbisogni(bozza, profilo) {
   let n = 0;
+  const conta = { inArrivo: 0 };
   bozza.magazzini.forEach((m) => {
     const mio =
       (m.tipo === "retro" && (profilo.ruolo === "admin" || (profilo.ruolo === "operatore" && m.sedeId === profilo.sedeId))) ||
@@ -8783,11 +8860,13 @@ function ricalcolaFabbisogni(bozza, profilo) {
     m.articoli.forEach((a) => {
       const p = trova(bozza.prodotti, a.prodottoId);
       if (!p) return;
-      const q = m.tipo === "retro" ? aggiornaOrdineDiretto(bozza, p, a, m.sedeId, m) : aggiornaOrdineLab(bozza, p, a, m.sedeId);
+      const q = m.tipo === "retro"
+        ? aggiornaOrdineDiretto(bozza, p, a, m.sedeId, m, conta)
+        : aggiornaOrdineLab(bozza, p, a, m.sedeId, conta);
       if (q > 0) n++;
     });
   });
-  return n;
+  return { righe: n, inArrivo: conta.inArrivo };
 }
 
 /* ─────────── LABORATORIO · RICHIESTE ─────────── */
@@ -9609,8 +9688,20 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
     () => mostraToast("Seleziona e copia a mano", "avviso"));
   const whatsapp = (t) => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
 
-  const ricalcola = () => muta((s) => { ricalcolaFabbisogni(s, profilo); },
-    `Fabbisogni ricalcolati da ${profilo.nome}`) && mostraToast("Report aggiornato dalle scorte attuali");
+  const ricalcola = () => {
+    let esito = { righe: 0, inArrivo: 0 };
+    const fatto = muta((s) => { esito = ricalcolaFabbisogni(s, profilo); },
+      `Fabbisogni ricalcolati da ${profilo.nome}`);
+    if (!fatto) return;
+    /* Il silenzio qui è pericoloso: se il fabbisogno è coperto da roba già
+       ordinata non compare nessuna riga, e senza una parola sembra che il
+       ricalcolo non abbia funzionato. */
+    mostraToast(esito.inArrivo
+      ? `Report aggiornato · ${esito.inArrivo === 1
+          ? "1 prodotto serve ma è già ordinato"
+          : `${esito.inArrivo} prodotti servono ma sono già ordinati`}: sono in «Ordinati», non li richiedo`
+      : "Report aggiornato dalle scorte attuali");
+  };
 
   const segna = (ids) => muta((s) => {
     s.ordini.forEach((o) => { if (ids.includes(o.id)) { o.stato = "ordinato"; o.tOrdine = Date.now(); o.ordinatoDa = profilo.nome; } });

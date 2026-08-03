@@ -177,14 +177,15 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · gen-5.73 online</p>
+  <p class="occhiello">Supply Chain Pro · gen-5.74 online</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Sei revisori hanno passato l'app al setaccio, settore per settore.</b>
-  Hanno proposto 22 difetti; uno scettico incaricato di demolirli ne ha bocciati 12; ne restano
-  <b>otto veri</b>. La notizia buona è la prima riga del loro verbale: <em>l'app è messa bene, i
-  conti e i permessi reggono</em>. La notizia da guardare in faccia è che <b>due di questi otto
-  fanno arrivare il doppio della merce</b>, e succedono in giornate normali. Li trovi qui sotto,
-  in ordine di danno, insieme alle quattro modifiche che erano già in lista.</p>
+  <p class="apertura"><b>Il primo dei tre che avevi scelto è chiuso: non si riordina più la merce
+  che è già partita.</b> Era l'unico degli otto che costava soldi tutti i giorni. Dei difetti
+  trovati dal consiglio ne restano <b>sette veri</b> — i due che avevi messo al secondo e terzo
+  posto sono in cima — insieme alle <b>quattro</b> modifiche che erano già in lista.
+  <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
+  si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
+  fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
 
   <div class="istruzione">
     <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
@@ -198,15 +199,15 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
-    <h2>Otto cose che oggi funzionano male</h2>
+    <h2>Sette cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene.</p>
     <div class="istruzione" style="margin:0 0 1rem">
-      <b>Se puoi sceglierne una sola, scegli la prima.</b> È l'unica che costa soldi tutti i
-      giorni — merce ordinata due volte — e la correzione è di due righe per funzione, senza
-      toccare nient'altro. La seconda e la quarta le farei subito dopo, per lo stesso motivo:
-      sono le tre che fanno arrivare merce che non serve.
+      <b>Le prime due sono quelle che avevi già scelto</b>, e le farei in quest'ordine.
+      Il CSV è un'ora di lavoro e chiude un danno che <em>non si ripara</em> senza ripristinare
+      un backup; il doppio conteggio è un quarto d'ora, perché la protezione nell'app esiste già
+      ed è solo da portare in un'altra schermata.
     </div>
     <div class="schede" id="lista-difetti"></div>
   </section>
@@ -232,6 +233,36 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 3 agosto · non si riordina più la merce che è già partita</h4>
+        <p>Il primo dei tre che avevi scelto, e il difetto che costava soldi tutti i giorni.
+        Prima l'app <b>non aveva proprio il concetto di «già in viaggio»</b>: la merce ordinata e
+        non ancora arrivata in magazzino non c'è, quindi il fabbisogno restava tutto lì, e ogni
+        «Ricalcola» — più ogni conteggio di linea che attinge dal retro, più ogni evasione del
+        laboratorio — rifaceva la stessa domanda accanto a quella già partita. Otto chili di
+        farina diventavano sedici.</p>
+        <p><b>Adesso quello che è in viaggio si sottrae</b>, e la stessa regola vale per gli
+        acquisti del laboratorio: sistemarne uno e lasciare l'altro sarebbe stato spostare il
+        difetto. Se serve più di quanto è partito si chiede solo la differenza. E le righe doppie
+        rimaste in giro da prima <b>si riassorbono da sole</b> al primo ricalcolo, invece di
+        restare lì a vita a chiedere merce che non serve.</p>
+        <p><b>Una cosa l'ho aggiunta io, e va detta perché è una scelta, non una correzione.</b>
+        Nessuno obbliga a registrare una consegna. Se ci si dimentica una volta, quella riga
+        direbbe «tranquillo, sta arrivando» <em>per sempre</em>: il prodotto sparirebbe dagli
+        ordini e te ne accorgeresti solo con la cucina a secco. Quindi <b>la fiducia in una riga
+        «ordinato» dura sette giorni</b>, poi l'app torna a chiedere. Ordinare due volte una cosa
+        che tarda da una settimana costa dei soldi; non ordinarla mai più costa il servizio.
+        <b>Il numero è tuo</b>: se avete fornitori che ci mettono di più, dimmelo e lo cambio —
+        è scritto in un posto solo apposta.</p>
+        <p>E c'è un messaggio nuovo, perché il silenzio qui era pericoloso: se premi «Ricalcola»
+        e non compare niente, adesso l'app ti dice <em>«2 prodotti servono ma sono già ordinati:
+        sono in Ordinati, non li richiedo»</em> invece di lasciarti pensare che non abbia
+        funzionato — che è il modo più veloce per andare a riordinare a mano.</p>
+        <p><em>13 controlli nuovi. Sette dei tredici sono controcontrolli, e sono la parte che
+        conta: sottrarre quello che è in viaggio è facile, sottrarre troppo è facilissimo. Fra i
+        due sbagli, non ordinare abbastanza è il peggiore. La stessa prova fatta girare contro la
+        versione di ieri la boccia in dieci punti — compresa la doppia riga di residuo che il
+        consiglio aveva previsto.</em></p>
+
         <h4>Il 2 agosto · il consiglio di revisione</h4>
         <p>Sei revisori indipendenti, sei settori diversi, mandati separati perché non si
         influenzassero a vicenda. Hanno proposto <b>22 difetti</b>. Poi un settimo, incaricato
@@ -649,18 +680,15 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
-  { id:"doppio-ordine", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
-    titolo:"Si riordina la merce che è già stata ordinata",
-    desc:"Il retro ha bisogno di 8 kg di farina, parte l’ordine, lo segni «ordinato». Il giorno dopo — la merce non è ancora arrivata — ricalcoli, e l’app rifà da capo la stessa richiesta di 8 kg accanto a quella già partita. Al fornitore ne chiedi 16 per un bisogno di 8: arriva il doppio, si paga il doppio, e su un fresco è roba da buttare. L’app non ha proprio il concetto di «già in viaggio»: non esiste da nessuna parte. Succede tutti i giorni, perché fra l’ordine e la consegna passa una notte e in quella notte ogni ricalcolo rifà la domanda. Correzione: due righe per funzione, due funzioni." },
-  { id:"sovrascrittura", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
-    titolo:"Due telefoni che salvano insieme: il lavoro di uno sparisce",
-    desc:"Giulia in laboratorio evade dodici richieste. Nello stesso istante Marco a Fiumicino chiude un conteggio: aveva letto la situazione un attimo prima, e salvando riscrive tutto com’era prima delle evasioni di Giulia. Le dodici evasioni non esistono più, e spariscono anche dallo schermo di Giulia. Nessun messaggio, nessuna riga di storico. C’è un aggravante che ho trovato durante la verifica: le versioni sono l’orologio del telefono, quindi un telefono con l’ora avanti scarta di proposito quello che scrivono gli altri — lì non è una finestra di millisecondi, è sistematico. È la correzione più delicata delle otto, e la farei con calma." },
   { id:"csv-unita", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
     titolo:"Un CSV con poche colonne cancella le unità di misura",
     desc:"Importi un listino a due colonne (nome e prezzo). L’anteprima dice tranquillamente «1 aggiornato, 0 errori», e da quel momento ogni prodotto toccato ha perso l’unità base e tutte le conversioni: 4 buste di grana valgono 4 teglie invece di 12. Prelievi, richieste e ordini escono col numero sbagliato, e il magazzino continua a mostrare numeri credibili che non vogliono più dire niente. Non si torna indietro senza un ripristino da backup. Capita solo importando un file a colonne parziali — cioè un export dell’app ripulito in Excel, che è esattamente quello che il pannello invita a fare. Un’ora." },
   { id:"doppia-richiesta", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
     titolo:"Contare due volte la stessa linea fa arrivare il doppio della merce",
     desc:"Conti la linea, parte la richiesta al laboratorio. Ti accorgi di aver battuto un numero sbagliato e riconti: nasce una seconda richiesta identica. Il laboratorio si trova due righe per lo stesso prodotto, «Confermo tutto» le serve entrambe, sulla linea arriva il doppio e all’altra sede il laboratorio risponde «non ce n’è». Lo stesso vale sulle linee rifornite dal retro, che si svuota due volte. La cosa da sapere: questa protezione nell’app c’è già, scritta bene, duemilacinquecento righe più su — semplicemente non è mai stata portata nella schermata di conteggio. Un quarto d’ora." },
+  { id:"sovrascrittura", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
+    titolo:"Due telefoni che salvano insieme: il lavoro di uno sparisce",
+    desc:"Giulia in laboratorio evade dodici richieste. Nello stesso istante Marco a Fiumicino chiude un conteggio: aveva letto la situazione un attimo prima, e salvando riscrive tutto com’era prima delle evasioni di Giulia. Le dodici evasioni non esistono più, e spariscono anche dallo schermo di Giulia. Nessun messaggio, nessuna riga di storico. C’è un aggravante che ho trovato durante la verifica: le versioni sono l’orologio del telefono, quindi un telefono con l’ora avanti scarta di proposito quello che scrivono gli altri — lì non è una finestra di millisecondi, è sistematico. È la correzione più delicata delle otto, e la farei con calma." },
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },

@@ -188,6 +188,14 @@ I tre che contano di più:
   vedevano benissimo e il dito ci passava attraverso.
 - **`reporttest.mjs`** — le due porte da cui esce testo diretto a un fornitore.
   Controlla che un preparato non ci entri *e* che una riga «lab» ci resti.
+- **`inviaggiotest.mjs`** — la merce già ordinata non si riordina. Va letto per i
+  suoi **controcontrolli**, non per la prova principale: sottrarre quello che è
+  in viaggio è facile, sottrarre troppo è facilissimo, e in una cucina non
+  ordinare abbastanza è peggio che ordinare due volte. Sette dei tredici
+  controlli servono solo a escludere che l'app abbia semplicemente smesso di
+  ordinare — merce ricevuta che non si sottrae, differenza chiesta quando il
+  viaggio non copre tutto, riga chiusa che fa tornare il fabbisogno, riga
+  dimenticata che scade dopo sette giorni.
 
 ### Girano da soli, ogni notte
 
@@ -337,6 +345,7 @@ tiene ferma una funzione che è già costruita e collaudata.
 | **34 conversioni stimate** | L'app le tiene marcate come stime. Vanno pesate. |
 | **7 prodotti in nessun magazzino** | Nessuno li conta, non entrano in nessun ordine. Da gen-5.69 si sistemano dal Catalogo, senza cambiare schermata. |
 | **Duplicati** | fiori di zucca ×2, pecorino, grana, peperoni, basilico, carta forno. |
+| **Quanto dura un ordine «in viaggio»** | Da gen-5.74 l'app non riordina quello che è già partito, ma **si fida di una riga «ordinato» per sette giorni** e poi torna a chiedere. Il numero l'ho scelto io: serve perché nessuno obbliga a registrare una consegna, e una dimenticanza zittirebbe quel prodotto per sempre. Se i fornitori sono più lenti, si cambia `GIORNI_IN_VIAGGIO` — sta in un posto solo. |
 
 ---
 
