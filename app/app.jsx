@@ -526,7 +526,7 @@ function parseCsvTesto(testo) {
    fa upsert dei prodotti per ID o nome). Ritorna un resoconto per l'anteprima.
    È puro rispetto a «s»: eseguibile su una copia per la sola anteprima. */
 function applicaCatalogoCsv(s, testo) {
-  const rep = { aggiornati: 0, creati: 0, catNuove: [], fornNuovi: [], unitaNuove: [], errori: [] };
+  const rep = { aggiornati: 0, creati: 0, catNuove: [], fornNuovi: [], unitaNuove: [], errori: [], nonToccati: [] };
   const righe = parseCsvTesto(testo);
   if (righe.length < 2) { rep.errori.push("Nessuna riga dati (serve intestazione + almeno un prodotto)"); return rep; }
   const norm = (x) => String(x || "").trim().toLowerCase();
@@ -568,45 +568,85 @@ function applicaCatalogoCsv(s, testo) {
     s.fornitori.push(f); rep.fornNuovi.push(f.nome); return f.id;
   };
 
+  /* ── UNA COLONNA CHE NON C'È NON È UNA COLONNA VUOTA ──
+     Difetto n.3 del consiglio del 2 agosto. Un listino a due colonne
+     (Nome; Prezzo) è un file legittimo — anzi, è esattamente quello che si
+     ottiene ripulendo in Excel un export dell'app, cioè quello che questo
+     pannello invita a fare. Prima ogni prodotto toccato da un file così
+     perdeva l'unità base, TUTTE le conversioni, la categoria e il fornitore,
+     e l'anteprima diceva tranquillamente «1 aggiornato, 0 errori». Da quel
+     momento 4 buste di grana valevano 4 teglie invece di 12: prelievi,
+     richieste e righe d'ordine uscivano tutti col numero sbagliato, e il
+     magazzino continuava a mostrare numeri credibili che non volevano più
+     dire niente. E non si torna indietro — lo storico fotografa le caselle
+     dei magazzini, non i prodotti: serve un ripristino da backup.
+
+     Da qui in poi vale una regola sola: SI SCRIVE SOLO QUELLO CHE IL FILE
+     DICHIARA. Su un prodotto nuovo i valori di partenza ci vogliono — non c'è
+     niente da rovinare — su uno che esiste già no.
+
+     Restano fuori da questa regola due cose, e le dico invece di lasciarle
+     intendere: una colonna che C'È ma con la casella vuota resta autorevole
+     (vuol dire «questo prodotto non ha conversioni», non «non lo so»), e il
+     prezzo si comporta come si è sempre comportato — una casella vuota lo
+     lascia com'è. L'unica eccezione è «UdM base»: una casella vuota lì non
+     può voler dire «nessuna unità», perché ogni prodotto ne ha una, quindi si
+     tiene quella di adesso e lo si scrive negli avvisi. */
+  const NOTE = [[cCat, "categoria"], [cForn, "fornitore"], [cBase, "unità base"],
+    [cConv, "conversioni"], [cPrezzo, "prezzo"], [cLav, "unità di lavorazione"],
+    [cFlab, "unità fornitore lab"], [cFdir, "unità fornitore diretto"]];
+  rep.nonToccati = NOTE.filter(([c]) => c < 0).map(([, n]) => n);
+
   for (let ri = 1; ri < righe.length; ri++) {
     const r = righe[ri];
     const nome = (cNome >= 0 ? r[cNome] : "").trim();
     if (!nome) { rep.errori.push(`Riga ${ri + 1}: nome mancante, saltata`); continue; }
     const idRiga = cID >= 0 ? (r[cID] || "").trim() : "";
+    /* chi si sta aggiornando va saputo PRIMA di decidere cosa scrivere: è
+       tutta la differenza fra «metti il valore di partenza» e «non toccare» */
+    let esist = idRiga ? trova(s.prodotti, idRiga) : null;
+    if (!esist) esist = perNome(s.prodotti, nome);
+
     const baseSim = (cBase >= 0 ? r[cBase] : "").trim();
+    if (cBase >= 0 && !baseSim && esist)
+      rep.errori.push(`Riga ${ri + 1}: «UdM base» vuota, tengo quella di adesso`);
+    /* serve comunque per leggere le conversioni e le altre unità, anche
+       quando non va riscritta */
     const uomBase = baseSim ? creaUnita(baseSim)
-      : (s.unita.find((u) => u.simbolo === "pz")?.id || s.unita[0]?.id);
-    const conv = {};
-    if (cConv >= 0 && r[cConv]) {
-      for (const pezzo of String(r[cConv]).split("|")) {
-        const mm = pezzo.match(/^\s*(.+?)\s*[=:]\s*(.+?)\s*$/);
-        if (!mm) continue;
-        const f = num(mm[2]);
-        if (f == null || f <= 0) continue;
-        const uu = creaUnita(mm[1]);
-        if (uu !== uomBase) conv[uu] = f;
+      : (esist?.uomBase || s.unita.find((u) => u.simbolo === "pz")?.id || s.unita[0]?.id);
+
+    const dati = { nome };
+    if (baseSim || !esist) dati.uomBase = uomBase;
+    if (cConv >= 0) {
+      const conv = {};
+      if (r[cConv]) {
+        for (const pezzo of String(r[cConv]).split("|")) {
+          const mm = pezzo.match(/^\s*(.+?)\s*[=:]\s*(.+?)\s*$/);
+          if (!mm) continue;
+          const f = num(mm[2]);
+          if (f == null || f <= 0) continue;
+          const uu = creaUnita(mm[1]);
+          if (uu !== uomBase) conv[uu] = f;
+        }
       }
-    }
-    const ctx = [uomBase, ...Object.keys(conv)];
+      dati.conv = conv;
+    } else if (!esist) dati.conv = {};
+    if (cCat >= 0 || !esist) dati.categoriaId = idCategoria(cCat >= 0 ? r[cCat] : "");
+    if (cForn >= 0 || !esist) dati.fornitoreId = idFornitore(cForn >= 0 ? r[cForn] : "");
+
+    const ctx = [uomBase, ...Object.keys(dati.conv || esist?.conv || {})];
     const ctxSim = (val, def) => {
       const sim = (val || "").trim();
       if (!sim) return def;
       const u = unitaDaSimbolo(sim);
       return u && ctx.includes(u.id) ? u.id : def;
     };
-    const dati = {
-      nome,
-      categoriaId: idCategoria(cCat >= 0 ? r[cCat] : ""),
-      fornitoreId: idFornitore(cForn >= 0 ? r[cForn] : ""),
-      uomBase, conv,
-      uomLavorazione: ctxSim(cLav >= 0 ? r[cLav] : "", uomBase),
-      uomFornitore: ctxSim(cFlab >= 0 ? r[cFlab] : "", uomBase),
-      uomFornitoreDiretto: ctxSim(cFdir >= 0 ? r[cFdir] : "", uomBase),
-    };
+    if (cLav >= 0 || !esist) dati.uomLavorazione = ctxSim(cLav >= 0 ? r[cLav] : "", uomBase);
+    if (cFlab >= 0 || !esist) dati.uomFornitore = ctxSim(cFlab >= 0 ? r[cFlab] : "", uomBase);
+    if (cFdir >= 0 || !esist) dati.uomFornitoreDiretto = ctxSim(cFdir >= 0 ? r[cFdir] : "", uomBase);
+
     const prezzo = cPrezzo >= 0 ? num(r[cPrezzo]) : null;
     if (prezzo != null && prezzo >= 0) dati.prezzo = prezzo;
-    let esist = idRiga ? trova(s.prodotti, idRiga) : null;
-    if (!esist) esist = perNome(s.prodotti, nome);
     if (esist) { Object.assign(esist, dati); rep.aggiornati++; }
     else { s.prodotti.push({ id: uid("p"), ...dati }); rep.creati++; }
   }
@@ -10336,6 +10376,16 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
             {impCatRep.catNuove.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuove categorie: {impCatRep.catNuove.join(", ")}</div>}
             {impCatRep.fornNuovi.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuovi fornitori: {impCatRep.fornNuovi.join(", ")}</div>}
             {impCatRep.unitaNuove.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuove unità: {impCatRep.unitaNuove.join(", ")}</div>}
+            {/* Dire cosa il file NON contiene conta più che dire cosa contiene:
+                è l'unica informazione che permette di accorgersi di aver
+                caricato il file sbagliato PRIMA di premere Applica. */}
+            {impCatRep.aggiornati > 0 && impCatRep.nonToccati?.length > 0 && (
+              <div className="text-xs mt-2 rounded-xl px-2.5 py-2"
+                style={{ background: "#EFF7F3", border: "1px solid #CFEADD", color: T.ink }}>
+                Il file non porta <b>{impCatRep.nonToccati.join(", ")}</b>: sui prodotti che
+                esistono già <b>queste cose restano come sono</b>, non vengono azzerate.
+              </div>
+            )}
             {impCatRep.errori.length > 0 && <div className="text-xs mt-1" style={{ color: T.ambra }}>{impCatRep.errori.length} avvisi · {impCatRep.errori.slice(0, 4).join(" · ")}</div>}
           </div>
         )}

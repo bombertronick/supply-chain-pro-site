@@ -198,10 +198,10 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Il primo dei tre che avevi scelto è chiuso: non si riordina più la merce
-  che è già partita.</b> Era l'unico degli otto che costava soldi tutti i giorni. Dei difetti
-  trovati dal consiglio ne restano <b>sette veri</b> — i due che avevi messo al secondo e terzo
-  posto sono in cima — insieme alle <b>quattro</b> modifiche che erano già in lista.
+  <p class="apertura"><b>Due dei tre che avevi scelto sono chiusi</b>: non si riordina più la
+  merce già partita, e un CSV con poche colonne non cancella più le unità di misura. Dei difetti
+  trovati dal consiglio ne restano <b>sei veri</b> — quello che avevi messo al terzo posto, il
+  doppio conteggio, è in cima — insieme alle <b>quattro</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -209,10 +209,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.74</b> — non si riordina più la merce già partita.</dd>
+      <dd><b>gen-5.75</b> — non si riordina la merce già partita, e un CSV con poche colonne
+      non cancella più le unità di misura.</dd>
       <dt>Fatto oggi</dt>
-      <dd>Il <b>primo</b> dei tre che avevi scelto. Restano il CSV e il doppio conteggio,
-      in cima all'elenco qui sotto.</dd>
+      <dd><b>Due</b> dei tre che avevi scelto. Resta il <b>doppio conteggio</b>, in cima
+      all'elenco qui sotto — un quarto d'ora di lavoro.</dd>
       <dt>Aspetto te</dt>
       <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
       partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
@@ -235,15 +236,14 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
-    <h2>Sette cose che oggi funzionano male</h2>
+    <h2>Sei cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene.</p>
     <div class="istruzione" style="margin:0 0 1rem">
-      <b>Le prime due sono quelle che avevi già scelto</b>, e le farei in quest'ordine.
-      Il CSV è un'ora di lavoro e chiude un danno che <em>non si ripara</em> senza ripristinare
-      un backup; il doppio conteggio è un quarto d'ora, perché la protezione nell'app esiste già
-      ed è solo da portare in un'altra schermata.
+      <b>La prima è quella che avevi già scelto</b>, ed è la più corta di tutte: un quarto
+      d'ora, perché la protezione nell'app <em>esiste già</em>, scritta bene, e va solo portata
+      nella schermata di conteggio dove non è mai arrivata.
     </div>
     <div class="schede" id="lista-difetti"></div>
   </section>
@@ -269,6 +269,34 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 3 agosto · <b>gen-5.75</b> · un CSV con poche colonne non cancella più niente</h4>
+        <p>Il secondo dei tre che avevi scelto. Un listino a due colonne — nome e prezzo — è un
+        file legittimo: anzi, è <em>esattamente</em> quello che si ottiene ripulendo in Excel
+        un'esportazione dell'app, cioè quello che il pannello stesso invita a fare. Prima ogni
+        prodotto toccato da un file così <b>perdeva l'unità base, tutte le conversioni, la
+        categoria e il fornitore</b>, e l'anteprima diceva tranquillamente «1 aggiornato,
+        0 errori».</p>
+        <p><b>Cosa voleva dire in cucina.</b> Da quel momento 4 buste di grana valevano 4 teglie
+        invece di 12. Prelievi, richieste al laboratorio e righe d'ordine uscivano tutti col
+        numero sbagliato, e il magazzino continuava a mostrare numeri credibili che non volevano
+        più dire niente. <b>E non si torna indietro:</b> lo storico fotografa le caselle dei
+        magazzini, non i prodotti — servirebbe un ripristino da backup.</p>
+        <p>Adesso vale una regola sola: <b>si scrive solo quello che il file dichiara.</b> Una
+        colonna che non c'è non è una colonna vuota. Su un prodotto <em>nuovo</em> i valori di
+        partenza ci vogliono — non c'è niente da rovinare — su uno che esiste già no. E
+        l'anteprima adesso ti dice <b>prima di applicare</b> cosa il file non porta: «il file non
+        porta categoria, fornitore, unità base, conversioni: su quelli che esistono già queste
+        cose restano come sono». Accorgersi del file sbagliato dopo, qui, non serve a niente.</p>
+        <p><em>25 controlli nuovi, e il più importante non guarda i dati ma il risultato: dopo
+        l'importazione un fabbisogno di 12 teglie deve ancora tradursi in <b>4 buste</b> da
+        chiedere al fornitore. Contro la versione di stamattina la stessa prova ne boccia 13, e
+        lì l'ordine chiede 12 in un'unità che non esiste più.</em></p>
+        <p><em>Una cosa che ho sbagliato io e che vale la pena dire: al primo giro avevo seminato
+        la prova con la prima categoria e il primo fornitore dell'elenco — che sono proprio i
+        valori di ripiego che il difetto ci metteva sopra. Quei due controlli passavano anche
+        contro la versione rotta: erano verdi per il motivo sbagliato. Un controllo che non può
+        diventare rosso non è un controllo.</em></p>
+
         <h4>Il 3 agosto · <b>gen-5.74</b> · non si riordina più la merce che è già partita</h4>
         <p>Il primo dei tre che avevi scelto, e il difetto che costava soldi tutti i giorni.
         Prima l'app <b>non aveva proprio il concetto di «già in viaggio»</b>: la merce ordinata e
@@ -716,9 +744,6 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
-  { id:"csv-unita", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
-    titolo:"Un CSV con poche colonne cancella le unità di misura",
-    desc:"Importi un listino a due colonne (nome e prezzo). L’anteprima dice tranquillamente «1 aggiornato, 0 errori», e da quel momento ogni prodotto toccato ha perso l’unità base e tutte le conversioni: 4 buste di grana valgono 4 teglie invece di 12. Prelievi, richieste e ordini escono col numero sbagliato, e il magazzino continua a mostrare numeri credibili che non vogliono più dire niente. Non si torna indietro senza un ripristino da backup. Capita solo importando un file a colonne parziali — cioè un export dell’app ripulito in Excel, che è esattamente quello che il pannello invita a fare. Un’ora." },
   { id:"doppia-richiesta", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
     titolo:"Contare due volte la stessa linea fa arrivare il doppio della merce",
     desc:"Conti la linea, parte la richiesta al laboratorio. Ti accorgi di aver battuto un numero sbagliato e riconti: nasce una seconda richiesta identica. Il laboratorio si trova due righe per lo stesso prodotto, «Confermo tutto» le serve entrambe, sulla linea arriva il doppio e all’altra sede il laboratorio risponde «non ce n’è». Lo stesso vale sulle linee rifornite dal retro, che si svuota due volte. La cosa da sapere: questa protezione nell’app c’è già, scritta bene, duemilacinquecento righe più su — semplicemente non è mai stata portata nella schermata di conteggio. Un quarto d’ora." },
