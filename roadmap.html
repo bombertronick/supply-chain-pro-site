@@ -71,6 +71,25 @@ if (!document.querySelector('meta[name="viewport"]')) {
     letter-spacing:-.022em; margin:0 0 .6rem; text-wrap:balance; }
   .apertura { color:var(--dim); font-size:1rem; margin:0; max-width:34rem; }
 
+  /* ── DOVE SIAMO ADESSO ──
+     Questa pagina non è solo un menù di lavori: è la memoria fra una
+     conversazione e l'altra. Quando riprendo in mano il lavoro il giorno dopo,
+     quello che avevo in testa non c'è più — c'è solo quello che sta scritto
+     qui. Perciò in cima ci va lo stato vero: quale versione gira davvero in
+     cucina, cosa è pronto ma non ancora online, e cosa aspetta una parola di
+     Valerio. Si riscrive a ogni rilascio, insieme al resto. */
+  .stato { margin:1.6rem 0 0; padding:1rem 1.15rem; border-radius:1rem;
+    background:var(--velo); border:1px solid var(--riga); font-size:.92rem; }
+  .stato dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:.35rem .8rem; }
+  .stato dt { font-size:.68rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--tenue); padding-top:.22rem; white-space:nowrap; }
+  .stato dd { margin:0; color:var(--dim); }
+  .stato dd b { color:var(--ink); }
+  @media (max-width:26rem) {
+    .stato dl { grid-template-columns:1fr; gap:.1rem; }
+    .stato dd { margin-bottom:.5rem; }
+  }
+
   /* ── istruzione: è il cuore della pagina, va detta una volta e bene ── */
   .istruzione { margin:1.6rem 0 0; padding:1rem 1.15rem; border-radius:1rem;
     background:var(--v-blu); border:1px solid color-mix(in srgb,var(--blu) 32%,transparent);
@@ -177,7 +196,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · gen-5.74 online</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Il primo dei tre che avevi scelto è chiuso: non si riordina più la merce
   che è già partita.</b> Era l'unico degli otto che costava soldi tutti i giorni. Dei difetti
@@ -186,6 +205,23 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
+
+  <div class="stato">
+    <dl>
+      <dt>In cucina</dt>
+      <dd><b>gen-5.74</b> — non si riordina più la merce già partita.</dd>
+      <dt>Fatto oggi</dt>
+      <dd>Il <b>primo</b> dei tre che avevi scelto. Restano il CSV e il doppio conteggio,
+      in cima all'elenco qui sotto.</dd>
+      <dt>Aspetto te</dt>
+      <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
+      partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
+      provare il giro intero.</dd>
+      <dt>Se mi perdo</dt>
+      <dd>Questa pagina è la memoria fra una conversazione e l'altra: quello che non è scritto
+      qui, il giorno dopo non ce l'ho più. Se ricomincio da capo, si riparte da questo riquadro.</dd>
+    </dl>
+  </div>
 
   <div class="istruzione">
     <b>Come funziona.</b> Una pagina come questa non può scrivermi da sola — non esiste un
@@ -233,7 +269,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
-        <h4>Il 3 agosto · non si riordina più la merce che è già partita</h4>
+        <h4>Il 3 agosto · <b>gen-5.74</b> · non si riordina più la merce che è già partita</h4>
         <p>Il primo dei tre che avevi scelto, e il difetto che costava soldi tutti i giorni.
         Prima l'app <b>non aveva proprio il concetto di «già in viaggio»</b>: la merce ordinata e
         non ancora arrivata in magazzino non c'è, quindi il fabbisogno restava tutto lì, e ogni

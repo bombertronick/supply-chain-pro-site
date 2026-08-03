@@ -33,6 +33,31 @@ const largo = await p.evaluate(() => innerWidth);
 ok(largo === 360, `la pagina si impagina alla larghezza vera del telefono (${largo}px)`);
 await p.waitForTimeout(400);
 
+/* ── IL RIQUADRO «DOVE SIAMO ADESSO» ──
+   Questa pagina non e' solo un menu' di lavori: e' la memoria fra una
+   conversazione e l'altra, e quel riquadro e' la parte che si legge per prima
+   quando si riparte da zero. Un riquadro rimasto indietro e' peggio di uno
+   assente: si riprende il lavoro da una versione che in cucina non c'e' piu'.
+   Percio' qui non si controlla che «ci sia», si controlla che sia AGGANCIATO
+   al resto: la versione che dichiara in cucina dev'essere raccontata anche
+   fra le cose gia' fatte. Aggiornare l'uno e dimenticare l'altro diventa
+   rosso. */
+const stato = await p.evaluate(() => {
+  const box = document.querySelector(".stato");
+  if (!box) return null;
+  const dt = [...box.querySelectorAll("dt")].map((x) => x.textContent.trim());
+  const gen = (box.textContent.match(/gen-5\.\d+/) || [])[0] || null;
+  const fatte = [...document.querySelectorAll("details .dentro")]
+    .map((x) => x.textContent).join(" ");
+  return { dt, gen, raccontata: gen ? fatte.includes(gen) : false };
+});
+ok(stato !== null, "in cima c'e' il riquadro «dove siamo adesso»");
+ok(stato && stato.dt.length >= 4,
+  `e dice tutte e quattro le cose: cosa gira, cosa e' stato fatto, cosa aspetta me, dove si riparte (${stato?.dt.length})`);
+ok(!!stato?.gen, `nomina la versione che gira davvero in cucina (${stato?.gen || "nessuna"})`);
+ok(stato?.raccontata,
+  `e quella versione e' raccontata anche fra le cose gia' fatte — il riquadro non e' rimasto indietro`);
+
 const voci = p.locator(".voce");
 const n = await voci.count();
 /* Dal 2 agosto le voci stanno in due elenchi — i difetti trovati dal consiglio
