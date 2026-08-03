@@ -130,6 +130,26 @@ const TIPI_MAG = {
    remoto e applica la mutazione sul più recente (rev crescente):
    la finestra di conflitto si riduce a pochi ms.              */
 const CHIAVE = "scp:stato:v1";
+/* ─────────── LA SPIA LEGGERA ───────────
+   Difetto n.6 del consiglio del 2 agosto: «lo storico dei movimenti viaggia
+   intero ogni tre secondi». Guardando il ciclo, il peso non era il vero
+   problema: il problema era che ogni telefono riscaricava lo stato INTERO
+   ogni tre secondi anche quando non era cambiato niente, e solo dopo
+   confrontava il numero di revisione. Misurato il 3 agosto sui dati veri:
+   169 KB di stato, di cui 81 KB di soli movimenti — cioe' quasi la meta' — e
+   quel pacchetto partiva venti volte al minuto per ogni telefono acceso. Fa
+   piu' di un giga e mezzo di dati mobili per turno, per persona.
+   Adesso accanto allo stato c'e' una chiave che contiene SOLO il numero di
+   revisione, venti byte. Il ciclo chiede quella; lo stato intero si scarica
+   solo quando c'e' davvero qualcosa di nuovo.
+   Due cose che tengono in piedi la cosa anche quando va storta: la spia si
+   scrive DOPO lo stato — se fallisce, gli altri telefoni non perdono niente,
+   perche' comunque ogni dieci giri si fa una lettura piena — e se la spia non
+   c'e' o non si legge, si torna esattamente al comportamento di prima. Una
+   scorciatoia che quando si rompe smette di far vedere le novita' sarebbe
+   peggio del peso che toglie. */
+const CHIAVE_REV = "scp:rev:v1";
+const MAX_GIRI_MAGRI = 10;        /* dopo dieci giri leggeri, uno pieno comunque */
 const haStorage = () => typeof window !== "undefined" && !!window.storage;
 
 async function leggiRemoto() {
@@ -138,10 +158,19 @@ async function leggiRemoto() {
     return r && r.value ? JSON.parse(r.value) : null;
   } catch { return null; }
 }
+async function revRemota() {
+  try {
+    const r = await window.storage.get(CHIAVE_REV, true);
+    const n = r && r.value != null ? Number(r.value) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
 async function scriviRemoto(stato) {
   try {
     const r = await window.storage.set(CHIAVE, JSON.stringify(stato), true);
-    return !!r;
+    if (!r) return false;
+    try { await window.storage.set(CHIAVE_REV, String(stato.rev || 0), true); } catch {}
+    return true;
   } catch { return false; }
 }
 
@@ -390,17 +419,33 @@ const CAUSALI = {
    buttava via proprio lo storico delle uscite, che così non arrivava MAI a
    vedere due volte lo stesso giorno. Le soglie consigliate non potevano
    accendersi nemmeno in teoria.
-   Ora i tetti sono due, e siccome le uscite sono meno del 3% del traffico,
-   tenerne otto settimane costa meno di quanto costava il tetto unico. */
+   Ora i tetti sono due.
+
+   ── CORREZIONE DEL 3 AGOSTO, con i numeri veri sotto gli occhi ──
+   Qui c'era scritto che «le uscite sono meno del 3% del traffico». Non e'
+   vero, ed e' il tipo di frase che fa dormire tranquilli sul conto sbagliato.
+   Misurato sullo stato in produzione: 390 movimenti in sei giorni, di cui
+   140 uscite — il 36%, e i soli conteggi sono il 25%. A quel ritmo, in otto
+   settimane, le uscite diventano circa milletrecento righe.
+   Sulle uscite non c'era NESSUN tetto di numero, solo di eta'. In una
+   giornata storta — un inventario che tocca ogni articolo — se ne scrivono
+   quante ne vuole senza che niente le fermi. Adesso un tetto c'e', ma alto
+   apposta: a duemila non tocca il funzionamento normale (milletrecento), e
+   morde solo il caso patologico. Non e' un modo per far dimagrire il
+   pacchetto — quello si e' fatto altrove, con la spia leggera qui sopra — e'
+   un parapetto perche' una cosa senza limite prima o poi lo trova da sola.
+   Il numero non si abbassa senza guardare le soglie consigliate: sotto le
+   otto settimane smettono di vedere due volte lo stesso giorno e tacciono. */
 const SETT_USCITE = 56;          // giorni di storico uscite che servono alle soglie
 const MAX_ALTRI_MOV = 250;       // il resto: quanto basta a storico e grafico
+const MAX_USCITE_MOV = 2000;     // parapetto: sopra il fabbisogno vero (~1300)
 function sfoltisciMov(lista) {
   const limite = Date.now() - SETT_USCITE * 86400000;
   const out = [];
-  let altri = 0;
+  let altri = 0, uscite = 0;
   for (const mv of lista) {
     if (USCITE_STORICO.has(mv.causale) && mv.delta < 0) {
-      if (mv.t >= limite) out.push(mv);
+      if (mv.t >= limite && uscite < MAX_USCITE_MOV) { out.push(mv); uscite++; }
     } else if (altri < MAX_ALTRI_MOV) { out.push(mv); altri++; }
   }
   return out;
@@ -11257,8 +11302,19 @@ export default function App() {
 
   /* allineamento continuo (3s, immediato al ritorno sulla scheda) */
   useEffect(() => {
+    let giriMagri = 0;
     const aggiorna = async () => {
       if (modalitaRef.current !== "condivisa" || document.hidden || inSyncRef.current || !baseRef.current) return;
+      /* Prima si chiede solo il numero di revisione: venti byte invece di
+         centosettanta kilobyte. Se non e' cambiato niente si esce di qui.
+         Il giro leggero non si fa piu' di dieci volte di fila: l'undicesimo
+         scarica comunque tutto, cosi' anche se la spia rimanesse indietro il
+         ritardo massimo e' mezzo minuto, non «per sempre». */
+      if (giriMagri < MAX_GIRI_MAGRI) {
+        const rr = await revRemota();
+        if (rr != null && rr <= (baseRef.current.rev || 0)) { giriMagri++; return; }
+      }
+      giriMagri = 0;
       const letto = await leggiRemoto();
       if (!letto) return;
       const r = normalizza(letto);

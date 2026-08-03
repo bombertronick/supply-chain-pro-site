@@ -198,10 +198,9 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Due dei tre che avevi scelto sono chiusi</b>: non si riordina più la
-  merce già partita, e un CSV con poche colonne non cancella più le unità di misura. Dei difetti
-  trovati dal consiglio ne restano <b>sei veri</b> — quello che avevi messo al terzo posto, il
-  doppio conteggio, è in cima — insieme alle <b>quattro</b> modifiche che erano già in lista.
+  <p class="apertura"><b>Tutti e tre quelli che avevi scelto sono chiusi</b>, e con i tre del
+  giro prima fanno sei difetti su undici. Dei difetti trovati dal consiglio ne restano
+  <b>cinque veri</b>, insieme alle <b>quattro</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -209,11 +208,10 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.75</b> — non si riordina la merce già partita, e un CSV con poche colonne
-      non cancella più le unità di misura.</dd>
+      <dd><b>gen-5.77</b> — merce già partita, CSV, doppio conteggio e peso del traffico.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Due</b> dei tre che avevi scelto. Resta il <b>doppio conteggio</b>, in cima
-      all'elenco qui sotto — un quarto d'ora di lavoro.</dd>
+      <dd><b>Tutti e tre</b> quelli che avevi scelto, più i tre del giro prima.
+      Dei difetti del consiglio ne restano <b>cinque</b>, qui sotto.</dd>
       <dt>Aspetto te</dt>
       <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
       partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
@@ -236,14 +234,15 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
-    <h2>Sei cose che oggi funzionano male</h2>
+    <h2>Cinque cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene.</p>
     <div class="istruzione" style="margin:0 0 1rem">
-      <b>La prima è quella che avevi già scelto</b>, ed è la più corta di tutte: un quarto
-      d'ora, perché la protezione nell'app <em>esiste già</em>, scritta bene, e va solo portata
-      nella schermata di conteggio dove non è mai arrivata.
+      <b>Se ne devi scegliere una, ti direi la prima</b> — due telefoni che salvano insieme e
+      il lavoro di uno sparisce. È l'unica delle cinque che fa <em>perdere del lavoro già
+      fatto</em>, ed è anche la più delicata: la farei con calma e con le prove fatte bene.
+      Le altre quattro stanno tutte più ai bordi.
     </div>
     <div class="schede" id="lista-difetti"></div>
   </section>
@@ -269,6 +268,54 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 3 agosto · <b>gen-5.77</b> · il telefono non riscarica più tutto ogni tre secondi</h4>
+        <p>Il terzo dei tre che avevi scelto, e qui <b>il difetto non era dove sembrava</b>.
+        Il consiglio l'aveva chiamato «lo storico dei movimenti pesa troppo». Guardando il
+        codice, il peso era il sintomo: il problema vero è che <b>ogni telefono riscaricava
+        tutto ogni tre secondi anche quando non era cambiato niente</b>, e solo dopo guardava
+        se c'era qualcosa di nuovo.</p>
+        <p><b>Ho misurato invece di stimare</b>, perché il consiglio stesso mi aveva già corretto
+        una volta su questi numeri. Sui dati veri: <b>169 KB</b> di stato, di cui <b>81 KB di
+        soli movimenti</b> — quasi la metà — e quel pacchetto partiva <b>venti volte al minuto
+        per ogni telefono acceso</b>. Fa più di un giga e mezzo di dati mobili per turno, a
+        persona.</p>
+        <p>Adesso accanto ai dati c'è una chiave che contiene <b>solo il numero di versione</b>,
+        venti byte. Il telefono chiede quella; scarica tutto <em>solo quando c'è davvero
+        qualcosa di nuovo</em>. Misurato dal collaudo: a riposo, <b>64 byte invece di quattro
+        pacchetti da 199 KB</b>.</p>
+        <p><b>La parte che mi ha preso più tempo non è il guadagno, è il non fidarsi.</b> Una
+        scorciatoia che, quando si rompe, smette di far vedere le novità agli altri telefoni
+        sarebbe molto peggio del peso che toglie. Quindi: se quella chiave non c'è o non si
+        legge, si torna esattamente a com'era prima; e comunque <b>ogni dieci giri si scarica
+        tutto lo stesso</b>, così anche nel caso peggiore il ritardo massimo è mezzo minuto,
+        non «finché qualcuno non ricarica la pagina». Tre dei quattordici controlli servono
+        solo a questo.</p>
+        <p><b>E un parapetto sullo storico.</b> Sulle uscite c'era un limite di età ma
+        <em>nessuno</em> di numero: in una giornata storta se ne scrivono quante ne capita. Ora
+        si fermano a duemila — alto apposta, perché al ritmo vero (millotrecento in otto
+        settimane) non deve toccare niente: sotto le otto settimane le soglie consigliate
+        smettono di funzionare.</p>
+        <p><em>Due frasi false corrette: il commento nel codice diceva che le uscite sono «meno
+        del 3% del traffico» — sono il 36% — e il collaudo che avrebbe dovuto accorgersene
+        simulava due uscite al giorno invece di ventitré. Era verde per il motivo sbagliato,
+        esattamente come il consiglio aveva detto.</em></p>
+
+        <h4>Il 3 agosto · <b>gen-5.76</b> · contare due volte non fa più arrivare il doppio</h4>
+        <p>Conti la linea, parte la richiesta al laboratorio. Ti accorgi di aver battuto un
+        numero sbagliato e riconti: nasceva una <b>seconda richiesta identica</b>. Il laboratorio
+        si trovava due righe per lo stesso prodotto, «Confermo tutto» le serviva entrambe, e
+        sulla linea arrivava il doppio mentre all'altra sede rispondeva «non ce n'è».</p>
+        <p>La cosa che rende questo difetto istruttivo: <b>la protezione nell'app c'era già</b>,
+        scritta bene e col suo commento, duemilacinquecento righe più su, in un'altra funzione.
+        Non era mai stata portata nella schermata di conteggio. Adesso ce n'è <b>una sola</b>, e
+        vale l'ultimo conteggio: chi corregge un numero sbagliato deve poterlo fare senza che il
+        primo resti in giro.</p>
+        <p>Ho portato anche l'altra metà della stessa regola: <b>se ricontando la linea risulta a
+        posto, la richiesta aperta si ritira</b> invece di restare lì a far preparare al
+        laboratorio roba che nessuno aspetta più. E la schermata di fine adesso conta a parte
+        «richieste corrette» e «richieste ritirate»: vedere «0 richieste» dopo un conteggio
+        sembra che non sia successo niente, e chi legge così torna a contare o chiama a voce.</p>
+
         <h4>Il 3 agosto · <b>gen-5.75</b> · un CSV con poche colonne non cancella più niente</h4>
         <p>Il secondo dei tre che avevi scelto. Un listino a due colonne — nome e prezzo — è un
         file legittimo: anzi, è <em>esattamente</em> quello che si ottiene ripulendo in Excel
@@ -753,9 +800,6 @@ const VOCI = [
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
-  { id:"storico-peso", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
-    titolo:"Lo storico dei movimenti viaggia intero ogni tre secondi",
-    desc:"Ogni articolo contato scrive una riga di storico, e su quelle righe non c’è nessun tetto di numero — solo di età. Il pacchetto che ogni telefono scarica ogni tre secondi si assesta sui 200-600 KB di soli movimenti, contro i 115 KB di tutto il resto. Non è un guasto: è peso costante che paghi in dati mobili, batteria e lentezza di apertura, e che rende più probabili i mancati salvataggi del punto qui sopra. Correggo anche il racconto, perché il consiglio l’ha corretto a me: non cresce senza fine, arriva a un tetto in otto settimane e lì resta. Tre righe." },
   { id:"plancia-permessi", dove:"difetti", tag:["dormiente","piccolo"], cls:["t-dati","t-mis"],
     titolo:"La Plancia dice «fatto» per un lavoro che i permessi hanno bloccato",
     desc:"Un profilo Laboratorio spunta «tutta la sede» e preme «Riempi al livello previsto». Vede il verde, il lampo su novanta caselle, e nello storico resta scritto per sempre «Riempite 90 caselle». Sul magazzino non si è mosso niente — giustamente, perché quei magazzini non sono suoi: il muro dei permessi tiene, ma nessuno glielo dice. Oggi non succede mai, perché nei dati veri non esiste nessun profilo Laboratorio: ci sono solo Admin e operatori. È un difetto vero ma dormiente, si sveglia il giorno che ne crei uno. Venti minuti, e nello stesso passaggio sistemo «Annulla l’ultima modifica», che i permessi non li guarda affatto." },
