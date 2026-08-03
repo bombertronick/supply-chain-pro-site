@@ -198,9 +198,9 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Tutti e tre quelli che avevi scelto sono chiusi</b>, e con i tre del
-  giro prima fanno sei difetti su undici. Dei difetti trovati dal consiglio ne restano
-  <b>cinque veri</b>, insieme alle <b>quattro</b> modifiche che erano già in lista.
+  <p class="apertura"><b>Sette lavori online oggi</b>: sei difetti del consiglio su undici, più
+  la schermata per scrivere le dosi delle ricette una dietro l'altra. Dei difetti trovati dal consiglio ne restano
+  <b>cinque veri</b>, insieme alle <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -208,15 +208,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.75</b> — non si riordina la merce già partita, e un CSV con poche colonne
-      non cancella più le unità di misura.</dd>
-      <dt>Pronte, non ancora online</dt>
-      <dd><b>gen-5.76</b> (contare due volte) e <b>gen-5.77</b> (il telefono non riscarica tutto
-      ogni tre secondi): scritte e provate, aspettano il giro completo dei collaudi. Vanno online
-      appena è verde — sono già raccontate qui sotto.</dd>
+      <dd><b>gen-5.78</b> — merce già partita, CSV, doppio conteggio, peso del traffico e
+      <b>le dosi delle ricette</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Tutti e tre</b> quelli che avevi scelto, più i tre del giro prima.
-      Dei difetti del consiglio ne restano <b>cinque</b>, qui sotto.</dd>
+      <dd><b>Sette lavori</b>: sei difetti del consiglio su undici, più la schermata delle dosi.
+      Restano <b>cinque</b> difetti e <b>tre</b> migliorie, qui sotto.</dd>
       <dt>Aspetto te</dt>
       <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
       partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
@@ -273,6 +269,23 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 3 agosto · <b>gen-5.78</b> · le dosi delle ricette, una dietro l'altra</h4>
+        <p>La macchina delle ricette è in piedi da luglio e funziona: il laboratorio segna
+        «ho prodotto venti breccole» e l'app scala farina, pecorino e guanciale da sola. Solo che
+        in catalogo di ricette ce n'erano <b>zero</b>, e non per pigrizia di nessuno: le dosi si
+        scrivevano aprendo la scheda del singolo prodotto, in fondo, dopo categoria, fornitore,
+        unità, conversioni e prezzo. Per venti preparati sono venti aperture e venti
+        salvataggi.</p>
+        <p><b>Catalogo → Prodotti → «Ricette»</b> apre una schermata dove stai fermo e vai
+        avanti: <em>«ne escono 20 teglie, ci vuole 2 kg di farina»</em>, salva, prossimo. In
+        fondo le pastiglie mostrano chi è a posto e chi no, e salti dove vuoi.</p>
+        <p><b>Due cose che ho deciso io.</b> Si <b>salva a ogni passaggio</b>, non alla fine: una
+        sessione di dieci ricette persa perché il telefono si spegne non la rifà nessuno. E da lì
+        puoi <b>marcare un prodotto come «lo fa il laboratorio» mentre gli scrivi la ricetta</b> —
+        sembra fuori posto, ed è invece il motivo per cui la schermata ti serve oggi: i preparati
+        in catalogo sono zero, e mandarti altrove a marcarli prima di cominciare vorrebbe dire
+        farti fallire al primo passo.</p>
+
         <h4>Il 3 agosto · <b>gen-5.77</b> · il telefono non riscarica più tutto ogni tre secondi</h4>
         <p>Il terzo dei tre che avevi scelto, e qui <b>il difetto non era dove sembrava</b>.
         Il consiglio l'aveva chiamato «lo storico dei movimenti pesa troppo». Guardando il
@@ -811,9 +824,6 @@ const VOCI = [
   { id:"collaudi-schede", dove:"difetti", tag:["rete di sicurezza","piccolo"], cls:["t-vis","t-mis"],
     titolo:"I collaudi non aprono nessuna delle 40 schede",
     desc:"Il controllo più prezioso che ho — «ogni tasto che si vede si deve poter premere», col dito messo al centro — gira su 44 schermate e su zero delle 40 schede che si aprono sopra: Gestione rapida, Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione merce, Evadi richiesta, Importa CSV. È lì che sta il lavoro vero. E il documento di consegna dice che quel giro «è l’unico che avrebbe preso il difetto peggiore del 31 luglio»: non è vero, quel difetto stava dentro una scheda che il giro non apre mai. Sei righe dentro un ciclo che c’è già. Le due frasi sbagliate <b>le ho già corrette oggi</b>, senza aspettare: il documento di consegna è il posto dove si va a leggere di cosa fidarsi, e una frase falsa lì fa smettere di cercare. Quello che resta da scegliere è se estendere il giro alle schede." },
-  { id:"dosi-ricette", dove:"altro", tag:["struttura","medio"], cls:["t-str","t-mis"],
-    titolo:"Le dosi delle ricette, scritte in fretta invece che una alla volta",
-    desc:"La macchina delle ricette è online e funziona: il laboratorio segna «ho prodotto venti breccole» e l’app scala farina, pecorino e guanciale da sola. Solo che le ricette in catalogo sono ZERO, quindi non scala niente. Oggi si inseriscono dalla scheda del singolo prodotto, una alla volta, ed è la ragione per cui non ne è ancora entrata nemmeno una. Posso fare una schermata sola che ti porta di preparato in preparato — «per fare 1 di questo serve: …», aggiungi ingrediente, avanti — pensata per chi ha davanti il quaderno delle ricette e vuole finire in mezz’ora. Il lavoro vero resta tuo: le dosi le sai solo tu. Questo serve a togliere la fatica del come, non del cosa." },
   { id:"pesatura", dove:"altro", tag:["struttura","medio"], cls:["t-str","t-mis"],
     titolo:"Una sessione di pesatura, con la bilancia in mano",
     desc:"Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima." },
