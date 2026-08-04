@@ -10,6 +10,12 @@
   },
   "aperti": [
     {
+      "id": "schede-tre-mancanti",
+      "dove": "difetti",
+      "prova": "generaletest.mjs",
+      "_prova_perche": "il collaudo le stampa a ogni giro come «ancora fuori portata», e il motivo di ognuna sta accanto a NON_ANCORA in cima al file."
+    },
+    {
       "id": "offline-bugia",
       "dove": "difetti",
       "prova": null,
@@ -20,12 +26,6 @@
       "dove": "difetti",
       "prova": null,
       "_prova_perche": "non ancora scritta. Difetto dormiente: in produzione non esiste nessun profilo Laboratorio, quindi oggi non si sveglia."
-    },
-    {
-      "id": "collaudi-schede",
-      "dove": "difetti",
-      "prova": null,
-      "_prova_perche": "riguarda i collaudi stessi, non l'app: una prova che lo dimostri rosso sarebbe un collaudo sui collaudi."
     },
     {
       "id": "pesatura",
@@ -47,6 +47,17 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.81",
+      "chiude": [
+        "collaudi-schede"
+      ],
+      "prova": "generaletest.mjs",
+      "cosa": "Il giro dei tasti adesso entra nelle schede: da 0 aperte a 116 (30 diverse), su due livelli di profondita'. Cinque delle otto nominate dal consiglio sono coperte; le tre che restano sono elencate per nome nel collaudo e in roadmap.",
+      "_nota": "Il consiglio aveva stimato «sei righe dentro un ciclo che c'e' gia'». Non era vero: servivano la ricorsione a due livelli, getByRole al posto del selettore CSS (meta' delle cose premibili non sono <button>), e soprattutto ARRICCHIRE IL BANCO DI PROVA — partiva con zero richieste, zero ordini e zero preparati, quindi tre delle schede non esistevano proprio.",
+      "soloCollaudi": true,
+      "_soloCollaudi_perche": "Non e' una versione nuova dell'app: e' la rete di sicurezza che si allarga. Va distinto, se no «l'ultimo lavoro chiuso e' quello online» diventa falso per un motivo che non c'entra."
+    },
     {
       "gen": "gen-5.81",
       "chiude": [
@@ -125,6 +136,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-04",
+      "dicevo": "Il giro entra davvero nelle schede: 20 aperte, ne servono almeno 12. Verde.",
+      "invece": "Verde per il motivo sbagliato. Le 20 erano Nuova sede, Nuovo profilo, Modifica magazzino: delle OTTO nominate dal consiglio ne prendeva UNA. Un pavimento fatto di NUMERI non se ne accorge; uno fatto di NOMI si'. Da qui la regola: quando misuro una copertura, il metro dev'essere l'elenco delle cose che devono esserci, non quante ne ho contate."
+    },
     {
       "quando": "2026-08-04",
       "dicevo": "(niente di sbagliato su gen-5.81 — la prova e' stata scritta prima della correzione e ha mostrato il difetto vero: 9 teglie invece di 6)",

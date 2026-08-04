@@ -108,8 +108,16 @@ if (!conProva.length)
 console.log("\n— 5. la generazione in cucina e' la stessa di qua e di la' —");
 ok(inPagina.cucina === mem.online.gen,
   `la roadmap dice «${inPagina.cucina}», la memoria «${mem.online.gen}»`);
-ok(mem.chiusi[0]?.gen === mem.online.gen,
-  `e l'ultimo lavoro chiuso e' proprio quello online (${mem.chiusi[0]?.gen})`);
+/* Si guarda l'ultimo lavoro che ha SPEDITO qualcosa nell'app. I lavori sui
+   collaudi chiudono voci della roadmap ma non fanno una versione nuova: se
+   contassero anche loro, questo controllo diventerebbe rosso per un motivo
+   che non c'entra niente con quello che gira in cucina. */
+const ultimoSpedito = mem.chiusi.find((g) => !g.soloCollaudi);
+ok(ultimoSpedito?.gen === mem.online.gen,
+  `e l'ultimo lavoro spedito e' proprio quello online (${ultimoSpedito?.gen})`);
+const soloColl = mem.chiusi.filter((g) => g.soloCollaudi);
+ok(soloColl.every((g) => g._soloCollaudi_perche),
+  `e i ${soloColl.length} lavori di soli collaudi dicono perche' non fanno versione`);
 
 /* ═══ 6. QUELLO CHE HO SBAGLIATO RESTA SCRITTO ═══
    Se sparisce la riga, sparisce anche il motivo per cui non lo rifaccio. */

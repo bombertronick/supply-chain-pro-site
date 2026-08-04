@@ -26,10 +26,18 @@
    CORREZIONE DEL 2 AGOSTO, dal consiglio di revisione. Qui c'era scritto che il
    passaggio 3 «e' l'unico che avrebbe preso il difetto di stamattina». Non e'
    vero, ed e' il tipo di frase che fa smettere di cercare: quel difetto stava
-   dentro «Gestione rapida», che e' una SCHEDA, e questo giro non ne apre
+   dentro «Gestione rapida», che e' una SCHEDA, e questo giro non ne apriva
    nessuna delle ~40 che esistono. L'hanno preso bulk2test.mjs e
-   lentesempretest.mjs. Il dito al centro di ogni tasto qui si mette solo sulle
-   44 schermate di fondo — dove sta meno della meta' del lavoro vero. */
+   lentesempretest.mjs.
+
+   CHIUSO IL 4 AGOSTO. C'e' il passaggio 3d: sul telefono, dopo aver misurato
+   la schermata di fondo, si aprono le schede che quella schermata sa aprire e
+   si rimette lo stesso dito al centro dei tasti che stanno DENTRO. Le schede
+   non si possono elencare — non esiste un registro — quindi si scoprono
+   premendo, con tre paletti spiegati sopra la funzione. Il piu' importante e'
+   il pavimento: se il giro apre meno di SOGLIA_SCHEDE schede diventa rosso
+   lui, perche' «zero tasti morti nelle schede» e «non ho guardato dentro
+   nessuna scheda» si somigliano troppo. */
 import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
@@ -50,6 +58,37 @@ const scena = () => {
     { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6", pinHash: hash("2222") },
     { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF", pinHash: hash("3333") },
   ];
+
+  /* ── LE SITUAZIONI CHE FANNO ESISTERE LE SCHEDE (4 agosto) ──
+     Scoperto estendendo il giro alle schede: quattro delle otto che il
+     consiglio aveva nominato non si aprivano non perche' il giro non ci
+     provasse, ma perche' NON ESISTEVANO. Il banco di prova partiva con zero
+     richieste, zero ordini e zero preparati, quindi «Evadi richiesta»,
+     «Ricezione merce» e «Ho prodotto» non avevano niente da mostrare e il
+     tasto per aprirle non veniva nemmeno disegnato.
+     E' un pezzo di storia che vale la pena tenere: per anni si sarebbe potuto
+     dire «i collaudi coprono l'app» guardando un numero, mentre i tre giri
+     dove passa la merce vera non venivano mai fatti. Un banco di prova che
+     parte da un magazzino perfetto non prova il lavoro, prova la calma. */
+  const linea = s.magazzini.find((m) => m.tipo === "linea-lab") || s.magazzini.find((m) => m.tipo.startsWith("linea"));
+  const prep = s.prodotti[0];
+  prep.preparato = true;
+  prep.ricetta = { resa: 10, uomResa: prep.uomBase,
+    ingredienti: [{ prodottoId: s.prodotti[5].id, uomId: s.prodotti[5].uomBase, qty: 2 }] };
+  const magLab = s.magazzini.find((m) => m.tipo === "laboratorio");
+  if (magLab && !(magLab.articoli || []).some((a) => a.prodottoId === prep.id))
+    magLab.articoli = [{ prodottoId: prep.id, uomId: prep.uomBase, qty: 40, par: 0 }, ...(magLab.articoli || [])];
+
+  /* una richiesta in attesa → il laboratorio ha «Evadi richiesta» */
+  s.richieste = [{ id: "ric-prova", t: Date.now(), daSedeId: sedeOp.id, aSedeLabId: sedeLab.id,
+    daMagazzinoId: linea?.id, magNome: linea?.nome || "Linea", prodottoId: prep.id,
+    qty: 4, uomId: prep.uomBase, qtyLinea: 4, uomLineaId: prep.uomBase,
+    stato: "in-attesa", creataDa: "banco di prova" }];
+
+  /* una riga gia' ordinata → chi compra ha «Ricezione merce» */
+  s.ordini = [{ id: "ord-prova", t: Date.now(), tOrdine: Date.now(), tipo: "diretto",
+    sedeId: sedeOp.id, prodottoId: s.prodotti[3].id, fornitoreId: s.fornitori?.[0]?.id || null,
+    qty: 6, uomId: s.prodotti[3].uomBase, stato: "ordinato" }];
   return s;
 };
 
@@ -102,9 +141,9 @@ const entra = async (r, w, h) => {
       finisce quando una persona vera scorre per premerlo.
 
    Verificato: con queste due correzioni i 36 diventano 0. */
-const tastiMorti = async (p) => {
+const tastiMorti = async (p, radice) => {
   const morti = []; let provati = 0;
-  for (const el of await p.getByRole("button").all()) {
+  for (const el of await (radice || p).getByRole("button").all()) {
     if (!(await el.isVisible().catch(() => false))) continue;
     await el.evaluate((n) => n.scrollIntoView({ block: "center" })).catch(() => {});
     await p.waitForTimeout(50);
@@ -159,8 +198,156 @@ const ultimoRaggiungibile = async (p) => {
 const sborda = (p) => p.evaluate(() =>
   Math.round(document.documentElement.scrollWidth - document.documentElement.clientWidth));
 
+/* ── PASSAGGIO 3 TER: LO STESSO DITO, DENTRO LE SCHEDE (4 agosto) ──
+
+   Il consiglio del 2 agosto ha trovato il buco piu' grosso di questo file: il
+   dito al centro di ogni tasto si metteva sulle 44 schermate di FONDO e su
+   ZERO delle circa quaranta schede che si aprono sopra — Gestione rapida,
+   Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione
+   merce, Evadi richiesta, Importa CSV. E' li' dentro che sta il lavoro vero,
+   ed e' li' dentro che stava il difetto del 31 luglio.
+
+   Le schede non si possono elencare: non esiste un registro, sono pezzi che
+   compaiono quando servono. Quindi si scoprono premendo — si prova un tasto e
+   si guarda se e' comparso un foglio. Tre cose rendono la cosa sicura invece
+   che avventata:
+
+   1. NON SI TOCCA QUELLO CHE DISTRUGGE. Rimuovi, Elimina, Azzera, Esci e
+      compagnia restano fuori: qui si sta misurando dove cade il dito, non si
+      sta provando cosa succede. (Lo stato e' finto e monouso, quindi il
+      rischio non e' perdere dati: e' che un tasto distruttivo cambi la pagina
+      sotto e faccia misurare un'altra cosa da quella che credo.)
+   2. SE UN TASTO NON APRE NIENTE, SI TORNA INDIETRO. Puo' aver cambiato
+      schermata, aperto una tendina, spuntato una casella: si rinaviga e si
+      riprende, se no da li' in poi si misura una pagina che non c'entra.
+   3. C'E' UN PAVIMENTO. Alla fine si pretende di aver aperto almeno un certo
+      numero di schede. Senza, il giorno che questa scoperta smettesse di
+      funzionare — una classe rinominata, un foglio fatto in un altro modo —
+      il rapporto direbbe «zero tasti morti nelle schede» ed e' esattamente
+      la frase che questo passaggio nasce per non far piu' dire. Zero schede
+      aperte e zero difetti trovati si somigliano troppo. */
+const NON_TOCCARE = /rimuovi|elimin|cancell|azzer|svuot|esci|disconnett|ripristin|conferma tutto|archivi|scarica|esporta|invia|whatsapp|tutto arrivato/i;
+/* questi non aprono niente, chiudono: provarli fa solo perdere il posto */
+const NON_APRONO = /^(chiudi|annulla|indietro|ok|salva|salva e chiudi)$/i;
+const MAX_TENTATIVI = 14;       // tasti provati sulla schermata di fondo
+const MAX_TENTATIVI_DENTRO = 11; // e dentro una scheda gia aperta: «Gestione rapida» sta in fondo
+const MAX_PROF = 2;             // due livelli: e' li' che stanno quelle vere
+
+/* IL PAVIMENTO, E PERCHE' E' FATTO DI NOMI E NON DI UN NUMERO.
+   La prima versione di questo passaggio pretendeva «almeno 12 schede aperte»,
+   e ne apriva 20: verde. Ma erano le schede sbagliate — Nuova sede, Nuovo
+   profilo, Modifica magazzino. Delle OTTO che il consiglio aveva nominato ne
+   prendeva UNA. Il motivo e' strutturale: le altre sette si aprono DENTRO
+   un'altra scheda (il dettaglio del magazzino, la riga di un ordine), e una
+   scoperta che si ferma al primo livello non puo' raggiungerle, per quanti
+   tentativi le si diano.
+   Un numero non se ne sarebbe mai accorto. Un elenco di nomi si'. Se domani
+   una di queste si sposta o cambia nome, questo diventa rosso e chiede conto —
+   che e' esattamente quello che serve, perche' e' li' dentro che sta il
+   lavoro vero e ci stava il difetto del 31 luglio. */
+/* Provare i tasti nell'ordine in cui capitano non basta: dentro il dettaglio
+   di un magazzino i primi undici sono tutti tasti di riga (Storico, Scarto,
+   Modifica di ogni articolo) e «Gestione rapida» resta sempre fuori dal
+   tetto. Alzare il tetto costerebbe minuti e non garantirebbe niente.
+   Quindi chi assomiglia a una porta importante si prova PER PRIMO. Non e' un
+   elenco di passi scritti a mano — la scoperta resta generica e trova anche
+   quello che non ho previsto — e' solo un ordine di precedenza. */
+const PRIMA_QUESTI = /gestione rapida|ho prodotto|evadi|ricezione|merce arrivat|importa|trasferi|inventario/i;
+const SCHEDE_CHE_CONTANO = ["Rettifica giacenza", "Registra scarto", "Ricezione merce",
+  "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato"];
+
+/* LE TRE CHE ANCORA NON SI RAGGIUNGONO, scritte qui e stampate a ogni giro.
+   Stanno fuori dall'elenco di sopra perche' non ci arrivo ancora e non voglio
+   un rosso fisso; ma NON spariscono, perche' un limite che non si vede e' una
+   bugia. Ognuna ha il suo motivo, e due non sono colpa del giro:
+
+   · «Gestione rapida» compare solo dove il permesso e' «pieno». In questo
+     banco i magazzini danno «rettifica» — si vede dal fatto che «Trasferisci
+     le scorte» c'e' e «Aggiungi articolo» no. Non e' nascosta: non esiste.
+     Serve un magazzino seminato col permesso giusto.
+   · «Ho prodotto» e' un tasto di riga sui soli preparati, dentro il magazzino
+     del laboratorio, che il giro non apre perche' il tetto sui magazzini
+     finisce prima. Serve dare la precedenza a quel magazzino.
+   · «Evadi richiesta» si apre da un tasto etichettato «Cambia»: nessuna
+     regola generica poteva indovinarlo, e metterlo fra le precedenze
+     vorrebbe dire premere ogni «Cambia» dell'app. */
+const NON_ANCORA = ["Gestione rapida", "Ho prodotto", "Evadi richiesta"];
+
+const etichettaDi = async (el) => ((await el.getAttribute("aria-label").catch(() => null))
+  || (await el.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+
+/* prova a chiudere la scheda piu' in alto e restituisce quante ne restano */
+const chiudiScheda = async (p) => {
+  for (const nome of ["Chiudi", "Annulla"]) {
+    const x = p.locator(".sc-foglio").last().getByRole("button", { name: nome, exact: true });
+    if (await x.count().catch(() => 0)) {
+      await x.first().click().catch(() => {});
+      await p.waitForTimeout(420);
+      return await p.locator(".sc-foglio").count();
+    }
+  }
+  await p.keyboard.press("Escape").catch(() => {});
+  await p.waitForTimeout(420);
+  return await p.locator(".sc-foglio").count();
+};
+
+const giroSchede = async (p, r, dove, out, prof = 1) => {
+  const partenza = await p.locator(".sc-foglio").count();
+  /* getByRole e non locator("button"): meta' delle cose che si premono in
+     questa app NON sono <button>, sono riquadri con role="button" — e le
+     schede che contano si aprono proprio da quelli. La prima versione di
+     questo giro usava il selettore CSS e per questo non riusciva nemmeno ad
+     aprire il dettaglio di un magazzino, cioe' la porta di Gestione rapida,
+     Rettifica, Scarto e Ho prodotto. */
+  const tasti = () => (prof === 1 ? p.locator("main") : p.locator(".sc-foglio").nth(partenza - 1))
+    .getByRole("button");
+  /* prima si guarda cosa c'e', poi si decide in che ordine provarlo */
+  const tutti = await tasti().count().catch(() => 0);
+  const lista = [];
+  for (let i = 0; i < tutti; i++) {
+    const el = tasti().nth(i);
+    if (!(await el.isVisible().catch(() => false))) continue;
+    const e = await etichettaDi(el);
+    if (!e || NON_APRONO.test(e) || NON_TOCCARE.test(e)) continue;
+    if (lista.some((x) => x.e === e)) continue;
+    lista.push({ i, e, pri: PRIMA_QUESTI.test(e) ? 0 : 1 });
+  }
+  lista.sort((a, b) => a.pri - b.pri);
+  for (const { i, e } of lista.slice(0, prof === 1 ? MAX_TENTATIVI : MAX_TENTATIVI_DENTRO)) {
+    /* si ri-cerca per indice a ogni giro: dopo una chiusura il pezzo di
+       pagina viene ricostruito, e un riferimento tenuto da prima non vale piu' */
+    const cand = tasti().nth(i);
+    if (!(await cand.isVisible().catch(() => false))) continue;
+    await cand.click({ timeout: 2500 }).catch(() => {});
+    await p.waitForTimeout(420);
+    const ora = await p.locator(".sc-foglio").count();
+    if (ora < partenza) return;            // ha chiuso la scheda da cui stavo guardando
+    if (ora === partenza) {                // non apriva niente: tendina, spunta, navigazione
+      if (prof === 1) { try { await vaiA(p, dove, 900); } catch {} }
+      continue;
+    }
+    out.aperte++;
+    const foglio = p.locator(".sc-foglio").nth(ora - 1);
+    const titolo = ((await foglio.innerText().catch(() => "")).split("\n")[0] || e).slice(0, 40).trim();
+    out.nomi.push(titolo);
+    const { morti } = await tastiMorti(p, foglio);
+    for (const m of morti) out.morti.push(`${r.nome}/${dove}/«${titolo}»: «${m.eti}» → lo prende: ${m.suo}`);
+    const extra = await sborda(p);
+    if (extra > 1) out.sbordano.push(`${r.nome}/${dove}/«${titolo}» (+${extra}px)`);
+    if (prof < MAX_PROF) await giroSchede(p, r, dove, out, prof + 1);
+    let giri = 0;
+    while ((await p.locator(".sc-foglio").count()) > partenza && giri++ < 4) await chiudiScheda(p);
+    if ((await p.locator(".sc-foglio").count()) > partenza) {
+      out.bloccate.push(`${r.nome}/${dove}/«${titolo}» non si chiude`);
+      if (prof === 1) { try { await vaiA(p, dove, 900); } catch {} }
+      return;
+    }
+  }
+};
+
 /* ═══════════════════════════════════════════════════════════════════ */
-const riepilogo = { schermate: 0, tasti: 0, morti: 0, senzaAiuto: [], vuote: [], sbordano: [], sepolti: [] };
+const riepilogo = { schermate: 0, tasti: 0, morti: 0, senzaAiuto: [], vuote: [], sbordano: [], sepolti: [],
+  schede: 0, mortiSchede: [], schedeBloccate: [], nomiSchede: [] };
 
 for (const r of RUOLI) {
   console.log(`\n══════ ${r.nome.toUpperCase()} ══════`);
@@ -198,6 +385,17 @@ for (const r of RUOLI) {
       if (come === "telefono") {
         const u = await ultimoRaggiungibile(p);
         if (!u.ok) riepilogo.sepolti.push(`${r.nome}/${dove}: «${u.eti}» ${u.motivo}`);
+
+        /* 3d. e lo stesso dito DENTRO le schede che questa schermata apre */
+        const sch = { aperte: 0, morti: [], sbordano: [], bloccate: [], nomi: [] };
+        await giroSchede(p, r, dove, sch);
+        riepilogo.schede += sch.aperte;
+        riepilogo.nomiSchede.push(...sch.nomi);
+        riepilogo.mortiSchede.push(...sch.morti);
+        riepilogo.sbordano.push(...sch.sbordano);
+        riepilogo.schedeBloccate.push(...sch.bloccate);
+        if (sch.aperte) console.log(`  ··  «${dove}»: ${sch.aperte} schede aperte e misurate dentro`);
+        if (sch.morti.length) { console.log(`  KO  «${dove}»: ${sch.morti.length} tasti morti DENTRO le schede`); ko++; }
       }
     }
 
@@ -235,6 +433,22 @@ ok(riepilogo.sbordano.length === 0, `schermate che sbordano a destra: ${riepilog
   + (riepilogo.sbordano.length ? " → " + riepilogo.sbordano.slice(0, 6).join(", ") : ""));
 ok(riepilogo.sepolti.length === 0, `tasti sepolti sotto la barra in basso: ${riepilogo.sepolti.length}`
   + (riepilogo.sepolti.length ? " → " + riepilogo.sepolti.slice(0, 5).join(" · ") : ""));
+console.log(`schede aperte:      ${riepilogo.schede} (${[...new Set(riepilogo.nomiSchede)].length} diverse)`);
+/* i nomi si stampano sempre: e' l'unico modo, per chi legge il rapporto la
+   mattina dopo, di sapere DOVE ha guardato questo giro e dove no */
+console.log(`   dentro: ${[...new Set(riepilogo.nomiSchede)].join(" · ")}`);
+const viste = [...new Set(riepilogo.nomiSchede)];
+const mancanti = SCHEDE_CHE_CONTANO.filter((n) => !viste.some((v) => v.toLowerCase().startsWith(n.toLowerCase())));
+for (const n of NON_ANCORA)
+  if (!viste.some((v) => v.toLowerCase().startsWith(n.toLowerCase())))
+    console.log(`  ··  «${n}» ancora fuori portata — il motivo sta accanto a NON_ANCORA, in cima al file`);
+ok(mancanti.length === 0,
+  `il giro entra nelle schede dove sta il lavoro vero (${SCHEDE_CHE_CONTANO.length - mancanti.length}/${SCHEDE_CHE_CONTANO.length})`
+  + (mancanti.length ? ` — NON raggiunte: ${mancanti.join(", ")}. Finche' non ci entra, «zero tasti morti nelle schede» non vuol dire niente.` : ""));
+ok(riepilogo.mortiSchede.length === 0, `tasti morti dentro le schede: ${riepilogo.mortiSchede.length}`
+  + (riepilogo.mortiSchede.length ? " → " + riepilogo.mortiSchede.slice(0, 5).join(" · ") : ""));
+ok(riepilogo.schedeBloccate.length === 0, `schede che non si chiudono: ${riepilogo.schedeBloccate.length}`
+  + (riepilogo.schedeBloccate.length ? " → " + riepilogo.schedeBloccate.slice(0, 5).join(" · ") : ""));
 ok(riepilogo.senzaAiuto.length === 0, `schermate senza un aiuto che le nomini: ${riepilogo.senzaAiuto.length}`
   + (riepilogo.senzaAiuto.length ? " → " + riepilogo.senzaAiuto.join(", ") : ""));
 ok(errs.length === 0, `errori di pagina: ${errs.length}` + (errs.length ? " → " + errs[0] : ""));
