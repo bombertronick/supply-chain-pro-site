@@ -439,6 +439,14 @@ const CAUSALI = {
 const SETT_USCITE = 56;          // giorni di storico uscite che servono alle soglie
 const MAX_ALTRI_MOV = 250;       // il resto: quanto basta a storico e grafico
 const MAX_USCITE_MOV = 2000;     // parapetto: sopra il fabbisogno vero (~1300)
+/* Quante modifiche gia' registrate lo stato si ricorda (gen-5.81). Serve a
+   non contare due volte un salvataggio arrivato di cui si e' persa la
+   risposta. Trecento nomi sono circa 4KB su uno stato di 165KB: sotto il
+   tre per cento. Non puo' crescere senza tetto, se no diventa il peso che a
+   gen-5.77 abbiamo appena tolto dal traffico. Sotto il tetto ci sta un
+   turno intero di lavoro di tutta la rete, e un rinvio arriva entro
+   qualche secondo: nessun rinvio vero puo' trovare il suo nome scaduto. */
+const MAX_APPLICATE = 300;
 function sfoltisciMov(lista) {
   const limite = Date.now() - SETT_USCITE * 86400000;
   const out = [];
@@ -11454,17 +11462,31 @@ export default function App() {
     setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), 2800);
   };
 
-  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], ...s });
+  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [], ...s });
+
+  /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
+  const nuoveInCoda = (base) => {
+    const gia = new Set(base?.applicate || []);
+    return codaRef.current.filter((m) => !(m.logId && gia.has(m.logId))).length;
+  };
 
   const applicaCoda = (base) => {
     if (!codaRef.current.length) return base;
     const b = clona(base);
+    const gia = new Set(b.applicate || []);
     for (const m of codaRef.current) {
+      /* Il nome di questa modifica e' gia' scritto nello stato: vuol dire che
+         era gia' arrivata e si era persa solo la risposta. Riapplicarla
+         conterebbe due volte un «aggiungi 3» — tre teglie prodotte che ne
+         diventano sei. Per un «metti a 7» non cambierebbe niente, ed e' per
+         questo che il difetto e' rimasto invisibile cosi' a lungo. */
+      if (m.logId && gia.has(m.logId)) continue;
       /* la fotografia di prima serve solo se questa mutazione finisce nello
          storico: le altre non hanno niente da ripristinare */
       const pri = m.descr ? fotoCaselle(b) : null;
       try { m.fn(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
       if (m.descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      if (m.logId) { gia.add(m.logId); b.applicate = [m.logId, ...(b.applicate || [])].slice(0, MAX_APPLICATE); }
     }
     /* la finestra degli ordini si applica qui, dove passa ogni scrittura:
        metterla nei singoli punti che creano ordini vorrebbe dire dimenticarsene
@@ -11491,6 +11513,26 @@ export default function App() {
          lavoro di tutti gli altri. La rete è l'unica verità. */
       const base = remoto || baseRef.current || statoRef.current;
       const inviate = codaRef.current.length;
+      /* In rete ci sono gia' TUTTE le modifiche che ho in coda: la scrittura
+         di prima era arrivata, si era persa solo la risposta. Qui non si
+         riscrive niente — riscrivere vorrebbe dire riapplicarle sopra a se
+         stesse. Si prende quello che c'e' e si svuota la coda.
+         La condizione richiede «remoto», cioe' di aver DAVVERO letto la rete:
+         senza quella lettura la mia copia contiene comunque quelle modifiche
+         (e' la vista che sto mostrando), e ripiegarci sopra vorrebbe dire
+         buttare via il lavoro credendolo gia' salvato. */
+      if (remoto && !nuoveInCoda(base)) {
+        codaRef.current = codaRef.current.slice(inviate);
+        baseRef.current = base; statoRef.current = base; setStato(base);
+        riproveRef.current = 0; conflittiRef.current = 0;
+        diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimoErrore: null,
+          nRitrovate: (diagRef.current.nRitrovate || 0) + 1 };
+        if (offlineRef.current) { offlineRef.current = false; mostraToast("Connessione ripristinata: dati allineati in rete"); }
+        inSyncRef.current = 0;
+        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        if (codaRef.current.length) pianifica(80);
+        return;
+      }
       const nuovo = applicaCoda(base);
       /* rev = contatore semplice, un passo per scrittura: niente più
          orologi, e il numero da cui si è partiti viaggia insieme allo
