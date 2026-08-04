@@ -10,6 +10,12 @@
   },
   "aperti": [
     {
+      "id": "annulla-blocco",
+      "dove": "difetti",
+      "prova": null,
+      "_prova_perche": "non ancora scritta. Verificato guardando fotoCaselle(): fotografa solo magazzini.articoli (qty, par, uomId, parGiorni), mai i campi dei prodotti."
+    },
+    {
       "id": "schede-tre-mancanti",
       "dove": "difetti",
       "prova": "generaletest.mjs",

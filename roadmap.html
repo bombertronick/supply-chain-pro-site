@@ -200,7 +200,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Nove lavori online</b>: sette difetti del consiglio su undici, la
   schermata per scrivere le dosi delle ricette, e un difetto che ho trovato io strada facendo.
-  Da scegliere restano <b>tre difetti</b> e le <b>tre</b> modifiche che erano già in lista.
+  Da scegliere restano <b>quattro difetti</b> e le <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -215,7 +215,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
       <dt>Fatto oggi</dt>
       <dd><b>gen-5.80</b>, <b>gen-5.81</b> e <b>gen-5.82</b>: la sovrascrittura fra telefoni, il
       salvataggio contato due volte e le <b>conversioni in blocco</b>. Più i collaudi che adesso
-      aprono le schede: da zero a 116. Restano <b>tre</b> difetti e <b>tre</b> migliorie.</dd>
+      aprono le schede: da zero a 116. Restano <b>quattro</b> difetti e <b>tre</b> migliorie.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
       ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
@@ -247,7 +247,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti</p>
-    <h2>Tre cose che oggi funzionano male</h2>
+    <h2>Quattro cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene. Vengono tutte e tre dal consiglio del 2 agosto.</p>
@@ -931,6 +931,9 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
+  { id:"annulla-blocco", dove:"difetti", tag:["difetto","piccolo"], cls:["t-dati","t-mis"],
+    titolo:"«Annulla l\u2019ultima modifica» non sa disfare una modifica in blocco",
+    desc:"Trovato oggi verificando le conversioni in blocco, e te lo dico perch\u00e9 lo rende pi\u00f9 urgente di ieri. La fotografia che lo storico scatta prima di ogni modifica riguarda SOLO le caselle dei magazzini \u2014 giacenze, soglie, unit\u00e0 \u2014 e non tocca i campi dei prodotti. Quindi se sbagli una modifica in blocco (categoria, fornitore, unit\u00e0 base, conversione) l\u2019annulla non la disfa: dice di averlo fatto e non cambia niente. Non l\u2019ho introdotto io oggi, vale per tutte le modifiche in blocco da sempre; ma prima una modifica in blocco toccava campi facili da rimettere a mano, adesso con un tocco ne scrive quaranta. Finch\u00e9 non \u00e8 sistemato la rete di sicurezza c\u2019\u00e8 ed \u00e8 buona: <b>Gestione \u2192 Sistema \u2192 Nuovo punto di ripristino</b> prima di una passata grossa. Si sistema facendo scattare la fotografia anche sui prodotti quando la modifica li tocca." },
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
