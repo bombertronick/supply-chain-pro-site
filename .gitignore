@@ -24,3 +24,8 @@ collaudi/rossi/
 # piu'. Sono prodotti, non sorgenti: i sorgenti sono i mk*.mjs.
 collaudi/*.cjs
 collaudi/*-lib-src.jsx
+
+# Il banco di prova crea qui un collegamento a node_modules: la riga
+# «node_modules/» sopra prende le CARTELLE, non i collegamenti, e il 4 agosto
+# uno di questi e' finito dentro un commit.
+collaudi/node_modules

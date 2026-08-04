@@ -1,0 +1,78 @@
+{
+  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
+
+  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
+
+  "online": {
+    "gen": "gen-5.80",
+    "len": 677096,
+    "md5": "9704122cbd39a9fe271817d318b8dbb1",
+    "quando": "2026-08-04",
+    "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
+  },
+
+  "aperti": [
+    { "id": "doppio-invio", "dove": "difetti", "prova": null,
+      "_prova_perche": "non l'ho ancora scritta. Finche' e' null il collaudo accetta la voce ma lo dice; quando ci sara', il giorno che diventa verde questa voce DEVE sparire da qui." },
+    { "id": "offline-bugia", "dove": "difetti", "prova": null,
+      "_prova_perche": "non ancora scritta." },
+    { "id": "plancia-permessi", "dove": "difetti", "prova": null,
+      "_prova_perche": "non ancora scritta. Difetto dormiente: in produzione non esiste nessun profilo Laboratorio, quindi oggi non si sveglia." },
+    { "id": "collaudi-schede", "dove": "difetti", "prova": null,
+      "_prova_perche": "riguarda i collaudi stessi, non l'app: una prova che lo dimostri rosso sarebbe un collaudo sui collaudi." },
+    { "id": "pesatura", "dove": "altro", "prova": null,
+      "_prova_perche": "e' una cosa che manca, non una rotta. Non esiste una prova che possa diventare rossa per l'assenza di una schermata mai specificata." },
+    { "id": "pin-forte", "dove": "altro", "prova": null,
+      "_prova_perche": "come sopra: e' una scelta di sicurezza, non un difetto." },
+    { "id": "ordini-operatore", "dove": "altro", "prova": null,
+      "_prova_perche": "e' una decisione di Valerio su come lavora, non un difetto." }
+  ],
+
+  "chiusi": [
+    { "gen": "gen-5.80", "chiude": ["sovrascrittura"], "prova": "duetelefonitest.mjs",
+      "cosa": "Due telefoni che salvano insieme non si cancellano piu' a vicenda: ogni scrittura dichiara da quale revisione parte e il server rifiuta chi arriva secondo, che pero' non perde niente." },
+    { "gen": "gen-5.79", "chiude": ["conteggi-si-resettano"], "prova": "rivedicontitest.mjs",
+      "cosa": "Nei conteggi si rivede quello che c'e' gia' scritto, e il tasto + parte da li'." },
+    { "gen": "gen-5.78", "chiude": ["ricette-lente"], "prova": "ricettetest2.mjs",
+      "cosa": "Le dosi delle ricette si scrivono una dietro l'altra invece che una alla volta." },
+    { "gen": "gen-5.77", "chiude": ["storico-pesante"], "prova": "spialeggeratest.mjs",
+      "cosa": "Lo stato non si riscarica ogni tre secondi quando non e' cambiato niente." },
+    { "gen": "gen-5.76", "chiude": ["doppia-richiesta"], "prova": "ricontatest.mjs",
+      "cosa": "Contare due volte la stessa linea non fa piu' arrivare il doppio della merce.",
+      "_nota": "E' QUESTA la voce che il 4 agosto era ancora nella lista da scegliere pur essendo online dal giorno prima. E' il caso su cui memoriatest.mjs e' stato provato." },
+    { "gen": "gen-5.75", "chiude": ["csv-parziale"], "prova": "csvparzialetest.mjs",
+      "cosa": "Un CSV con poche colonne non cancella piu' quello che non nomina." },
+    { "gen": "gen-5.74", "chiude": ["riordino-doppio"], "prova": "inviaggiotest.mjs",
+      "cosa": "Non si riordina la merce che e' gia' partita." }
+  ],
+
+  "tuoi": [
+    "Il giro di ricarica su tutti i telefoni dopo gen-5.80: chi tiene l'app aperta usa ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno a meta' turno.",
+    "I 7 giorni di fiducia su una riga «ordinato» prima di richiedere la stessa merce.",
+    "Il PIN dell'admin, ancora quello di partenza. Il repository e' PUBBLICO.",
+    "Quali prodotti sono «fatti in laboratorio»: oggi ne risultano 0 su 102.",
+    "Le dosi di una ricetta qualsiasi, per provare il giro intero: oggi le ricette sono 0.",
+    "I prezzi: 0 su 102.",
+    "34 conversioni sono stime mie, non pesate.",
+    "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
+  ],
+
+  "sbagliato": [
+    { "quando": "2026-08-04", "dicevo": "Le revisioni vengono dall'orologio del telefono, quindi un telefono con l'ora avanti scarta SISTEMATICAMENTE il lavoro degli altri — non e' una finestra di millisecondi.",
+      "invece": "Falso. C'era gia' un Math.max che teneva il numero sempre crescente, quindi l'orologio non causava perdite. Il difetto era uno solo: la gara fra lettura e scrittura. Ho tolto gli orologi lo stesso, ma per un altro motivo (serve un contatore al server), non per questo." },
+    { "quando": "2026-08-03", "dicevo": "Il difetto n.6 del consiglio e' il peso dello storico dei movimenti.",
+      "invece": "Il peso era il sintomo. La causa era che il ciclo riscaricava lo stato INTERO ogni tre secondi. Misurato sulla produzione vera invece che stimato: 172.752 caratteri, di cui 81.140 di movimenti; 140 uscite su 390 movimenti = 36%, non «meno del 3%» come avevo scritto." },
+    { "quando": "2026-08-03", "dicevo": "Il mio collaudo del CSV parziale e' verde.",
+      "invece": "Era verde per il motivo sbagliato: avevo seminato la PRIMA categoria e il PRIMO fornitore, cioe' esattamente i valori di ripiego che il difetto scriveva. Corretto seminando il terzo di ognuno." }
+  ],
+
+  "regole": [
+    "Dire i rischi PRIMA, in cima, non in fondo.",
+    "Non usare AskUserQuestion: sul suo telefono si e' rotto. Si scrive in prosa e si deduce.",
+    "Formato dei messaggi: una riga in cima con quello che deve fare LUI, i dettagli sotto, l'ultima riga il riepilogo di cosa spetta a lui. Sue parole: «sei sempre molto precisa e chiara, per noi umani e' difficile stare al passo con te, a volte saltiamo quello che leggiamo».",
+    "Finito un lavoro della roadmap, cercare cos'altro manca e aggiungerlo PRIMA di dire che e' fatto.",
+    "Ripubblicare la roadmap INSIEME a ogni rilascio.",
+    "Non dire «lo faccio adesso» se il lavoro avvera' nel messaggio dopo. Sue parole: «e' abbastanza ingannevole come frase, dimmi le cose come stanno».",
+    "Rilasciare appena i controlli veloci sono verdi, senza aspettare il censimento da 27 minuti. Sue parole: «perche' non porti sull'app tutte le modifiche anche se le hai pronte, cosa aspetti, poi si accavallano le richieste»."
+  ]
+}
