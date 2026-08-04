@@ -3639,6 +3639,64 @@ function fotoCaselle(s) {
       f[m.id + "|" + a.prodottoId] = [a.qty, a.par, a.uomId, a.parGiorni ? JSON.stringify(a.parGiorni) : 0];
   return f;
 }
+/* ── LA FOTOGRAFIA DEI PRODOTTI (gen-5.83) ──
+   fotoCaselle() guarda solo i magazzini, ed e' stato giusto finche' le
+   modifiche vere stavano li'. Ma «Modifica in blocco» tocca i PRODOTTI, e
+   quei campi non erano fotografati da nessuno: si premeva «Annulla», l'app
+   diceva di averlo fatto, e non cambiava niente. Un annulla che mente e'
+   peggio di un annulla che non c'e', perche' la gente ci conta e smette di
+   cercare.
+   Si fotografano solo i sette campi che una modifica in blocco puo' toccare,
+   e nella voce di storico finisce SOLO quello che e' cambiato davvero: lo
+   stato viaggia intero a ogni scrittura, e nel luglio scorso il suo peso e'
+   gia' stato un difetto vero. */
+function fotoProdotti(s) {
+  const f = {};
+  for (const p of s.prodotti || [])
+    f[p.id] = [p.categoriaId || "", p.fornitoreId || "", p.uomBase || "",
+      p.preparato ? 1 : 0, JSON.stringify(p.conv || {}),
+      JSON.stringify(p.convStim || []), p.soloInteri ? 1 : 0];
+  return f;
+}
+function differenzaProdotti(pri, dop) {
+  const c = [];
+  for (const k in pri) {
+    const X = pri[k], Y = dop[k];
+    if (!Y) continue;                    /* prodotto eliminato: se ne occupa altro */
+    if (X.some((v, i) => v !== Y[i])) c.push({ k, p: X, d: Y });
+  }
+  return c;
+}
+function applicaRipristinoProdotti(s, cambi) {
+  let n = 0;
+  for (const c of cambi || []) {
+    const p = trova(s.prodotti, c.k); if (!p) continue;
+    p.categoriaId = c.p[0] || undefined;
+    p.fornitoreId = c.p[1] || undefined;
+    if (c.p[2]) p.uomBase = c.p[2];
+    if (c.p[3]) p.preparato = true; else delete p.preparato;
+    try { p.conv = JSON.parse(c.p[4]); } catch { p.conv = {}; }
+    try { const st = JSON.parse(c.p[5]); if (st.length) p.convStim = st; else delete p.convStim; } catch {}
+    if (c.p[6]) p.soloInteri = true; else delete p.soloInteri;
+    n++;
+  }
+  return n;
+}
+/* la differenza sui prodotti, scritta in italiano */
+function dettaglioCambiProdotti(stato, cambi) {
+  const nomeCat = (id) => trova(stato.categorie, id)?.nome || "nessuna";
+  const nomeForn = (id) => trova(stato.fornitori, id)?.nome || "nessuno";
+  return (cambi || []).map((c) => {
+    const r = { prod: trova(stato.prodotti, c.k)?.nome || "prodotto eliminato", righe: [] };
+    if (c.p[0] !== c.d[0]) r.righe.push({ et: "categoria", da: nomeCat(c.p[0]), a: nomeCat(c.d[0]) });
+    if (c.p[1] !== c.d[1]) r.righe.push({ et: "fornitore", da: nomeForn(c.p[1]), a: nomeForn(c.d[1]) });
+    if (c.p[2] !== c.d[2]) r.righe.push({ et: "unità base", da: simboloU(stato, c.p[2]), a: simboloU(stato, c.d[2]) });
+    if (c.p[3] !== c.d[3]) r.righe.push({ et: "chi lo fa", da: c.p[3] ? "laboratorio" : "fornitore", a: c.d[3] ? "laboratorio" : "fornitore" });
+    if (c.p[4] !== c.d[4]) r.righe.push({ et: "conversioni", da: `${Object.keys(JSON.parse(c.p[4])).length}`, a: `${Object.keys(JSON.parse(c.d[4])).length}` });
+    if (c.p[6] !== c.d[6]) r.righe.push({ et: "mezze confezioni", da: c.p[6] ? "no" : "sì", a: c.d[6] ? "no" : "sì" });
+    return r;
+  });
+}
 function differenzaCaselle(pri, dop) {
   const c = [];
   for (const k in pri) {
@@ -3653,7 +3711,10 @@ function differenzaCaselle(pri, dop) {
 function voceLog(m, pri, dopoStato) {
   const v = { id: m.logId, t: m.t, chi: m.chi, msg: m.descr };
   if (!pri) return v;
-  const c = differenzaCaselle(pri, fotoCaselle(dopoStato));
+  const c = differenzaCaselle(pri.caselle || pri, fotoCaselle(dopoStato));
+  const cp = pri.prodotti ? differenzaProdotti(pri.prodotti, fotoProdotti(dopoStato)) : [];
+  if (cp.length && cp.length <= MAX_CAMBI) v.cambiP = cp;
+  else if (cp.length) v.tanteP = cp.length;
   if (!c.length) return v;
   if (c.length > MAX_CAMBI) { v.tante = c.length; return v; }
   v.cambi = c;
@@ -4088,14 +4149,21 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
 
   /* si ripristina solo quello che si potrebbe rifare a mano: se una casella
      è di una sede che non tocchi, il tasto non compare nemmeno */
-  const puoTornare = (e) => !!(e.cambi?.length && stato && muta && profilo
-    && e.cambi.every((c) => puoModificare(profilo, trova(stato.magazzini, c.k.split("|")[0]))));
+  /* I prodotti non hanno un magazzino a cui chiedere il permesso: il catalogo
+     lo tocca chi puo' toccarlo, ed e' un controllo che sta gia' sulla porta
+     della modifica in blocco. Qui si guarda solo che ci sia qualcosa da
+     disfare. */
+  const puoTornare = (e) => !!((e.cambi?.length || e.cambiP?.length) && stato && muta && profilo
+    && (e.cambi || []).every((c) => puoModificare(profilo, trova(stato.magazzini, c.k.split("|")[0]))));
 
   const esegui = (e) => {
-    let n = 0;
-    muta((s) => { n = applicaRipristino(s, e.cambi); },
-      `Ripristinato: «${e.msg}» (${e.cambi.length} caselle riportate a prima)`);
-    mostraToast?.(`Ripristinate ${e.cambi.length} caselle`);
+    let n = 0, np = 0;
+    muta((s) => { n = applicaRipristino(s, e.cambi); np = applicaRipristinoProdotti(s, e.cambiP); },
+      `Ripristinato: «${e.msg}» (${e.cambi?.length || 0} caselle e ${e.cambiP?.length || 0} prodotti riportati a prima)`);
+    const pezzi = [];
+    if (e.cambi?.length) pezzi.push(`${e.cambi.length} caselle`);
+    if (e.cambiP?.length) pezzi.push(`${e.cambiP.length} prodotti`);
+    mostraToast?.(`Ripristinati: ${pezzi.join(" e ")}`);
     setChiedi(null); setApri(null);
   };
 
@@ -4105,6 +4173,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
       {log.slice(0, n).map((e, i) => {
         const aperto = apri === e.id;
         const dett = aperto && e.cambi ? dettaglioCambi(stato, e.cambi) : null;
+        const dettP = aperto && e.cambiP ? dettaglioCambiProdotti(stato, e.cambiP) : null;
         return (
         <li key={e.id} className="py-2"
           style={{ borderBottom: i < Math.min(n, log.length) - 1 ? `1px solid ${T.bordo}` : "none" }}>
@@ -4116,9 +4185,11 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                 {e.chi} · {tempoFa(e.t)}
                 {e.cambi && ` · ${e.cambi.length} caselle`}
                 {e.tante && ` · ${e.tante} caselle`}
+                {e.cambiP && ` · ${e.cambiP.length} prodotti`}
+                {e.tanteP && ` · ${e.tanteP} prodotti`}
               </div>
             </div>
-            {(e.cambi || e.tante) && stato && (
+            {(e.cambi || e.tante || e.cambiP || e.tanteP) && stato && (
               <button onClick={() => setApri(aperto ? null : e.id)}
                 className="rounded-full px-2.5 py-1 text-xs font-bold shrink-0"
                 style={{ background: aperto ? T.blu : "#EAF0FE", color: aperto ? "#fff" : T.blu }}>
@@ -4127,10 +4198,13 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
             )}
           </div>
 
-          {aperto && dett && (
+          {aperto && (dett || dettP) && (
             <div className="sc-fade mt-2 ml-4 rounded-2xl p-2.5" style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}` }}>
               <div className="flex flex-col gap-1.5" style={{ maxHeight: "40vh", overflowY: "auto" }}>
-                {dett.map((d, k) => (
+                {/* «|| []» non e' pignoleria: una modifica in blocco tocca solo i
+                    prodotti, quindi «dett» e' null e senza questo il pannello
+                    esplodeva lasciando la pagina bianca. Preso dal collaudo. */}
+                {(dett || []).map((d, k) => (
                   <div key={k} className="rounded-xl px-2.5 py-2" style={{ background: "#fff", border: `1px solid ${T.bordo}` }}>
                     <div className="text-xs font-extrabold truncate" style={{ color: T.ink }}>{d.prod}</div>
                     <div className="text-xs mb-1 truncate" style={{ color: T.tenue }}>{d.mag}</div>
@@ -4140,6 +4214,23 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                         <span className="font-extrabold" style={{ color: T.verde }}>{r.da}</span>
                         <span style={{ color: T.tenue }}>→</span>
                         <span className="font-extrabold" style={{ color: d.v === "tolta" ? T.rosso : T.ink }}>{r.a}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {/* e le modifiche ai PRODOTTI, che prima non si vedevano da
+                    nessuna parte: una modifica in blocco lasciava una riga di
+                    storico che diceva soltanto una data */}
+                {(dettP || []).map((d, k) => (
+                  <div key={"p" + k} className="rounded-xl px-2.5 py-2" style={{ background: "#fff", border: `1px solid ${T.bordo}` }}>
+                    <div className="text-xs font-extrabold truncate" style={{ color: T.ink }}>{d.prod}</div>
+                    <div className="text-xs mb-1 truncate" style={{ color: T.tenue }}>scheda del prodotto</div>
+                    {d.righe.map((r, j) => (
+                      <div key={j} className="flex items-center gap-1.5 text-xs">
+                        <span className="font-bold" style={{ color: T.tenue, minWidth: 84 }}>{r.et}</span>
+                        <span className="font-extrabold" style={{ color: T.verde }}>{r.da}</span>
+                        <span style={{ color: T.tenue }}>→</span>
+                        <span className="font-extrabold" style={{ color: T.ink }}>{r.a}</span>
                       </div>
                     ))}
                   </div>
@@ -4156,7 +4247,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                   </p>}
             </div>
           )}
-          {aperto && !dett && (
+          {aperto && !dett && !dettP && (
             <p className="sc-fade mt-2 ml-4 text-xs" style={{ color: T.tenue }}>
               Il dettaglio di questa azione non è più conservato: si tengono le ultime {MAX_VOCI_CAMBI}, per non appesantire l'app.
             </p>
@@ -4165,7 +4256,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
       );})}
     </ul>
     <Conferma aperto={!!chiedi} titolo="Riportare tutto com'era?"
-      testo={chiedi ? `Le ${chiedi.cambi.length} caselle toccate da «${chiedi.msg}» tornano ai valori di prima. Anche questo ripristino finisce nello storico, quindi è a sua volta annullabile.` : ""}
+      testo={chiedi ? `${[chiedi.cambi?.length ? `${chiedi.cambi.length} caselle` : "", chiedi.cambiP?.length ? `${chiedi.cambiP.length} prodotti` : ""].filter(Boolean).join(" e ")} toccati da «${chiedi.msg}» tornano ai valori di prima. Anche questo ripristino finisce nello storico, quindi è a sua volta annullabile.` : ""}
       testoSi="Ripristina" onNo={() => setChiedi(null)} onSi={() => esegui(chiedi)} />
     </>
   );
@@ -11581,7 +11672,7 @@ export default function App() {
       if (m.logId && gia.has(m.logId)) continue;
       /* la fotografia di prima serve solo se questa mutazione finisce nello
          storico: le altre non hanno niente da ripristinare */
-      const pri = m.descr ? fotoCaselle(b) : null;
+      const pri = m.descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
       try { m.fn(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
       if (m.descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       if (m.logId) { gia.add(m.logId); b.applicate = [m.logId, ...(b.applicate || [])].slice(0, MAX_APPLICATE); }
@@ -11696,7 +11787,7 @@ export default function App() {
     const m = { fn, descr, chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l") };
     if (modalitaRef.current === "locale") {
       const b = clona(statoRef.current);
-      const pri = descr ? fotoCaselle(b) : null;
+      const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
       try { fn(b); } catch {}
       if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       b.ordini = sfoltisciOrdini(b.ordini);

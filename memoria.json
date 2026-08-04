@@ -2,19 +2,13 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.82",
-    "len": 685720,
-    "md5": "5deb4e3160ec4c692413f37cef563795",
+    "gen": "gen-5.83",
+    "len": 691388,
+    "md5": "09b51abe75e0a194f926efe67c277136",
     "quando": "2026-08-04",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
-    {
-      "id": "annulla-blocco",
-      "dove": "difetti",
-      "prova": null,
-      "_prova_perche": "non ancora scritta. Verificato guardando fotoCaselle(): fotografa solo magazzini.articoli (qty, par, uomId, parGiorni), mai i campi dei prodotti."
-    },
     {
       "id": "schede-tre-mancanti",
       "dove": "difetti",
@@ -53,6 +47,15 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.83",
+      "chiude": [
+        "annulla-blocco"
+      ],
+      "prova": "annullabloccotest.mjs",
+      "cosa": "«Annulla l'ultima modifica» disfa anche le modifiche in blocco: la fotografia prima di ogni modifica adesso copre i sette campi dei prodotti, e nella voce di storico finisce SOLO quello che e' cambiato.",
+      "_nota": "Trovato da me subito dopo gen-5.82, non segnalato da nessuno. Prima l'annulla diceva di aver funzionato e non cambiava niente. Contro gen-5.82 «vedi cosa» non compariva nemmeno: la voce era solo una data."
+    },
     {
       "gen": "gen-5.82",
       "chiude": [
@@ -151,6 +154,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-04",
+      "dicevo": "(due sviste dentro gen-5.83, prese dal collaudo e non dall'uso)",
+      "invece": "1) Il pannello del dettaglio faceva dett.map() e in una modifica di SOLI prodotti «dett» e' null: pagina bianca. 2) Il testo della conferma leggeva chiedi.cambi.length, che per la stessa ragione non esiste. Regola: quando aggiungo un secondo tipo di dato accanto a uno che c'era gia', cercare OGNI punto che dava per scontato il primo."
+    },
     {
       "quando": "2026-08-04",
       "dicevo": "In produzione i preparati sono 0 su 102 e i prezzi 0 su 102.",
