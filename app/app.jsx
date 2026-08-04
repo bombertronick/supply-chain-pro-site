@@ -8840,7 +8840,11 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
      previsto. Sulla tastiera numerica del telefono il meno spesso non c'è, per
      questo la via principale è il tasto meno e non quello che si batte. */
   const passo = (pid, art, d) => {
-    const cur = num(valori[art.prodottoId] ?? "") ?? 0;
+    /* si parte da quello che c'è scritto adesso in magazzino, non da zero:
+       premere «+» su una casella che ne ha tre deve portare a quattro, non a
+       uno. Prima si ripartiva sempre da zero, e per correggere un numero di
+       poco bisognava ribatterlo tutto. */
+    const cur = num(valori[art.prodottoId] ?? "") ?? art.qty ?? 0;
     imposta(pid, String(Math.max(-MAX_IN_PIU, +(cur + d).toFixed(2))));
   };
 
@@ -9057,14 +9061,31 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
             {aperto && arts.map((a) => {
           const p = trova(stato.prodotti, a.prodottoId);
           const sym = simboloU(stato, a.uomId);
-          const v = valori[a.prodottoId] ?? "";
-          const n = num(v);
+          /* ── SI VEDE QUELLO CHE C'È GIÀ SCRITTO ──
+             Segnalato da Valerio dopo il primo giorno di uso vero: «se apro i
+             conteggi dopo averne fatto uno, la lista si resetta e fa vedere che
+             è tutto da controllare invece dei valori che hai già inserito», e
+             «modificare un conteggio è abbastanza complicato».
+             Aveva ragione tutte e due le volte, ed erano la stessa cosa: la
+             schermata partiva vuota SEMPRE, quindi dopo aver contato non si
+             rivedeva più niente e per correggere un numero bisognava rifare
+             tutta la linea da capo.
+             Adesso ogni casella mostra la giacenza di adesso — che subito dopo
+             un conteggio è esattamente quello che è stato battuto. Ma mostrarlo
+             non vuol dire darlo per confermato: finché nessuno tocca quella
+             riga resta «da controllare», scritta in grigio, e al momento di
+             confermare NON viene mandata. Se bastasse aprire la schermata per
+             far risultare contate tutte e trentotto le caselle, partirebbero
+             richieste al laboratorio per roba che nessuno ha guardato. */
+          const toccato = a.prodottoId in valori;
+          const v = toccato ? valori[a.prodottoId] : fmtQ(a.qty);
+          const n = toccato ? num(v) : null;
           const pOggi = parOggi(a);
           const inPiu = n != null && n < 0;
           /* n == null copre il vuoto e anche il solo «−» appena battuto: prima
              si guardava v === "" e un «−» da solo faceva dire «manca 3» come se
              fosse stato contato zero */
-          const chip = n == null ? [T.tenue, "da contare"]
+          const chip = n == null ? [T.tenue, toccato ? "da contare" : "da controllare"]
             : inPiu ? [T.ciano, `${fmtQ(pOggi)} + ${fmtQ(-n)} in più`]
             : n < pOggi ? [T.ambra, `manca ${fmtQ(pOggi - n)} ${sym}`]
             : n > pOggi ? [T.blu, `+${fmtQ(n - pOggi)} ${sym}`]
@@ -9089,7 +9110,9 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
                   className="flex-1 min-w-0 rounded-2xl px-3 py-3 text-xl font-extrabold text-center"
                   style={{ background: inPiu ? "#E6F7FA" : "#F6F8FE",
                     border: `1.5px solid ${inPiu ? T.ciano : T.bordo}`,
-                    color: inPiu ? T.ciano : T.ink }} />
+                    /* grigio finché non l'hai toccata: è il modo di far vedere
+                       il numero senza far credere che sia già confermato */
+                    color: inPiu ? T.ciano : toccato ? T.ink : T.tenue }} />
                 <span className="text-xs font-bold shrink-0 text-center" style={{ color: T.dim, whiteSpace: "nowrap", minWidth: "1.75rem" }}>{sym}</span>
                 <button onClick={() => passo(a.prodottoId, a, 1)} aria-label="Aumenta"
                   className="rounded-2xl px-4 py-3 text-xl font-extrabold shrink-0"

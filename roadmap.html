@@ -200,7 +200,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Sette lavori online oggi</b>: sei difetti del consiglio su undici, più
   la schermata per scrivere le dosi delle ricette una dietro l'altra. Dei difetti trovati dal consiglio ne restano
-  <b>cinque veri</b>, insieme alle <b>tre</b> modifiche che erano già in lista.
+  <b>quattro veri</b>, insieme alle <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -208,11 +208,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.78</b> — merce già partita, CSV, doppio conteggio, peso del traffico e
-      <b>le dosi delle ricette</b>. Tutto online.</dd>
+      <dd><b>gen-5.79</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      delle ricette e <b>i conteggi che si rivedono</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
       <dd><b>Sette lavori</b>: sei difetti del consiglio su undici, più la schermata delle dosi.
-      Restano <b>cinque</b> difetti e <b>tre</b> migliorie, qui sotto.</dd>
+      Restano <b>quattro</b> difetti e <b>tre</b> migliorie, qui sotto.</dd>
       <dt>Aspetto te</dt>
       <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
       partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
@@ -235,7 +235,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
-    <h2>Cinque cose che oggi funzionano male</h2>
+    <h2>Quattro cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene.</p>
@@ -269,6 +269,22 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 3 agosto · <b>gen-5.79</b> · nei conteggi si rivede quello che c'è già scritto</h4>
+        <p>Segnalato da te dopo il primo giorno di uso vero a lavoro: <em>«se apro i conteggi dopo
+        averne fatto uno, la lista si resetta e fa vedere che è tutto da controllare invece dei
+        valori che hai già inserito»</em> e <em>«modificare un conteggio è abbastanza
+        complicato»</em>. Erano la stessa cosa: la schermata partiva <b>vuota sempre</b>, quindi
+        dopo aver contato non si rivedeva più niente e per correggere un numero bisognava rifare
+        tutta la linea da capo.</p>
+        <p>Adesso ogni casella <b>mostra quello che c'è</b> — che subito dopo un conteggio è
+        esattamente quello che hai battuto — e il tasto <b>«+» parte da lì</b>: da 3 si va a 4,
+        non a 1.</p>
+        <p><b>Ma vedere non vuol dire aver confermato</b>, ed è la parte che ho curato di più.
+        Finché non tocchi una riga resta «da controllare», scritta in grigio, e al momento di
+        confermare <b>non viene mandata</b>. Se bastasse aprire la schermata per far risultare
+        contate tutte e trentotto le caselle, partirebbero richieste al laboratorio per roba che
+        nessuno ha guardato — un difetto molto peggiore di quello che si chiude.</p>
+
         <h4>Il 3 agosto · <b>gen-5.78</b> · le dosi delle ricette, una dietro l'altra</h4>
         <p>La macchina delle ricette è in piedi da luglio e funziona: il laboratorio segna
         «ho prodotto venti breccole» e l'app scala farina, pecorino e guanciale da sola. Solo che
@@ -809,9 +825,6 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
-  { id:"doppia-richiesta", dove:"difetti", tag:["difetto","piccolo"], cls:["t-sic","t-mis"],
-    titolo:"Contare due volte la stessa linea fa arrivare il doppio della merce",
-    desc:"Conti la linea, parte la richiesta al laboratorio. Ti accorgi di aver battuto un numero sbagliato e riconti: nasce una seconda richiesta identica. Il laboratorio si trova due righe per lo stesso prodotto, «Confermo tutto» le serve entrambe, sulla linea arriva il doppio e all’altra sede il laboratorio risponde «non ce n’è». Lo stesso vale sulle linee rifornite dal retro, che si svuota due volte. La cosa da sapere: questa protezione nell’app c’è già, scritta bene, duemilacinquecento righe più su — semplicemente non è mai stata portata nella schermata di conteggio. Un quarto d’ora." },
   { id:"sovrascrittura", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"Due telefoni che salvano insieme: il lavoro di uno sparisce",
     desc:"Giulia in laboratorio evade dodici richieste. Nello stesso istante Marco a Fiumicino chiude un conteggio: aveva letto la situazione un attimo prima, e salvando riscrive tutto com’era prima delle evasioni di Giulia. Le dodici evasioni non esistono più, e spariscono anche dallo schermo di Giulia. Nessun messaggio, nessuna riga di storico. C’è un aggravante che ho trovato durante la verifica: le versioni sono l’orologio del telefono, quindi un telefono con l’ora avanti scarta di proposito quello che scrivono gli altri — lì non è una finestra di millisecondi, è sistematico. È la correzione più delicata delle otto, e la farei con calma." },
