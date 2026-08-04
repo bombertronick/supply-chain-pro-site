@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.81",
-    "len": 679747,
-    "md5": "c3c178441453e3b5aa90341faccc8af1",
+    "gen": "gen-5.82",
+    "len": 685720,
+    "md5": "5deb4e3160ec4c692413f37cef563795",
     "quando": "2026-08-04",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -47,6 +47,15 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.82",
+      "chiude": [
+        "conv-blocco"
+      ],
+      "prova": "convbloccotest.mjs",
+      "cosa": "Le conversioni si assegnano in blocco, e con loro «solo confezioni intere». L'unita' base si sceglie e fa da FILTRO: chi ha un'altra base resta fuori ed e' contato a schermo prima di premere.",
+      "_nota": "Chiesto da Valerio. Il rischio vero non era tecnico: una conversione appiccicata a un prodotto con base diversa non da' errore, da' un numero sbagliato in silenzio su tutta la selezione. Il §3 del collaudo e' l'unica ragione per cui la funzione puo' esistere."
+    },
     {
       "gen": "gen-5.81",
       "chiude": [
@@ -126,16 +135,21 @@
     }
   ],
   "tuoi": [
-    "Il giro di ricarica su tutti i telefoni dopo gen-5.80: chi tiene l'app aperta usa ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno a meta' turno.",
+    "Il giro di ricarica su tutti i telefoni: chi tiene l'app aperta da prima di gen-5.80 usa ancora la versione vecchia.",
     "I 7 giorni di fiducia su una riga «ordinato» prima di richiedere la stessa merce.",
     "Il PIN dell'admin, ancora quello di partenza. Il repository e' PUBBLICO.",
-    "Quali prodotti sono «fatti in laboratorio»: oggi ne risultano 0 su 102.",
-    "Le dosi di una ricetta qualsiasi, per provare il giro intero: oggi le ricette sono 0.",
-    "I prezzi: 0 su 102.",
-    "34 conversioni sono stime mie, non pesate.",
+    "62 prodotti su 102 non hanno nessuna conversione — e 40 di questi hanno tutti la stessa base («conf»): una passata sola in blocco ne sistema quaranta.",
+    "34 conversioni sono stime mie, non pesate. Adesso si sostituiscono in blocco con la spunta.",
+    "I prezzi: 5 su 102. Non e' un lavoro da blocco (ogni prodotto ha il suo): la strada e' il CSV.",
+    "Le dosi delle ricette: 13 prodotti marcati «lo fa il laboratorio», le ricette scritte sono ancora poche.",
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-04",
+      "dicevo": "In produzione i preparati sono 0 su 102 e i prezzi 0 su 102.",
+      "invece": "Numeri vecchi. Il 4 agosto: 13 preparati e 5 prezzi — li ha messi Valerio lavorando. Regola che ne esce: i numeri sulla produzione vanno RILETTI prima di ripeterli, non ricopiati dalla memoria. Sono la cosa che invecchia piu' in fretta di tutte."
+    },
     {
       "quando": "2026-08-04",
       "dicevo": "Il giro entra davvero nelle schede: 20 aperte, ne servono almeno 12. Verde.",

@@ -208,13 +208,14 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.81</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-5.82</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
-      cancellarsi e <b>i salvataggi che non si contano due volte</b>. Tutto online.</dd>
+      cancellarsi, i salvataggi che non si contano due volte e <b>le conversioni in blocco</b>.
+      Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>gen-5.80</b> e <b>gen-5.81</b>: la sovrascrittura fra telefoni e il salvataggio
-      contato due volte. Piu' i <b>collaudi che adesso aprono le schede</b>: da zero a 116.
-      Restano <b>tre</b> difetti e <b>tre</b> migliorie, qui sotto.</dd>
+      <dd><b>gen-5.80</b>, <b>gen-5.81</b> e <b>gen-5.82</b>: la sovrascrittura fra telefoni, il
+      salvataggio contato due volte e le <b>conversioni in blocco</b>. Più i collaudi che adesso
+      aprono le schede: da zero a 116. Restano <b>tre</b> difetti e <b>tre</b> migliorie.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
       ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
@@ -280,6 +281,28 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 4 agosto · <b>gen-5.82</b> · le conversioni si assegnano in blocco</h4>
+        <p>Chiesto da te. <b>Catalogo → Prodotti → Modifica in blocco</b>, e fra le cose che si
+        possono cambiare adesso c'è <em>«Conversione · quanto vale un'unità»</em>: scegli
+        <em>«uno di questa … vale N di questa»</em>, spunti i prodotti, e va.</p>
+        <p><b>Il rischio che ho dovuto chiudere prima di scriverla.</b> Una conversione è legata
+        all'<b>unità base del singolo prodotto</b>: «1 cassa = 6 kg» su un prodotto la cui base è
+        «pz» non dà un errore, dà un <em>numero sbagliato in silenzio</em> su tutta la selezione,
+        e lo scopri mesi dopo quando un ordine arriva sballato. È il danno che una modifica in
+        blocco può fare in un secondo su cento prodotti.</p>
+        <p>Perciò l'unità base <b>si sceglie e fa da filtro</b>, e il conto di chi resta fuori si
+        vede <b>prima</b> di premere: <em>«Si scrive su 12 prodotti · 5 ce l'hanno già e restano
+        come sono · 9 restano fuori perché la loro unità base non è kg»</em>. C'è anche la spunta
+        <b>«sostituisci anche dove c'è già»</b>, che serve alle 34 conversioni che ho stimato io:
+        quando le riscrivi tu il bollino «stimata» sparisce.</p>
+        <p><b>Dove ti conviene partire, con i numeri veri di stasera:</b> 62 prodotti su 102 non
+        hanno nessuna conversione, e <b>40 di questi hanno tutti la stessa base («conf»)</b>. Una
+        passata sola te ne sistema quaranta.</p>
+        <p>Nella stessa schermata ho aggiunto anche <b>«Mezze confezioni · sì o no»</b>: era
+        l'altra spunta che si poteva mettere solo prodotto per prodotto. Oggi in catalogo non ce
+        l'ha nessuno.</p>
+
+
         <h4>Il 4 agosto · <b>i collaudi</b> · il dito adesso si mette anche dentro le schede</h4>
         <p>Il controllo più prezioso che ho — <em>«ogni tasto che si vede si deve poter
         premere»</em>, col dito messo al centro — girava su 44 schermate e su <b>zero</b> delle

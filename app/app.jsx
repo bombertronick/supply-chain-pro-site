@@ -5028,6 +5028,20 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const [filtroF, setFiltroF] = useState("tutti");
   const [campo, setCampo] = useState("categoriaId");
   const [valore, setValore] = useState("");
+  /* ── LE CONVERSIONI IN BLOCCO (gen-5.82) ──
+     Una conversione non e' un valore che si possa appiccicare a una selezione
+     qualunque: dice «uno di questo vale N di quello», e il «quello» e'
+     l'unita' BASE del singolo prodotto. Scrivere «1 cassa = 6 kg» su un
+     prodotto la cui base e' «pz» non da' un errore, da' un numero sbagliato —
+     in silenzio, su tutta la selezione, e si scopre mesi dopo quando un
+     ordine arriva sballato.
+     Quindi qui l'unita' base si SCEGLIE, e fa da filtro: chi ha un'altra base
+     resta fuori e viene contato a schermo prima di premere. Il conto di
+     quanti restano fuori e' la parte che rende la cosa usabile senza paura. */
+  const [convDa, setConvDa] = useState("");     // «1 di questa…»
+  const [convBase, setConvBase] = useState(""); // «…vale N di questa», che e' la base
+  const [convQta, setConvQta] = useState("");
+  const [convSovr, setConvSovr] = useState(false); // sostituire quelle gia' scritte?
   useEffect(() => { setValore(""); }, [campo]);
   const lista = stato.prodotti.filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase()) &&
@@ -5038,12 +5052,27 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
       : p.fornitoreId === filtroF));
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const etichetta = { categoriaId: "Categoria", fornitoreId: "Fornitore",
-    uomBase: "Unità di misura base", preparato: "Chi lo fa" }[campo];
+    uomBase: "Unità di misura base", preparato: "Chi lo fa", soloInteri: "Mezze confezioni",
+    conv: "Conversione" }[campo];
+
+  /* Chi della selezione riceve davvero la conversione, e chi no. Si calcola
+     mentre si guarda, non dopo aver premuto: e' l'unica cosa che distingue
+     «assegnare in blocco» da «sparare nel mucchio». */
+  const nQta = num(convQta);
+  const dentro = campo !== "conv" || !convBase ? []
+    : stato.prodotti.filter((p) => sel.has(p.id) && p.uomBase === convBase && p.uomBase !== convDa);
+  const fuoriBase = campo !== "conv" || !convBase ? []
+    : stato.prodotti.filter((p) => sel.has(p.id) && p.uomBase !== convBase);
+  const giaScritta = dentro.filter((p) => (p.conv || {})[convDa] != null);
+  const tocca = convSovr ? dentro : dentro.filter((p) => (p.conv || {})[convDa] == null);
   const opzioniValore = campo === "categoriaId" ? stato.categorie
     : campo === "fornitoreId" ? stato.fornitori
     : campo === "preparato" ? [
       { id: "si", nome: "Lo fa il laboratorio" },
       { id: "no", nome: "Si compra da un fornitore" }]
+    : campo === "soloInteri" ? [
+      { id: "si", nome: "Solo confezioni intere" },
+      { id: "no", nome: "Si possono ordinare quantità spezzate" }]
     : stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }));
   /* Quanti, fra quelli scelti, resterebbero senza nessuno che glieli dà. Si
      conta QUI e non dentro muta(): quel pezzo può essere rieseguito quando la
@@ -5051,12 +5080,43 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const orfaniDopo = campo === "preparato" && valore === "no"
     ? stato.prodotti.filter((p) => sel.has(p.id) && !p.fornitoreId).length : 0;
 
+  const salvaConv = () => {
+    if (!convDa || !convBase) return mostraToast("Scegli tutte e due le unità", "errore");
+    if (convDa === convBase) return mostraToast("Sono la stessa unità: una vale sempre uno", "errore");
+    if (!(nQta > 0)) return mostraToast("Scrivi quanto vale, con un numero maggiore di zero", "errore");
+    if (!tocca.length) return mostraToast(dentro.length
+      ? "Ce l'hanno già tutti: spunta «sostituisci» se la vuoi riscrivere"
+      : "Nessuno dei prodotti scelti ha quella unità base", "errore");
+    const ids = new Set(tocca.map((p) => p.id));
+    const quanti = tocca.length;
+    muta((s) => {
+      for (const p of s.prodotti) {
+        if (!ids.has(p.id)) continue;
+        p.conv = { ...(p.conv || {}), [convDa]: nQta };
+        /* Questa l'ha scritta una persona guardando la merce, non l'ha
+           indovinata l'app: il bollino «stimata» va tolto, se no l'avviso
+           delle conversioni da sistemare continua a chiamarla in causa. */
+        if ((p.convStim || []).includes(convDa))
+          p.convStim = p.convStim.filter((u) => u !== convDa);
+      }
+    }, `${quanti} prodotti · 1 ${simboloU(stato, convDa)} = ${fmtQ(nQta)} ${simboloU(stato, convBase)}`);
+    mostraToast(fuoriBase.length
+      ? `${quanti} prodotti aggiornati · ${fuoriBase.length} lasciati stare: altra unità base`
+      : `${quanti} prodotti aggiornati`);
+    onChiudi();
+  };
+
   const salva = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    if (campo === "conv") return salvaConv();
     if (!valore) return mostraToast("Scegli il valore da assegnare", "errore");
     muta((s) => {
       for (const p of s.prodotti) {
         if (!sel.has(p.id)) continue;
+        if (campo === "soloInteri") {
+          if (valore === "si") p.soloInteri = true; else delete p.soloInteri;
+          continue;
+        }
         if (campo !== "preparato") { p[campo] = valore; continue; }
         /* La spunta si scrive solo quando è vera, esattamente come nella scheda
            del singolo prodotto: un prodotto comprato non si porta dietro un
@@ -5078,9 +5138,45 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         <Selettore label="Cosa vuoi cambiare" valore={campo} onCambia={setCampo} opzioni={[
           { id: "categoriaId", nome: "Categoria" }, { id: "fornitoreId", nome: "Fornitore" }, { id: "uomBase", nome: "Unità di misura base" },
           { id: "preparato", nome: "Chi lo fa · laboratorio o fornitore" },
+          { id: "conv", nome: "Conversione · quanto vale un'unità" },
+          { id: "soloInteri", nome: "Mezze confezioni · sì o no" },
         ]} />
-        <Selettore label={`Nuovo valore · ${etichetta}`} valore={valore} onCambia={setValore}
-          opzioni={[{ id: "", nome: "— scegli —" }, ...opzioniValore]} />
+        {campo !== "conv" && (
+          <Selettore label={`Nuovo valore · ${etichetta}`} valore={valore} onCambia={setValore}
+            opzioni={[{ id: "", nome: "— scegli —" }, ...opzioniValore]} />
+        )}
+        {campo === "conv" && (
+          <div className="rounded-2xl p-3 flex flex-col gap-3" style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+              <Selettore label="Uno di questa…" valore={convDa} onCambia={setConvDa}
+                opzioni={[{ id: "", nome: "— scegli —" }, ...stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))]} />
+              <Campo label="…vale" valore={convQta} onCambia={setConvQta} inputMode="decimal" placeholder="es. 6" />
+              <Selettore label="di questa, che è la base" valore={convBase} onCambia={setConvBase}
+                opzioni={[{ id: "", nome: "— scegli —" }, ...stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))]} />
+            </div>
+            <label className="flex items-center gap-2 text-sm font-bold" style={{ color: T.ink }}>
+              <input type="checkbox" checked={convSovr} onChange={(e) => setConvSovr(e.target.checked)} />
+              Sostituisci anche dove una conversione c'è già
+            </label>
+            {/* Il conto prima di premere. E' questo che rende la cosa usabile
+                senza paura: si vede a chi arriva e a chi no, e perche'. */}
+            {convBase ? (
+              <div className="text-sm font-semibold leading-relaxed" style={{ color: T.dim }}>
+                Si scrive su <b style={{ color: tocca.length ? T.verde : T.ambra }}>{tocca.length}</b> prodotti
+                {giaScritta.length > 0 && !convSovr && <> · <b>{giaScritta.length}</b> ce l'hanno già e restano come sono</>}
+                {fuoriBase.length > 0 && (
+                  <> · <b style={{ color: T.ambra }}>{fuoriBase.length}</b> restano fuori perché la loro
+                  unità base non è «{simboloU(stato, convBase)}»</>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm font-semibold" style={{ color: T.tenue }}>
+                Scegli l'unità base: la conversione andrà <b>solo</b> sui prodotti che ce l'hanno,
+                perché su tutti gli altri sarebbe un numero sbagliato.
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5" style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
         <Search size={16} style={{ color: T.tenue }} />
@@ -5131,7 +5227,9 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <Bottone variante="fantasma" onClick={onChiudi}>Annulla</Bottone>
-        <Bottone icona={Check} onClick={salva} disabilitato={!sel.size || !valore}>Applica a {sel.size || ""}</Bottone>
+        <Bottone icona={Check} onClick={salva}
+          disabilitato={!sel.size || (campo === "conv" ? !(tocca.length && nQta > 0) : !valore)}>
+          {campo === "conv" ? `Applica a ${tocca.length || ""}` : `Applica a ${sel.size || ""}`}</Bottone>
       </div>
     </div>
   );
