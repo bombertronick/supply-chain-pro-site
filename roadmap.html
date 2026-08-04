@@ -198,9 +198,10 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Sette lavori online oggi</b>: sei difetti del consiglio su undici, più
-  la schermata per scrivere le dosi delle ricette una dietro l'altra. Dei difetti trovati dal consiglio ne restano
-  <b>quattro veri</b>, insieme alle <b>tre</b> modifiche che erano già in lista.
+  <p class="apertura"><b>Otto lavori online</b>: sette difetti del consiglio su undici, più
+  la schermata per scrivere le dosi delle ricette una dietro l'altra. Da scegliere restano
+  <b>quattro difetti</b> — tre del consiglio più <b>uno nuovo, trovato oggi</b> mentre sistemavo
+  i due telefoni — e le <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -208,13 +209,17 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.79</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
-      delle ricette e <b>i conteggi che si rivedono</b>. Tutto online.</dd>
+      <dd><b>gen-5.80</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      delle ricette, i conteggi che si rivedono e <b>due telefoni che salvano insieme senza
+      cancellarsi</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Sette lavori</b>: sei difetti del consiglio su undici, più la schermata delle dosi.
-      Restano <b>quattro</b> difetti e <b>tre</b> migliorie, qui sotto.</dd>
+      <dd><b>gen-5.80</b>: la sovrascrittura fra telefoni. Restano <b>quattro</b> difetti (uno è
+      nuovo, l'ho trovato facendo questo) e <b>tre</b> migliorie, qui sotto.</dd>
       <dt>Aspetto te</dt>
-      <dd><b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
+      <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
+      ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
+      ma finché resta aperta può ancora sovrascrivere. Chiuderla e riaprirla basta.
+      · <b>I sette giorni</b> (qui sopra) · <b>il PIN dell'admin</b>, che è ancora quello di
       partenza e va cambiato dall'app · <b>le dosi di una ricetta</b>, una qualsiasi, per
       provare il giro intero.</dd>
       <dt>Se mi perdo</dt>
@@ -234,16 +239,17 @@ if (!document.querySelector('meta[name="viewport"]')) {
   </div>
 
   <section>
-    <p class="eti" style="color:var(--rosso)">Da scegliere · difetti trovati dal consiglio</p>
+    <p class="eti" style="color:var(--rosso)">Da scegliere · difetti</p>
     <h2>Quattro cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
-    giorno con le prove fatte per bene.</p>
+    giorno con le prove fatte per bene. Le prime tre vengono dal consiglio del 2 agosto; la
+    prima invece <b>l'ho trovata oggi</b>, guardando dentro il pezzo che ho appena sistemato.</p>
     <div class="istruzione" style="margin:0 0 1rem">
-      <b>Se ne devi scegliere una, ti direi la prima</b> — due telefoni che salvano insieme e
-      il lavoro di uno sparisce. È l'unica delle cinque che fa <em>perdere del lavoro già
-      fatto</em>, ed è anche la più delicata: la farei con calma e con le prove fatte bene.
-      Le altre quattro stanno tutte più ai bordi.
+      <b>Se ne devi scegliere una, ti direi la prima</b> — il salvataggio contato due volte.
+      È l'unica rimasta che può <em>far sbagliare un numero senza dirlo</em>: le altre tre o
+      raccontano una bugia (e te ne accorgi), o dormono in attesa di un profilo che non hai
+      ancora creato, o riguardano i miei collaudi e non l'app che usi.
     </div>
     <div class="schede" id="lista-difetti"></div>
   </section>
@@ -269,6 +275,36 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 4 agosto · <b>gen-5.80</b> · due telefoni che salvano insieme non si cancellano più a vicenda</h4>
+        <p>Fra il momento in cui un telefono <b>legge</b> com'è la situazione e il momento in cui
+        <b>riscrive</b> com'è diventata passa un giro di rete: qualche decimo di secondo. Se in
+        quel mezzo secondo salvava anche un altro telefono, il secondo arrivato riscriveva tutto
+        sopra e il lavoro del primo spariva <b>senza un avviso</b> — un conteggio intero, un
+        carico, una richiesta al laboratorio. Con tre o quattro telefoni accesi non è un caso di
+        scuola, è il mercoledì sera.</p>
+        <p>Adesso ogni salvataggio dichiara <b>da quale versione è partito</b>, e il server
+        accetta solo se in rete c'è ancora quella. Chi arriva secondo <b>viene rifiutato — e non
+        perde niente</b>: le sue modifiche restano in coda, si riapplicano sulla situazione
+        aggiornata e si <b>sommano</b> a quelle dell'altro invece di cancellarle. Questa è la
+        parte che conta: se «rifiutato» volesse dire «buttato», avrei solo spostato il danno da
+        uno all'altro.</p>
+        <p><b>La prova è fatta con due telefoni veri.</b> Due pagine separate che parlano a un
+        solo magazzino, e la scrittura del primo tenuta ferma di proposito finché non arriva
+        quella del secondo: così la gara, che nella realtà dura mezzo secondo, si ripete uguale a
+        ogni collaudo. Contro la versione di ieri la stessa prova diventa <b>rossa</b>, e si vede
+        il numero tornare indietro da 9 a 5 e una delle due richieste al laboratorio sparire.</p>
+        <p><b>Una cosa che avevo detto e non era vera.</b> Nella scheda di questo difetto avevo
+        scritto che c'era un aggravante — le versioni sono l'orologio del telefono, quindi uno con
+        l'ora avanti scarterebbe <em>sistematicamente</em> il lavoro degli altri. L'ho verificato
+        e <b>non è così</b>: c'era già una protezione che teneva il numero sempre crescente, e
+        l'orologio non faceva danno. Il difetto era uno solo, la gara. Ho tolto gli orologi lo
+        stesso, perché adesso il numero di versione serve al server per riconoscere da dove sei
+        partito, e per quello dev'essere un contatore semplice.</p>
+        <p><b>E ne è saltato fuori un altro</b>, che trovi qui sopra fra i difetti: un salvataggio
+        che arriva ma la cui risposta si perde viene rimandato, e le modifiche del tipo
+        «aggiungi 3» si contano due volte. Non l'ho introdotto oggi, c'era da sempre; l'ho visto
+        perché ho guardato dentro quel pezzo.</p>
+
         <h4>Il 3 agosto · <b>gen-5.79</b> · nei conteggi si rivede quello che c'è già scritto</h4>
         <p>Segnalato da te dopo il primo giorno di uso vero a lavoro: <em>«se apro i conteggi dopo
         averne fatto uno, la lista si resetta e fa vedere che è tutto da controllare invece dei
@@ -825,9 +861,9 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
-  { id:"sovrascrittura", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
-    titolo:"Due telefoni che salvano insieme: il lavoro di uno sparisce",
-    desc:"Giulia in laboratorio evade dodici richieste. Nello stesso istante Marco a Fiumicino chiude un conteggio: aveva letto la situazione un attimo prima, e salvando riscrive tutto com’era prima delle evasioni di Giulia. Le dodici evasioni non esistono più, e spariscono anche dallo schermo di Giulia. Nessun messaggio, nessuna riga di storico. C’è un aggravante che ho trovato durante la verifica: le versioni sono l’orologio del telefono, quindi un telefono con l’ora avanti scarta di proposito quello che scrivono gli altri — lì non è una finestra di millisecondi, è sistematico. È la correzione più delicata delle otto, e la farei con calma." },
+  { id:"doppio-invio", dove:"difetti", tag:["difetto","piccolo"], cls:["t-dati","t-mis"],
+    titolo:"Un salvataggio che arriva ma non risponde viene contato due volte",
+    desc:"Trovato oggi mentre sistemavo i due telefoni, e non l’aveva visto nessuno. Il telefono manda la modifica, il server la registra, ma la risposta si perde per strada — succede quando il segnale cade proprio in quel mezzo secondo. Il telefono non sa che è andata a buon fine, quindi rimanda. Per le modifiche «metti a 7» non cambia niente: sette resta sette. Per quelle «aggiungi 3» invece si somma due volte: carichi tre casse e in magazzino ne risultano sei. Non l’ho introdotto io con la correzione di oggi, c’era da sempre; ma adesso che ho guardato dentro quel pezzo di codice l’ho visto, e finché non si sistema è quello che può ancora far sbagliare un numero senza dirlo. Si risolve dando un nome a ogni modifica e tenendo un elenco di quelle già registrate: chi rimanda la stessa due volte se la vede scartare." },
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },

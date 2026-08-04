@@ -73,10 +73,17 @@ const conteggi = await p.evaluate(() => {
     nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
   const num = (t) => parole[(t || "").toLowerCase()] ?? null;
   const testo = document.querySelector(".apertura").textContent;
+  /* Il controllo e' sul NUMERO, non su come e' scritta la frase: la frase
+     d'apertura si riscrive a ogni generazione ed e' giusto che si riscriva.
+     La prima versione di questi due schemi era incollata a una frase precisa
+     («ne restano quattro veri») e il 4 agosto e' diventata rossa per una
+     riscrittura del tutto legittima — un rosso che non voleva dire niente e
+     che, preso alla lettera, avrebbe spinto a piegare il testo allo schema
+     invece del contrario. Adesso si aggancia solo alla parola che conta. */
   return {
-    difetti: { detti: num(testo.match(/ne restano\s+(\w+)\s+ver/i)?.[1]),
+    difetti: { detti: num(testo.match(/restan[oa][^.]*?(\w+)\s+difett/i)?.[1]),
                contati: document.querySelectorAll("#lista-difetti .voce").length },
-    altro:   { detti: num(testo.match(/alle\s+(\w+)\s+modifiche/i)?.[1]),
+    altro:   { detti: num(testo.match(/(\w+)\s+(?:modifiche|migliorie)/i)?.[1]),
                contati: document.querySelectorAll("#lista-altro .voce").length },
   };
 });

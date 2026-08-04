@@ -11422,13 +11422,29 @@ export default function App() {
   /* ── motore di sincronizzazione resiliente ──
      Ogni modifica entra in coda, si applica subito in locale e viene
      ri-applicata sull'ultimo stato remoto prima di ogni scrittura.
-     In caso di errore si riprova con attesa crescente: nessuna
-     modifica va persa, nessuna sovrascrittura tra utenti.          */
+     In caso di errore si riprova con attesa crescente.
+
+     Due telefoni che salvano nello stesso momento (gen-5.80).
+     Fra il «leggo com'è adesso» e il «scrivo com'è dopo» passa un giro di
+     rete. Se in quel mezzo secondo salva anche un altro, prima il secondo
+     arrivato riscriveva tutto sopra e il lavoro del primo spariva senza
+     un avviso: un conteggio intero, un carico, una richiesta al
+     laboratorio. In cucina, con tre o quattro telefoni accesi, non è un
+     caso di scuola.
+     Adesso insieme allo stato viaggia revBase, cioè «da quale revisione
+     sono partito». Il server accetta la scrittura SOLO se in rete c'è
+     ancora quella revisione; se nel frattempo si è mossa, rifiuta.
+     Chi viene rifiutato non perde niente: la coda non si svuota mai
+     prima della conferma, quindi le sue modifiche si riapplicano sulla
+     base aggiornata e si SOMMANO a quelle dell'altro. È la coda a
+     rendere la cosa possibile — è per questo che la correzione sta qui
+     e non in un «chi arriva dopo vince».                            */
   const modalitaRef = useRef("condivisa");   // condivisa | locale
   const baseRef = useRef(null);              // ultimo stato remoto confermato
   const codaRef = useRef([]);                // mutazioni in attesa di invio
   const inSyncRef = useRef(false);
   const riproveRef = useRef(0);
+  const conflittiRef = useRef(0);            // quante volte di fila ha vinto un altro
   const offlineRef = useRef(false);
   const timerRef = useRef(null);
   const diagRef = useRef({});
@@ -11468,15 +11484,32 @@ export default function App() {
       const letto = await leggiRemoto();
       if (!letto && (baseRef.current?.rev || 0) > 1) throw new Error("lettura non riuscita");
       const remoto = letto ? normalizza(letto) : null;
-      /* letture stantie (rev più vecchia della mia base) vengono ignorate */
-      const base = remoto && (remoto.rev || 0) >= (baseRef.current?.rev || 0)
-        ? remoto : (baseRef.current || statoRef.current);
+      /* Si riparte SEMPRE da quello che c'è scritto in rete. Prima si
+         teneva la propria copia quando aveva un numero di revisione più
+         alto, ma quel numero veniva dall'orologio del telefono: un
+         telefono avanti di qualche minuto scartava per principio il
+         lavoro di tutti gli altri. La rete è l'unica verità. */
+      const base = remoto || baseRef.current || statoRef.current;
       const inviate = codaRef.current.length;
       const nuovo = applicaCoda(base);
-      /* rev = timestamp in µs + casuale: crescente e senza collisioni */
-      nuovo.rev = Math.max((base.rev || 0) + 1, Date.now() * 1000 + Math.floor(Math.random() * 1000));
+      /* rev = contatore semplice, un passo per scrittura: niente più
+         orologi, e il numero da cui si è partiti viaggia insieme allo
+         stato perché il server possa rifiutare chi arriva secondo. */
+      nuovo.revBase = base.rev || 0;
+      nuovo.rev = (base.rev || 0) + 1;
       nuovo.mtime = Date.now();
-      if (!(await scriviRemoto(nuovo))) throw new Error("scrittura non riuscita");
+      if (!(await scriviRemoto(nuovo))) {
+        /* Distinguere «ha vinto un altro» da «è caduta la linea»: se il
+           numero di revisione in rete si è mosso, la rete c'è ed è stata
+           una gara persa. Si riprova subito, ripartendo dalla base nuova.
+           Se invece non si riesce a saperlo, si tratta come un guasto:
+           l'attesa è più lunga, ma non si perde niente lo stesso. */
+        const rr = await revRemota();
+        if (rr != null && rr !== (base.rev || 0))
+          throw Object.assign(new Error("ha salvato prima un altro telefono"), { conflitto: true });
+        throw new Error("scrittura non riuscita");
+      }
+      conflittiRef.current = 0;
       codaRef.current = codaRef.current.slice(inviate);
       baseRef.current = nuovo;
       const vista = codaRef.current.length ? applicaCoda(nuovo) : nuovo;
@@ -11488,6 +11521,21 @@ export default function App() {
       if (codaRef.current.length) pianifica(80); else setSync("ok");
     } catch (e) {
       inSyncRef.current = 0;
+      if (e?.conflitto) {
+        /* La coda NON si svuota: le stesse modifiche si riapplicano sulla
+           base aggiornata, quindi si sommano a quelle dell'altro invece di
+           cancellarle. L'attesa è corta e casuale, se no due telefoni che
+           riprovano insieme continuano a ripestarsi i piedi. */
+        conflittiRef.current += 1;
+        diagRef.current = {
+          ...diagRef.current, nConflitti: (diagRef.current.nConflitti || 0) + 1,
+          ultimoConflitto: Date.now(),
+        };
+        setSync("salvataggio");
+        pianifica(90 + Math.random() * 260 + Math.min(1500, 150 * Math.max(0, conflittiRef.current - 3)));
+        return;
+      }
+      conflittiRef.current = 0;
       riproveRef.current += 1;
       diagRef.current = {
         ...diagRef.current, nErrori: (diagRef.current.nErrori || 0) + 1,
@@ -11549,6 +11597,9 @@ export default function App() {
         baseRef.current = s; setStato(s); setSync("ok");
       } else {
         const seed = normalizza(await creaSeed());
+        /* dichiara di partire dal nulla: se nel frattempo un altro telefono
+           ha creato lo stato, il server rifiuta e i dati veri restano */
+        seed.revBase = 0;
         baseRef.current = seed; setStato(seed);
         if (await scriviRemoto(seed)) setSync("ok");
         else {
@@ -11582,7 +11633,8 @@ export default function App() {
       /* Si accettano SOLO revisioni più nuove: una lettura stantia o
          in cache (rev più vecchia) subito dopo una scrittura faceva
          tornare indietro la vista (evasioni e ordini «spariti»).
-         Con le rev-timestamp, più nuovo = rev maggiore, sempre. */
+         La rev è un contatore che sale di uno a ogni scrittura andata a
+         buon fine, quindi più alta = più nuova, sempre e per tutti. */
       if ((r.rev || 0) > (baseRef.current.rev || 0)) {
         baseRef.current = r;
         setStato(codaRef.current.length ? applicaCoda(r) : r);
