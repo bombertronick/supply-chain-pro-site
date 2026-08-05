@@ -6801,7 +6801,9 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
               <div key={i} className="flex gap-2 items-end">
                 <div className="flex-1 min-w-0">
                   <Selettore label={i === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
-                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, prodottoId: v } : x)))}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
+                      : x)))}
                     opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
                       .filter((x) => x.id !== item?.id)
                       .map((x) => ({ id: x.id, nome: x.nome }))]} />
@@ -7109,6 +7111,23 @@ function FormRettifica({ stato, mag, art, muta, mostraToast, onChiudi, profilo }
 function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo }) {
   const prod = trova(stato.prodotti, art.prodottoId);
   const [qty, setQty] = useState("");
+  /* ── LA RICETTA SI SCRIVE DA QUI ──
+     Segnalato da Valerio: «serve poter confermare la preparazione dei prodotti
+     che vengono lavorati con piu' prodotti nel laboratorio». Il tasto per
+     confermare c'era gia'; quello che mancava e' che per dieci preparati su
+     dodici la conferma era VUOTA — nessuna ricetta, quindi la quantita' saliva
+     e nessun ingrediente scendeva.
+     E la ricetta il laboratorio non poteva scriverla: sta dentro il Catalogo,
+     che e' sotto «Gestione», e nella barra del laboratorio «Gestione» non c'e'.
+     Le dosi le sa chi ha la pentola in mano, e finivano dietro un permesso che
+     quella persona non ha. Adesso si scrivono qui, nel momento in cui servono,
+     senza aprire il Catalogo a chi non deve toccarlo. */
+  const [scrivi, setScrivi] = useState(false);
+  const [ricResa, setRicResa] = useState(() =>
+    prod?.ricetta?.resa != null ? String(prod.ricetta.resa).replace(".", ",") : "");
+  const [ricUom, setRicUom] = useState(() => prod?.ricetta?.uomResa || art.uomId);
+  const [ricIng, setRicIng] = useState(() => (prod?.ricetta?.ingredienti || [])
+    .map((x) => ({ prodottoId: x.prodottoId, qty: String(x.qty).replace(".", ","), uomId: x.uomId })));
   const n = num(qty);
   const sym = simboloU(stato, art.uomId);
   const calc = n > 0 ? calcoloProduzione(stato, { magProd: mag, prod, quanto: n, uomFatto: art.uomId })
@@ -7127,15 +7146,123 @@ function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo 
     onChiudi();
   };
 
+  /* Stesse regole del Catalogo, e per la stessa ragione: o la ricetta e'
+     intera o non si scrive. Una resa senza ingredienti, o un ingrediente
+     senza quantita', farebbe scalare numeri sbagliati con l'aria di essere a
+     posto — peggio del non avere niente. */
+  const bozza = () => {
+    const resa = num(ricResa);
+    const ing = ricIng
+      .map((r) => ({ prodottoId: r.prodottoId, qty: num(r.qty), uomId: r.uomId }))
+      .filter((r) => r.prodottoId && r.qty > 0 && r.uomId);
+    return { resa, ing, buona: resa > 0 && ing.length > 0 };
+  };
+  const salvaRicetta = () => {
+    const { resa, ing, buona } = bozza();
+    if (!buona) return mostraToast(
+      !(resa > 0) ? "Scrivi quanto ne esce per una volta" : "Aggiungi almeno un ingrediente con la quantità",
+      "errore");
+    muta((s) => {
+      const p = trova(s.prodotti, art.prodottoId);
+      if (!p) return;
+      p.preparato = true;
+      p.ricetta = { resa, uomResa: ricUom || art.uomId, ingredienti: ing };
+    }, `Ricetta di «${prod?.nome}»: ${ing.length} ingredienti per ${fmtQ(resa)} ${simboloU(stato, ricUom || art.uomId)}`);
+    setScrivi(false);
+    mostraToast(`Ricetta salvata · ${ing.length} ingredienti`);
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <Campo label={`Quanto ne hai prodotto? (${sym})`} valore={qty} onCambia={(v) => setQty(puliziaNum(v))}
         inputMode="decimal" placeholder="0" autoFocus
         suggerimento={conRicetta(prod)
           ? `La ricetta ne fa ${fmtQ(prod.ricetta.resa)} ${simboloU(stato, prod.ricetta.uomResa)} per volta.`
-          : "Nessuna ricetta impostata: si carica la quantità e basta."} />
+          : undefined} />
 
-      {calc.problemi.length > 0 && (
+      {/* ── QUANDO LA RICETTA NON C'È ──
+          Prima qui c'era una riga grigia sotto il campo: «Nessuna ricetta
+          impostata: si carica la quantità e basta». Diceva il vero e non
+          serviva a niente — chi la leggeva non aveva nessun posto dove
+          andare, perche' il Catalogo il laboratorio non ce l'ha. */}
+      {!conRicetta(prod) && !scrivi && (
+        <div className="rounded-2xl px-3.5 py-3 text-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
+          <div className="font-extrabold mb-1">Questo si fa con altri prodotti?</div>
+          <div style={{ color: T.dim }} className="text-xs leading-relaxed mb-2">
+            Finché non c'è scritto cosa ci vuole, confermare alza la quantità di
+            «{prod?.nome}» e <b>non scala niente</b>: i magazzini continuano a dire che
+            c'è roba che hai già usato. Scrivilo una volta e da qui in poi si scala da solo.
+          </div>
+          <div className="flex justify-end">
+            <Bottone piccolo variante="tonale" icona={FlaskConical} onClick={() => {
+              if (!ricResa) setRicResa(String(n > 0 ? n : 1).replace(".", ","));
+              if (!ricIng.length) setRicIng([{ prodottoId: "", qty: "", uomId: "" }]);
+              setScrivi(true);
+            }}>Scrivi cosa ci vuole</Bottone>
+          </div>
+        </div>
+      )}
+
+      {scrivi && (
+        <div className="rounded-2xl p-3" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+          <div className="font-extrabold text-sm mb-1" style={{ color: T.ink }}>Cosa ci vuole per «{prod?.nome}»</div>
+          <p className="text-xs mb-2 leading-relaxed" style={{ color: T.dim }}>
+            Scrivilo per una volta sola: quanto ne esce e cosa ci vuole. Il resto lo fa
+            l'app in proporzione — per mezza teglia non serve riscrivere niente.
+          </p>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <Campo label="Ne escono" valore={ricResa} onCambia={(v) => setRicResa(puliziaNum(v))}
+              inputMode="decimal" placeholder="1" />
+            <Selettore label="di" valore={ricUom} onCambia={setRicUom}
+              opzioni={stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+          </div>
+          <div className="flex flex-col gap-2">
+            {ricIng.map((r, i) => (
+              <div key={i} className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Selettore label={i === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
+                      : x)))}
+                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
+                      .filter((x) => x.id !== art.prodottoId)
+                      .map((x) => ({ id: x.id, nome: x.nome }))]} />
+                </div>
+                <div style={{ width: 88 }}>
+                  <Campo label={i === 0 ? "quanto" : ""} valore={r.qty}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, qty: puliziaNum(v) } : x)))}
+                    inputMode="decimal" placeholder="0" />
+                </div>
+                <div style={{ width: 104 }}>
+                  <Selettore label={i === 0 ? "unità" : ""} valore={r.uomId}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, uomId: v } : x)))}
+                    opzioni={stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+                </div>
+                <button type="button" onClick={() => setRicIng(ricIng.filter((_, j) => j !== i))}
+                  aria-label="Togli ingrediente" className="rounded-full p-2.5 mb-0.5"
+                  style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between items-center gap-2 mt-2 flex-wrap">
+            <Bottone piccolo variante="tonale" icona={Plus}
+              onClick={() => setRicIng([...ricIng, { prodottoId: "", qty: "", uomId: "" }])}>
+              Aggiungi ingrediente
+            </Bottone>
+            <div className="flex gap-2">
+              <Bottone piccolo variante="fantasma" onClick={() => setScrivi(false)}>Lascia stare</Bottone>
+              <Bottone piccolo icona={Check} onClick={salvaRicetta} disabilitato={!bozza().buona}>
+                Salva la ricetta
+              </Bottone>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* «non c'è una ricetta» adesso lo dice il riquadro qui sopra, che oltre
+          a dirlo offre di rimediare: ripeterlo qui sarebbe lo stesso avviso
+          due volte, e il secondo senza via d'uscita. */}
+      {conRicetta(prod) && calc.problemi.length > 0 && (
         <div className="rounded-2xl px-3.5 py-3 text-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
           {calc.problemi.map((t, i) => <div key={i} className="font-semibold">{t}</div>)}
         </div>

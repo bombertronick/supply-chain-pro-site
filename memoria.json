@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.85",
-    "len": 697767,
-    "md5": "ad7833838951000f1b8412f6c602c382",
+    "gen": "gen-5.86",
+    "len": 705103,
+    "md5": "4bb15e5eafb57cbada28f9744a6af452",
     "quando": "2026-08-05",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -53,6 +53,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.86",
+      "chiude": [],
+      "prova": "ricettadalabtest.mjs",
+      "cosa": "Le dosi si scrivono da dentro «Ho prodotto». Chiesto urgente da Valerio. Il tasto per confermare c era gia (gen-5.84), ma per 10 preparati su 12 la conferma era VUOTA: senza ricetta la quantita sale e nessun ingrediente scende. E la ricetta il laboratorio non poteva scriverla — sta nel Catalogo, sotto «Gestione», voce che nella barra del laboratorio non esiste.",
+      "_nota": "Il collaudo ha trovato un mio errore prima di Valerio: scegliendo l ingrediente la riga restava sull unita del prodotto finito (pz), e con l ingrediente stoccato in kg la produzione non scalava NIENTE, in silenzio, con la ricetta scritta e apparentemente a posto. Adesso scegliendo il prodotto la riga prende la sua uomBase. Corretto anche nella scheda del Catalogo, che aveva la stessa trappola."
+    },
     {
       "gen": null,
       "chiude": [
@@ -189,6 +196,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-05",
+      "dicevo": "(gen-5.84) Nessuno dei 12 preparati ha una ricetta.",
+      "invece": "Il 5 agosto ne aveva due, scritte da lui: «Pollo cacciatora» e «Mix datterino», tre ingredienti ciascuna. I dati di produzione vanno RILETTI a ogni giro, non ricopiati da quello che avevo annotato il giorno prima: lui lavora fra una conversazione e l altra."
+    },
     {
       "quando": "2026-08-05",
       "dicevo": "In modalita vecchia chi ospita la pagina legge documentElement.scrollHeight e ottiene l altezza di una finestra invece del contenuto: ecco l inquadratura mozzata.",
