@@ -9609,6 +9609,17 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
   const [evadi, setEvadi] = useState(null);
   const [annullaR, setAnnullaR] = useState(null);
   const [chiediTutte, setChiediTutte] = useState(false);
+  /* ── PRODURRE DA QUI (gen-5.84) ──
+     Segnalato da Valerio: «il laboratorio non puo' confermare la produzione
+     dei preparati, gli viene solo detto quanti kg o pezzi devono fare».
+     La strada c'era, ma passava da un'altra parte: Magazzini → apri il
+     magazzino → cerca la riga → «Ho prodotto». Due schermate per un lavoro
+     solo, e nel mezzo la richiesta che stavi guardando la perdi di vista.
+     PRODURRE ED EVADERE RESTANO DUE GESTI. Fonderli in un tasto solo
+     sarebbe peggio: la merce risulterebbe partita anche quando nessuno l'ha
+     fatta, e la giacenza del laboratorio smetterebbe di dire il vero. */
+  const [produci, setProduci] = useState(null);
+  const magLab = stato.magazzini.find((m) => m.tipo === "laboratorio" && m.sedeId === profilo.sedeId);
 
   const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
   const attive = mie.filter((r) => r.stato === "in-attesa");
@@ -9795,6 +9806,17 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                   style={{ background: "#E7F7FA", border: "1px solid #C4EAF2", color: T.ciano }}>
                   {unitaProdotto(stato, prod).map((u) => <option key={u.id} value={u.id}>{u.simbolo}</option>)}
                 </select>
+                {/* L'EQUIVALENZA, sempre a schermo e non da cercare nella
+                    tendina. Sua richiesta: «dovrebbero vedere sia i pezzi che
+                    sono stati richiesti e a quanti kg corrispondono». Chi
+                    lavora ha in mano una bilancia, non un convertitore. */}
+                {(() => {
+                  const altra = unitaProdotto(stato, prod).find((u) => u.id !== sel);
+                  if (!altra) return null;
+                  const eq = converti(prod, q, sel, altra.id);
+                  if (eq == null) return null;
+                  return <Chip colore={T.ciano}>= {fmtQ(eq)} {altra.simbolo}</Chip>;
+                })()}
                 <Chip colore={T.dim}>linea: {fmtQ(r.qtyLinea)} {simboloU(stato, r.uomLineaId)}</Chip>
                 {/* senza questo il laboratorio vede solo il totale e non sa
                     quale parte è il livello e quale è stata chiesta in più */}
@@ -9848,6 +9870,18 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                       )}
                       <div className="flex gap-2 justify-end flex-wrap">
                         <Bottone variante="fantasma" piccolo icona={X} onClick={() => setAnnullaR(r)}>Annulla</Bottone>
+                        {/* «Ho prodotto» sta QUI, dove il laboratorio legge cosa
+                            deve fare. Compare solo su un preparato e solo se il
+                            magazzino del laboratorio ha quella riga: se non ce
+                            l'ha, non c'e' niente da caricare e un tasto che si
+                            preme senza effetto sarebbe peggio di un tasto che
+                            manca. Resta separato da «Conferma»: prima si fa la
+                            merce, poi la si manda. */}
+                        {preparato(prod) && magLab
+                          && (magLab.articoli || []).some((a) => a.prodottoId === r.prodottoId) && (
+                          <Bottone variante="tonale" piccolo icona={FlaskConical}
+                            onClick={() => setProduci(r)}>Ho prodotto</Bottone>
+                        )}
                         <Bottone variante="tonale" piccolo icona={Pencil} onClick={() => setEvadi(r)}>Cambia</Bottone>
                         {ok && (
                           <Bottone piccolo icona={Check} onClick={() => confermaRiga(r, pr, tetto)}>
@@ -9867,6 +9901,16 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           );
         })}
       </div>
+
+      <Foglio aperto={!!produci} titolo={`Ho prodotto · ${trova(stato.prodotti, produci?.prodottoId)?.nome || ""}`}
+        onChiudi={() => setProduci(null)}>
+        {produci && magLab && (() => {
+          const art = (magLab.articoli || []).find((a) => a.prodottoId === produci.prodottoId);
+          if (!art) return null;
+          return <FormProduzione stato={stato} mag={magLab} art={art} muta={muta}
+            mostraToast={mostraToast} onChiudi={() => setProduci(null)} profilo={profilo} />;
+        })()}
+      </Foglio>
 
       <Foglio aperto={!!evadi} titolo="Evadi richiesta" onChiudi={() => setEvadi(null)}>
         {evadi && <FormEvasione key={evadi.id} stato={stato} profilo={profilo} r={evadi}

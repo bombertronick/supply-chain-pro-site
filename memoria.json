@@ -2,13 +2,19 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.83",
-    "len": 691388,
-    "md5": "09b51abe75e0a194f926efe67c277136",
+    "gen": "gen-5.84",
+    "len": 694262,
+    "md5": "08836a07e06c2d54f6be874b7aca56e0",
     "quando": "2026-08-04",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
+    {
+      "id": "gen555-rosso",
+      "dove": "difetti",
+      "prova": "gen555test.mjs",
+      "_prova_perche": "il collaudo c'e' ed e' ROSSO da almeno gen-5.75: 5 controlli su extraLinea/qtyLivello nelle richieste. Non so ancora se e' un difetto dell'app o un collaudo invecchiato."
+    },
     {
       "id": "schede-tre-mancanti",
       "dove": "difetti",
@@ -25,7 +31,7 @@
       "id": "plancia-permessi",
       "dove": "difetti",
       "prova": null,
-      "_prova_perche": "non ancora scritta. Difetto dormiente: in produzione non esiste nessun profilo Laboratorio, quindi oggi non si sveglia."
+      "_prova_perche": "non ancora scritta. NON e' piu' dormiente: il 4 agosto in produzione esiste un profilo Laboratorio (prima erano zero)."
     },
     {
       "id": "pesatura",
@@ -47,6 +53,15 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.84",
+      "chiude": [
+        "lab-produce"
+      ],
+      "prova": "labproducetest.mjs",
+      "cosa": "Il laboratorio produce da dove legge cosa deve fare: «Ho prodotto» sta sulla richiesta, e accanto alla quantita' c'e' sempre l'equivalenza nell'altra unita' (20 pz = 4 kg).",
+      "_nota": "Segnalato da Valerio. Produrre ed evadere restano DUE gesti: il §5 del collaudo pretende che «Ho prodotto» non faccia partire la merce, se no la richiesta risulterebbe evasa senza che nessuno abbia mandato niente."
+    },
     {
       "gen": "gen-5.83",
       "chiude": [
@@ -154,6 +169,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-04",
+      "dicevo": "Il difetto della Plancia sui permessi e' dormiente: in produzione non esiste nessun profilo Laboratorio.",
+      "invece": "Falso adesso: ne esiste uno. Valerio l'ha creato. Il difetto e' sveglio. Conferma la regola di stamattina — i numeri e i fatti sulla produzione vanno RILETTI ogni volta, non ricopiati dalla memoria."
+    },
     {
       "quando": "2026-08-04",
       "dicevo": "(due sviste dentro gen-5.83, prese dal collaudo e non dall'uso)",

@@ -200,7 +200,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Nove lavori online</b>: sette difetti del consiglio su undici, la
   schermata per scrivere le dosi delle ricette, e un difetto che ho trovato io strada facendo.
-  Da scegliere restano <b>tre difetti</b> e le <b>tre</b> modifiche che erano già in lista.
+  Da scegliere restano <b>quattro difetti</b> e le <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -208,10 +208,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.83</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-5.84</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
-      cancellarsi, i salvataggi che non si contano due volte le conversioni in blocco e
-      <b>l'annulla che sa disfarle</b>. Tutto online.</dd>
+      cancellarsi, i salvataggi che non si contano due volte le conversioni in blocco,
+      l'annulla che sa disfarle e <b>il laboratorio che produce da dove legge cosa fare</b>.
+      Tutto online.</dd>
       <dt>Fatto oggi</dt>
       <dd><b>gen-5.80</b>, <b>gen-5.81</b> e <b>gen-5.82</b>: la sovrascrittura fra telefoni, il
       salvataggio contato due volte e le <b>conversioni in blocco</b>. Più i collaudi che adesso
@@ -247,7 +248,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti</p>
-    <h2>Tre cose che oggi funzionano male</h2>
+    <h2>Quattro cose che oggi funzionano male</h2>
     <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
     davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
     giorno con le prove fatte per bene. Vengono tutte e tre dal consiglio del 2 agosto.</p>
@@ -281,6 +282,25 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 4 agosto · <b>gen-5.84</b> · il laboratorio produce da dove legge cosa deve fare</h4>
+        <p>Segnalato da te. La strada c'era, ma passava da un'altra parte: Magazzini → apri il
+        magazzino → cerca la riga → «Ho prodotto». <b>Due schermate per un lavoro solo</b>, e nel
+        mezzo la richiesta che stavi guardando la perdi di vista. Nelle Richieste si poteva solo
+        confermare <em>l'invio</em>, che è un'altra cosa: manda roba che dev'essere già stata
+        fatta.</p>
+        <p>Adesso <b>«Ho prodotto» sta sulla richiesta</b>, e accanto alla quantità c'è sempre
+        l'equivalenza nell'altra unità — <em>20 pz = 4 kg</em> — senza dover toccare la tendina.
+        Chi lavora ha in mano una bilancia, non un convertitore.</p>
+        <p><b>Produrre e mandare restano due gesti</b>, ed è la parte che ho curato di più.
+        Fonderli in un tasto solo sarebbe stato comodo e sbagliato: la merce risulterebbe partita
+        anche quando nessuno l'ha fatta, e la giacenza del laboratorio smetterebbe di dire il
+        vero. Il collaudo pretende che dopo «Ho prodotto» la richiesta sia ancora in attesa e in
+        linea non sia arrivato niente.</p>
+        <p><b>Una cosa da sapere:</b> in catalogo nessuno dei 12 preparati ha ancora una ricetta.
+        Finché non ce l'hanno, «Ho prodotto» carica il prodotto finito ma <b>non scala gli
+        ingredienti</b> — non è un difetto, è che le dosi non gliele ha ancora dette nessuno.</p>
+
+
         <h4>Il 4 agosto · <b>gen-5.83</b> · «Annulla» disfa anche le modifiche in blocco</h4>
         <p>Trovato da me subito dopo aver messo online le conversioni in blocco. La fotografia che
         lo storico scatta prima di ogni modifica riguardava <b>solo le caselle dei magazzini</b>:
@@ -946,6 +966,9 @@ if (!document.querySelector('meta[name="viewport"]')) {
    quell'ordine è un giudizio, non una classifica automatica, e va lasciato
    visibile perché è la cosa che serve di più a chi sceglie. */
 const VOCI = [
+  { id:"gen555-rosso", dove:"difetti", tag:["da capire","piccolo"], cls:["t-dati","t-mis"],
+    titolo:"Un collaudo \u00e8 rosso da giorni e non me n'ero accorta",
+    desc:"Trovato stasera per caso, facendo la regressione. Il collaudo \u00abgen555test\u00bb ha cinque controlli rossi sulle richieste al laboratorio \u2014 la parte che tiene separato \u00abquanto \u00e8 di livello\u00bb da \u00abquanto \u00e8 stato chiesto in pi\u00f9\u00bb. NON l'ho rotto oggi: era gi\u00e0 rosso su gen-5.75, cio\u00e8 da prima di tutte le versioni di ieri e oggi. Non so ancora se \u00e8 un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che \u00e8 l'una o l'altra prima di averlo guardato. \u00c8 sfuggito perch\u00e9 a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non \u00e8 solo capire questo caso, \u00e8 accorgersi prima del prossimo." },
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
