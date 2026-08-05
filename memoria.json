@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.84",
-    "len": 694262,
-    "md5": "08836a07e06c2d54f6be874b7aca56e0",
-    "quando": "2026-08-04",
+    "gen": "gen-5.85",
+    "len": 697767,
+    "md5": "ad7833838951000f1b8412f6c602c382",
+    "quando": "2026-08-05",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -28,12 +28,6 @@
       "_prova_perche": "non ancora scritta."
     },
     {
-      "id": "plancia-permessi",
-      "dove": "difetti",
-      "prova": null,
-      "_prova_perche": "non ancora scritta. NON e' piu' dormiente: il 4 agosto in produzione esiste un profilo Laboratorio (prima erano zero)."
-    },
-    {
       "id": "pesatura",
       "dove": "altro",
       "prova": null,
@@ -50,9 +44,24 @@
       "dove": "altro",
       "prova": null,
       "_prova_perche": "e' una decisione di Valerio su come lavora, non un difetto."
+    },
+    {
+      "id": "conto-vero-schede",
+      "dove": "difetti",
+      "prova": null,
+      "_prova_perche": "non ancora scritta. Trovato il 5 agosto subito dopo gen-5.85, cercando apposta se lo stesso errore fosse altrove: cinque schede di modifica in blocco (livello previsto, soglie per giorno, sposta, aggiungi prodotti, modifica in blocco del Catalogo) scrivono il conto della SELEZIONE mentre il ciclo dentro muta() salta in silenzio quello che non trova. Stesso difetto della Plancia, stessa finestra dei due telefoni, riquadro piu piccolo."
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.85",
+      "chiude": [
+        "plancia-permessi"
+      ],
+      "prova": "planciaveritatest.mjs",
+      "cosa": "La Plancia conta le caselle toccate davvero, non quelle selezionate, e quando ne salta qualcuna lo dice senza inventare il motivo. Stesso conto vero per «Rimuovi» e «Sposta»; «Sposta» guadagna il controllo sul permesso della destinazione, che non aveva.",
+      "_nota": "LA DESCRIZIONE DEL CONSIGLIO ERA SBAGLIATA e va ricordato: lo scenario delle «90 caselle» non e raggiungibile, perche nella Plancia le caselle altrui non si selezionano da prima del consiglio. Il difetto vero e la finestra fra spuntare e premere, aperta davvero da gen-5.80 (due telefoni insieme). Il §4 del collaudo pretende che il caso normale resti senza avvisi."
+    },
     {
       "gen": "gen-5.84",
       "chiude": [
@@ -169,6 +178,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-05",
+      "dicevo": "(riferendo il consiglio) La Plancia dice «Riempite 90 caselle» a un profilo Laboratorio che ha spuntato tutta la sede mentre i permessi bloccavano tutto.",
+      "invece": "Non raggiungibile: le caselle non tue non si selezionano, e la riga che lo impedisce e piu vecchia del consiglio. Ho verificato PRIMA di scrivere la correzione, e il collaudo tiene ferma anche quella verifica (§2). Regola: quando un difetto arriva descritto da qualcun altro, riprodurre lo scenario esatto prima di correggerlo — se non si riproduce, il difetto vero e un altro e la correzione va riscritta su quello."
+    },
     {
       "quando": "2026-08-04",
       "dicevo": "Il difetto della Plancia sui permessi e' dormiente: in produzione non esiste nessun profilo Laboratorio.",

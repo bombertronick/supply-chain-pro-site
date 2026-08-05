@@ -198,7 +198,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
 
   <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Nove lavori online</b>: sette difetti del consiglio su undici, la
+  <p class="apertura"><b>Dieci lavori online</b>: otto difetti del consiglio su undici, la
   schermata per scrivere le dosi delle ricette, e un difetto che ho trovato io strada facendo.
   Da scegliere restano <b>quattro difetti</b> e le <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
@@ -208,15 +208,17 @@ if (!document.querySelector('meta[name="viewport"]')) {
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.84</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-5.85</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
-      cancellarsi, i salvataggi che non si contano due volte le conversioni in blocco,
-      l'annulla che sa disfarle e <b>il laboratorio che produce da dove legge cosa fare</b>.
-      Tutto online.</dd>
+      cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
+      l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare e <b>la
+      Plancia che conta quello che ha toccato davvero</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>gen-5.80</b>, <b>gen-5.81</b> e <b>gen-5.82</b>: la sovrascrittura fra telefoni, il
-      salvataggio contato due volte e le <b>conversioni in blocco</b>. Più i collaudi che adesso
-      aprono le schede: da zero a 116. Restano <b>quattro</b> difetti e <b>tre</b> migliorie.</dd>
+      <dd><b>Sei versioni</b>, da <b>gen-5.80</b> a <b>gen-5.85</b>: la sovrascrittura fra
+      telefoni, il salvataggio contato due volte, le <b>conversioni in blocco</b>, l'annulla che
+      le disfa, il laboratorio che produce dalla richiesta e il conto vero della Plancia. Più i
+      collaudi che adesso aprono le schede: da zero a 116. Restano <b>quattro</b> difetti e
+      <b>tre</b> migliorie.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
       ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
@@ -282,6 +284,34 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 5 agosto · <b>gen-5.85</b> · la Plancia conta quello che ha toccato davvero</h4>
+        <p><b>Prima una correzione, perché il difetto non era quello scritto.</b> Il consiglio
+        l'aveva descritto così: un profilo Laboratorio spunta tutta la sede, preme «Riempi», e
+        nello storico resta scritto «Riempite 90 caselle» mentre sul magazzino non si è mosso
+        niente. <b>Quello scenario non è raggiungibile</b>, e l'ho verificato prima di toccare
+        qualsiasi cosa: nella Plancia le caselle che non sono tue si vedono ma <b>non si
+        selezionano</b>, e la riga che lo impedisce esiste da prima che il consiglio guardasse.
+        Il muro dei permessi era già a monte. Ti dico che la descrizione era sbagliata perché
+        altrimenti resteresti convinto di aver fatto sistemare una cosa che non c'era.</p>
+        <p><b>Il difetto vero c'è, ed è un altro.</b> Il numero nel messaggio e nello storico si
+        costruiva su quante caselle avevi <em>spuntato</em>, non su quante l'app aveva
+        <em>toccato</em>. Fra lo spuntare e il premere passa del tempo, e in quel tempo un altro
+        telefono può togliere un articolo: quella casella viene saltata in silenzio, ma il conto
+        la contava lo stesso. Non è teoria — <b>da gen-5.80 due telefoni lavorano davvero
+        insieme</b>, ed è esattamente la finestra che quella correzione ha reso normale. Sulla
+        versione di ieri il collaudo legge «Riempite 2 caselle» per <b>una</b> sola modifica vera.</p>
+        <p>Adesso conta le toccate e, se qualcosa è rimasto fuori, lo dice: «Riempite 1 caselle ·
+        1 saltate». <b>Il motivo non lo inventa</b>: dice «non ci sono più o non sono tue», che è
+        vero, invece di dare la colpa ai permessi che lì non c'entrano. Un messaggio che nomina la
+        causa sbagliata manda a cercare dalla parte sbagliata, ed è lo stesso danno del numero
+        gonfiato. Stessa cosa per «Rimuovi» e per «Sposta», che avevano lo stesso conto.</p>
+        <p><b>E «Sposta» ha guadagnato un controllo che non aveva:</b> se il magazzino di
+        destinazione non è tuo, adesso si ferma e te lo dice. Prima annunciava uno spostamento
+        che non era avvenuto.</p>
+        <p>Un controllo apposta pretende che nel caso normale — tutte le caselle al loro posto —
+        il messaggio resti quello di sempre, senza avvisi di mezzo: sistemare il conto non doveva
+        rendere più rumoroso il giro di tutti i giorni.</p>
+
         <h4>Il 4 agosto · <b>gen-5.84</b> · il laboratorio produce da dove legge cosa deve fare</h4>
         <p>Segnalato da te. La strada c'era, ma passava da un'altra parte: Magazzini → apri il
         magazzino → cerca la riga → «Ho prodotto». <b>Due schermate per un lavoro solo</b>, e nel
@@ -972,9 +1002,9 @@ const VOCI = [
   { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
     titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
     desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
-  { id:"plancia-permessi", dove:"difetti", tag:["dormiente","piccolo"], cls:["t-dati","t-mis"],
-    titolo:"La Plancia dice «fatto» per un lavoro che i permessi hanno bloccato",
-    desc:"Un profilo Laboratorio spunta «tutta la sede» e preme «Riempi al livello previsto». Vede il verde, il lampo su novanta caselle, e nello storico resta scritto per sempre «Riempite 90 caselle». Sul magazzino non si è mosso niente — giustamente, perché quei magazzini non sono suoi: il muro dei permessi tiene, ma nessuno glielo dice. Oggi non succede mai, perché nei dati veri non esiste nessun profilo Laboratorio: ci sono solo Admin e operatori. È un difetto vero ma dormiente, si sveglia il giorno che ne crei uno. Venti minuti, e nello stesso passaggio sistemo «Annulla l’ultima modifica», che i permessi non li guarda affatto." },
+  { id:"conto-vero-schede", dove:"difetti", tag:["difetto","piccolo"], cls:["t-dati","t-mis"],
+    titolo:"Lo stesso conto gonfiato, in altre cinque schede",
+    desc:"Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi." },
   { id:"schede-tre-mancanti", dove:"difetti", tag:["rete di sicurezza","piccolo"], cls:["t-vis","t-mis"],
     titolo:"Tre schede su otto che i collaudi ancora non aprono",
     desc:"Oggi il giro dei tasti \u00e8 passato da ZERO schede aperte a 116, su due livelli: adesso il dito al centro di ogni tasto si mette anche dentro Rettifica giacenza, Registra scarto, Ricezione merce, Trasferisci le scorte, Importa CSV e Inventario guidato. Ne restano tre, e due non sono colpa del giro. \u00abGestione rapida\u00bb compare solo dove il permesso \u00e8 \u00abpieno\u00bb e nel banco di prova i magazzini danno \u00abrettifica\u00bb: non \u00e8 nascosta, non esiste \u2014 va seminato un magazzino col permesso giusto. \u00abHo prodotto\u00bb \u00e8 un tasto di riga sui soli preparati dentro il magazzino del laboratorio, che il giro non apre perch\u00e9 finisce prima il tetto sui magazzini. \u00abEvadi richiesta\u00bb si apre da un tasto scritto \u00abCambia\u00bb, e nessuna regola generica poteva indovinarlo. Il collaudo le stampa per nome a ogni giro invece di tacerle: un limite che non si vede \u00e8 una bugia." },

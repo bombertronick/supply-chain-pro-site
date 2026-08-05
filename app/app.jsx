@@ -2997,8 +2997,36 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   };
   useEffect(() => () => { if (timerTocco.current) clearTimeout(timerTocco.current); }, []);
 
+  /* ── QUANTE NE TOCCA DAVVERO (gen-5.85) ──
+     Il muro dei permessi c'e' e tiene: dentro muta() le caselle che non sono
+     tue vengono saltate. Ma il messaggio e la riga di storico si costruivano
+     su sel.size, cioe' su quante ne avevi SELEZIONATE. Risultato: un profilo
+     Laboratorio spuntava tutta la sede, premeva, vedeva il verde e il lampo,
+     e nello storico restava scritto per sempre «Riempite 90 caselle». Sul
+     magazzino non si era mosso niente.
+     Un'app che dice «fatto» per un lavoro che non ha fatto e' peggio di
+     un'app che lo rifiuta: chi legge lo storico non ha modo di accorgersene,
+     e chi ha premuto va via convinto.
+     Il conto si fa QUI e non dentro muta(): quel pezzo puo' essere rieseguito
+     quando la coda si riallinea col server, e un contatore li' dentro
+     conterebbe due volte. */
+  const tocacabili = () => [...sel].filter((k) => {
+    const [mid, pid] = k.split("|");
+    const m = trova(stato.magazzini, mid);
+    return !!m && puoModificare(profilo, m) && (m.articoli || []).some((x) => x.prodottoId === pid);
+  });
+
   const applicaSel = (fn, msg) => {
     if (!sel.size) { mostraToast("Seleziona prima qualcosa", "errore"); return false; }
+    const mie = tocacabili();
+    if (!mie.length) {
+      mostraToast(sel.size === 1
+        ? "Questa casella non c'è più o non è tua: non è cambiato niente"
+        : `Nessuna di queste ${sel.size} caselle si può toccare: non è cambiato niente`, "errore");
+      return false;
+    }
+    const fuori = sel.size - mie.length;
+    const testo = typeof msg === "function" ? msg(mie.length) : msg;
     setAnnulla(istantanea());
     segnalaTocco();
     muta((s) => {
@@ -3009,15 +3037,21 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         const a = m.articoli.find((x) => x.prodottoId === pid); if (!a) continue;
         fn(s, m, a);
       }
-    }, msg);
-    mostraToast(msg);
+    /* «saltate» e non «non sono tue»: il motivo puo' essere il permesso, ma
+       anche che nel frattempo un altro telefono ha tolto quell'articolo. Un
+       messaggio che nomina la causa sbagliata manda a cercare dalla parte
+       sbagliata, ed e' lo stesso errore del numero gonfiato. */
+    }, fuori ? `${testo} · ${fuori} saltate` : testo);
+    mostraToast(fuori
+      ? `${testo} · ${fuori} saltate: non ci sono più o non sono tue`
+      : testo, fuori ? "avviso" : "ok");
     return true;
   };
   const riempi = () => {
     const ok = applicaSel((s, m, a) => {
       const p = parOggi(a); const delta = p - a.qty; a.qty = p;
       registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: p, causale: "plancia", chi: profilo?.nome });
-    }, `Riempite ${sel.size} caselle al livello previsto`);
+    }, (n) => `Riempite ${n} caselle al livello previsto`);
     if (ok) { vibra(24); setColpo((c) => c + 1); }
   };
   /* rimette a numeri interi giacenza, soglia e livelli per giorno: e' la
@@ -3035,18 +3069,32 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       const delta = a.qty - prima;
       if (Math.abs(delta) > 1e-9) registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId,
         delta, dopo: a.qty, causale: "plancia", chi: profilo?.nome, rif: "arrotondamento" });
-    }, `Arrotondate ${sel.size} caselle a numeri interi`);
+    }, (q) => `Arrotondate ${q} caselle a numeri interi`);
     if (ok) vibra(16);
   };
   const azzera = () => {
     const ok = applicaSel((s, m, a) => {
       const delta = -a.qty; a.qty = 0;
       registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: 0, causale: "plancia", chi: profilo?.nome });
-    }, `Azzerate ${sel.size} caselle`);
+    }, (q) => `Azzerate ${q} caselle`);
     if (ok) vibra(16);
   };
   const spostaVerso = (destId) => {
-    const n = sel.size;
+    /* stesso conto vero: qui pero' contano DUE permessi — quello sui
+       magazzini di partenza e quello sulla destinazione. Se la destinazione
+       non e' tua non si sposta niente, ed e' bene dirlo invece di annunciare
+       uno spostamento che non e' avvenuto. */
+    const dest = trova(stato.magazzini, destId);
+    if (!dest || !puoModificare(profilo, dest)) {
+      mostraToast("Quel magazzino non è tuo: non è stato spostato niente", "errore");
+      setAzione(null); setVal(""); return;
+    }
+    const mie = tocacabili().filter((k) => k.split("|")[0] !== destId);
+    if (!mie.length) {
+      mostraToast("Nessuno di questi articoli si può spostare: non c'è più o non è tuo", "errore");
+      setAzione(null); setVal(""); return;
+    }
+    const n = mie.length, fuori = sel.size - n;
     muta((s) => {
       const mD = trova(s.magazzini, destId); if (!mD || !puoModificare(profilo, mD)) return;
       for (const k of sel) {
@@ -3067,8 +3115,9 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         if (a.qty > 0) registraMov(s, { magId: mid, prodottoId: pid, uomId: a.uomId, delta: -a.qty, dopo: 0, causale: "trasferimento", chi: profilo?.nome, rif: `a «${mD.nome}»` });
         mO.articoli = mO.articoli.filter((x) => x.prodottoId !== pid);
       }
-    }, `${n} prodotti spostati`);
-    mostraToast(`${n} prodotti spostati`);
+    }, fuori ? `${n} prodotti spostati · ${fuori} saltati` : `${n} prodotti spostati`);
+    mostraToast(fuori ? `${n} spostati · ${fuori} saltati: non ci sono più, non sono tuoi o erano già lì`
+      : `${n} prodotti spostati`, fuori ? "avviso" : "ok");
     /* lo spostamento cambia la struttura: la vecchia fotografia non vale piu,
        meglio togliere l'annulla che offrirebbe un ripristino sbagliato */
     setAnnulla(null); setSel(new Set());
@@ -3080,11 +3129,11 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       if (azione === "giacenza") applicaSel((s, m, a) => {
         const delta = n - a.qty; a.qty = n;
         registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: n, causale: "plancia", chi: profilo?.nome });
-      }, `Giacenza a ${fmtQ(n)} su ${sel.size} caselle`);
-      else applicaSel((s, m, a) => { a.par = n; }, `Livello previsto a ${fmtQ(n)} su ${sel.size} caselle`);
+      }, (q) => `Giacenza a ${fmtQ(n)} su ${q} caselle`);
+      else applicaSel((s, m, a) => { a.par = n; }, (q) => `Livello previsto a ${fmtQ(n)} su ${q} caselle`);
     } else if (azione === "unita") {
       if (!val) return mostraToast("Scegli un'unità", "errore");
-      applicaSel((s, m, a) => { a.uomId = val; }, `Unità aggiornata su ${sel.size} caselle`);
+      applicaSel((s, m, a) => { a.uomId = val; }, (q) => `Unità aggiornata su ${q} caselle`);
     } else if (azione === "sposta") {
       if (!val) return mostraToast("Scegli il magazzino di destinazione", "errore");
       spostaVerso(val);
@@ -3099,7 +3148,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         pg[d] = n; alcuno = true;
       }
       applicaSel((s, m, a) => { if (alcuno) a.parGiorni = { ...pg }; else delete a.parGiorni; },
-        alcuno ? `Livelli per giorno su ${sel.size} caselle` : `Tolto il per-giorno su ${sel.size} caselle`);
+        (q) => (alcuno ? `Livelli per giorno su ${q} caselle` : `Tolto il per-giorno su ${q} caselle`));
     } else if (azione === "ungiorno") {
       const n = num(val); if (n == null || n < 0) return mostraToast("Inserisci un numero valido", "errore");
       if (vuoleInteri && !eIntero(n)) return mostraToast("Nella selezione ci sono prodotti da spedire interi: usa un numero intero", "errore");
@@ -3108,9 +3157,17 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         /* se il prodotto non aveva il per-giorno, gli altri giorni partono dal livello base */
         if (!a.parGiorni) for (const [dd] of GIORNI) pg[dd] = a.par;
         pg[giorno] = n; a.parGiorni = pg;
-      }, `${NOMI_GIORNI[giorno]} a ${fmtQ(n)} su ${sel.size} caselle`);
+      }, (q) => `${NOMI_GIORNI[giorno]} a ${fmtQ(n)} su ${q} caselle`);
     } else if (azione === "rimuovi") {
-      const quante = sel.size, dove = magsSel.size;
+      /* stesso conto vero di applicaSel: «rimuovi» non passa di li' ma ha
+         esattamente lo stesso difetto — diceva quante ne avevi scelte. */
+      const mie = tocacabili();
+      if (!mie.length) {
+        mostraToast("Nessuno di questi articoli si può togliere: non c'è più o non è tuo", "errore");
+        setAzione(null); setVal(""); return;
+      }
+      const quante = mie.length, fuori = sel.size - quante;
+      const dove = new Set(mie.map((k) => k.split("|")[0])).size;
       /* togliArticolo porta via anche dalle linee rifornite, se il magazzino
          è un laboratorio: è la stessa regola del dettaglio magazzino */
       muta((s) => {
@@ -3118,15 +3175,17 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
           const [mid, pid] = k.split("|");
           if (puoModificare(profilo, trova(s.magazzini, mid))) togliArticolo(s, mid, pid);
         }
-      }, `${quante} articoli rimossi da ${dove} magazzini`);
-      mostraToast(`${quante} articoli rimossi`);
+      }, fuori ? `${quante} articoli rimossi da ${dove} magazzini · ${fuori} saltati`
+        : `${quante} articoli rimossi da ${dove} magazzini`);
+      mostraToast(fuori ? `${quante} rimossi · ${fuori} saltati: non ci sono più o non sono tuoi`
+        : `${quante} articoli rimossi`, fuori ? "avviso" : "ok");
       /* la struttura è cambiata: la vecchia fotografia dell'annulla non vale più */
       setAnnulla(null); setSel(new Set());
     } else if (azione === "interi") {
       if (!val) return mostraToast("Scegli sì o no", "errore");
       const acceso = val === "si";
       applicaSel((s, m, a) => { const p = trova(s.prodotti, a.prodottoId); if (p) { if (acceso) p.soloInteri = true; else delete p.soloInteri; } },
-        acceso ? `${sel.size} prodotti da spedire solo interi` : `${sel.size} prodotti anche a frazioni`);
+        (q) => (acceso ? `${q} prodotti da spedire solo interi` : `${q} prodotti anche a frazioni`));
     }
     vibra(14);
     setAzione(null); setVal("");
