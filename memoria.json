@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.87",
-    "len": 710001,
-    "md5": "b4c26a9b17d6f535e37b33382bc3f7fa",
+    "gen": "gen-5.88",
+    "len": 716990,
+    "md5": "c0c356f1b32d7e6baba94da7b8178836",
     "quando": "2026-08-05",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -53,6 +53,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.88",
+      "chiude": [],
+      "prova": "daproduretest.mjs",
+      "cosa": "«Da produrre oggi» in cima alle Richieste, con linguetta per domani. Per ogni preparato: quanti farne, il conto in chiaro (N linee vogliono X, ne hanno gia Y, in laboratorio Z), e il passaggio alla produzione col numero gia scritto.",
+      "_nota": "IL NUMERO VIENE DALLE LINEE, non dal livello dei preparati dentro il laboratorio: quello e quanto se ne tiene di scorta e in produzione vale 3 su tutti e dodici, cioe un default che non ha scelto nessuno. Il §3 del collaudo lo difende. Il conto di domani dichiara di non sapere cosa verra consumato entro stasera."
+    },
     {
       "gen": "gen-5.87",
       "chiude": [],
@@ -203,6 +210,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-05",
+      "dicevo": "(pensato, non detto) Il livello previsto dei preparati nel magazzino del laboratorio e il dato giusto per sapere quanto produrre.",
+      "invece": "E 3 su tutti e dodici: un default mai scelto. Il dato vero sta sulle LINEE, che hanno parGiorni su tutte e 24 le righe. Regola: prima di costruire un conto su un campo, GUARDARE I VALORI VERI di quel campo — un campo che esiste non e un campo compilato."
+    },
     {
       "quando": "2026-08-05",
       "dicevo": "(gen-5.84 e gen-5.86) Il laboratorio adesso puo confermare la produzione dei preparati.",

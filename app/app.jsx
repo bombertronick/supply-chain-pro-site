@@ -7108,9 +7108,12 @@ function FormRettifica({ stato, mag, art, muta, mostraToast, onChiudi, profilo }
      3. solo dopo, il tasto che tocca i numeri
    Se qualcosa non torna (manca l'ingrediente, manca la conversione, non ce
    n'e' abbastanza) si dice qui, in chiaro, e si lascia decidere. */
-function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo }) {
+function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo, suggerito }) {
   const prod = trova(stato.prodotti, art.prodottoId);
-  const [qty, setQty] = useState("");
+  /* se si arriva dal piano di lavoro il numero e' gia' scritto: chi apre la
+     scheda sa gia' quanti gliene servono, riscriverlo e' solo un passaggio in
+     piu' in cui si puo' sbagliare. Resta modificabile: e' un suggerimento. */
+  const [qty, setQty] = useState(() => (suggerito > 0 ? String(suggerito).replace(".", ",") : ""));
   /* ── LA RICETTA SI SCRIVE DA QUI ──
      Segnalato da Valerio: «serve poter confermare la preparazione dei prodotti
      che vengono lavorati con piu' prodotti nel laboratorio». Il tasto per
@@ -9829,6 +9832,49 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
     ? preparatiLab.filter((x) => x.p.nome.toLowerCase().includes(cerca.trim().toLowerCase()))
     : preparatiLab;
 
+  /* ── COSA DEVO PRODURRE, E QUANDO (gen-5.88) ──
+     Chiesto da Valerio: «in laboratorio si deve vedere quando e quali prodotti
+     devono essere prodotti (parlo dei prodotti composti)».
+     Fino a qui il laboratorio vedeva solo le richieste GIA' ARRIVATE: si
+     lavorava all'indietro, quando la linea era gia' scesa sotto. Il dato per
+     guardare avanti c'era gia', ma stava dall'altra parte — sulle LINEE, che
+     hanno il livello previsto giorno per giorno (tutte e 24 le righe dei
+     preparati, in produzione).
+     ATTENZIONE A DOVE SI GUARDA. Il livello dei preparati DENTRO il
+     laboratorio non serve a questo: e' quanto se ne tiene di scorta, e in
+     produzione vale 3 su tutti e dodici, cioe' un numero che non ha scelto
+     nessuno. Sommare quello darebbe un piano di lavoro inventato. Quello che
+     conta e' quanto ne vogliono le linee che il laboratorio rifornisce. */
+  const parDi = (a, g) => ((a.parGiorni && a.parGiorni[g] != null ? a.parGiorni[g] : a.par) || 0);
+  const lineeLab = magLab ? lineeDelLab(stato, magLab) : [];
+  const oggiG = new Date().getDay();
+  const domaniG = (oggiG + 1) % 7;
+  const pianoDi = (g) => {
+    const out = [];
+    for (const { a, p } of preparatiLab) {
+      let vogliono = 0, hannoGia = 0, dove = 0;
+      for (const l of lineeLab) {
+        const al = (l.articoli || []).find((x) => x.prodottoId === p.id);
+        if (!al) continue;
+        dove++;
+        /* tutto nell'unità del laboratorio: è quella in cui si produce */
+        const inLab = (q) => (al.uomId === a.uomId ? q : (converti(p, q, al.uomId, a.uomId) ?? q));
+        vogliono += inLab(parDi(al, g));
+        hannoGia += inLab(al.qty);
+      }
+      if (!dove || vogliono <= 0) continue;
+      const manca = vogliono - hannoGia - a.qty;
+      const fare = p.soloInteri ? Math.ceil(Math.max(0, manca) - 1e-9) : +Math.max(0, manca).toFixed(2);
+      out.push({ p, a, vogliono: +vogliono.toFixed(2), hannoGia: +hannoGia.toFixed(2), fare, dove });
+    }
+    return out.sort((x, y) => y.fare - x.fare);
+  };
+  const pianoOggi = pianoDi(oggiG).filter((x) => x.fare > 0);
+  const pianoDomani = pianoDi(domaniG).filter((x) => x.fare > 0);
+  const [piano, setPiano] = useState(false);
+  const [quando, setQuando] = useState("oggi");
+  const pianoVisto = quando === "oggi" ? pianoOggi : pianoDomani;
+
   const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
   const attive = mie.filter((r) => r.stato === "in-attesa");
   const archivio = mie.filter((r) => r.stato !== "in-attesa");
@@ -9966,6 +10012,35 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
             </span>
           </span>
           <ChevronRight size={18} style={{ color: T.verde }} />
+        </button>
+      )}
+
+      {/* ── COSA DEVO PRODURRE, E QUANDO ──
+          Sta sopra «Ho prodotto» perche' viene prima nel tempo: prima si
+          guarda cosa serve, poi si fa. Compare solo se c'e' davvero qualcosa
+          da fare, oggi o domani: un riquadro che dice «niente» tutti i giorni
+          insegna a non guardarlo. */}
+      {(pianoOggi.length > 0 || pianoDomani.length > 0) && (
+        <button onClick={() => { setQuando(pianoOggi.length ? "oggi" : "domani"); setPiano(true); }}
+          className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3 w-full text-left"
+          style={{ background: "#FFF6E8", border: `1.5px solid ${T.ambra}55` }}>
+          <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.ambra}22`, color: T.ambra }}>
+            <ClipboardList size={17} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="font-extrabold block" style={{ color: T.ink }}>
+              {pianoOggi.length > 0
+                ? `Da produrre oggi · ${pianoOggi.length} ${pianoOggi.length === 1 ? "preparato" : "preparati"}`
+                : `Oggi sei a posto · domani ne servono ${pianoDomani.length}`}
+            </span>
+            <span className="text-xs block" style={{ color: T.dim }}>
+              {pianoOggi.length > 0
+                ? `Contando quello che le linee hanno adesso e quello che c'è in laboratorio${
+                    pianoDomani.length > 0 ? ` · domani altri ${pianoDomani.length}` : ""}`
+                : "Guarda avanti: così domani mattina non si parte in ritardo"}
+            </span>
+          </span>
+          <ChevronRight size={18} style={{ color: T.ambra }} />
         </button>
       )}
 
@@ -10135,6 +10210,50 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
         })}
       </div>
 
+      <Foglio aperto={piano} titolo="Da produrre" onChiudi={() => setPiano(false)}>
+        <div className="flex flex-col gap-3">
+          <Segmenti valore={quando} onCambia={setQuando} opzioni={[
+            { id: "oggi", nome: `Oggi · ${pianoOggi.length}` },
+            { id: "domani", nome: `${NOMI_GIORNI[String(domaniG)]} · ${pianoDomani.length}` },
+          ]} />
+          {/* Il conto di domani non sa cosa verrà consumato da qui a stasera:
+              dirlo è meglio che lasciar credere a una precisione che non c'è.
+              Un numero che si spaccia per certo, il giorno che sbaglia, si
+              porta dietro anche quelli giusti. */}
+          {quando === "domani" && (
+            <p className="text-xs leading-relaxed" style={{ color: T.dim }}>
+              È il livello previsto di {NOMI_GIORNI[String(domaniG)]} sulle linee, meno quello che
+              c'è adesso. <b>Non sa cosa verrà consumato da qui a stasera</b>: prendilo come un
+              «preparati», non come un numero esatto.
+            </p>
+          )}
+          {pianoVisto.length === 0 && (
+            <p className="text-sm font-semibold py-2" style={{ color: T.verde }}>
+              {quando === "oggi" ? "Oggi non manca niente: le linee sono a livello."
+                : `Per ${NOMI_GIORNI[String(domaniG)]} c'è già tutto.`}
+            </p>
+          )}
+          {pianoVisto.map(({ p, a, fare, vogliono, hannoGia, dove }) => (
+            <button key={p.id} onClick={() => { setPiano(false); setProduci({ prodottoId: p.id, quanto: fare }); }}
+              className="rounded-2xl px-3.5 py-3 w-full text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold flex-1 min-w-0 truncate" style={{ color: T.ink }}>{p.nome}</span>
+                <Chip colore={T.ambra}>{fmtQ(fare)} {simboloU(stato, a.uomId)}</Chip>
+                <ChevronRight size={16} style={{ color: T.dim }} />
+              </div>
+              {/* il conto in chiaro: chi legge deve poter rifare la somma, se
+                  no il numero è un oracolo e non ci si fida */}
+              <div className="text-xs mt-1" style={{ color: T.dim }}>
+                {dove === 1 ? "1 linea vuole" : `${dove} linee vogliono`} {fmtQ(vogliono)} · ne hanno già
+                {" "}{fmtQ(hannoGia)} · in laboratorio {fmtQ(a.qty)}
+                {!conRicetta(p) && <span style={{ color: T.ambra, fontWeight: 700 }}> · nessuna ricetta</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Foglio>
+
       {/* l'elenco di quello che il laboratorio puo' aver fatto: si sceglie e
           si va dritti sulla scheda della produzione, che e' la stessa di
           sempre — un solo posto dove i numeri si muovono */}
@@ -10176,7 +10295,7 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
         {produci && magLab && (() => {
           const art = (magLab.articoli || []).find((a) => a.prodottoId === produci.prodottoId);
           if (!art) return null;
-          return <FormProduzione stato={stato} mag={magLab} art={art} muta={muta}
+          return <FormProduzione stato={stato} mag={magLab} art={art} muta={muta} suggerito={produci.quanto}
             mostraToast={mostraToast} onChiudi={() => setProduci(null)} profilo={profilo} />;
         })()}
       </Foglio>
