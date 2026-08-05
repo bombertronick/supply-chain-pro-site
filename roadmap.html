@@ -1,15 +1,6 @@
-<script>
-/* Rete di sicurezza. L'involucro di claude.ai dovrebbe già mettere il
-   <meta viewport>, ma non ho potuto verificarlo: la pagina pubblicata non è
-   leggibile in chiaro da qui. Senza quel tag un telefono impagina a 980px e
-   tutto diventa illeggibile. Se c'è già, questa riga non fa niente. */
-if (!document.querySelector('meta[name="viewport"]')) {
-  const m = document.createElement("meta");
-  m.name = "viewport";
-  m.content = "width=device-width, initial-scale=1, viewport-fit=cover";
-  (document.head || document.documentElement).prepend(m);
-}
-</script>
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Supply Chain Pro · scegli l'ordine dei lavori</title>
 <style>
   /* Il documento parla dell'app e porta i colori dell'app: gli stessi
@@ -63,7 +54,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   body { margin:0; background:var(--fondo); color:var(--ink);
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; }
-  .wrap { max-width:46rem; margin:0 auto; padding:2rem 1.15rem 10rem; }
+  .wrap { max-width:46rem; margin:0 auto; padding:2rem 1.15rem 1.5rem; }
 
   .occhiello { font-size:.7rem; font-weight:800; letter-spacing:.11em;
     text-transform:uppercase; color:var(--tenue); margin:0 0 .5rem; }
@@ -139,7 +130,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   .t-mis { background:var(--velo); color:var(--tenue); }
 
   /* ── barra in basso: sempre a portata di pollice ── */
-  .barra { position:fixed; left:0; right:0; bottom:0; z-index:20;
+  .barra { position:sticky; bottom:0; z-index:20;
     background:var(--carta); border-top:1.5px solid var(--riga); box-shadow:var(--ombra-alta);
     padding:.75rem 1rem calc(.75rem + env(safe-area-inset-bottom)); }
   .barra-in { max-width:46rem; margin:0 auto; display:flex; align-items:center; gap:.6rem; }
@@ -260,7 +251,12 @@ if (!document.querySelector('meta[name="viewport"]')) {
       bugia (e te ne accorgi), una dorme in attesa di un profilo che non hai ancora creato, e
       una riguarda i miei collaudi, non l'app che usi.
     </div>
-    <div class="schede" id="lista-difetti"></div>
+    <div class="schede" id="lista-difetti">
+      <button type="button" class="voce" aria-pressed="false" data-id="gen555-rosso" aria-label="Un collaudo è rosso da giorni e non me n'ero accorta — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Un collaudo è rosso da giorni e non me n'ero accorta</span><p class="desc">Trovato stasera per caso, facendo la regressione. Il collaudo «gen555test» ha cinque controlli rossi sulle richieste al laboratorio — la parte che tiene separato «quanto è di livello» da «quanto è stato chiesto in più». NON l'ho rotto oggi: era già rosso su gen-5.75, cioè da prima di tutte le versioni di ieri e oggi. Non so ancora se è un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che è l'una o l'altra prima di averlo guardato. È sfuggito perché a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non è solo capire questo caso, è accorgersi prima del prossimo.</p><span class="meta"><span class="tag t-dati">da capire</span><span class="tag t-mis">piccolo</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="offline-bugia" aria-label="«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è</span><p class="desc">Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito.</p><span class="meta"><span class="tag t-sic">difetto</span><span class="tag t-mis">medio</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="conto-vero-schede" aria-label="Lo stesso conto gonfiato, in altre cinque schede — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Lo stesso conto gonfiato, in altre cinque schede</span><p class="desc">Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi.</p><span class="meta"><span class="tag t-dati">difetto</span><span class="tag t-mis">piccolo</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="schede-tre-mancanti" aria-label="Tre schede su otto che i collaudi ancora non aprono — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Tre schede su otto che i collaudi ancora non aprono</span><p class="desc">Oggi il giro dei tasti è passato da ZERO schede aperte a 116, su due livelli: adesso il dito al centro di ogni tasto si mette anche dentro Rettifica giacenza, Registra scarto, Ricezione merce, Trasferisci le scorte, Importa CSV e Inventario guidato. Ne restano tre, e due non sono colpa del giro. «Gestione rapida» compare solo dove il permesso è «pieno» e nel banco di prova i magazzini danno «rettifica»: non è nascosta, non esiste — va seminato un magazzino col permesso giusto. «Ho prodotto» è un tasto di riga sui soli preparati dentro il magazzino del laboratorio, che il giro non apre perché finisce prima il tetto sui magazzini. «Evadi richiesta» si apre da un tasto scritto «Cambia», e nessuna regola generica poteva indovinarlo. Il collaudo le stampa per nome a ogni giro invece di tacerle: un limite che non si vede è una bugia.</p><span class="meta"><span class="tag t-vis">rete di sicurezza</span><span class="tag t-mis">piccolo</span></span></span></button>
+    </div>
   </section>
 
   <section>
@@ -268,7 +264,11 @@ if (!document.querySelector('meta[name="viewport"]')) {
     <h2>E quattro cose che oggi mancano</h2>
     <p class="guida">Erano già in lista prima del consiglio. Non sono rotture: sono lavori che
     l'app non sa ancora fare, o decisioni che spettano a te.</p>
-    <div class="schede" id="lista-altro"></div>
+    <div class="schede" id="lista-altro">
+      <button type="button" class="voce" aria-pressed="false" data-id="pesatura" aria-label="Una sessione di pesatura, con la bilancia in mano — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Una sessione di pesatura, con la bilancia in mano</span><p class="desc">Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="pin-forte" aria-label="PIN più robusti — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">PIN più robusti</span><p class="desc">Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore.</p><span class="meta"><span class="tag t-sic">sicurezza</span><span class="tag t-mis">piccolo</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="ordini-operatore" aria-label="Chi deve vedere gli acquisti del laboratorio? — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Chi deve vedere gli acquisti del laboratorio?</span><p class="desc">Oggi ho scelto io e ti dico cosa ho scelto: un operatore di sede vede gli acquisti della SUA sede, non quelli del laboratorio, e il laboratorio vede i suoi. Prima chi apriva la pagina e non ne vedeva nessuno pensava che fossero spariti; adesso c’è scritto il perché. Ma la regola in sé è una tua decisione, non mia: se vuoi che i tuoi ragazzi di sede vedano anche cosa compra il laboratorio, o al contrario che ognuno veda solo il suo, si cambia in una riga. Dimmi come lavori tu.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">piccolo</span></span></span></button>
+    </div>
   </section>
 
   <div class="anteprima">
@@ -991,34 +991,14 @@ if (!document.querySelector('meta[name="viewport"]')) {
 </div>
 
 <script>
-/* Le voci. «peso» è onesto: quanto costa a me, non quanto suona bene.
-   I primi otto vengono dal consiglio del 2 agosto e stanno in ordine di danno:
-   quell'ordine è un giudizio, non una classifica automatica, e va lasciato
-   visibile perché è la cosa che serve di più a chi sceglie. */
-const VOCI = [
-  { id:"gen555-rosso", dove:"difetti", tag:["da capire","piccolo"], cls:["t-dati","t-mis"],
-    titolo:"Un collaudo \u00e8 rosso da giorni e non me n'ero accorta",
-    desc:"Trovato stasera per caso, facendo la regressione. Il collaudo \u00abgen555test\u00bb ha cinque controlli rossi sulle richieste al laboratorio \u2014 la parte che tiene separato \u00abquanto \u00e8 di livello\u00bb da \u00abquanto \u00e8 stato chiesto in pi\u00f9\u00bb. NON l'ho rotto oggi: era gi\u00e0 rosso su gen-5.75, cio\u00e8 da prima di tutte le versioni di ieri e oggi. Non so ancora se \u00e8 un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che \u00e8 l'una o l'altra prima di averlo guardato. \u00c8 sfuggito perch\u00e9 a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non \u00e8 solo capire questo caso, \u00e8 accorgersi prima del prossimo." },
-  { id:"offline-bugia", dove:"difetti", tag:["difetto","medio"], cls:["t-sic","t-mis"],
-    titolo:"«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è",
-    desc:"Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito." },
-  { id:"conto-vero-schede", dove:"difetti", tag:["difetto","piccolo"], cls:["t-dati","t-mis"],
-    titolo:"Lo stesso conto gonfiato, in altre cinque schede",
-    desc:"Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi." },
-  { id:"schede-tre-mancanti", dove:"difetti", tag:["rete di sicurezza","piccolo"], cls:["t-vis","t-mis"],
-    titolo:"Tre schede su otto che i collaudi ancora non aprono",
-    desc:"Oggi il giro dei tasti \u00e8 passato da ZERO schede aperte a 116, su due livelli: adesso il dito al centro di ogni tasto si mette anche dentro Rettifica giacenza, Registra scarto, Ricezione merce, Trasferisci le scorte, Importa CSV e Inventario guidato. Ne restano tre, e due non sono colpa del giro. \u00abGestione rapida\u00bb compare solo dove il permesso \u00e8 \u00abpieno\u00bb e nel banco di prova i magazzini danno \u00abrettifica\u00bb: non \u00e8 nascosta, non esiste \u2014 va seminato un magazzino col permesso giusto. \u00abHo prodotto\u00bb \u00e8 un tasto di riga sui soli preparati dentro il magazzino del laboratorio, che il giro non apre perch\u00e9 finisce prima il tetto sui magazzini. \u00abEvadi richiesta\u00bb si apre da un tasto scritto \u00abCambia\u00bb, e nessuna regola generica poteva indovinarlo. Il collaudo le stampa per nome a ogni giro invece di tacerle: un limite che non si vede \u00e8 una bugia." },
-  { id:"pesatura", dove:"altro", tag:["struttura","medio"], cls:["t-str","t-mis"],
-    titolo:"Una sessione di pesatura, con la bilancia in mano",
-    desc:"Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima." },
-  { id:"pin-forte", dove:"altro", tag:["sicurezza","piccolo"], cls:["t-sic","t-mis"],
-    titolo:"PIN più robusti",
-    desc:"Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore." },
-  { id:"ordini-operatore", dove:"altro", tag:["struttura","piccolo"], cls:["t-str","t-mis"],
-    titolo:"Chi deve vedere gli acquisti del laboratorio?",
-    desc:"Oggi ho scelto io e ti dico cosa ho scelto: un operatore di sede vede gli acquisti della SUA sede, non quelli del laboratorio, e il laboratorio vede i suoi. Prima chi apriva la pagina e non ne vedeva nessuno pensava che fossero spariti; adesso c’è scritto il perché. Ma la regola in sé è una tua decisione, non mia: se vuoi che i tuoi ragazzi di sede vedano anche cosa compra il laboratorio, o al contrario che ognuno veda solo il suo, si cambia in una riga. Dimmi come lavori tu." },
-];
-
+/* Le voci stanno scritte nell'HTML, non qui. Prima le costruiva questo
+   script, e chi apriva la pagina dentro un'anteprima che blocca gli script
+   trovava DUE ELENCHI VUOTI: la pagina era tutta lì, ma la cosa per cui
+   esiste — l'elenco dei lavori da scegliere — non c'era. Adesso il testo
+   arriva col documento e lo script aggiunge solo i numeri e il messaggio da
+   copiare. Se non gira, si legge tutto lo stesso.
+   L'ordine dentro i due elenchi è un giudizio, non una classifica automatica,
+   e va lasciato visibile perché è la cosa che serve di più a chi sceglie. */
 const liste = { difetti: document.getElementById("lista-difetti"),
                 altro:   document.getElementById("lista-altro") };
 const msg = document.getElementById("msg");
@@ -1028,31 +1008,8 @@ const bAzzera = document.getElementById("azzera");
 const aiutoCopia = document.getElementById("aiutoCopia");
 const scelte = [];   // gli id, nell'ordine in cui sono stati toccati
 
-for (const v of VOCI) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "voce";
-  b.setAttribute("aria-pressed", "false");
-  b.dataset.id = v.id;
-  b.innerHTML =
-    '<span class="num" aria-hidden="true">·</span>' +
-    '<span class="corpo">' +
-      '<span class="titolo" style="display:block"></span>' +
-      '<p class="desc"></p>' +
-      '<span class="meta"></span>' +
-    '</span>';
-  b.querySelector(".titolo").textContent = v.titolo;
-  b.querySelector(".desc").textContent = v.desc;
-  const meta = b.querySelector(".meta");
-  v.tag.forEach((t, i) => {
-    const s = document.createElement("span");
-    s.className = "tag " + v.cls[i];
-    s.textContent = t;
-    meta.appendChild(s);
-  });
-  b.addEventListener("click", () => tocca(v.id));
-  liste[v.dove].appendChild(b);
-}
+for (const b of document.querySelectorAll(".voce"))
+  b.addEventListener("click", () => tocca(b.dataset.id));
 
 /* i tasti stanno in due elenchi, ma la numerazione è una sola: chi sceglie
    ragiona per priorità, non per riquadro */
@@ -1091,8 +1048,8 @@ function componi() {
   if (!scelte.length) return "Tocca le voci qui sopra nell'ordine che vuoi.";
   const righe = ["Ecco l'ordine dei lavori che ho scelto dalla roadmap:", ""];
   scelte.forEach((id, i) => {
-    const v = VOCI.find((x) => x.id === id);
-    righe.push(`${i + 1}. ${v.titolo}`);
+    const b = document.querySelector(`.voce[data-id="${id}"]`);
+    righe.push(`${i + 1}. ${b.querySelector(".titolo").textContent}`);
   });
   righe.push("", "Parti dal primo. Fammi sapere se qualcosa cambia le carte in tavola.");
   return righe.join("\n");

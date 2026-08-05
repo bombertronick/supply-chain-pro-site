@@ -54,6 +54,17 @@
   ],
   "chiusi": [
     {
+      "gen": null,
+      "chiude": [
+        "roadmap-anteprima"
+      ],
+      "prova": "roadmapanteprimatest.mjs",
+      "soloCollaudi": true,
+      "cosa": "La roadmap aperta senza scaricarla: le voci adesso stanno nel markup (prima le costruiva lo script, e un anteprima che blocca gli script mostrava DUE RIQUADRI VUOTI, 0 voci su 7); aggiunto il doctype (era in modalita BackCompat, con <body> come scorrevole invece di <html>); meta viewport statico invece che iniettato; barra da fixed a sticky.",
+      "_nota": "IL SINTOMO ESATTO DI VALERIO — il dito che non scorre — NON SONO RIUSCITA A RIPRODURLO: in un inquadratura normale la pagina scorreva gia prima. Ho corretto le tre fragilita misurate, non ho la prova che fossero LA causa. Se il sintomo resta, serve sapere da dove la apre.",
+      "_soloCollaudi_perche": "Riguarda la roadmap, non l app: non fa generazione."
+    },
+    {
       "gen": "gen-5.85",
       "chiude": [
         "plancia-permessi"
@@ -178,6 +189,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-05",
+      "dicevo": "In modalita vecchia chi ospita la pagina legge documentElement.scrollHeight e ottiene l altezza di una finestra invece del contenuto: ecco l inquadratura mozzata.",
+      "invece": "Falso, misurato: in BackCompat documentElement.scrollHeight e body.scrollHeight danno lo STESSO numero (7132px). Avevo scritto il controllo dandolo per buono ed e uscito rosso su sé stesso. Regola: la spiegazione di un difetto va misurata come il difetto, se no si spaccia per diagnosi una supposizione che suona bene."
+    },
     {
       "quando": "2026-08-05",
       "dicevo": "(riferendo il consiglio) La Plancia dice «Riempite 90 caselle» a un profilo Laboratorio che ha spuntato tutta la sede mentre i permessi bloccavano tutto.",
