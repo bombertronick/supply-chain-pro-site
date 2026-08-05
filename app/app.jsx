@@ -9805,7 +9805,29 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
      sarebbe peggio: la merce risulterebbe partita anche quando nessuno l'ha
      fatta, e la giacenza del laboratorio smetterebbe di dire il vero. */
   const [produci, setProduci] = useState(null);
+  /* ── PRODURRE PRIMA CHE QUALCUNO CHIEDA (gen-5.87) ──
+     Segnalato da Valerio: «il laboratorio a volte si prepara prima dei
+     prodotti per poi inviarli, quindi deve avere la possibilita' di poter
+     inviare rapidamente i prodotti composti richiesti».
+     gen-5.84 aveva messo «Ho prodotto» SULLA RICHIESTA, e risolveva meta' del
+     lavoro: produrre quello che qualcuno ha gia' chiesto. L'altra meta' —
+     preparare la mattina, prima che arrivi qualunque richiesta — era rimasta
+     dov'era: Magazzini, apri il magazzino, cerca la riga fra le altre, premi
+     l'ampollina. E senza richieste in attesa questa schermata mostrava un
+     riquadro vuoto: proprio nel momento in cui si sta lavorando.
+     Da qui nasce anche la lentezza a valle. Quello che e' stato fatto ma non
+     segnato in laboratorio non c'e', «Confermo tutto» non lo vede, e quando
+     le richieste arrivano non si manda niente in fretta. */
+  const [elenco, setElenco] = useState(false);
+  const [cerca, setCerca] = useState("");
   const magLab = stato.magazzini.find((m) => m.tipo === "laboratorio" && m.sedeId === profilo.sedeId);
+  const preparatiLab = (magLab?.articoli || [])
+    .map((a) => ({ a, p: trova(stato.prodotti, a.prodottoId) }))
+    .filter((x) => x.p && preparato(x.p))
+    .sort((x, y) => x.p.nome.localeCompare(y.p.nome, "it"));
+  const cercati = cerca.trim()
+    ? preparatiLab.filter((x) => x.p.nome.toLowerCase().includes(cerca.trim().toLowerCase()))
+    : preparatiLab;
 
   const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
   const attive = mie.filter((r) => r.stato === "in-attesa");
@@ -9946,6 +9968,29 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           <ChevronRight size={18} style={{ color: T.verde }} />
         </button>
       )}
+
+      {/* ── «HO PRODOTTO», ANCHE SENZA UNA RICHIESTA ──
+          Sta qui e non sotto Magazzini perche' qui ci sta il laboratorio
+          mentre lavora. Resta visibile anche quando non c'e' niente in
+          attesa: e' esattamente il momento in cui si prepara per dopo. */}
+      {preparatiLab.length > 0 && (
+        <button onClick={() => { setCerca(""); setElenco(true); }}
+          className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3 w-full text-left"
+          style={{ background: "#EAF6FB", border: `1.5px solid ${T.ciano}55` }}>
+          <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.ciano}22`, color: T.ciano }}>
+            <FlaskConical size={17} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="font-extrabold block" style={{ color: T.ink }}>Ho prodotto</span>
+            <span className="text-xs block" style={{ color: T.dim }}>
+              Segna quello che hai preparato, anche se nessuno l'ha ancora chiesto:
+              così quando la richiesta arriva parte subito
+            </span>
+          </span>
+          <ChevronRight size={18} style={{ color: T.ciano }} />
+        </button>
+      )}
+
       <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "in-attesa", nome: `In attesa · ${attive.length}` },
@@ -9958,7 +10003,9 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           <Scheda><Vuoto icona={FlaskConical}
             titolo={tab === "in-attesa" ? "Nessuna richiesta in attesa" : "Archivio vuoto"}
             testo={tab === "in-attesa"
-              ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale."
+              ? (preparatiLab.length
+                ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale. Intanto, se stai preparando per dopo, segnalo con «Ho prodotto» qui sopra: quello che è segnato parte subito quando la richiesta arriva."
+                : "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale.")
               : "Le richieste evase, parziali o annullate finiranno qui."} /></Scheda>
         )}
         {lista.map((r) => {
@@ -10087,6 +10134,42 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           );
         })}
       </div>
+
+      {/* l'elenco di quello che il laboratorio puo' aver fatto: si sceglie e
+          si va dritti sulla scheda della produzione, che e' la stessa di
+          sempre — un solo posto dove i numeri si muovono */}
+      <Foglio aperto={elenco} titolo="Ho prodotto · cosa hai fatto?" onChiudi={() => setElenco(false)}>
+        <div className="flex flex-col gap-2">
+          {preparatiLab.length > 6 && (
+            <Campo label="" valore={cerca} onCambia={setCerca} placeholder="Cerca un preparato…" autoFocus />
+          )}
+          {cercati.length === 0 && (
+            <p className="text-sm font-semibold py-2" style={{ color: T.ambra }}>
+              Nessun preparato con questo nome.
+            </p>
+          )}
+          {cercati.map(({ a, p }) => {
+            /* la giacenza si mostra perche' e' la domanda che uno si fa
+               proprio in quel momento: ne ho gia', o parto da zero? */
+            const chieste = attive.filter((r) => r.prodottoId === p.id).length;
+            return (
+              <button key={p.id} onClick={() => { setElenco(false); setProduci({ prodottoId: p.id }); }}
+                className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 w-full text-left"
+                style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+                <span className="flex-1 min-w-0">
+                  <span className="font-extrabold block truncate" style={{ color: T.ink }}>{p.nome}</span>
+                  <span className="text-xs block" style={{ color: T.dim }}>
+                    In laboratorio: {fmtQ(a.qty)} {simboloU(stato, a.uomId)}
+                    {chieste > 0 && ` · ${chieste === 1 ? "1 richiesta in attesa" : `${chieste} richieste in attesa`}`}
+                    {!conRicetta(p) && " · nessuna ricetta: non scalerà ingredienti"}
+                  </span>
+                </span>
+                <ChevronRight size={18} style={{ color: T.dim }} />
+              </button>
+            );
+          })}
+        </div>
+      </Foglio>
 
       <Foglio aperto={!!produci} titolo={`Ho prodotto · ${trova(stato.prodotti, produci?.prodottoId)?.nome || ""}`}
         onChiudi={() => setProduci(null)}>
