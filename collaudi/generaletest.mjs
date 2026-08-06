@@ -335,9 +335,33 @@ const giroSchede = async (p, r, dove, out, prof = 1) => {
   }
   lista.sort((a, b) => a.pri - b.pri);
   for (const { i, e } of lista.slice(0, prof === 1 ? MAX_TENTATIVI : MAX_TENTATIVI_DENTRO)) {
-    /* si ri-cerca per indice a ogni giro: dopo una chiusura il pezzo di
-       pagina viene ricostruito, e un riferimento tenuto da prima non vale piu' */
-    const cand = tasti().nth(i);
+    /* ── SI TORNA A CERCARE PER NOME, NON PER POSTO (6 agosto) ──
+       Qui c'era scritto «si ri-cerca per indice a ogni giro», e non bastava:
+       l'indice si rilegge, ma l'ELENCO e' stato fatto una volta sola all'inizio,
+       e fra un'apertura e l'altra la schermata si ricostruisce. I riquadri dei
+       magazzini portano scritto quante cose hanno sotto scorta: quel numero
+       cambia mentre il giro lavora, le schede si riordinano, e al turno numero
+       sette sotto l'indice sette c'e' un altro tasto.
+       Cosi' il «Magazzino Laboratorio» — che nell'elenco C'ERA, in settima
+       posizione su nove — non veniva mai aperto. Ed e' l'unico magazzino dove
+       quel profilo ha il permesso pieno, cioe' l'unico posto in cui «Gestione
+       rapida» esiste. Tre motivi scritti da me su questa scheda, tutti e tre
+       sbagliati: non era il permesso, non era la precedenza, era l'indirizzo.
+       Adesso l'indice e' solo un suggerimento: se sotto non c'e' piu' quello
+       che avevo elencato, lo ricerco per nome. */
+    let cand = tasti().nth(i);
+    const oraQui = await etichettaDi(cand).catch(() => "");
+    if (oraQui !== e) {
+      const n2 = await tasti().count().catch(() => 0);
+      let trovato = null;
+      for (let k = 0; k < n2; k++) {
+        const c2 = tasti().nth(k);
+        if (!(await c2.isVisible().catch(() => false))) continue;
+        if ((await etichettaDi(c2).catch(() => "")) === e) { trovato = c2; break; }
+      }
+      if (!trovato) continue;   // e' sparito davvero: non e' un difetto, e' la pagina che e' cambiata
+      cand = trovato;
+    }
     if (!(await cand.isVisible().catch(() => false))) continue;
     await cand.click({ timeout: 2500 }).catch(() => {});
     await p.waitForTimeout(420);
