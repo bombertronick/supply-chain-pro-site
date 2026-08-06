@@ -36,29 +36,23 @@ __
 
 Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi.
 
-### 4. Tre schede su otto che i collaudi ancora non aprono
-
-__
-
-Oggi il giro dei tasti è passato da ZERO schede aperte a 116, su due livelli: adesso il dito al centro di ogni tasto si mette anche dentro Rettifica giacenza, Registra scarto, Ricezione merce, Trasferisci le scorte, Importa CSV e Inventario guidato. Ne restano tre, e due non sono colpa del giro. «Gestione rapida» compare solo dove il permesso è «pieno» e nel banco di prova i magazzini danno «rettifica»: non è nascosta, non esiste — va seminato un magazzino col permesso giusto. «Ho prodotto» è un tasto di riga sui soli preparati dentro il magazzino del laboratorio, che il giro non apre perché finisce prima il tetto sui magazzini. «Evadi richiesta» si apre da un tasto scritto «Cambia», e nessuna regola generica poteva indovinarlo. Il collaudo le stampa per nome a ogni giro invece di tacerle: un limite che non si vede è una bugia.
-
 ---
 
 ## Le migliorie da scegliere
 
-### 5. Una sessione di pesatura, con la bilancia in mano
+### 4. Una sessione di pesatura, con la bilancia in mano
 
 __
 
 Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima.
 
-### 6. PIN più robusti
+### 5. PIN più robusti
 
 __
 
 Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore.
 
-### 7. Chi deve vedere gli acquisti del laboratorio?
+### 6. Chi deve vedere gli acquisti del laboratorio?
 
 __
 

@@ -16,12 +16,6 @@
       "_prova_perche": "il collaudo c'e' ed e' ROSSO da almeno gen-5.75: 5 controlli su extraLinea/qtyLivello nelle richieste. Non so ancora se e' un difetto dell'app o un collaudo invecchiato."
     },
     {
-      "id": "schede-tre-mancanti",
-      "dove": "difetti",
-      "prova": "generaletest.mjs",
-      "_prova_perche": "il collaudo le stampa a ogni giro come «ancora fuori portata», e il motivo di ognuna sta accanto a NON_ANCORA in cima al file."
-    },
-    {
       "id": "offline-bugia",
       "dove": "difetti",
       "prova": null,
@@ -53,6 +47,17 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": null,
+      "chiude": [
+        "schede-tre-mancanti"
+      ],
+      "prova": "generaletest.mjs",
+      "soloCollaudi": true,
+      "_soloCollaudi_perche": "Riguarda il giro automatico, non l app: non fa generazione.",
+      "cosa": "Le tre schede che il giro non apriva adesso si aprono. 123 schede, 9 nomi su 9 nel pavimento, zero tasti morti. Tre correzioni: precedenza su «Cambia», ricerca per nome invece che per posto, e la vista rimessa su tutte le sedi dopo un tasto che filtra invece di aprire.",
+      "_nota": "Causa dell ultima: le pastiglie delle sedi filtrano l elenco senza cambiare schermata, e il giro proseguiva su una lista piu corta. Il magazzino del laboratorio (sede portuense) spariva dopo il tocco su «fm», ed e l unico dove quel profilo ha il permesso pieno."
+    },
     {
       "gen": "gen-5.89",
       "chiude": [],
@@ -217,6 +222,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-06",
+      "dicevo": "(scritto nel collaudo, e rimasto li per giorni) «Gestione rapida» non si raggiunge perche nel banco di prova i magazzini danno permesso rettifica; «Ho prodotto» perche il tetto sui magazzini finisce prima.",
+      "invece": "Tutti e due falsi. Il permesso c era (admin: pieno su tutto; laboratorio: pieno su casa sua) e «Ho prodotto» si e aperta da sola quando gen-5.87 le ha messo una porta nelle Richieste. Regola: un limite si spiega solo dopo averlo MISURATO. Ho speso tre tentativi a dedurre; una sonda che stampa cosa vede il giro ha risolto in trenta secondi. Una spiegazione plausibile ma falsa dentro un collaudo ci resta per mesi."
+    },
     {
       "quando": "2026-08-06",
       "dicevo": "(gen-5.88) Adesso il laboratorio vede cosa deve produrre.",
