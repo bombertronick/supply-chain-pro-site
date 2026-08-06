@@ -275,24 +275,37 @@ const PRIMA_QUESTI = /gestione rapida|ho prodotto|da produrre|evadi|cambia|ricez
    a quelle che si ripetono riga per riga. */
 const PORTE_UNICHE = /gestione rapida|inventario|importa|assegna|copia da|da produrre/i;
 const SCHEDE_CHE_CONTANO = ["Rettifica giacenza", "Registra scarto", "Ricezione merce",
-  "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato"];
+  "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato",
+  /* Le ultime tre sono entrate il 6 agosto, ed erano quelle del consiglio. Da
+     qui in poi sono un pavimento come le altre: se una si sposta o cambia
+     nome, questo diventa rosso e chiede conto. */
+  "Gestione rapida", "Ho prodotto", "Evadi richiesta"];
 
-/* LE TRE CHE ANCORA NON SI RAGGIUNGONO, scritte qui e stampate a ogni giro.
-   Stanno fuori dall'elenco di sopra perche' non ci arrivo ancora e non voglio
-   un rosso fisso; ma NON spariscono, perche' un limite che non si vede e' una
-   bugia. Ognuna ha il suo motivo, e due non sono colpa del giro:
+/* ── LE TRE CHE MANCAVANO, E I TRE MOTIVI SBAGLIATI CHE AVEVO SCRITTO ──
+   Qui sotto c'erano tre spiegazioni di perche' non si raggiungevano. Erano
+   tutte e tre sbagliate, e vale la pena tenerne il conto: una spiegazione
+   plausibile scritta in un collaudo manda il prossimo a cercare dalla parte
+   sbagliata, e ci resta per mesi.
 
-   · «Gestione rapida» compare solo dove il permesso e' «pieno». In questo
-     banco i magazzini danno «rettifica» — si vede dal fatto che «Trasferisci
-     le scorte» c'e' e «Aggiungi articolo» no. Non e' nascosta: non esiste.
-     Serve un magazzino seminato col permesso giusto.
-   · «Ho prodotto» e' un tasto di riga sui soli preparati, dentro il magazzino
-     del laboratorio, che il giro non apre perche' il tetto sui magazzini
-     finisce prima. Serve dare la precedenza a quel magazzino.
-   · «Evadi richiesta» si apre da un tasto etichettato «Cambia»: nessuna
-     regola generica poteva indovinarlo, e metterlo fra le precedenze
-     vorrebbe dire premere ogni «Cambia» dell'app. */
-const NON_ANCORA = ["Gestione rapida", "Ho prodotto", "Evadi richiesta"];
+   · «Gestione rapida» — avevo scritto «nel banco di prova i magazzini danno
+     permesso rettifica». Falso: l'admin ha «pieno» su tutto e il laboratorio
+     su casa sua. Il motivo vero e' che il giro provava le PASTIGLIE DELLE
+     SEDI, che non aprono niente ma filtrano l'elenco; da li' in poi lavorava
+     su una lista piu' corta senza accorgersene, perche' la schermata era
+     ancora «Magazzini». Il «Magazzino Laboratorio» sta nella sede portuense e
+     spariva dopo che il giro aveva premuto «fm» — ed e' l'unico magazzino
+     dove quel profilo ha il permesso pieno, cioe' l'unico posto dove quella
+     scheda esiste per lui.
+   · «Ho prodotto» — avevo scritto «il tetto sui magazzini finisce prima».
+     Falso: si e' aperta da sola quando gen-5.87 le ha messo una porta nelle
+     Richieste, per tutt'altra ragione.
+   · «Evadi richiesta» — questo era giusto: si apre da un tasto scritto
+     «Cambia», e nessuna regola generica poteva indovinarlo.
+
+   La regola che resta: un limite si spiega solo dopo averlo MISURATO. Le tre
+   deduzioni di sopra suonavano tutte ragionevoli, e sono cadute alla prima
+   sonda che stampava cosa vede il giro davvero. */
+const NON_ANCORA = [];
 
 const etichettaDi = async (el) => ((await el.getAttribute("aria-label").catch(() => null))
   || (await el.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
@@ -367,8 +380,28 @@ const giroSchede = async (p, r, dove, out, prof = 1) => {
     await p.waitForTimeout(420);
     const ora = await p.locator(".sc-foglio").count();
     if (ora < partenza) return;            // ha chiuso la scheda da cui stavo guardando
-    if (ora === partenza) {                // non apriva niente: tendina, spunta, navigazione
-      if (prof === 1) { try { await vaiA(p, dove, 900); } catch {} }
+    if (ora === partenza) {
+      /* ── NON APRIVA NIENTE: MA PUO' AVER CAMBIATO LA LISTA (6 agosto) ──
+         Alcuni di questi non sono tasti, sono FILTRI. Nei Magazzini ci sono le
+         pastiglie delle sedi: premendo «fm» la schermata resta la stessa ma
+         mostra solo i magazzini di quella sede. Il giro le premeva e tirava
+         dritto, e da li' in poi lavorava su un elenco piu' corto — senza
+         accorgersene, perche' la schermata era ancora «Magazzini».
+         Cosi' il «Magazzino Laboratorio», che sta nella sede portuense,
+         spariva dopo che il giro aveva premuto «fm». Ed e' l'unico magazzino
+         dove quel profilo ha il permesso pieno, cioe' l'unico posto dove
+         «Gestione rapida» esiste per lui: e' per questo che quella scheda non
+         si e' mai aperta, in nessuno dei tre giri.
+         Adesso, dopo un tasto che non apre niente, si rimette la vista su
+         tutto prima di continuare. */
+      if (prof === 1) {
+        try { await vaiA(p, dove, 900); } catch {}
+        const tutte = p.locator('main').getByRole('button', { name: /^Tutt[ei] /i }).first();
+        if (await tutte.count().catch(() => 0)) {
+          await tutte.click({ timeout: 1500 }).catch(() => {});
+          await p.waitForTimeout(350);
+        }
+      }
       continue;
     }
     out.aperte++;
