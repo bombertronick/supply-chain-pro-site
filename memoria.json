@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.88",
-    "len": 716990,
-    "md5": "c0c356f1b32d7e6baba94da7b8178836",
-    "quando": "2026-08-05",
+    "gen": "gen-5.89",
+    "len": 719596,
+    "md5": "194410447e87a2235b6054942ae8f99c",
+    "quando": "2026-08-06",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -53,6 +53,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.89",
+      "chiude": [],
+      "prova": "fabbisognotest.mjs",
+      "cosa": "Un conto solo del fabbisogno, in Richieste. Per ogni linea si prende il MAX fra sotto-livello del giorno e richiesta gia in coda (non la somma: raddoppierebbe). Aggiunto il controllo ingredienti: quanti se ne possono fare davvero e quale ingrediente manca. Tolto il doppione «Da preparare» da Ordini, sostituito da un rimando.",
+      "_nota": "IL DOPPIONE L AVEVO CREATO IO in gen-5.88 senza accorgermi che in Ordini ce n era gia uno. Sui dati veri dicevano cose diverse: Ordini «da fare 2» (contro il livello del laboratorio, che vale 3 su tutti e dodici) e il mio «niente» (le linee erano tutte a livello). Il livello del laboratorio resta fuori dal conto e la scelta e dichiarata a schermo."
+    },
     {
       "gen": "gen-5.88",
       "chiude": [],
@@ -210,6 +217,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-06",
+      "dicevo": "(gen-5.88) Adesso il laboratorio vede cosa deve produrre.",
+      "invece": "Ne vedeva DUE, di elenchi, in due schermate, con due regole diverse e due risultati diversi — e il secondo l avevo aggiunto io. Regola: prima di aggiungere una vista nuova, CERCARE SE L APP RISPONDE GIA a quella domanda da qualche altra parte. Un grep su una parola del dominio («preparare») lo avrebbe trovato in dieci secondi."
+    },
     {
       "quando": "2026-08-05",
       "dicevo": "(pensato, non detto) Il livello previsto dei preparati nel magazzino del laboratorio e il dato giusto per sapere quanto produrre.",

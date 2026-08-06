@@ -9832,6 +9832,12 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
     ? preparatiLab.filter((x) => x.p.nome.toLowerCase().includes(cerca.trim().toLowerCase()))
     : preparatiLab;
 
+
+  const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
+  const attive = mie.filter((r) => r.stato === "in-attesa");
+  const archivio = mie.filter((r) => r.stato !== "in-attesa");
+  const lista = tab === "in-attesa" ? attive : archivio;
+
   /* ── COSA DEVO PRODURRE, E QUANDO (gen-5.88) ──
      Chiesto da Valerio: «in laboratorio si deve vedere quando e quali prodotti
      devono essere prodotti (parlo dei prodotti composti)».
@@ -9849,23 +9855,72 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
   const lineeLab = magLab ? lineeDelLab(stato, magLab) : [];
   const oggiG = new Date().getDay();
   const domaniG = (oggiG + 1) % 7;
+  /* ── IL FABBISOGNO NETTO, UNA VOLTA SOLA (gen-5.89) ──
+     Valerio, con due schermate a confronto: «non sono presenti queste diciture
+     che sono in ordinazioni, e' difficile capire cosa mandare cosi' o cosa
+     produrre».
+     Aveva ragione, e la causa l'avevo fatta io. C'erano DUE elenchi di
+     produzione in due schermate, con due regole diverse: quello in Ordini
+     («Da preparare») guardava la giacenza del laboratorio contro il LIVELLO
+     DEL LABORATORIO, e quello che avevo aggiunto in gen-5.88 guardava quanto
+     vogliono le LINEE. Sui dati veri il primo diceva «da fare 2» e il secondo
+     «niente»: due numeri diversi per la stessa domanda sono peggio di nessun
+     numero. Adesso il conto e' uno solo e sta qui, dove il laboratorio lavora.
+
+     LA DOMANDA PER OGNI LINEA E' UNA: quanto le manca. Puo' arrivare da due
+     parti — il livello previsto del giorno, e una richiesta esplicita gia' in
+     coda — e si prende la PIU' GRANDE, non la somma. Sommarle raddoppierebbe:
+     una richiesta nasce proprio dal fatto che la linea e' sotto il livello, e
+     conteggiarla due volte farebbe produrre il doppio del necessario.
+
+     IL LIVELLO DI SCORTA DEL LABORATORIO NON ENTRA, e va detto perche' e' una
+     scelta: in produzione vale 3 su tutti e dodici i preparati, cioe' un
+     valore di partenza che non ha scelto nessuno — con 49 supplì in casa
+     chiederebbe lo stesso di farne altri. Quando quei livelli saranno decisi
+     davvero, questo e' il punto in cui rientrano. */
   const pianoDi = (g) => {
     const out = [];
     for (const { a, p } of preparatiLab) {
-      let vogliono = 0, hannoGia = 0, dove = 0;
+      let serve = 0, hannoGia = 0, dove = 0, chiesto = 0;
       for (const l of lineeLab) {
         const al = (l.articoli || []).find((x) => x.prodottoId === p.id);
         if (!al) continue;
         dove++;
         /* tutto nell'unità del laboratorio: è quella in cui si produce */
-        const inLab = (q) => (al.uomId === a.uomId ? q : (converti(p, q, al.uomId, a.uomId) ?? q));
-        vogliono += inLab(parDi(al, g));
-        hannoGia += inLab(al.qty);
+        const inLab = (q, da) => (da === a.uomId ? q : (converti(p, q, da, a.uomId) ?? q));
+        hannoGia += inLab(al.qty, al.uomId);
+        const sottoLivello = Math.max(0, parDi(al, g) - al.qty);
+        const inCoda = attive
+          .filter((r) => r.prodottoId === p.id && r.daMagazzinoId === l.id)
+          .reduce((t, r) => t + inLab(r.qty, r.uomId), 0);
+        chiesto += inCoda;
+        serve += Math.max(inLab(sottoLivello, al.uomId), inCoda);
       }
-      if (!dove || vogliono <= 0) continue;
-      const manca = vogliono - hannoGia - a.qty;
+      if (!dove || serve <= 0) continue;
+      const manca = serve - a.qty;
       const fare = p.soloInteri ? Math.ceil(Math.max(0, manca) - 1e-9) : +Math.max(0, manca).toFixed(2);
-      out.push({ p, a, vogliono: +vogliono.toFixed(2), hannoGia: +hannoGia.toFixed(2), fare, dove });
+      /* ── GLI INGREDIENTI BASTANO? ──
+         È il controllo che un piano di produzione serio fa sempre e che qui
+         mancava: sapere che ne servono 15 non serve a niente se il riso basta
+         per 10. Meglio saperlo adesso che davanti alla pentola. Senza ricetta
+         non si può dire niente, e infatti non si dice niente. */
+      let quantiPosso = null, chiManca = null;
+      if (fare > 0 && conRicetta(p)) {
+        const c = calcoloProduzione(stato, { magProd: magLab, prod: p, quanto: fare, uomFatto: a.uomId });
+        if (c.righe.length) {
+          let peggio = Infinity, colpevole = null;
+          for (const r of c.righe) {
+            const quota = r.quanto > 0 ? r.prima / r.quanto : Infinity;
+            if (quota < peggio) { peggio = quota; colpevole = r.nome; }
+          }
+          if (peggio < 1) {
+            quantiPosso = p.soloInteri ? Math.floor(fare * peggio + 1e-9) : +(fare * peggio).toFixed(2);
+            chiManca = colpevole;
+          }
+        }
+      }
+      out.push({ p, a, serve: +serve.toFixed(2), hannoGia: +hannoGia.toFixed(2), chiesto: +chiesto.toFixed(2),
+        fare, dove, quantiPosso, chiManca });
     }
     return out.sort((x, y) => y.fare - x.fare);
   };
@@ -9874,11 +9929,6 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
   const [piano, setPiano] = useState(false);
   const [quando, setQuando] = useState("oggi");
   const pianoVisto = quando === "oggi" ? pianoOggi : pianoDomani;
-
-  const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
-  const attive = mie.filter((r) => r.stato === "in-attesa");
-  const archivio = mie.filter((r) => r.stato !== "in-attesa");
-  const lista = tab === "in-attesa" ? attive : archivio;
 
   const annulla = (r) => {
     const nome = trova(stato.prodotti, r.prodottoId)?.nome || "prodotto";
@@ -10233,7 +10283,7 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                 : `Per ${NOMI_GIORNI[String(domaniG)]} c'è già tutto.`}
             </p>
           )}
-          {pianoVisto.map(({ p, a, fare, vogliono, hannoGia, dove }) => (
+          {pianoVisto.map(({ p, a, fare, serve, hannoGia, chiesto, dove, quantiPosso, chiManca }) => (
             <button key={p.id} onClick={() => { setPiano(false); setProduci({ prodottoId: p.id, quanto: fare }); }}
               className="rounded-2xl px-3.5 py-3 w-full text-left"
               style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
@@ -10245,12 +10295,34 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
               {/* il conto in chiaro: chi legge deve poter rifare la somma, se
                   no il numero è un oracolo e non ci si fida */}
               <div className="text-xs mt-1" style={{ color: T.dim }}>
-                {dove === 1 ? "1 linea vuole" : `${dove} linee vogliono`} {fmtQ(vogliono)} · ne hanno già
-                {" "}{fmtQ(hannoGia)} · in laboratorio {fmtQ(a.qty)}
+                Manca {fmtQ(serve)} {simboloU(stato, a.uomId)} {dove === 1 ? "a 1 linea" : `su ${dove} linee`}
+                {chiesto > 0 && <span> · di cui <b style={{ color: T.ink }}>{fmtQ(chiesto)} già chiesti</b></span>}
+                {" "}· in laboratorio {fmtQ(a.qty)}
                 {!conRicetta(p) && <span style={{ color: T.ambra, fontWeight: 700 }}> · nessuna ricetta</span>}
               </div>
+              {/* il controllo che qui mancava: sapere che ne servono 15 non
+                  serve a niente se il riso basta per 10 */}
+              {quantiPosso != null && (
+                <div className="text-xs mt-1.5 rounded-xl px-2.5 py-1.5 font-bold"
+                  style={{ background: "#FCEEF1", color: T.rosso }}>
+                  {quantiPosso > 0
+                    ? `Gli ingredienti bastano per ${fmtQ(quantiPosso)}: manca «${chiManca}»`
+                    : `Non si può farne: manca «${chiManca}»`}
+                </div>
+              )}
             </button>
           ))}
+          {/* una scelta dichiarata, non un silenzio: il livello di scorta del
+              laboratorio non entra in questo conto finché vale lo stesso
+              numero su tutti i preparati, cioè finché è un valore di partenza
+              e non una decisione. */}
+          {pianoVisto.length > 0 && (
+            <p className="text-xs leading-relaxed" style={{ color: T.tenue }}>
+              Il conto guarda <b>quanto manca alle linee</b>. La scorta che il laboratorio tiene per
+              sé non ci entra: oggi quel livello vale lo stesso numero su tutti i preparati, quindi
+              non è una scelta di nessuno. Quando lo deciderete, si aggiunge qui.
+            </p>
+          )}
         </div>
       </Foglio>
 
@@ -10601,21 +10673,6 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
   /* le cose da preparare le vede chi le prepara (il laboratorio, sui suoi
      magazzini) e chi guarda tutto (l'admin). A un operatore di sede non serve:
      non è lui che le fa, e in Ordini avrebbe solo una scheda in più da saltare. */
-  const daPreparare = (() => {
-    const out = [];
-    for (const m of stato.magazzini) {
-      if (m.tipo !== "laboratorio") continue;
-      if (profilo.ruolo !== "admin" && m.sedeId !== profilo.sedeId) continue;
-      for (const a of m.articoli || []) {
-        const p = trova(stato.prodotti, a.prodottoId);
-        if (!p || !preparato(p)) continue;
-        const manca = parOggi(a) - a.qty;
-        if (manca <= 1e-9) continue;
-        out.push({ mag: m, prod: p, art: a, manca });
-      }
-    }
-    return out.sort((x, y) => y.manca - x.manca || x.prod.nome.localeCompare(y.prod.nome));
-  })();
   /* ── IL BUCO CHE NON SI VEDEVA ──
      Un preparato che manca in una linea o in un retro diventa una richiesta al
      laboratorio. Ma se la sede non ha un laboratorio a cui chiedere, la
@@ -10816,45 +10873,28 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
         </Scheda>
       )}
 
-      {/* ── DA PREPARARE ──
-          I preparati sotto il livello previsto nei magazzini di laboratorio.
-          Non è una riga d'ordine e non si scrive da nessuna parte: è la stessa
-          domanda che l'app fa già ai magazzini («quanto manca per stare a
-          livello»), fatta sulle cose che non si comprano. Se cambia una
-          giacenza questo elenco cambia da solo, senza niente da aggiornare —
-          ed è il motivo per cui non ho inventato un finto ordine al posto suo. */}
-      {daPreparare.length > 0 && (
+      {/* ── DOV'È FINITO «DA PREPARARE» ──
+          Stava qui e contava contro il livello di scorta del laboratorio — che
+          in produzione vale lo stesso numero su tutti e dodici i preparati,
+          cioè un valore di partenza e non una decisione. Intanto in Richieste
+          ne era nato un secondo, che contava quanto manca alle LINEE. Due
+          elenchi in due schermate con due regole diverse: sui dati veri uno
+          diceva «da fare 2» e l'altro «niente». Due numeri diversi per la
+          stessa domanda sono peggio di nessun numero, quindi ne resta uno, e
+          sta dove il laboratorio lavora. */}
+      {profilo.ruolo === "laboratorio" && (
         <Scheda className="p-4 mb-3">
-          <div className="flex items-center gap-3 flex-wrap mb-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="rounded-2xl p-2.5" style={{ background: "#E1F5FA", color: T.ciano }}>
               <FlaskConical size={18} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-extrabold" style={{ color: T.ink }}>Da preparare · {daPreparare.length}</div>
+              <div className="font-extrabold" style={{ color: T.ink }}>Cosa produrre sta in «Richieste»</div>
               <div className="text-xs" style={{ color: T.dim }}>
-                Queste non si comprano: si fanno in laboratorio. Nessun fornitore, nessun ordine.
+                Lì c'è un elenco solo, che conta quanto manca alle linee e dice se gli
+                ingredienti bastano. Qui restava un secondo conto che diceva un'altra cosa.
               </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {daPreparare.map((x) => (
-              <div key={x.mag.id + x.prod.id} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 flex-wrap"
-                style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}` }}>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold truncate" style={{ color: T.ink }}>{x.prod.nome}</div>
-                  <div className="text-xs" style={{ color: T.tenue }}>
-                    {x.mag.nome} · ce ne sono {fmtQ(x.art.qty)} su {fmtQ(parOggi(x.art))} {simboloU(stato, x.art.uomId)}
-                  </div>
-                </div>
-                {/* «+7» col verde qui sarebbe una bugia di colore: altrove nell'app
-                    il verde vuol dire «a livello» e il «+» vuol dire «ce n'è in più
-                    del previsto». Questo numero è l'opposto — è quanto manca — e va
-                    detto con la parola e col colore di quello che manca. */}
-                <span className="font-extrabold whitespace-nowrap" style={{ color: T.ambra }}>
-                  da fare {fmtQ(x.manca)} {simboloU(stato, x.art.uomId)}
-                </span>
-              </div>
-            ))}
           </div>
         </Scheda>
       )}

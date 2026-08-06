@@ -1,15 +1,14 @@
 # Supply Chain Pro · scegli l'ordine dei lavori
 
-_Aggiornata il 5 agosto · in cucina gira **gen-5.88**_
+_Aggiornata il 6 agosto · in cucina gira **gen-5.89**_
 
 > **Per scegliere:** rispondimi in chat con i numeri nell'ordine che vuoi.
-> Esempio: «fai 3, poi 1, poi 5».
 
 ## Dove siamo adesso
 
-**In cucina** — gen-5.88 — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco, l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la Plancia che conta quello che ha toccato davvero le dosi che le scrive chi cucina il laboratorio che prepara prima e manda dopo e il piano di lavoro del laboratorio. Tutto online.
+**In cucina** — gen-5.89 — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco, l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la Plancia che conta quello che ha toccato davvero le dosi che le scrive chi cucina il laboratorio che prepara prima e manda dopo e un piano di lavoro solo, che dice anche se gli ingredienti bastano. Tutto online.
 
-**Fatto oggi** — Nove versioni, da gen-5.80 a gen-5.88: la sovrascrittura fra telefoni, il salvataggio contato due volte, le conversioni in blocco, l'annulla che le disfa, il laboratorio che produce dalla richiesta il conto vero della Plancia e le ricette scrivibili dal laboratorio. Più i collaudi che adesso aprono le schede: da zero a 116. Restano quattro difetti e tre migliorie.
+**Fatto oggi** — Dieci versioni, da gen-5.80 a gen-5.89: la sovrascrittura fra telefoni, il salvataggio contato due volte, le conversioni in blocco, l'annulla che le disfa, il laboratorio che produce dalla richiesta il conto vero della Plancia e le ricette scrivibili dal laboratorio. Più i collaudi che adesso aprono le schede: da zero a 116. Restano quattro difetti e tre migliorie.
 
 **Aspetto te** — Un giro di ricarica su tutti i telefoni: chi tiene l'app aperta da ieri usa ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno — ma finché resta aperta può ancora sovrascrivere. Chiuderla e riaprirla basta. · I sette giorni (qui sopra) · il PIN dell'admin, che è ancora quello di partenza e va cambiato dall'app · le dosi di una ricetta, una qualsiasi, per provare il giro intero.
 

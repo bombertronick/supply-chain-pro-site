@@ -111,9 +111,17 @@ const t = (await scheda().innerText()).replace(/\s+/g, " ");
 ok(/Supplì nostrum/.test(t), "c'è il supplì, che manca");
 ok(!/Crocchetta patate/.test(t), "e NON c'è la crocchetta, che è a livello");
 ok(/\b15\b/.test(t), `da produrre 15: 30 voluti − 10 in linea − 5 in laboratorio — «${t.slice(0, 150)}»`);
-ok(/1 linea vuole 30/.test(t), "e il conto è scritto: «1 linea vuole 30»");
-ok(/ne hanno già 10/.test(t), "«ne hanno già 10»");
+/* gen-5.89 ha riscritto questa riga, e la riscrittura è giusta: prima
+   esponeva i due numeri lordi («1 linea vuole 30 · ne hanno già 10»), adesso
+   espone quello netto («Manca 20»). Il motivo è che il fabbisogno può venire
+   dal livello del giorno O da una richiesta già in coda — si prende il più
+   grande dei due — e «vogliono 30» non saprebbe più dire quale dei due è.
+   La somma resta rifacibile a mano, che è la cosa che questi controlli
+   difendono: 20 mancanti − 5 in laboratorio = 15 da fare. */
+ok(/Manca 20 pz a 1 linea/.test(t), "e il conto è scritto: «Manca 20 pz a 1 linea»");
 ok(/in laboratorio 5/.test(t), "«in laboratorio 5»");
+ok(/\b15\b/.test(t) && /Manca 20/.test(t) && /in laboratorio 5/.test(t),
+  "e i tre numeri tornano: 20 − 5 = 15");
 ok(/nessuna ricetta/.test(t), "e avvisa che senza ricetta non scalerà ingredienti");
 
 /* ═══ 3. IL CONTROCONTROLLO: IL NUMERO VIENE DALLE LINEE, NON DAL LABORATORIO ═══
