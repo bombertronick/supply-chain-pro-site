@@ -252,7 +252,15 @@ const MAX_PROF = 2;             // due livelli: e' li' che stanno quelle vere
    Quindi chi assomiglia a una porta importante si prova PER PRIMO. Non e' un
    elenco di passi scritti a mano — la scoperta resta generica e trova anche
    quello che non ho previsto — e' solo un ordine di precedenza. */
-const PRIMA_QUESTI = /gestione rapida|ho prodotto|evadi|ricezione|merce arrivat|importa|trasferi|inventario/i;
+/* «cambia» sta qui dal 6 agosto, ed e' il caso piu' istruttivo dei tre.
+   «Evadi richiesta» non si apre da un tasto che si chiama come lei: si apre da
+   uno scritto «Cambia». Nessuna regola generica poteva indovinarlo, ed e'
+   proprio per questo che ci va messo A MANO: la scoperta automatica trova
+   quello che si chiama come quello che fa, e le porte che portano un altro
+   nome le trova solo chi le ha viste. Il rischio dichiarato era «vorrebbe dire
+   premere ogni Cambia dell'app»: e' solo una precedenza, non un tasto in piu',
+   e il tetto sui tentativi resta quello di prima. */
+const PRIMA_QUESTI = /gestione rapida|ho prodotto|da produrre|evadi|cambia|ricezione|merce arrivat|importa|trasferi|inventario/i;
 const SCHEDE_CHE_CONTANO = ["Rettifica giacenza", "Registra scarto", "Ricezione merce",
   "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato"];
 
