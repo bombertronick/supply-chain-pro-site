@@ -261,6 +261,19 @@ const MAX_PROF = 2;             // due livelli: e' li' che stanno quelle vere
    premere ogni Cambia dell'app»: e' solo una precedenza, non un tasto in piu',
    e il tetto sui tentativi resta quello di prima. */
 const PRIMA_QUESTI = /gestione rapida|ho prodotto|da produrre|evadi|cambia|ricezione|merce arrivat|importa|trasferi|inventario/i;
+/* ── E DUE LIVELLI DI PRECEDENZA, NON UNO (6 agosto) ──
+   Una precedenza sola non bastava, e il rapporto del giro completo ha detto
+   perche'. Dentro il magazzino del laboratorio ci sono DECINE di tasti «Ho
+   prodotto X», uno per preparato: tutti hanno la stessa precedenza, e
+   l'ordinamento e' stabile, quindi restano nell'ordine in cui stanno a
+   schermo. Si mangiano tutti e undici i tentativi, e «Gestione rapida» — che
+   e' UNA sola e sta in fondo alla scheda — non veniva mai provata.
+   Non era «il permesso e' sbagliato nel banco di prova», come avevo scritto:
+   il permesso c'era (il laboratorio ha «pieno» su casa sua, e l'admin su
+   tutto). Era una porta sola che perdeva la fila contro trenta porte uguali.
+   Quindi: le porte che esistono UNA VOLTA SOLA per schermata passano davanti
+   a quelle che si ripetono riga per riga. */
+const PORTE_UNICHE = /gestione rapida|inventario|importa|assegna|copia da|da produrre/i;
 const SCHEDE_CHE_CONTANO = ["Rettifica giacenza", "Registra scarto", "Ricezione merce",
   "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato"];
 
@@ -318,7 +331,7 @@ const giroSchede = async (p, r, dove, out, prof = 1) => {
     const e = await etichettaDi(el);
     if (!e || NON_APRONO.test(e) || NON_TOCCARE.test(e)) continue;
     if (lista.some((x) => x.e === e)) continue;
-    lista.push({ i, e, pri: PRIMA_QUESTI.test(e) ? 0 : 1 });
+    lista.push({ i, e, pri: PORTE_UNICHE.test(e) ? 0 : PRIMA_QUESTI.test(e) ? 1 : 2 });
   }
   lista.sort((a, b) => a.pri - b.pri);
   for (const { i, e } of lista.slice(0, prof === 1 ? MAX_TENTATIVI : MAX_TENTATIVI_DENTRO)) {
