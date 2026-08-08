@@ -191,7 +191,7 @@
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Dieci lavori online</b>: otto difetti del consiglio su undici, la
   schermata per scrivere le dosi delle ricette, e un difetto che ho trovato io strada facendo.
-  Da scegliere restano <b>tre difetti</b> e le <b>tre</b> modifiche che erano già in lista.
+  Da scegliere restano <b>due difetti</b> e le <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -199,7 +199,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.89</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-5.90</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -255,8 +255,7 @@
     <div class="schede" id="lista-difetti">
       <button type="button" class="voce" aria-pressed="false" data-id="gen555-rosso" aria-label="Un collaudo è rosso da giorni e non me n'ero accorta — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Un collaudo è rosso da giorni e non me n'ero accorta</span><p class="desc">Trovato stasera per caso, facendo la regressione. Il collaudo «gen555test» ha cinque controlli rossi sulle richieste al laboratorio — la parte che tiene separato «quanto è di livello» da «quanto è stato chiesto in più». NON l'ho rotto oggi: era già rosso su gen-5.75, cioè da prima di tutte le versioni di ieri e oggi. Non so ancora se è un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che è l'una o l'altra prima di averlo guardato. È sfuggito perché a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non è solo capire questo caso, è accorgersi prima del prossimo.</p><span class="meta"><span class="tag t-dati">da capire</span><span class="tag t-mis">piccolo</span></span></span></button>
       <button type="button" class="voce" aria-pressed="false" data-id="offline-bugia" aria-label="«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è</span><p class="desc">Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito.</p><span class="meta"><span class="tag t-sic">difetto</span><span class="tag t-mis">medio</span></span></span></button>
-      <button type="button" class="voce" aria-pressed="false" data-id="conto-vero-schede" aria-label="Lo stesso conto gonfiato, in altre cinque schede — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Lo stesso conto gonfiato, in altre cinque schede</span><p class="desc">Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi.</p><span class="meta"><span class="tag t-dati">difetto</span><span class="tag t-mis">piccolo</span></span></span></button>
-          </div>
+                </div>
   </section>
 
   <section>
@@ -284,6 +283,18 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 6 agosto · <b>gen-5.90</b> · il conto vero anche nelle altre schede</h4>
+        <p>Secondo lavoro della tua lista. Era lo stesso difetto della Plancia, in altre schede:
+        scrivevano «2 prodotti aggiornati» contando quello che avevi <em>spuntato</em>, mentre il
+        codice saltava in silenzio le righe che non trovava più. <b>Riprodotto dal vivo</b> prima
+        di toccarlo: «Livello previsto aggiornato su 2 prodotti» con uno solo davvero cambiato.</p>
+        <p><b>Le schede erano sei, non cinque.</b> Cercandole una per una ne è saltata fuori una
+        che il mio giro del 5 agosto non aveva contato: «rimuovi prodotti». Adesso tutte e sei
+        contano quello che hanno toccato e dicono «· N saltati» quando qualcosa resta fuori, col
+        motivo giusto — «non ci sono più qui», oppure «c'erano già» dove il caso è quello.</p>
+        <p>Se non si tocca niente, adesso l'app <b>lo dice e si ferma</b>, invece di annunciare un
+        lavoro fatto su zero righe.</p>
+
         <h4>Il 6 agosto · <b>i collaudi</b> · le tre schede che non si aprivano adesso si aprono</h4>
         <p>Primo lavoro della tua lista. Erano tre schede su otto che il giro automatico non
         apriva mai: «Gestione rapida», «Ho prodotto», «Evadi richiesta». Adesso le apre tutte —

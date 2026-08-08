@@ -1,12 +1,12 @@
 # Supply Chain Pro · scegli l'ordine dei lavori
 
-_Aggiornata il 6 agosto · in cucina gira **gen-5.89**_
+_Aggiornata il 6 agosto · in cucina gira **gen-5.90**_
 
 > **Per scegliere:** rispondimi in chat con i numeri nell'ordine che vuoi.
 
 ## Dove siamo adesso
 
-**In cucina** — gen-5.89 — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco, l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la Plancia che conta quello che ha toccato davvero le dosi che le scrive chi cucina il laboratorio che prepara prima e manda dopo e un piano di lavoro solo, che dice anche se gli ingredienti bastano. Tutto online.
+**In cucina** — gen-5.90 — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco, l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la Plancia che conta quello che ha toccato davvero le dosi che le scrive chi cucina il laboratorio che prepara prima e manda dopo e un piano di lavoro solo, che dice anche se gli ingredienti bastano. Tutto online.
 
 **Fatto oggi** — Dieci versioni, da gen-5.80 a gen-5.89: la sovrascrittura fra telefoni, il salvataggio contato due volte, le conversioni in blocco, l'annulla che le disfa, il laboratorio che produce dalla richiesta il conto vero della Plancia e le ricette scrivibili dal laboratorio. Più i collaudi che adesso aprono le schede: da zero a 116. Restano quattro difetti e tre migliorie.
 
@@ -30,29 +30,23 @@ __
 
 Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito.
 
-### 3. Lo stesso conto gonfiato, in altre cinque schede
-
-__
-
-Oggi ho sistemato la Plancia: adesso conta le caselle che ha toccato davvero, non quelle che avevi spuntato. Finito quello sono andata a cercare se lo stesso errore fosse anche altrove, e c’è: cinque schede di modifica in blocco dentro i Magazzini e il Catalogo scrivono «N prodotti aggiornati» contando la SELEZIONE, mentre il codice che lavora salta in silenzio quello che non trova più — «livello previsto», «soglie per giorno», «sposta in un altro magazzino», «aggiungi prodotti» e la modifica in blocco del Catalogo. È lo stesso difetto e la stessa finestra: da quando due telefoni lavorano insieme, fra lo spuntare e il premere qualcun altro può aver tolto una riga. Meno grave della Plancia — lì si sceglie a colpo d’occhio su tutta la sede, qui dentro un magazzino solo — ma la bugia è identica. Una mezz’ora, ed è lo stesso schema già scritto e già collaudato oggi.
-
 ---
 
 ## Le migliorie da scegliere
 
-### 4. Una sessione di pesatura, con la bilancia in mano
+### 3. Una sessione di pesatura, con la bilancia in mano
 
 __
 
 Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima.
 
-### 5. PIN più robusti
+### 4. PIN più robusti
 
 __
 
 Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore.
 
-### 6. Chi deve vedere gli acquisti del laboratorio?
+### 5. Chi deve vedere gli acquisti del laboratorio?
 
 __
 

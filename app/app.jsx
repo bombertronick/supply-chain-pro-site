@@ -5260,6 +5260,11 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     if (campo === "conv") return salvaConv();
     if (!valore) return mostraToast("Scegli il valore da assegnare", "errore");
+    /* stesso conto vero: qui il ciclo gira sui prodotti a catalogo, e uno
+       cancellato da un altro telefono non c'e' piu' */
+    const quanti = stato.prodotti.filter((x) => sel.has(x.id)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più a catalogo", "errore");
     muta((s) => {
       for (const p of s.prodotti) {
         if (!sel.has(p.id)) continue;
@@ -5275,10 +5280,11 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         if (valore === "si") { p.preparato = true; p.fornSede = {}; }
         else delete p.preparato;
       }
-    }, `${sel.size} prodotti · ${etichetta} aggiornata`);
-    mostraToast(orfaniDopo
-      ? `${sel.size} aggiornati · ${orfaniDopo} sono rimasti senza fornitore: vanno assegnati`
-      : `${sel.size} prodotti aggiornati`, orfaniDopo ? "avviso" : "ok");
+    }, fuori ? `${quanti} prodotti · ${etichetta} aggiornata · ${fuori} saltati`
+      : `${quanti} prodotti · ${etichetta} aggiornata`);
+    mostraToast(fuori ? `${quanti} aggiornati · ${fuori} saltati: non sono più a catalogo`
+      : orfaniDopo ? `${quanti} aggiornati · ${orfaniDopo} sono rimasti senza fornitore: vanno assegnati`
+      : `${quanti} prodotti aggiornati`, (fuori || orfaniDopo) ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -7473,6 +7479,13 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     const nPar = num(par) ?? 0;
     if (nPar < 0) return mostraToast("Livello previsto non valido", "errore");
+    /* qui il ciclo salta chi e' GIA' nel magazzino: se un altro telefono ce
+       l'ha appena messo, non lo si aggiunge due volte — giusto — ma dirlo
+       aggiunto sarebbe falso */
+    const quanti = stato.prodotti.filter((x) => sel.has(x.id)
+      && !mag.articoli.some((a) => a.prodottoId === x.id)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Sono già tutti in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const p of s.prodotti) {
@@ -7480,8 +7493,10 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
         m.articoli.push({ prodottoId: p.id, uomId: p.uomBase, par: nPar, qty: 0 });
         registraMov(s, { magId: m.id, prodottoId: p.id, uomId: p.uomBase, delta: 0, dopo: 0, causale: "articolo", chi: profilo?.nome });
       }
-    }, `${sel.size} prodotti aggiunti in «${mag.nome}»`);
-    mostraToast(`${sel.size} prodotti aggiunti · livello e quantità da rifinire`);
+    }, fuori ? `${quanti} prodotti aggiunti in «${mag.nome}» · ${fuori} c'erano già`
+      : `${quanti} prodotti aggiunti in «${mag.nome}»`);
+    mostraToast(fuori ? `${quanti} aggiunti · ${fuori} c'erano già`
+      : `${quanti} prodotti aggiunti · livello e quantità da rifinire`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -7602,6 +7617,9 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
     const nff = num(ff), nfw = num(fw);
     if (nff == null || nff < 0 || nfw == null || nfw < 0) return mostraToast("Moltiplicatori non validi", "errore");
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const a of m.articoli) {
@@ -7611,8 +7629,11 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         const fer = r2(base * nff), wk = r2(base * nfw);
         a.parGiorni = { "1": fer, "2": fer, "3": fer, "4": fer, "5": fer, "6": wk, "0": wk };
       }
-    }, `Soglie per giorno aggiornate su ${sel.size} prodotti in «${mag.nome}»`);
-    mostraToast(nff === 1 && nfw === 1 ? "Soglie per giorno azzerate (livello unico)" : `Soglie per giorno impostate su ${sel.size} prodotti`);
+    }, fuori ? `Soglie per giorno aggiornate su ${quanti} prodotti in «${mag.nome}» · ${fuori} saltati`
+      : `Soglie per giorno aggiornate su ${quanti} prodotti in «${mag.nome}»`);
+    mostraToast(fuori ? `${quanti} aggiornati · ${fuori} saltati: non ci sono più in questo magazzino`
+      : nff === 1 && nfw === 1 ? "Soglie per giorno azzerate (livello unico)" : `Soglie per giorno impostate su ${quanti} prodotti`,
+      fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -7679,6 +7700,16 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
     const nPar = cambiaPar ? num(par) : null;
     if (cambiaPar && (nPar == null || nPar < 0)) return mostraToast("Livello previsto non valido", "errore");
     if (!cambiaPar && !uom) return mostraToast("Imposta un livello o un'unità (o entrambi)", "errore");
+    /* ── IL CONTO VERO, COME NELLA PLANCIA (gen-5.90) ──
+       Il ciclo qui sotto salta in silenzio le righe che non trova piu', ma il
+       messaggio contava la SELEZIONE. Da gen-5.80 due telefoni lavorano
+       davvero insieme: fra lo spuntare e il premere, un altro puo' aver tolto
+       quella riga. Un'app che dice «fatto» su cose che non ha toccato e'
+       peggio di una che rifiuta — chi ha premuto va via convinto, e chi legge
+       lo storico non ha modo di accorgersene. */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const a of m.articoli) {
@@ -7686,8 +7717,10 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         if (cambiaPar) a.par = nPar;
         if (uom) a.uomId = uom;
       }
-    }, `Livello previsto aggiornato su ${sel.size} prodotti in «${mag.nome}»`);
-    mostraToast(`Aggiornati ${sel.size} prodotti`);
+    }, fuori ? `Livello previsto aggiornato su ${quanti} prodotti in «${mag.nome}» · ${fuori} saltati`
+      : `Livello previsto aggiornato su ${quanti} prodotti in «${mag.nome}»`);
+    mostraToast(fuori ? `Aggiornati ${quanti} · ${fuori} saltati: non ci sono più in questo magazzino`
+      : `Aggiornati ${quanti} prodotti`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -7754,6 +7787,11 @@ function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const sposta = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     if (!dest) return mostraToast("Scegli il magazzino di destinazione", "errore");
+    /* stesso conto vero: qui il ciclo fa «if (!a) continue» sulle righe che
+       non trova, e il messaggio le contava lo stesso */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       const d = trova(s.magazzini, destId);
@@ -7772,21 +7810,30 @@ function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
         if (a.qty > 0) registraMov(s, { magId: m.id, prodottoId: pid, uomId: a.uomId, delta: -a.qty, dopo: 0, causale: "trasferimento", chi: profilo?.nome, rif: `a «${d.nome}»` });
       }
       m.articoli = m.articoli.filter((x) => !sel.has(x.prodottoId));
-    }, `${sel.size} prodotti spostati da «${mag.nome}» a «${dest.nome}»`);
-    mostraToast(`${sel.size} prodotti spostati in «${dest.nome}»`);
+    }, fuori ? `${quanti} prodotti spostati da «${mag.nome}» a «${dest.nome}» · ${fuori} saltati`
+      : `${quanti} prodotti spostati da «${mag.nome}» a «${dest.nome}»`);
+    mostraToast(fuori ? `${quanti} spostati · ${fuori} saltati: non ci sono più qui`
+      : `${quanti} prodotti spostati in «${dest.nome}»`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
   const linee = lineeDelLab(stato, mag);
   const rimuovi = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    /* la sesta, che nel giro del 5 agosto non avevo contato: togliArticolo
+       non trova la riga e restituisce zero senza dire niente, e il messaggio
+       contava la selezione */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => { for (const pid of sel) togliArticolo(s, mag.id, pid); },
-      linee.length
-        ? `${sel.size} prodotti rimossi da «${mag.nome}» e dalle linee rifornite`
-        : `${sel.size} prodotti rimossi da «${mag.nome}»`);
-    mostraToast(linee.length
-      ? `${sel.size} prodotti rimossi, qui e nelle linee rifornite`
-      : `${sel.size} prodotti rimossi (restano a catalogo)`);
+      (linee.length
+        ? `${quanti} prodotti rimossi da «${mag.nome}» e dalle linee rifornite`
+        : `${quanti} prodotti rimossi da «${mag.nome}»`) + (fuori ? ` · ${fuori} saltati` : ""));
+    mostraToast(fuori ? `${quanti} rimossi · ${fuori} saltati: non c'erano più`
+      : linee.length
+      ? `${quanti} prodotti rimossi, qui e nelle linee rifornite`
+      : `${quanti} prodotti rimossi (restano a catalogo)`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 

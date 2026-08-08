@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.89",
-    "len": 719596,
-    "md5": "194410447e87a2235b6054942ae8f99c",
+    "gen": "gen-5.90",
+    "len": 723149,
+    "md5": "d5f26b6b5949114e8c3dccb562d6f273",
     "quando": "2026-08-06",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -38,15 +38,18 @@
       "dove": "altro",
       "prova": null,
       "_prova_perche": "e' una decisione di Valerio su come lavora, non un difetto."
-    },
-    {
-      "id": "conto-vero-schede",
-      "dove": "difetti",
-      "prova": null,
-      "_prova_perche": "non ancora scritta. Trovato il 5 agosto subito dopo gen-5.85, cercando apposta se lo stesso errore fosse altrove: cinque schede di modifica in blocco (livello previsto, soglie per giorno, sposta, aggiungi prodotti, modifica in blocco del Catalogo) scrivono il conto della SELEZIONE mentre il ciclo dentro muta() salta in silenzio quello che non trova. Stesso difetto della Plancia, stessa finestra dei due telefoni, riquadro piu piccolo."
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.90",
+      "chiude": [
+        "conto-vero-schede"
+      ],
+      "prova": "contoveroschedetest.mjs",
+      "cosa": "Il conto vero di gen-5.85 esteso alle altre schede di modifica in blocco: livello previsto, soglie per giorno, sposta, aggiungi, modifica in blocco del Catalogo e rimuovi. Ognuna conta quello che ha toccato e dice «N saltati» col motivo giusto; se non tocca niente si ferma invece di annunciare il lavoro.",
+      "_nota": "LE SCHEDE ERANO SEI, NON CINQUE: cercandole una per una ne e saltata fuori una che nel giro del 5 agosto non avevo contato, «rimuovi prodotti». Difetto riprodotto dal vivo prima della correzione: «Livello previsto aggiornato su 2 prodotti» con uno solo cambiato."
+    },
     {
       "gen": null,
       "chiude": [
