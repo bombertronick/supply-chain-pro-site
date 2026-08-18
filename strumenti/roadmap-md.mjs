@@ -64,9 +64,13 @@ const md = [
   ...dd.flatMap(([t, d]) => [`**${t}** — ${d}`, ""]),
   "---",
   "",
-  `## ${difetti.length === 1 ? "Il difetto da scegliere" : "I difetti da scegliere"}`,
-  "",
-  ...difetti.map(scheda),
+  /* zero difetti non e' un caso da nascondere: e' la notizia. Il titolo lo
+     dice, invece di lasciare una sezione vuota che sembra un errore. */
+  ...(difetti.length
+    ? [`## ${difetti.length === 1 ? "Il difetto da scegliere" : "I difetti da scegliere"}`, "",
+       ...difetti.map(scheda)]
+    : ["## Difetti da scegliere: nessuno", "",
+       "Quelli del consiglio sono chiusi, e con loro i due trovati strada facendo.", ""]),
   "---",
   "",
   "## Le migliorie da scegliere",

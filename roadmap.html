@@ -191,8 +191,9 @@
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>Dodici lavori online</b>: nove difetti del consiglio su undici, la
   schermata per scrivere le dosi delle ricette, un difetto che ho trovato io strada facendo, e
-  la <b>Memoria</b> che mi hai chiesto ieri sera. Da scegliere resta <b>un difetto</b> e le
-  <b>tre</b> modifiche che erano già in lista.
+  la <b>Memoria</b> che mi hai chiesto ieri sera. <b>Di difetti non ne resta nessuno</b>: l'ultimo
+  era il collaudo rosso, e stasera ho capito perché. Da scegliere restano le <b>tre</b> modifiche
+  che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -212,7 +213,9 @@
       più «sincronizzato con tutta la rete» quando la rete non ha risposto, e la spia adesso si
       vede anche sul telefono. <b>gen-5.92</b> è la <b>Memoria</b> che mi hai chiesto: una
       schermata dentro l'app, sotto Gestione, dove tieni scritto quello che devo ricordare fra
-      una conversazione e l'altra. Resta <b>un</b> difetto e <b>tre</b> migliorie.</dd>
+      una conversazione e l'altra. E il <b>collaudo rosso da giorni</b> adesso è verde: non era un
+      difetto dell'app, era il collaudo che era invecchiato — sotto trovi cosa è successo, perché
+      è la cosa più utile della giornata. Restano <b>tre</b> migliorie e <b>zero</b> difetti.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
       ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
@@ -249,25 +252,20 @@
   </div>
 
   <section>
-    <p class="eti" style="color:var(--rosso)">Da scegliere · difetti</p>
-    <h2>Una cosa che oggi funziona male</h2>
-    <p class="guida">Ne era rimasta una sola: le altre dieci del consiglio sono online. Accanto
-    c'è quanto pesa davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia.</p>
-    <div class="istruzione" style="margin:0 0 1rem">
-      <b>Questa non riguarda l'app che usi, riguarda i miei collaudi.</b> Non può farti
-      sbagliare un numero in cucina. Può però farmi rilasciare una versione rotta senza che me
-      ne accorga, ed è per questo che non l'ho tolta dalla lista.
-    </div>
-    <div class="schede" id="lista-difetti">
-      <button type="button" class="voce" aria-pressed="false" data-id="gen555-rosso" aria-label="Un collaudo è rosso da giorni e non me n'ero accorta — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Un collaudo è rosso da giorni e non me n'ero accorta</span><p class="desc">Trovato stasera per caso, facendo la regressione. Il collaudo «gen555test» ha cinque controlli rossi sulle richieste al laboratorio — la parte che tiene separato «quanto è di livello» da «quanto è stato chiesto in più». NON l'ho rotto oggi: era già rosso su gen-5.75, cioè da prima di tutte le versioni di ieri e oggi. Non so ancora se è un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che è l'una o l'altra prima di averlo guardato. È sfuggito perché a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non è solo capire questo caso, è accorgersi prima del prossimo.</p><span class="meta"><span class="tag t-dati">da capire</span><span class="tag t-mis">piccolo</span></span></span></button>
-                </div>
-  </section>
+    <p class="eti" style="color:var(--verde)">Da scegliere · difetti</p>
+    <h2>Adesso non ne resta nessuno</h2>
+    <p class="guida">Gli undici del consiglio del 2 agosto sono chiusi, e con loro i due che ho
+    trovato io strada facendo. Questo riquadro resta qui, vuoto, invece di sparire: se domani ne
+    salta fuori uno lo trovi in questo punto.</p>
+    <div class="schede" id="lista-difetti"></div>
+</section>
 
   <section>
     <p class="eti" style="color:var(--blu)">Da scegliere · migliorie</p>
-    <h2>E tre cose che oggi mancano</h2>
-    <p class="guida">Erano già in lista prima del consiglio. Non sono rotture: sono lavori che
-    l'app non sa ancora fare, o decisioni che spettano a te.</p>
+    <h2>Le tre cose che oggi mancano</h2>
+    <p class="guida">Erano già in lista prima del consiglio, e adesso sono l'unica cosa da
+    scegliere. Non sono rotture: sono lavori che l'app non sa ancora fare, o decisioni che
+    spettano a te.</p>
     <div class="schede" id="lista-altro">
       <button type="button" class="voce" aria-pressed="false" data-id="pesatura" aria-label="Una sessione di pesatura, con la bilancia in mano — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Una sessione di pesatura, con la bilancia in mano</span><p class="desc">Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></button>
       <button type="button" class="voce" aria-pressed="false" data-id="pin-forte" aria-label="PIN più robusti — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">PIN più robusti</span><p class="desc">Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore.</p><span class="meta"><span class="tag t-sic">sicurezza</span><span class="tag t-mis">piccolo</span></span></span></button>
@@ -288,6 +286,31 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 18 agosto · <b>i collaudi</b> · il rosso da giorni non era un difetto dell'app</h4>
+        <p>Secondo lavoro della tua lista. Ti avevo detto che non sapevo se fosse un difetto vero
+        o un collaudo invecchiato, e che non volevo dirtelo prima di averlo guardato. <b>Era un
+        collaudo invecchiato</b>, e il motivo è più interessante del difetto.</p>
+        <p>Il collaudo prova il caso «ne ho tre, ma me ne servono due <em>in più</em>». Per dirlo,
+        nell'app si tiene premuto il meno <b>fino a scendere sotto zero</b>: −2 vuol dire «non ne
+        ho, e chiedimene 2 in più». Quando l'ho scritto, il campo del conteggio partiva vuoto e
+        due tocchi bastavano. Poi <b>gen-5.79</b> ha fatto una cosa giusta — nei conteggi si
+        rivede quello che c'è già scritto, quindi il campo parte dalla giacenza vera. Da quel
+        giorno gli stessi due tocchi, partendo da 3, arrivano a 1: che vuol dire «ne ho uno», non
+        «me ne servono due in più». <b>Il gesto è rimasto identico e ha cambiato significato.</b></p>
+        <p><b>E qui viene la parte che conta.</b> Cinque controlli erano rossi, e li vedevo. Ma
+        altri tre erano <em>verdi a vuoto</em>: dicevano «la linea che ha chiesto l'extra resta al
+        suo livello» ed erano verdi solo perché nessuno aveva mai chiesto un extra. Sistemato il
+        gesto e poi rotta l'app apposta per controllare, i rossi diventano <b>sette</b>, non
+        cinque. Cioè: il collaudo non era solo rumoroso, aveva <b>smesso di provare</b> la cosa
+        per cui esiste, e nessuno dei due sintomi lo diceva.</p>
+        <p>Adesso il numero di tocchi non è più scritto a mano: si ricava da dove parte il campo,
+        e c'è un controllo in più che verifica di essere arrivati davvero a −2. Se un domani il
+        punto di partenza cambia ancora, diventa rosso <b>lì</b>, dicendo che è il banco di prova
+        e non l'app — invece di far sembrare rotta l'app per giorni.</p>
+        <p><b>Non l'ho dedotto: me l'ha detto l'app.</b> Quella riga di istruzioni è scritta sulla
+        schermata del conteggio, in italiano. L'avevo sotto gli occhi da giorni e stavo per
+        cercare il difetto nel codice.</p>
+
         <h4>Il 18 agosto · <b>gen-5.92</b> · la Memoria, dentro l'app</h4>
         <p>Me l'hai chiesta ieri sera: «un'app che faccia da memoria per te e per ogni contesto
         che desidero mantenere per te, e devi essere in grado di poter interagire con questa

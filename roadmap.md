@@ -8,7 +8,7 @@ _Aggiornata il 18 agosto · in cucina gira **gen-5.92**_
 
 **In cucina** — gen-5.92 — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco, l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la Plancia che conta quello che ha toccato davvero le dosi che le scrive chi cucina il laboratorio che prepara prima e manda dopo, un piano di lavoro solo, che dice anche se gli ingredienti bastano, la frase sull'offline che dice il vero e la Memoria. Tutto online.
 
-**Fatto oggi** — Due versioni: gen-5.91 toglie la bugia dell'offline — l'app non dice più «sincronizzato con tutta la rete» quando la rete non ha risposto, e la spia adesso si vede anche sul telefono. gen-5.92 è la Memoria che mi hai chiesto: una schermata dentro l'app, sotto Gestione, dove tieni scritto quello che devo ricordare fra una conversazione e l'altra. Resta un difetto e tre migliorie.
+**Fatto oggi** — Due versioni: gen-5.91 toglie la bugia dell'offline — l'app non dice più «sincronizzato con tutta la rete» quando la rete non ha risposto, e la spia adesso si vede anche sul telefono. gen-5.92 è la Memoria che mi hai chiesto: una schermata dentro l'app, sotto Gestione, dove tieni scritto quello che devo ricordare fra una conversazione e l'altra. E il collaudo rosso da giorni adesso è verde: non era un difetto dell'app, era il collaudo che era invecchiato — sotto trovi cosa è successo, perché è la cosa più utile della giornata. Restano tre migliorie e zero difetti.
 
 **Aspetto te** — Un giro di ricarica su tutti i telefoni: chi tiene l'app aperta da ieri usa ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno — ma finché resta aperta può ancora sovrascrivere. Chiuderla e riaprirla basta. · I sette giorni (qui sopra) · il PIN dell'admin, che è ancora quello di partenza e va cambiato dall'app · le dosi di una ricetta, una qualsiasi, per provare il giro intero.
 
@@ -16,31 +16,27 @@ _Aggiornata il 18 agosto · in cucina gira **gen-5.92**_
 
 ---
 
-## Il difetto da scegliere
+## Difetti da scegliere: nessuno
 
-### 1. Un collaudo è rosso da giorni e non me n'ero accorta
-
-_da capire · piccolo_
-
-Trovato stasera per caso, facendo la regressione. Il collaudo «gen555test» ha cinque controlli rossi sulle richieste al laboratorio — la parte che tiene separato «quanto è di livello» da «quanto è stato chiesto in più». NON l'ho rotto oggi: era già rosso su gen-5.75, cioè da prima di tutte le versioni di ieri e oggi. Non so ancora se è un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che è l'una o l'altra prima di averlo guardato. È sfuggito perché a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non è solo capire questo caso, è accorgersi prima del prossimo.
+Quelli del consiglio sono chiusi, e con loro i due trovati strada facendo.
 
 ---
 
 ## Le migliorie da scegliere
 
-### 2. Una sessione di pesatura, con la bilancia in mano
+### 1. Una sessione di pesatura, con la bilancia in mano
 
 _struttura · medio_
 
 Ho stimato 34 conversioni e l’app le tiene marcate come stime. Correggerle una per una dal Catalogo si può, ma chi ha la bilancia in mano vuole un’altra cosa: una schermata che ti porta prodotto per prodotto, un numero grande al centro, «pesato» e avanti. Trenta secondi a prodotto invece di cercarlo nell’elenco ogni volta. Alla fine non resta più nessuna stima.
 
-### 3. PIN più robusti
+### 2. PIN più robusti
 
 _sicurezza · piccolo_
 
 Quattro cifre sono poche e quello dell’admin è ancora quello di partenza. Posso portarli a sei, obbligare il cambio al primo accesso e bloccare i PIN ovvi tipo 1234 o 0000. Finché resta com’è, chiunque sappia com’è fatta l’app entra come amministratore.
 
-### 4. Chi deve vedere gli acquisti del laboratorio?
+### 3. Chi deve vedere gli acquisti del laboratorio?
 
 _struttura · piccolo_
 

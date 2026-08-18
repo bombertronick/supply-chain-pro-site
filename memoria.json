@@ -10,12 +10,6 @@
   },
   "aperti": [
     {
-      "id": "gen555-rosso",
-      "dove": "difetti",
-      "prova": "gen555test.mjs",
-      "_prova_perche": "il collaudo c'e' ed e' ROSSO da almeno gen-5.75: 5 controlli su extraLinea/qtyLivello nelle richieste. Non so ancora se e' un difetto dell'app o un collaudo invecchiato."
-    },
-    {
       "id": "pesatura",
       "dove": "altro",
       "prova": null,
@@ -35,6 +29,17 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": null,
+      "chiude": [
+        "gen555-rosso"
+      ],
+      "prova": "gen555test.mjs",
+      "soloCollaudi": true,
+      "_soloCollaudi_perche": "Il difetto era nel collaudo, non nell app: nessuna versione nuova.",
+      "cosa": "Il collaudo rosso da gen-5.75 era invecchiato, non era un difetto dell app. Prova il caso «ne ho tre ma me ne servono due IN PIU», che nell app si dice tenendo premuto il meno fino a SCENDERE SOTTO ZERO (−2 = «non ne ho, e chiedimene 2 in piu»). Quando l ho scritto il campo del conteggio partiva vuoto e due tocchi bastavano; gen-5.79 ha fatto partire il campo dalla giacenza vera, e da allora gli stessi due tocchi da 3 arrivano a 1, cioe «ne ho uno». Adesso il numero di tocchi si ricava dal punto di partenza (partenza + IN_PIU) e c e un controllo in piu che verifica di essere arrivati davvero a −2.",
+      "_nota": "LA PARTE CHE CONTA: cinque controlli erano rossi e li vedevo, ma altri TRE ERANO VERDI A VUOTO — dicevano «la linea che ha chiesto l extra resta al suo livello» ed erano verdi solo perche nessuno aveva mai chiesto un extra. Sistemato il gesto e poi rotta l app apposta, i rossi diventano SETTE. Il collaudo non era solo rumoroso: aveva SMESSO DI PROVARE la cosa per cui esiste, e nessuno dei due sintomi lo diceva."
+    },
     {
       "gen": "gen-5.92",
       "chiude": [],
@@ -236,6 +241,16 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-18",
+      "dicevo": "(letto un exit code 0 da «node gen555test.mjs | tail -40») Il collaudo stampa i rossi ma esce con 0: ecco perche nessuno se ne accorge.",
+      "invece": "Falso, ed era un artefatto della MIA misura: il codice di uscita di una pipe e quello di tail, non di node. gen555test esce con 1 correttamente. Ho controllato tutti i collaudi e nessuno conta rossi senza uscire con errore. Regola: prima di dare la colpa allo strumento misurato, guardare lo strumento con cui misuro — un «| tail» o un «| head» si mangia il codice di uscita e fa sembrare verde tutto."
+    },
+    {
+      "quando": "2026-08-18",
+      "dicevo": "(per giorni, guardando gen555test rosso) Cinque controlli rossi sulle richieste al laboratorio: o e un difetto dell app o e un collaudo invecchiato.",
+      "invece": "Era il collaudo, e la causa era un GESTO che aveva cambiato significato sotto i piedi: gen-5.79 ha fatto partire il campo del conteggio dalla giacenza invece che da vuoto, e gli stessi due tocchi sul meno da −2 («chiedimene 2 in piu») sono diventati 1 («ne ho uno»). Due regole. PRIMA: quando un collaudo che simula GESTI diventa rosso dopo una modifica all interfaccia, il sospettato numero uno e il significato del gesto, non la logica. Un gesto e un numero di tocchi, e un numero di tocchi non e un intento — va ricavato dallo stato, non scritto a mano. SECONDA, piu importante: dei rossi me ne accorgo, dei VERDI A VUOTO no. Tre controlli passavano perche la scena che dovevano provare non avveniva piu. Percio dopo ogni correzione di un collaudo va rotta l app APPOSTA: se i rossi non aumentano, il collaudo non stava provando quello che dice di provare. Qui sono passati da 5 a 7."
+    },
     {
       "quando": "2026-08-17",
       "dicevo": "(tre volte di fila, sul banco dell'offline) Il collaudo e' rosso, quindi il difetto e' li.",

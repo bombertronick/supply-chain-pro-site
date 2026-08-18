@@ -79,8 +79,34 @@ s1.profili = [
 const O = await apri("Op", "2222", s1, "Conteggi");
 await O.p.getByRole("button", { name: /Conta ora/ }).first().click();
 await O.p.waitForTimeout(1100);
+
+/* IL GESTO, RIMISURATO IL 18 AGOSTO — e per giorni questo collaudo e' stato
+   rosso qui senza che fosse colpa dell'app.
+
+   Cosa era successo. Quando l'ho scritto, il campo del conteggio partiva
+   vuoto e due tocchi sul «−» arrivavano a −2, che l'app legge come «non ne
+   ho, e chiedimene 2 in piu'». Poi gen-5.79 ha fatto una cosa giusta: nei
+   conteggi si rivede quello che c'e' gia' scritto, quindi il campo parte
+   dalla giacenza vera. Da quel momento gli stessi due tocchi da 3 arrivano a
+   1, che vuol dire «ne ho 1» — un ammanco di livello, non un extra. Il gesto
+   e' rimasto identico e ha cambiato significato sotto i piedi al collaudo.
+
+   Non l'ho dedotto: l'ho letto sulla schermata, dove l'app lo scrive da
+   sola — «tieni premuto il − fino a SCENDERE SOTTO ZERO: −2 vuol dire non ne
+   ho, e chiedimene 2 in piu'». Per arrivare a −2 partendo da PAR servono
+   PAR + IN_PIU tocchi.
+
+   Percio' adesso il conto dei tocchi si ricava dal punto di partenza invece
+   di essere un numero fisso, e sotto c'e' un controllo che il campo sia
+   arrivato davvero dove doveva: se un domani cambia di nuovo il punto di
+   partenza, diventa rosso QUI, dicendo che e' il banco e non l'app. */
+const campo = O.p.locator("main input[inputmode='decimal'], main input[type='number']").first();
+const partenza = Number(await campo.inputValue()) || 0;
 const meno = O.p.locator('button[aria-label="Diminuisci"]').first();
-for (let i = 0; i < IN_PIU; i++) { await meno.click(); await O.p.waitForTimeout(150); }
+for (let i = 0; i < partenza + IN_PIU; i++) { await meno.click(); await O.p.waitForTimeout(150); }
+const arrivo = Number(await campo.inputValue());
+ok(arrivo === -IN_PIU,
+  `il gesto arriva a −${IN_PIU}, cioè «chiedimene ${IN_PIU} in più» (partiva da ${partenza}, è a ${arrivo})`);
 await O.p.getByRole("button", { name: /Verifica e conferma/ }).click();
 await O.p.waitForTimeout(1100);
 await O.p.getByRole("button", { name: /Conferma tutto/ }).click();
