@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.92",
-    "len": 735662,
-    "md5": "7e6833be15d708af1e782af1cfedeb75",
+    "gen": "gen-5.94",
+    "len": 741966,
+    "md5": "be71b7a3bab904ca33e9958ce31b2bc2",
     "quando": "2026-08-18",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -29,6 +29,20 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.94",
+      "chiude": [],
+      "prova": "essenzialetest.mjs",
+      "cosa": "Operatori e laboratorio vedono il lavoro, non la struttura. STRUTTURA (aggiungi/modifica/rimuovi articoli, soglie, livelli, unita', sposta/rimuovi in blocco) solo con l'autorizzazione che l'admin accende sul profilo (campo «struttura», interruttore in Gestione > Profili). LAVORO QUOTIDIANO (contare, rettificare, scartare, trasferire, produrre, evadere, ricevere) resta a tutti. Il laboratorio senza autorizzazione scende da «pieno» a «rettifica» sul suo magazzino e GUADAGNA rettifica e trasferimento scorte che prima non aveva. In Plancia restano le Quantita'; Soglie e Articoli spariscono, e il muro e' rifatto dentro applicaSel, non solo sui tasti. Chiesto da Valerio il 18 agosto.",
+      "_nota": "I PROFILI ESISTENTI PARTONO SENZA AUTORIZZAZIONE (il campo non c'e' = spento): il suo laboratorio VERO perde subito la superficie strutturale finche' Valerio non accende la spunta. E' il verso giusto del default ed e' esattamente cio' che ha chiesto, ma va detto a lui chiaramente, se no sembra un guasto. Collaudo: da 11 rossi a 31 verdi, controcontrollo su profilo autorizzato e admin."
+    },
+    {
+      "gen": "gen-5.93",
+      "chiude": [],
+      "prova": "ordinatest.mjs",
+      "cosa": "Le liste di prodotti in ORDINE ovunque si scelga: prodotti per categoria (ordine di stato.categorie) e alfabeto italiano dentro; tendine lunghe con optgroup per categoria; fornitori in alfabeto; magazzini per sede e nome. 37 punti mappati (25 + 12 dal controllo di completezza), NESSUNO ordinava prima. Helper unici: perNomeIt/ordinaPerNome/articoliPerNome/magazziniPerSede/gruppiProdotto, piu' l'ordinamento dentro perCategoria che sistema dettaglio magazzino, conteggi, le tre linguette della Plancia e l'inventario in un colpo. Chiesto da Valerio il 18 agosto.",
+      "_nota": "MAI STATA ONLINE DA SOLA: e' andata in produzione dentro il rilascio di gen-5.94, un tocco solo al database invece di due. LE CATEGORIE NON SI ALFABETIZZANO, apposta: il loro ordine e' una scelta usata identica in tutta l'app, e il §4 del collaudo diventa rosso se qualcuno le ordina. Le unita' di misura restano com'erano per lo stesso motivo."
+    },
     {
       "gen": null,
       "chiude": [
@@ -231,6 +245,7 @@
     }
   ],
   "tuoi": [
+    "CHI AUTORIZZI ALLA STRUTTURA: da gen-5.94 operatori e laboratorio non toccano piu' articoli/soglie/livelli finche' non accendi la spunta sul loro profilo (Gestione > Profili). Il tuo profilo laboratorio VERO parte spento: se deve poter scrivere articoli, va acceso — un tocco.",
     "Il giro di ricarica su tutti i telefoni: chi tiene l'app aperta da prima di gen-5.80 usa ancora la versione vecchia.",
     "I 7 giorni di fiducia su una riga «ordinato» prima di richiedere la stessa merce.",
     "Il PIN dell'admin, ancora quello di partenza. Il repository e' PUBBLICO.",
@@ -241,6 +256,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-18",
+      "dicevo": "(nel primo essenzialetest) /Riempi/ nel testo della Plancia prova che i comandi sulle quantita' ci sono.",
+      "invece": "Verde a vuoto: /Riempi/ combaciava con «Riempimento medio», che c'e' sempre. E i gruppi di comandi compaiono SOLO con una selezione attiva, quindi anche i «niente Soglie» erano verdi a vuoto senza aver toccato una tessera. Regola (la stessa di gen555, dal lato opposto): un controllo per testo libero va ancorato a un bersaglio ESATTO — getByRole col nome esatto — e la scena va PORTATA nello stato che rende il controllo significativo, se no misura l'assenza di tutto."
+    },
     {
       "quando": "2026-08-18",
       "dicevo": "(letto un exit code 0 da «node gen555test.mjs | tail -40») Il collaudo stampa i rossi ma esce con 0: ecco perche nessuno se ne accorge.",

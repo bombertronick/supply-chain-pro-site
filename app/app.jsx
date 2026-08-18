@@ -356,6 +356,42 @@ const parOggi = (a) => {
 };
 const sottoScorta = (m) => m.articoli.filter((a) => a.qty < parOggi(a)).length;
 
+/* ── L'ORDINE DELLE LISTE (gen-5.93) ──
+   Chiesto da Valerio: «quando seleziono un prodotto tra le scelte ho bisogno
+   di vedere le scelte con una visualizzazione ordinata». Misurato prima di
+   correggere: NESSUN punto di scelta ordinava — ogni lista usciva nell'ordine
+   in cui i prodotti erano stati creati, che per chi legge e' il caso.
+   La regola, una sola per tutta l'app:
+   · i PRODOTTI in alfabeto italiano (localeCompare "it"), dentro i gruppi di
+     categoria dove i gruppi ci sono;
+   · i MAGAZZINI per sede (nell'ordine di stato.sedi) e per nome;
+   · le CATEGORIE restano nell'ordine di stato.categorie: quello e' una scelta
+     di chi le ha create, usata identica in tutta l'app — alfabetizzarla
+     romperebbe un ordine voluto. Le unita' di misura restano com'erano per lo
+     stesso motivo: poche, e in un ordine abituale. */
+const perNomeIt = (a, b) => (a?.nome || "").localeCompare(b?.nome || "", "it", { sensitivity: "base" });
+const ordinaPerNome = (lista) => [...lista].sort(perNomeIt);
+const articoliPerNome = (stato, arts) => [...arts].sort((x, y) =>
+  (trova(stato.prodotti, x.prodottoId)?.nome || "").localeCompare(
+    trova(stato.prodotti, y.prodottoId)?.nome || "", "it", { sensitivity: "base" }));
+const magazziniPerSede = (stato, mags) => [...mags].sort((a, b) =>
+  stato.sedi.findIndex((x) => x.id === a.sedeId) - stato.sedi.findIndex((x) => x.id === b.sedeId)
+  || perNomeIt(a, b));
+/* per le tendine di prodotti: gruppi per categoria (optgroup nativi, che il
+   telefono mostra come intestazioni), alfabeto dentro ogni gruppo */
+function gruppiProdotto(stato, prodotti) {
+  const byCat = {};
+  for (const p of prodotti) (byCat[p.categoriaId] = byCat[p.categoriaId] || []).push(p);
+  const gruppi = [];
+  for (const c of stato.categorie) if (byCat[c.id]) {
+    gruppi.push({ nome: c.nome, opzioni: ordinaPerNome(byCat[c.id]).map((x) => ({ id: x.id, nome: x.nome })) });
+    delete byCat[c.id];
+  }
+  const resto = Object.values(byCat).flat();
+  if (resto.length) gruppi.push({ nome: "Senza categoria", opzioni: ordinaPerNome(resto).map((x) => ({ id: x.id, nome: x.nome })) });
+  return gruppi;
+}
+
 /* raggruppa articoli per categoria merceologica, nell'ordine di stato.categorie */
 function perCategoria(stato, arts) {
   const byCat = {};
@@ -364,8 +400,8 @@ function perCategoria(stato, arts) {
     (byCat[cid] = byCat[cid] || []).push(a);
   }
   const gruppi = [];
-  for (const c of stato.categorie) if (byCat[c.id]) gruppi.push({ cat: c, arts: byCat[c.id] });
-  if (byCat["_"]) gruppi.push({ cat: null, arts: byCat["_"] });
+  for (const c of stato.categorie) if (byCat[c.id]) gruppi.push({ cat: c, arts: articoliPerNome(stato, byCat[c.id]) });
+  if (byCat["_"]) gruppi.push({ cat: null, arts: articoliPerNome(stato, byCat["_"]) });
   return gruppi;
 }
 function IntestaCat({ cat, n }) {
@@ -797,7 +833,7 @@ function Campo({ label, valore, onCambia, tipo = "text", placeholder, suggerimen
     </label>
   );
 }
-function Selettore({ label, valore, onCambia, opzioni, placeholder = "Seleziona…" }) {
+function Selettore({ label, valore, onCambia, opzioni, gruppi, placeholder = "Seleziona…" }) {
   return (
     <label className="block">
       <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>{label}</span>
@@ -805,7 +841,12 @@ function Selettore({ label, valore, onCambia, opzioni, placeholder = "Seleziona�
         className="w-full rounded-2xl px-4 py-3 text-base font-semibold appearance-none"
         style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}`, color: valore ? T.ink : T.tenue }}>
         <option value="" disabled>{placeholder}</option>
-        {opzioni.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        {gruppi
+          ? gruppi.map((g) => (
+              <optgroup key={g.nome} label={g.nome}>
+                {g.opzioni.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </optgroup>))
+          : (opzioni || []).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
       </select>
     </label>
   );
@@ -1819,6 +1860,21 @@ function magazziniVisti(stato, profilo) {
 function puoModificare(profilo, m) {
   return !!m && (profilo.ruolo === "admin" || m.sedeId === profilo.sedeId);
 }
+/* ── LA STRUTTURA SI TOCCA SOLO CON L'AUTORIZZAZIONE (gen-5.94) ──
+   Chiesto da Valerio: «a regime questi 2 profili dovranno solo vedere
+   quello che devono fare, non dovranno modificare magazzini senza
+   autorizzazione». STRUTTURA vuol dire la forma del magazzino: aggiungere,
+   modificare o rimuovere articoli, soglie, livelli previsti, unita',
+   spostare in blocco. Il LAVORO DI TUTTI I GIORNI — contare, rettificare
+   una giacenza, scartare, trasferire scorte, produrre, evadere, ricevere —
+   NON passa da qui e resta a tutti, come prima.
+   L'autorizzazione e' un interruttore sul profilo (campo «struttura»),
+   che l'admin accende da Gestione › Profili. Un profilo vecchio non ha il
+   campo, quindi parte SENZA autorizzazione: e' il verso giusto del
+   default — la sicurezza non deve dipendere dal ricordarsi di spegnere. */
+function puoStruttura(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.struttura;
+}
 /* le linee che questo magazzino laboratorio rifornisce davvero */
 function lineeDelLab(stato, mag) {
   if (!mag || mag.tipo !== "laboratorio") return [];
@@ -2545,7 +2601,7 @@ function PlanciaCaselle({ stato, mag, mags, sel, toccati, onArt, onStep, onMagCa
   return (
     <div className="flex flex-col gap-3">
       <Selettore label="Magazzino" valore={mag.id} onCambia={onMagCambia}
-        opzioni={mags.map((m) => ({ id: m.id, nome: m.nome }))} />
+        opzioni={magazziniPerSede(stato, mags).map((m) => ({ id: m.id, nome: m.nome }))} />
 
       <div className="rounded-3xl p-4 relative overflow-hidden" style={{ background: T.grad, color: "#fff", boxShadow: "0 16px 40px -18px rgba(80,60,180,.7)" }}>
         <div className="absolute inset-y-0 pointer-events-none" style={{ left: 0, width: "45%",
@@ -2724,7 +2780,7 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
   return (
     <div className="flex flex-col gap-3">
       <Selettore label="Magazzino" valore={mag.id} onCambia={onMagCambia}
-        opzioni={mags.map((m) => ({ id: m.id, nome: m.nome }))} />
+        opzioni={magazziniPerSede(stato, mags).map((m) => ({ id: m.id, nome: m.nome }))} />
 
       <div className="flex gap-1.5 flex-wrap items-center">
         <button onClick={() => setSoloSel(!soloSelOk)} disabled={!nSel}
@@ -3026,7 +3082,12 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     return !!m && puoModificare(profilo, m) && (m.articoli || []).some((x) => x.prodottoId === pid);
   });
 
+  const AZIONI_STRUTTURA = new Set(["soglia", "giorni", "ungiorno", "interi", "unita", "sposta", "rimuovi"]);
   const applicaSel = (fn, msg) => {
+    /* il muro rifatto dentro l'esecutore, non solo sui tasti: un tasto
+       nascosto non e' un permesso negato */
+    if (AZIONI_STRUTTURA.has(azione) && !puoStruttura(profilo))
+      { mostraToast("Per soglie e articoli serve l'autorizzazione dell'admin (Profili)", "errore"); return false; }
     if (!sel.size) { mostraToast("Seleziona prima qualcosa", "errore"); return false; }
     const mie = tocacabili();
     if (!mie.length) {
@@ -3238,7 +3299,13 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       { ic: Trash2, t: "Rimuovi", on: () => setAzione("rimuovi"), rosso: true },
     ] },
   ];
-  const cmdGruppo = (GRUPPI.find((g) => g.id === gruppo) || GRUPPI[0]).cmd;
+  /* senza autorizzazione alla struttura resta la famiglia delle Quantita':
+     riempire, impostare giacenze, arrotondare, azzerare. Soglie e Articoli
+     (unita', sposta, rimuovi) sono forma del magazzino, non lavoro del
+     giorno. Il filtro sta QUI e non solo sulle pastiglie, cosi' anche
+     cmdGruppo non puo' finire su un comando negato. */
+  const GRUPPI_MIEI = puoStruttura(profilo) ? GRUPPI : GRUPPI.filter((g) => g.id === "quantita");
+  const cmdGruppo = (GRUPPI_MIEI.find((g) => g.id === gruppo) || GRUPPI_MIEI[0]).cmd;
   const titoloAz = { giacenza: "Imposta giacenza", soglia: "Imposta livello previsto", unita: "Cambia unità",
     sposta: "Sposta in un magazzino", giorni: "Livelli giorno per giorno", interi: "Prodotti da spedire interi",
     rimuovi: "Rimuovi gli articoli scelti",
@@ -3298,8 +3365,10 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
           onSelSede={toggleSede} onSelLista={toggleLista} onApri={apri} />}
         {tab === "settimana" && <PlanciaSettimana stato={stato} mag={magCorr} mags={mags} sel={sel} toccati={toccati}
           onMagCambia={setMagId} onSelLista={toggleLista}
-          onRiga={(pid) => { const k = chiaveArt(magCorr.id, pid); setSel(new Set([k])); apriGiorni(k); }}
-          onColonna={(d, soloSel) => { if (!soloSel) setSel(new Set(magCorr.articoli.map((a) => chiaveArt(magCorr.id, a.prodottoId))));
+          onRiga={(pid) => { if (!puoStruttura(profilo)) return;
+            const k = chiaveArt(magCorr.id, pid); setSel(new Set([k])); apriGiorni(k); }}
+          onColonna={(d, soloSel) => { if (!puoStruttura(profilo)) return;
+            if (!soloSel) setSel(new Set(magCorr.articoli.map((a) => chiaveArt(magCorr.id, a.prodottoId))));
             setGiorno(d); setVal(""); setAzione("ungiorno"); }} />}
         {tab === "caselle" && <PlanciaCaselle stato={stato} mag={magCorr} mags={mags} sel={sel} toccati={toccati}
           onArt={toggleArt} onStep={step} onMagCambia={setMagId} onSelLista={toggleLista} passo={passo} onPasso={setPasso} />}
@@ -3337,7 +3406,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
               <button onClick={() => setSel(new Set())} className="text-xs font-bold" style={{ color: "#AEB8D8" }}>Deseleziona</button>
             </div>
             <div className="flex gap-1.5 px-1 pb-2">
-              {GRUPPI.map((g) => (
+              {GRUPPI_MIEI.map((g) => (
                 <button key={g.id} onClick={() => { vibra(6); setGruppo(g.id); }}
                   className="flex-1 rounded-full py-1.5 text-xs font-extrabold"
                   style={g.id === gruppo
@@ -3412,7 +3481,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
                vorrebbe dire far scegliere una cosa che poi viene rifiutata */
             <Selettore label="Magazzino di destinazione" valore={val} onCambia={setVal}
               opzioni={[{ id: "", nome: "— scegli —" },
-                ...mags.filter((m) => puoModificare(profilo, m)).map((m) => ({ id: m.id, nome: m.nome }))]} />
+                ...magazziniPerSede(stato, mags.filter((m) => puoModificare(profilo, m))).map((m) => ({ id: m.id, nome: m.nome }))]} />
           )}
           {azione === "rimuovi" && (() => {
             /* le linee che perderanno il prodotto perché nella selezione c'è un
@@ -5213,7 +5282,7 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const [convQta, setConvQta] = useState("");
   const [convSovr, setConvSovr] = useState(false); // sostituire quelle gia' scritte?
   useEffect(() => { setValore(""); }, [campo]);
-  const lista = stato.prodotti.filter((p) =>
+  const lista = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase()) &&
     (filtro === "tutti" || p.categoriaId === filtro) &&
     (filtroF === "tutti" ? true
@@ -5236,7 +5305,7 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const giaScritta = dentro.filter((p) => (p.conv || {})[convDa] != null);
   const tocca = convSovr ? dentro : dentro.filter((p) => (p.conv || {})[convDa] == null);
   const opzioniValore = campo === "categoriaId" ? stato.categorie
-    : campo === "fornitoreId" ? stato.fornitori
+    : campo === "fornitoreId" ? ordinaPerNome(stato.fornitori)
     : campo === "preparato" ? [
       { id: "si", nome: "Lo fa il laboratorio" },
       { id: "no", nome: "Si compra da un fornitore" }]
@@ -5365,7 +5434,7 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         <option value="tutti">Ogni fornitore</option>
         <option value="_senza">Senza fornitore</option>
         <option value="_prep">Solo quelli fatti in laboratorio</option>
-        {stato.fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+        {ordinaPerNome(stato.fornitori).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
       </select>
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
@@ -5461,7 +5530,7 @@ const fmtEuro = (n) => "€ " + (Math.round(n * 100) / 100).toLocaleString("it-I
    prima di poter cominciare vorrebbe dire far fallire il lavoro sul primo
    passo. Scrivere la ricetta di una cosa È dire che la si fa in casa. */
 function FormRicette({ stato, muta, mostraToast, onChiudi }) {
-  const preparati = stato.prodotti.filter((p) => preparato(p));
+  const preparati = ordinaPerNome(stato.prodotti).filter((p) => preparato(p));
   const [i, setI] = useState(() => {
     /* si riparte dal primo che NON ha ancora le dosi: chi riapre la
        schermata vuole continuare, non ricominciare */
@@ -5525,7 +5594,7 @@ function FormRicette({ stato, muta, mostraToast, onChiudi }) {
 
   /* ── nessun preparato: è il caso di oggi, e va preso di petto ── */
   const trovati = q.trim().length >= 2
-    ? stato.prodotti.filter((p) => !preparato(p)
+    ? ordinaPerNome(stato.prodotti).filter((p) => !preparato(p)
         && (p.nome || "").toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
     : [];
   const marca = (p) => {
@@ -5611,8 +5680,8 @@ function FormRicette({ stato, muta, mostraToast, onChiudi }) {
                   <Selettore label={k === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
                     onCambia={(v) => { setIng(ing.map((x, j) => (j === k
                       ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId } : x))); setTocco(true); }}
-                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
-                      .filter((x) => x.id !== prod.id).map((x) => ({ id: x.id, nome: x.nome }))]} />
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== prod.id))}
+                    placeholder="— scegli —" />
                 </div>
                 <div style={{ width: 88 }}>
                   <Campo label={k === 0 ? "quanto" : ""} valore={r.qty}
@@ -5677,7 +5746,7 @@ function FormPrezzi({ stato, muta, mostraToast, onChiudi }) {
     const v = {}; for (const p of stato.prodotti) v[p.id] = p.prezzo > 0 ? String(p.prezzo).replace(".", ",") : "";
     return v;
   });
-  const lista = stato.prodotti.filter((p) =>
+  const lista = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase())
     && (!soloVuoti || !(p.prezzo > 0)));
   const quanti = stato.prodotti.filter((p) => !(p.prezzo > 0)).length;
@@ -5867,7 +5936,7 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
   const cerca = (n) => (n || "").toLowerCase().includes(q.trim().toLowerCase());
   const unitaF = stato.unita.filter((u) => cerca(u.nome) || cerca(u.simbolo));
   const categorieF = stato.categorie.filter((c) => cerca(c.nome));
-  const fornitoriF = stato.fornitori.filter((f) => cerca(f.nome));
+  const fornitoriF = ordinaPerNome(stato.fornitori).filter((f) => cerca(f.nome));
   const fuoriMag = prodottiFuori(stato);
   const idFuori = new Set(fuoriMag.map((p) => p.id));
   /* il filtro vale solo finché ci sono prodotti fuori: se li sistema tutti
@@ -6032,10 +6101,10 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
           const cercando = !!q.trim() || filtroFuori;
           const gruppi = [];
           for (const c of stato.categorie) {
-            const dentro = prodottiF.filter((p) => p.categoriaId === c.id);
+            const dentro = ordinaPerNome(prodottiF).filter((p) => p.categoriaId === c.id);
             if (dentro.length) gruppi.push({ cat: c, prod: dentro });
           }
-          const orfani = prodottiF.filter((p) => !trova(stato.categorie, p.categoriaId));
+          const orfani = ordinaPerNome(prodottiF).filter((p) => !trova(stato.categorie, p.categoriaId));
           if (orfani.length) gruppi.push({ cat: null, prod: orfani });
           const riga = (p) => {
             const cat = trova(stato.categorie, p.categoriaId);
@@ -6309,6 +6378,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [colore, setColore] = useState(item?.colore || PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   const [sedeId, setSedeId] = useState(item?.sedeId || "");
   const [magIds, setMagIds] = useState(item?.magazziniIds || []);
+  const [struttura, setStruttura] = useState(!!item?.struttura);
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
@@ -6338,6 +6408,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         nome: nome.trim(), ruolo, colore, pinHash,
         sedeId: ruolo === "admin" ? undefined : sedeId,
         magazziniIds: ruolo === "operatore" ? magIds : undefined,
+        struttura: ruolo === "admin" ? undefined : (struttura || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -6380,6 +6451,28 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
               })}
             </div>}
       </div>
+    )}
+    {ruolo !== "admin" && (
+      <button type="button" onClick={() => setStruttura((v) => !v)} aria-pressed={struttura}
+        className="flex items-start gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+        style={struttura
+          ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` }
+          : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+        <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+          style={{ background: struttura ? T.blu : "#fff", border: `1.5px solid ${struttura ? T.blu : T.tenue}` }}>
+          {struttura && <Check size={13} color="#fff" />}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-extrabold" style={{ color: T.ink }}>
+            Può modificare la struttura dei magazzini
+          </span>
+          <span className="block text-xs mt-0.5" style={{ color: T.dim }}>
+            Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco.
+            Il lavoro di tutti i giorni — contare, rettificare, scartare, trasferire, produrre,
+            evadere — non c'entra con questa spunta e resta comunque.
+          </span>
+        </span>
+      </button>
     )}
     <SceltaColore valore={colore} onCambia={setColore} />
     <Campo label={item ? "Nuovo PIN · 4 cifre (facoltativo)" : "PIN di accesso · 4 cifre"} valore={pin}
@@ -6773,7 +6866,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
       <Campo label="Nome prodotto" valore={nome} onCambia={setNome} placeholder="Es. Pomodori San Marzano" autoFocus />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Selettore label="Categoria" valore={categoriaId} onCambia={setCategoriaId} opzioni={stato.categorie} />
-        {!prep && <Selettore label="Fornitore abituale" valore={fornitoreId} onCambia={setFornitoreId} opzioni={stato.fornitori} />}
+        {!prep && <Selettore label="Fornitore abituale" valore={fornitoreId} onCambia={setFornitoreId} opzioni={ordinaPerNome(stato.fornitori)} />}
       </div>
 
       {/* La spunta che dice «questo non si compra». Sta subito sotto la
@@ -6830,9 +6923,8 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
                     onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
                       ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
                       : x)))}
-                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
-                      .filter((x) => x.id !== item?.id)
-                      .map((x) => ({ id: x.id, nome: x.nome }))]} />
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== item?.id))}
+                    placeholder="— scegli —" />
                 </div>
                 <div style={{ width: 92 }}>
                   <Campo label={i === 0 ? "quanto" : ""} valore={r.qty}
@@ -6881,7 +6973,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
                   className="rounded-xl px-2.5 py-2 text-sm font-bold shrink-0"
                   style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink, maxWidth: "58%" }}>
                   <option value="">come sopra</option>
-                  {stato.fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  {ordinaPerNome(stato.fornitori).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
                 </select>
               </div>
             ))}
@@ -6994,7 +7086,7 @@ function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa }) 
 }
 
 function FormArticolo({ stato, mag, art, muta, mostraToast, onChiudi, profilo }) {
-  const disponibili = stato.prodotti.filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
+  const disponibili = ordinaPerNome(stato.prodotti).filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
   const [prodottoId, setProdottoId] = useState(art?.prodottoId || disponibili[0]?.id || "");
   const prod = trova(stato.prodotti, prodottoId);
   /* unità del prodotto + eventuali unità Gastronorm (per comunicare col laboratorio) */
@@ -7042,7 +7134,7 @@ function FormArticolo({ stato, mag, art, muta, mostraToast, onChiudi, profilo })
         : disponibili.length
           ? <Selettore label="Prodotto" valore={prodottoId}
               onCambia={(v) => { setProdottoId(v); const p = trova(stato.prodotti, v); setUomId(p?.uomBase || ""); }}
-              opzioni={disponibili} />
+              gruppi={gruppiProdotto(stato, disponibili)} />
           : <p className="text-sm font-semibold" style={{ color: T.ambra }}>Tutti i prodotti sono già presenti qui.</p>}
       {prod && (<>
         <Selettore label="Unità di misura in questo magazzino" valore={uomOk} onCambia={setUomId}
@@ -7253,9 +7345,8 @@ function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo,
                     onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
                       ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
                       : x)))}
-                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
-                      .filter((x) => x.id !== art.prodottoId)
-                      .map((x) => ({ id: x.id, nome: x.nome }))]} />
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== art.prodottoId))}
+                    placeholder="— scegli —" />
                 </div>
                 <div style={{ width: 88 }}>
                   <Campo label={i === 0 ? "quanto" : ""} valore={r.qty}
@@ -7422,12 +7513,12 @@ function MovimentiArticolo({ stato, mag, art }) {
 }
 
 function FormTrasferimento({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const conQta = mag.articoli.filter((a) => a.qty > 0);
+  const conQta = articoliPerNome(stato, mag.articoli).filter((a) => a.qty > 0);
   const [prodottoId, setProdottoId] = useState(conQta[0]?.prodottoId || "");
   const art = mag.articoli.find((a) => a.prodottoId === prodottoId);
   const prod = trova(stato.prodotti, prodottoId);
   const admin = profilo?.ruolo === "admin";
-  const dest = stato.magazzini.filter((m) => m.id !== mag.id && (admin || m.sedeId === profilo?.sedeId));
+  const dest = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id && (admin || m.sedeId === profilo?.sedeId));
   const [destId, setDestId] = useState("");
   const magDest = trova(stato.magazzini, destId);
   const artDest = magDest?.articoli.find((a) => a.prodottoId === prodottoId);
@@ -7485,7 +7576,7 @@ function FormTrasferimento({ stato, mag, muta, mostraToast, onChiudi, profilo })
 
 /* == AGGIUNTA MULTIPLA: più prodotti in un magazzino == */
 function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const disponibili = stato.prodotti.filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
+  const disponibili = ordinaPerNome(stato.prodotti).filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
   const [sel, setSel] = useState(() => new Set());
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState("tutti");
@@ -7571,7 +7662,7 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
 
 /* == COPIA PRODOTTI da un altro magazzino == */
 function FormCopiaMagazzino({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const fonti = stato.magazzini.filter((m) => m.id !== mag.id && m.articoli.length);
+  const fonti = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id && m.articoli.length);
   const [fonteId, setFonteId] = useState(fonti[0]?.id || "");
   const [soloMancanti, setSoloMancanti] = useState(true);
   const fonte = trova(stato.magazzini, fonteId);
@@ -7677,7 +7768,7 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         </div>
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "38vh" }}>
-        {mag.articoli.map((a) => {
+        {articoliPerNome(stato, mag.articoli).map((a) => {
           const p = trova(stato.prodotti, a.prodottoId); const on = sel.has(a.prodottoId);
           const sym = simboloU(stato, a.uomId);
           const nff = num(ff) ?? 1, nfw = num(fw) ?? 1;
@@ -7708,7 +7799,7 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
   const [q, setQ] = useState("");
   const [par, setPar] = useState("");
   const [uom, setUom] = useState("");
-  const lista = mag.articoli.filter((a) => {
+  const lista = articoliPerNome(stato, mag.articoli).filter((a) => {
     const p = trova(stato.prodotti, a.prodottoId);
     return (p?.nome || "").toLowerCase().includes(q.trim().toLowerCase());
   });
@@ -7795,9 +7886,9 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
 function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const [sel, setSel] = useState(() => new Set());
   const [q, setQ] = useState("");
-  const altri = stato.magazzini.filter((m) => m.id !== mag.id);
+  const altri = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id);
   const [destId, setDestId] = useState(altri[0]?.id || "");
-  const lista = mag.articoli.filter((a) => {
+  const lista = articoliPerNome(stato, mag.articoli).filter((a) => {
     const p = trova(stato.prodotti, a.prodottoId);
     return (p?.nome || "").toLowerCase().includes(q.trim().toLowerCase());
   });
@@ -8228,7 +8319,7 @@ function EliminaMagazzino({ stato, mag, muta, mostraToast, onChiudi }) {
    vorrebbe dire far sparire delle quantità vere con una spunta, e per quello
    c'è «Sposta o rimuovi», che almeno lo dice. */
 function FormDoveSta({ stato, prod, muta, mostraToast, onChiudi, profilo }) {
-  const mags = stato.magazzini.filter((m) => puoModificare(profilo, m));
+  const mags = magazziniPerSede(stato, stato.magazzini).filter((m) => puoModificare(profilo, m));
   const dentro = (m) => (m.articoli || []).find((a) => a.prodottoId === prod.id);
   const conRoba = new Set(mags.filter((m) => { const a = dentro(m); return a && Math.abs(a.qty) > 1e-9; }).map((m) => m.id));
   const [sel, setSel] = useState(() => new Set(mags.filter((m) => dentro(m)).map((m) => m.id)));
@@ -8324,7 +8415,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState("tutti");
   const [par, setPar] = useState("");
-  const listaP = stato.prodotti.filter((p) =>
+  const listaP = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase()) &&
     (filtro === "tutti" || p.categoriaId === filtro));
   const toggleP = (id) => setSelP((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -8406,7 +8497,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
           </div>
         </div>
         <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "22vh" }}>
-          {stato.magazzini.map((m) => {
+          {magazziniPerSede(stato, stato.magazzini).map((m) => {
             const on = selM.has(m.id); const sede = trova(stato.sedi, m.sedeId); const meta = TIPI_MAG[m.tipo];
             return (
               <button key={m.id} type="button" onClick={() => toggleM(m.id)} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left"
@@ -9091,9 +9182,12 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
   const permessoDi = (m) => {
     if (admin) return "pieno";
     if (m.sedeId !== profilo.sedeId) return "lettura";
-    /* sui magazzini laboratorio della propria sede può aggiungere e togliere
-       prodotti, non solo correggere le quantità: è lui che decide cosa si fa */
-    if (profilo.ruolo === "laboratorio") return m.tipo === "laboratorio" ? "pieno" : "lettura";
+    /* sui magazzini laboratorio della propria sede il laboratorio lavora;
+       la superficie STRUTTURALE (aggiungi/modifica/rimuovi articoli,
+       gestione rapida) si apre solo se l'admin gliel'ha autorizzata dal
+       profilo. Senza, scende a «rettifica»: quantita' si', forma no. */
+    if (profilo.ruolo === "laboratorio")
+      return m.tipo !== "laboratorio" ? "lettura" : puoStruttura(profilo) ? "pieno" : "rettifica";
     return "rettifica";
   };
 
@@ -9961,7 +10055,7 @@ function applicaEvasione(s, rid, magId, inviato, chi) {
 
 function FormEvasione({ stato, profilo, r, muta, mostraToast, onChiudi, onAnnulla }) {
   const prod = trova(stato.prodotti, r.prodottoId);
-  const candidati = stato.magazzini.filter((m) =>
+  const candidati = magazziniPerSede(stato, stato.magazzini).filter((m) =>
     m.sedeId === profilo.sedeId && m.tipo === "laboratorio" &&
     m.articoli.some((a) => a.prodottoId === r.prodottoId));
   const primo = candidati.find((m) => m.articoli.find((a) => a.prodottoId === r.prodottoId)?.qty > 0) || candidati[0];
