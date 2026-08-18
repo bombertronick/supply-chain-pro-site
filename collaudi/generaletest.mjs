@@ -56,7 +56,17 @@ const scena = () => {
   s.profili = [
     { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
     { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6", pinHash: hash("2222") },
-    { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF", pinHash: hash("3333") },
+    /* AUTORIZZATO ALLA STRUTTURA, di proposito. Da gen-5.94 un laboratorio
+       senza la spunta non vede piu' «Gestione rapida», «Aggiungi articolo» e
+       la matita — ed e' GIUSTO cosi': lo dimostra essenzialetest.mjs, coi
+       controcontrolli. Il giro invece ha il compito opposto: entrare in
+       TUTTE le schede del pavimento, quindi il suo laboratorio e' quello
+       autorizzato. Quando gen-5.94 e' andata online questo profilo era
+       ancora senza spunta e il pavimento e' passato da 9/9 a 8/9: il rosso
+       diceva la verita' — la scheda non era piu' raggiungibile da nessuno
+       dei tre profili del banco. */
+    { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF",
+      struttura: true, pinHash: hash("3333") },
   ];
 
   /* ── LE SITUAZIONI CHE FANNO ESISTERE LE SCHEDE (4 agosto) ──
