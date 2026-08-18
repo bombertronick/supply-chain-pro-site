@@ -92,8 +92,20 @@ const scena = () => {
   return s;
 };
 
-/* le schermate come le dichiara l'app, ruolo per ruolo */
-const GESTIONE = ["Catalogo", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili", "Accessi", "Sistema"];
+/* le schermate come le dichiara l'app, ruolo per ruolo.
+
+   QUESTO ELENCO E' SCRITTO A MANO DI PROPOSITO: e' il pavimento, cioe' la
+   promessa di cosa dev'essere raggiungibile. Se lo ricavassi dall'app,
+   misurerei l'app con sé stessa e una schermata sparita non farebbe rosso.
+
+   MA UN ELENCO A MANO INVECCHIA IN SILENZIO, e me l'ha dimostrato subito:
+   gen-5.92 ha aggiunto «Memoria» sotto Gestione e il giro non l'avrebbe mai
+   aperta — schermata nuova, zero controlli, e nessun rosso a dirmelo. Quindi
+   l'elenco resta a mano, e accanto c'e' un controllo (§0) che lo confronta
+   con quello che l'app mette davvero nel menu: se ne compare una che qui non
+   c'e', diventa rosso e va aggiunta a mano dopo averla guardata. */
+const GESTIONE = ["Catalogo", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili",
+  "Accessi", "Sistema", "Memoria"];
 const RUOLI = [
   { nome: "Admin", pin: "1234", barra: ["Home", "Magazzini", "Plancia", "Ordini"], gestione: GESTIONE },
   { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Plancia", "Ordini"], gestione: [] },
@@ -120,6 +132,27 @@ const entra = async (r, w, h) => {
   for (const d of r.pin) await p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {});
   await p.waitForTimeout(1500);
   return { p, ctx };
+};
+
+/* Quello che l'app mette DAVVERO sotto «Gestione», letto dal menu aperto.
+   Serve solo a confrontarlo col pavimento scritto a mano: non lo sostituisce. */
+const scopriGestione = async (p) => {
+  const menu = p.locator("nav:visible, aside:visible");
+  const g = menu.getByText("Gestione", { exact: true });
+  if (!(await g.count())) return [];
+  await g.first().click();
+  await p.waitForTimeout(900);
+  /* Le voci sono i riquadri della schermata di Gestione, e ognuno e' fatto di
+     due righe: il nome e la spiegazione sotto. Serve la PRIMA RIGA, che e'
+     anche il nome con cui vaiA la cerca.
+     Va letta con innerText, non con textContent: misurato, textContent le
+     attacca senza andare a capo («MemoriaQuello che Claude deve…») e il
+     filtro sulla lunghezza le buttava via tutte — la mia prima versione
+     tornava una lista vuota, cioe' un controllo sempre verde. */
+  const voci = await p.evaluate(() => [...document.querySelectorAll("main button")]
+    .map((b) => (b.innerText || "").split("\n")[0].trim())
+    .filter((t) => t && t.length < 30));
+  return [...new Set(voci)];
 };
 
 /* ── L'ATTREZZO DEL PASSAGGIO 3, seconda versione ──
@@ -433,6 +466,19 @@ for (const r of RUOLI) {
     console.log(`\n— ${come} ${w}×${h} —`);
     const { p, ctx } = await entra(r, w, h);
     const tappe = [...r.barra, ...r.gestione];
+
+    /* ── §0. IL PAVIMENTO COPRE TUTTO QUELLO CHE L'APP OFFRE DAVVERO ──
+       Non sostituisce l'elenco scritto a mano: lo difende dall'invecchiare.
+       Una schermata nuova sotto Gestione fa rosso qui, e a quel punto la
+       aggiungo sopra dopo averla guardata — invece di scoprire fra un mese
+       che il giro non ci e' mai entrato. */
+    if (r.gestione.length) {
+      const offerte = await scopriGestione(p);
+      const scoperte = offerte.filter((x) => !r.gestione.includes(x));
+      ok(scoperte.length === 0, scoperte.length
+        ? `NUOVE SCHERMATE SOTTO GESTIONE CHE IL GIRO NON APRE: ${scoperte.join(", ")} — vanno aggiunte a GESTIONE`
+        : `il pavimento copre tutte le ${offerte.length} voci che l'app mette sotto Gestione`);
+    }
 
     for (const dove of tappe) {
       let arrivato = true;

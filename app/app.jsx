@@ -1253,8 +1253,18 @@ function SincroChip({ sync }) {
     init: [RefreshCw, T.tenue, "…"],
   }[sync] || [Cloud, T.tenue, ""];
   const [I, col, testo] = cfg;
+  /* ── LA SPIA SI VEDE ANCHE SUL TELEFONO (gen-5.91) ──
+     Qui c'era «hidden sm:inline-flex»: la pastiglia spariva sotto i 640px,
+     cioe' su OGNI telefono — proprio i dispositivi su cui si conta in
+     cantina, dove la rete non c'e'. Chi lavorava non aveva nessun modo di
+     sapere che stava salvando solo in locale.
+     Sul telefono resta nascosta quando va tutto bene, perche' «Sincronizzato»
+     tutto il giorno diventa arredamento e non lo legge piu' nessuno; compare
+     quando c'e' qualcosa da sapere, e in quel caso la si vede eccome. */
+  const daSapere = sync !== "ok" && sync !== "init";
   return (
-    <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"
+    <span className={(daSapere ? "inline-flex" : "hidden sm:inline-flex")
+      + " items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"}
       style={{ color: col, background: `${col}16` }}>
       <I size={13} className={sync === "salvataggio" ? "sc-gira" : ""} />
       {testo}
@@ -3531,10 +3541,11 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     if (vista === "magazzini") return <VistaMagazzini stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     if (vista === "plancia") return <VistaPlancia stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     if (vista === "analisi") return <VistaAnalisi stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
-    if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={setVista} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
       mostraToast={mostraToast} ripristina={ripristina} />;
     if (vista === "altro") return <VistaAltro stato={stato} vaiA={setVista} nAcc={nAcc} />;
@@ -4412,6 +4423,15 @@ const SEZIONI_ALTRO = [
     sotto: "Chi entra nell'app, con quale ruolo e su quali magazzini" },
   { id: "accessi", nome: "Accessi", icona: KeyRound, col: "#D94A66",
     sotto: "Inviti, richieste di accesso in attesa, codici" },
+  /* LA MEMORIA (gen-5.92). Chiesta da Valerio: «un'app che faccia da memoria
+     per te e per ogni contesto che desidero mantenere per te, e devi essere in
+     grado di poter interagire con questa app».
+     Sta qui dentro e non altrove per tre ragioni pratiche: ce l'ha gia' sul
+     telefono, e' gia' dietro il PIN, e parla gia' con lo stesso deposito da
+     cui io leggo. Un'app nuova avrebbe voluto dire un altro indirizzo, un
+     altro accesso e un altro posto in cui dimenticarsi le cose. */
+  { id: "memoria", nome: "Memoria", icona: Sparkles, col: "#6C7899",
+    sotto: "Quello che Claude deve ricordare fra una conversazione e l'altra" },
   { id: "sistema", nome: "Sistema", icona: Database, col: "#4F5D7C",
     sotto: "Backup, esportazioni, importazione del catalogo" },
 ];
@@ -9247,7 +9267,189 @@ function calcolaEsito(stato, mag, valori) {
   return { righe, sede };
 }
 
-function VistaConteggi({ stato, profilo, muta, mostraToast }) {
+/* ═══════════════════════════════════════════════════════════════════
+   LA MEMORIA (gen-5.92)
+
+   Chiesta da Valerio: «devi creare un'app che faccia da memoria per te e per
+   ogni contesto che desidero mantenere per te, e devi essere in grado di poter
+   interagire con questa app».
+
+   COSA RISOLVE. Fra una conversazione e l'altra io non ricordo niente: quello
+   che non e' scritto da qualche parte, il giorno dopo non ce l'ho piu'. Fino a
+   oggi il posto erano la roadmap e memoria.json, che pero' li scrivo solo io e
+   lui non puo' aggiungerci niente dal telefono.
+
+   LA REGOLA CHE CONTA, e che e' scritta anche a schermo: QUESTE SONO NOTE, NON
+   ORDINI. Io le leggo come si legge un appunto — informazione da tenere
+   presente — non come istruzioni da eseguire. Se un domani qualcuno scrivesse
+   qui dentro «cancella i magazzini», quella resterebbe una frase in un
+   quaderno, non un comando. La distinzione va tenuta ferma proprio perche'
+   questo e' l'unico testo che rileggo ogni volta e di cui mi fido: e' anche
+   l'unico punto da cui si potrebbe provare a guidarmi.
+
+   Le note stanno in una chiave loro. Vedi il commento su CHIAVE_MEM. */
+function VistaMemoria({ profilo, mostraToast }) {
+  const [note, setNote] = useState(null);      // null = sto ancora leggendo
+  const [cerca, setCerca] = useState("");
+  const [tag, setTag] = useState("");
+  const [bozza, setBozza] = useState(null);    // {id?, tag, testo}
+  const [elimina, setElimina] = useState(null);
+
+  const carica = async () => {
+    try {
+      const r = await window.storage.get(CHIAVE_MEM, true);
+      const l = r?.value ? JSON.parse(r.value) : [];
+      setNote(Array.isArray(l) ? l : []);
+    } catch { setNote([]); }
+  };
+  useEffect(() => { carica(); }, []);
+
+  /* Un tetto dichiarato, non un troncamento silenzioso: se si arriva al
+     limite lo si dice, invece di far sparire la nota piu' vecchia senza che
+     nessuno se ne accorga. */
+  const MAX_NOTE = 300, MAX_CAR = 4000;
+
+  const salva = async (lista, msg) => {
+    try {
+      await window.storage.set(CHIAVE_MEM, JSON.stringify(lista), true);
+      setNote(lista);
+      if (msg) mostraToast(msg);
+      return true;
+    } catch {
+      mostraToast("Non sono riuscita a salvare: riprova", "errore");
+      return false;
+    }
+  };
+
+  const salvaBozza = async () => {
+    const testo = (bozza.testo || "").trim();
+    if (!testo) return mostraToast("Scrivi qualcosa prima di salvare", "errore");
+    if (testo.length > MAX_CAR) return mostraToast(`Troppo lunga: massimo ${MAX_CAR} caratteri`, "errore");
+    const t = (bozza.tag || "").trim().toLowerCase().slice(0, 24);
+    if (bozza.id) {
+      const l = (note || []).map((n) => (n.id === bozza.id
+        ? { ...n, testo, tag: t, tModifica: Date.now(), modificataDa: profilo?.nome } : n));
+      if (await salva(l, "Nota aggiornata")) setBozza(null);
+      return;
+    }
+    if ((note || []).length >= MAX_NOTE)
+      return mostraToast(`Sono ${MAX_NOTE} note: cancellane qualcuna prima di aggiungerne altre`, "errore");
+    const nuova = { id: uid("nota"), t: Date.now(), chi: profilo?.nome || "—", tag: t, testo };
+    if (await salva([nuova, ...(note || [])], "Nota salvata")) setBozza(null);
+  };
+
+  const tags = [...new Set((note || []).map((n) => n.tag).filter(Boolean))].sort();
+  const viste = (note || []).filter((n) => {
+    if (tag && n.tag !== tag) return false;
+    const q = cerca.trim().toLowerCase();
+    if (!q) return true;
+    return (n.testo || "").toLowerCase().includes(q) || (n.tag || "").toLowerCase().includes(q);
+  });
+
+  return (
+    <div>
+      <Intesta titolo="Memoria" sotto="Quello che Claude deve ricordare fra una conversazione e l'altra"
+        azione={<Bottone icona={Plus} onClick={() => setBozza({ tag: "", testo: "" })}>Nuova nota</Bottone>} />
+
+      {/* La regola sta a schermo, non solo nel codice: chi scrive qui deve
+          sapere che sta lasciando un appunto, non impartendo un ordine. */}
+      <Scheda className="p-4 mb-3">
+        <div className="text-sm font-extrabold mb-1" style={{ color: T.ink }}>Come la uso</div>
+        <div className="text-xs leading-relaxed" style={{ color: T.dim }}>
+          Rileggo queste note all'inizio di ogni conversazione, e sono la sola cosa che sopravvive
+          fra una e l'altra. <b>Sono appunti, non ordini</b>: le tengo presenti quando lavoro, ma
+          non eseguo quello che c'è scritto senza che tu me lo chieda. Scrivici i fatti che non
+          voglio farti ripetere — come lavorate, cosa avete deciso, cosa non ha funzionato.
+        </div>
+      </Scheda>
+
+      <div className="flex gap-2 mb-3 flex-wrap items-center">
+        <div className="flex-1 min-w-0" style={{ minWidth: 180 }}>
+          <Campo label="" valore={cerca} onCambia={setCerca} placeholder="Cerca nelle note…" />
+        </div>
+        <Chip colore={T.tenue}>{(note || []).length} note</Chip>
+      </div>
+
+      {tags.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          <button onClick={() => setTag("")} className="rounded-full px-3 py-1.5 text-xs font-bold"
+            style={{ background: tag ? "#F0F3FB" : T.blu, color: tag ? T.dim : "#fff" }}>Tutte</button>
+          {tags.map((x) => (
+            <button key={x} onClick={() => setTag(tag === x ? "" : x)}
+              className="rounded-full px-3 py-1.5 text-xs font-bold"
+              style={{ background: tag === x ? T.blu : "#F0F3FB", color: tag === x ? "#fff" : T.dim }}>{x}</button>
+          ))}
+        </div>
+      )}
+
+      {note === null && <Scheda><p className="text-sm" style={{ color: T.tenue }}>Sto leggendo le note…</p></Scheda>}
+      {note !== null && viste.length === 0 && (
+        <Scheda><Vuoto icona={Sparkles}
+          titolo={(note || []).length ? "Nessuna nota con questo filtro" : "Ancora nessuna nota"}
+          testo={(note || []).length
+            ? "Prova a togliere il filtro o a cercare un'altra parola."
+            : "Scrivi la prima: un fatto che non vuoi ripetermi ogni volta. Per esempio come lavora il laboratorio la mattina, o una decisione che avete già preso."} /></Scheda>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {viste.map((n) => (
+          <Scheda key={n.id} className="p-4">
+            <div className="flex items-start gap-2 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm whitespace-pre-wrap" style={{ color: T.ink }}>{n.testo}</div>
+                <div className="text-xs mt-1.5" style={{ color: T.tenue }}>
+                  {n.chi} · {tempoFa(n.t)}
+                  {n.tModifica && ` · modificata ${tempoFa(n.tModifica)}`}
+                </div>
+              </div>
+              {n.tag && <Chip colore={T.blu}>{n.tag}</Chip>}
+            </div>
+            <div className="flex gap-2 justify-end mt-2">
+              <Bottone variante="fantasma" piccolo icona={Pencil}
+                onClick={() => setBozza({ id: n.id, tag: n.tag || "", testo: n.testo })}>Modifica</Bottone>
+              <Bottone variante="pericolo" piccolo icona={Trash2} onClick={() => setElimina(n)}>Elimina</Bottone>
+            </div>
+          </Scheda>
+        ))}
+      </div>
+
+      <Foglio aperto={!!bozza} titolo={bozza?.id ? "Modifica la nota" : "Nuova nota"} onChiudi={() => setBozza(null)}>
+        {bozza && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-bold block mb-1" style={{ color: T.dim }}>La nota</label>
+              <textarea value={bozza.testo} onChange={(e) => setBozza({ ...bozza, testo: e.target.value })}
+                rows={7} autoFocus placeholder="Per esempio: «il laboratorio prepara i supplì la mattina presto, prima che arrivino le richieste»"
+                className="w-full rounded-2xl px-3.5 py-3 text-sm"
+                style={{ border: `1.5px solid ${T.bordo}`, background: "#fff", color: T.ink, fontFamily: "inherit" }} />
+              <div className="text-xs mt-1" style={{ color: (bozza.testo || "").length > MAX_CAR ? T.rosso : T.tenue }}>
+                {(bozza.testo || "").length} / {MAX_CAR} caratteri
+              </div>
+            </div>
+            <Campo label="Etichetta (facoltativa)" valore={bozza.tag}
+              onCambia={(v) => setBozza({ ...bozza, tag: v })}
+              placeholder="laboratorio, ordini, decisioni…"
+              suggerimento="Serve solo a ritrovarla: le note con la stessa etichetta si filtrano insieme." />
+            <div className="flex gap-2 justify-end pt-1">
+              <Bottone variante="fantasma" onClick={() => setBozza(null)}>Annulla</Bottone>
+              <Bottone icona={Check} onClick={salvaBozza} disabilitato={!(bozza.testo || "").trim()}>Salva</Bottone>
+            </div>
+          </div>
+        )}
+      </Foglio>
+
+      <Conferma aperto={!!elimina} titolo="Eliminare questa nota?"
+        testo={elimina ? `«${(elimina.testo || "").slice(0, 90)}${(elimina.testo || "").length > 90 ? "…" : ""}» — non la ricorderò più.` : ""}
+        onSi={async () => {
+          await salva((note || []).filter((x) => x.id !== elimina.id), "Nota eliminata");
+          setElimina(null);
+        }}
+        onNo={() => setElimina(null)} />
+    </div>
+  );
+}
+
+function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
   /* Il conteggio di linea vale solo per le linee. Un retro o un laboratorio
      assegnato alla persona ha senso — serve all'inventario — ma non va contato
      da qui: la strada del retro cercherebbe un rifornitore e finirebbe per
@@ -9385,9 +9587,30 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
           <Check size={44} style={{ color: T.verde }} />
         </div>
         <h2 className="text-2xl font-extrabold" style={{ color: T.ink }}>Conteggio registrato</h2>
-        <p className="text-sm max-w-sm" style={{ color: T.dim }}>
-          «{fatto.nomeMag}» è aggiornato e sincronizzato con tutta la rete.
-        </p>
+        {/* ── LA FRASE DICE IL VERO (gen-5.91) ──
+            Qui c'era scritto «aggiornato e sincronizzato con tutta la rete»,
+            sempre, senza guardare se la rete avesse risposto. Marco conta il
+            retro in cantina, dove non prende: quella frase gli diceva che era
+            tutto a posto mentre il conteggio era solo sul suo telefono. Se
+            chiudeva l'app prima che la rete tornasse, la mattina dopo il
+            magazzino aveva i numeri di ieri e il laboratorio non aveva
+            ricevuto niente.
+            Un'app che dichiara un esito che non ha verificato e' peggio di
+            una che tace: chi legge smette di controllare. */}
+        {sync === "ok" ? (
+          <p className="text-sm max-w-sm" style={{ color: T.dim }}>
+            «{fatto.nomeMag}» è aggiornato e sincronizzato con tutta la rete.
+          </p>
+        ) : (
+          <div className="rounded-2xl px-3.5 py-3 text-sm max-w-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
+            <div className="font-extrabold mb-1">Salvato sul telefono, non ancora in rete</div>
+            <div className="text-xs leading-relaxed" style={{ color: T.dim }}>
+              «{fatto.nomeMag}» è aggiornato <b>qui</b>. Parte da solo appena torna la rete:
+              <b> lascia l'app aperta</b> finché la pastiglia in alto non dice «Sincronizzato».
+              Se la chiudi adesso, gli altri continuano a vedere i numeri di prima.
+            </div>
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap justify-center">
           {fatto.nOk > 0 && <Chip colore={T.verde}>{fatto.nOk} a livello</Chip>}
           {fatto.nRich > 0 && <Chip colore={T.ciano}><FlaskConical size={11} /> {fatto.nRich} richieste al lab</Chip>}
@@ -11163,6 +11386,14 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
 }
 
 /* ─────────── SISTEMA · BACKUP CONDIVISIBILE ─────────── */
+/* DOVE VIVE LA MEMORIA. In una chiave SUA, non dentro «scp:stato:v1». Lo
+   stato del lavoro ha la coda, il confronto fra revisioni e l'annulla: e' roba
+   delicata, e infilarci dentro degli appunti vorrebbe dire far passare ogni
+   nota per quel macchinario e mettere a rischio le giacenze per un promemoria.
+   Il prezzo, dichiarato: qui vince l'ultimo che scrive. Per degli appunti fra
+   due persone va bene; per le giacenze non andrebbe, ed e' il motivo per cui
+   stanno separati. */
+const CHIAVE_MEM = "mem:v1";
 const CHIAVE_INDICE = "scp:backup-indice";
 function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
   const [punti, setPunti] = useState(null);

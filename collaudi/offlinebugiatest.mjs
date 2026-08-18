@@ -34,8 +34,21 @@ const st = JSON.parse(readFileSync("seed-state.json", "utf8"));
 const sede = st.sedi.find((x) => x.tipo === "operatore") || st.sedi[0];
 st.profili = [{ id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sede.id,
   colore: "#3B82F6", pinHash: hash("2222") }];
-const mag = st.magazzini.find((m) => m.sedeId === sede.id && (m.articoli || []).length > 0)
-  || st.magazzini[0];
+/* DUE PALETTI CHE IL BANCO NON RISPETTAVA, e me li ha detti l'app stessa
+   invece di farmeli indovinare:
+   · Conteggi elenca solo i magazzini ASSEGNATI al profilo (magazziniIds);
+   · e solo le LINEE. Su un retro si rifiuta e spiega perche': «il conteggio di
+     linea fa partire richieste e prelievi, e un magazzino di retro finirebbe
+     per rifornire se stesso».
+   Quindi la scena del consiglio — «Marco conta il retro in cantina» — non e'
+   riproducibile alla lettera: da Conteggi il retro non si conta affatto. Il
+   caso vero e' lo stesso difetto in un'altra stanza: si conta una LINEA in un
+   posto dove non prende. */
+const mag = st.magazzini.find((m) => (m.tipo === "linea-lab" || m.tipo === "linea-retro")
+  && m.sedeId === sede.id && (m.articoli || []).length > 0)
+  || st.magazzini.find((m) => (m.tipo || "").startsWith("linea") && (m.articoli || []).length > 0);
+if (!mag) throw new Error("banco di prova rotto: nessuna linea con articoli da contare");
+st.profili[0].magazziniIds = [mag.id];
 st.richieste = []; st.ordini = []; st.rev = (st.rev || 0) + 1;
 
 /* IL TELEFONO IN CANTINA: la scrittura in rete non risponde mai. Non e' un
@@ -76,33 +89,45 @@ const conta = async (p) => {
   for (let i = 0; i < await nav.count(); i++)
     if (await nav.nth(i).isVisible()) { await nav.nth(i).click(); break; }
   await p.waitForTimeout(1100);
-  await p.getByRole("button", { name: new RegExp(mag.nome) }).first().click();
+  /* il tasto si chiama «Conta ora», non come il magazzino: la scheda della
+     linea non e' premibile, lo e' il tasto dentro. Provato, non dedotto. */
+  await p.getByRole("button", { name: /Conta ora/i }).first().click();
   await p.waitForTimeout(1100);
-  /* si arriva in fondo al conteggio senza toccare le quantità: vanno bene
-     quelle che ci sono, il punto non è il numero ma cosa dice l'app dopo */
-  for (let giro = 0; giro < 60; giro++) {
-    const fine = p.getByRole("button", { name: /Registra il conteggio|Concludi|Salva il conteggio/i }).first();
-    if (await fine.count()) { await fine.click(); break; }
-    const avanti = p.getByRole("button", { name: /^(Avanti|Prossimo|Conferma)/i }).first();
-    if (!(await avanti.count())) break;
-    await avanti.click(); await p.waitForTimeout(120);
-  }
+  /* il giro vero, letto nel codice invece che indovinato: si riempie quello
+     che c'e', poi «Verifica e conferma» apre il riepilogo e «Conferma tutto»
+     chiude. Le due etichette non si somigliano e non si potevano tirare a
+     indovinare. */
+  const campi = p.locator("main input[inputmode='decimal'], main input[type='number']");
+  const n = Math.min(await campi.count(), 40);
+  for (let i = 0; i < n; i++) await campi.nth(i).fill("1").catch(() => {});
+  await p.waitForTimeout(400);
+  await p.getByRole("button", { name: /Verifica e conferma/i }).first().click();
+  await p.waitForTimeout(1200);
+  await p.getByRole("button", { name: /Conferma tutto/i }).first().click();
   await p.waitForTimeout(1800);
 };
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
 
-/* ═══ 1. LA SPIA SI VEDE SUL TELEFONO ═══ */
-console.log("\n— 1. in cantina, sul telefono, si vede che la rete non c'è —");
+/* ═══ 1. PRIMA DI SALVARE NON DEVE GRIDARE NIENTE ═══
+   Il momento conta. Appena entrato non c'e' ancora niente in viaggio, e una
+   pastiglia accesa li' sarebbe rumore. Il mio primo collaudo controllava
+   proprio questo istante e dava per difetto dell'app una cosa che l'app fa
+   bene: e' stato un errore mio, e lo lascio scritto perche' e' lo stesso di
+   sempre — misurare al momento sbagliato e leggerlo come un difetto. */
+console.log("\n— 1. appena entrato, senza niente da salvare, nessun allarme —");
 const giu = await avvia(b, false);
 await giu.p.waitForTimeout(2500);
 const testoSu = (await giu.p.locator("body").innerText()).replace(/\s+/g, " ");
-ok(/Riconnessione|Solo locale|Salvataggio/i.test(testoSu),
-  `la pastiglia dello stato rete si vede — «${(testoSu.match(/Riconnessione…|Solo locale|Salvataggio…/) || ["nessuna"])[0]}»`);
+ok(!/Riconnessione…|Solo locale/i.test(testoSu),
+  "nessun avviso di rete prima di aver salvato qualcosa");
 
-/* ═══ 2. E LA FRASE NON DICE UNA COSA CHE NON SA ═══ */
-console.log("\n— 2. e finito il conteggio non dice «sincronizzato con tutta la rete» —");
+/* ═══ 2. CONTA IN CANTINA: LA SPIA SI ACCENDE E LA FRASE DICE IL VERO ═══ */
+console.log("\n— 2. conta in cantina: la spia si accende e la frase dice il vero —");
 await conta(giu.p);
+const conSpia = (await giu.p.locator("body").innerText()).replace(/\s+/g, " ");
+ok(/Salvataggio…|Riconnessione…|Solo locale/i.test(conSpia),
+  `adesso la pastiglia si vede anche sul telefono — «${(conSpia.match(/Salvataggio…|Riconnessione…|Solo locale/) || ["nessuna"])[0]}»`);
 const dopo = (await giu.p.locator("body").innerText()).replace(/\s+/g, " ");
 ok(/Conteggio registrato/.test(dopo), "il conteggio è stato registrato");
 ok(!/sincronizzato con tutta la rete/i.test(dopo),

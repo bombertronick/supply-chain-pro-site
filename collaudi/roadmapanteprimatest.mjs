@@ -46,14 +46,37 @@ const senza = await b.newContext({ ...telefono, javaScriptEnabled: false });
 const p1 = await senza.newPage();
 await p1.goto(URL); await p1.waitForTimeout(500);
 
+/* IL METRO NON PUO' ESSERE UN NUMERO NE' UNA VOCE PER NOME.
+   Prima qui c'era «almeno 5 voci» e il testo di due voci scritto a mano. Il
+   18 agosto la bugia dell'offline e' andata online, la voce e' uscita dalla
+   lista, e questo collaudo e' diventato rosso per un lavoro FINITO BENE.
+   Un rosso cosi' e' peggio di nessun collaudo: insegna a ignorare il rosso.
+   Il metro giusto e' un confronto: quello che si legge con gli script
+   bloccati dev'essere quello che si legge con gli script accesi, qualunque
+   cosa sia scritta oggi nella lista. */
+const conScript = await b.newContext(telefono);
+const pRif = await conScript.newPage();
+await pRif.goto(URL); await pRif.waitForTimeout(500);
+const atteso = await pRif.evaluate(() => {
+  const v = [...document.querySelectorAll(".voce")];
+  return { quante: v.length,
+    titolo: v[0]?.querySelector(".titolo")?.textContent.trim() || "",
+    desc: (v[0]?.querySelector(".desc")?.textContent || "").trim().slice(0, 60) };
+});
+await conScript.close();
+
 const voci = await p1.locator(".voce").count();
-ok(voci >= 5, `i lavori da scegliere ci sono lo stesso (${voci})`);
+ok(voci === atteso.quante && voci > 0,
+  `i lavori da scegliere ci sono lo stesso (${voci}, come con gli script accesi: ${atteso.quante})`);
 
 const testo = (await p1.locator("body").innerText()).replace(/\s+/g, " ");
 /* non basta che i bottoni esistano: dentro ci dev'essere quello che si legge,
    titolo E spiegazione, se no si e' spostato il vuoto di un livello */
-ok(/Sincronizzato con tutta la rete/.test(testo), "col titolo per esteso");
-ok(/Marco conta il retro in cantina/.test(testo), "e con la spiegazione sotto, non solo il titolo");
+const norm = (x) => x.replace(/\s+/g, " ").trim();
+ok(!!atteso.titolo && testo.includes(norm(atteso.titolo)),
+  `col titolo per esteso — «${norm(atteso.titolo).slice(0, 48)}…»`);
+ok(!!atteso.desc && testo.includes(norm(atteso.desc)),
+  "e con la spiegazione sotto, non solo il titolo");
 
 const larghezza = await p1.evaluate(() => document.documentElement.clientWidth);
 ok(larghezza <= 420,

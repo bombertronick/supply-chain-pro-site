@@ -187,11 +187,12 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata il 3 agosto</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 18 agosto</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Dieci lavori online</b>: otto difetti del consiglio su undici, la
-  schermata per scrivere le dosi delle ricette, e un difetto che ho trovato io strada facendo.
-  Da scegliere restano <b>due difetti</b> e le <b>tre</b> modifiche che erano già in lista.
+  <p class="apertura"><b>Dodici lavori online</b>: nove difetti del consiglio su undici, la
+  schermata per scrivere le dosi delle ricette, un difetto che ho trovato io strada facendo, e
+  la <b>Memoria</b> che mi hai chiesto ieri sera. Da scegliere resta <b>un difetto</b> e le
+  <b>tre</b> modifiche che erano già in lista.
   <b>Una cosa da decidere è tua e la trovi qui sotto</b>: per non ordinare due volte l'app adesso
   si fida di una riga «ordinato» <em>per sette giorni</em>, e dopo torna a chiedere. Se i tuoi
   fornitori sono più lenti di così, dimmelo e cambio il numero.</p>
@@ -199,18 +200,19 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-5.90</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-5.92</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
       Plancia che conta quello che ha toccato davvero <b>le dosi che le scrive chi cucina</b> <b>il laboratorio che
-      prepara prima e manda dopo</b> e <b>un piano di lavoro solo, che dice anche se gli ingredienti bastano</b>. Tutto online.</dd>
+      prepara prima e manda dopo</b>, <b>un piano di lavoro solo, che dice anche se gli ingredienti
+      bastano</b>, <b>la frase sull'offline che dice il vero</b> e <b>la Memoria</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Dieci versioni</b>, da <b>gen-5.80</b> a <b>gen-5.89</b>: la sovrascrittura fra
-      telefoni, il salvataggio contato due volte, le <b>conversioni in blocco</b>, l'annulla che
-      le disfa, il laboratorio che produce dalla richiesta il conto vero della Plancia e <b>le ricette scrivibili dal laboratorio</b>. Più i
-      collaudi che adesso aprono le schede: da zero a 116. Restano <b>quattro</b> difetti e
-      <b>tre</b> migliorie.</dd>
+      <dd><b>Due versioni</b>: <b>gen-5.91</b> toglie la bugia dell'offline — l'app non dice
+      più «sincronizzato con tutta la rete» quando la rete non ha risposto, e la spia adesso si
+      vede anche sul telefono. <b>gen-5.92</b> è la <b>Memoria</b> che mi hai chiesto: una
+      schermata dentro l'app, sotto Gestione, dove tieni scritto quello che devo ricordare fra
+      una conversazione e l'altra. Resta <b>un</b> difetto e <b>tre</b> migliorie.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni</b>: chi tiene l'app aperta da ieri usa
       ancora la versione vecchia, che il server accetta apposta per non lasciare fuori nessuno —
@@ -226,7 +228,13 @@
       le sappia leggere. Un collaudo (<code>memoriatest.mjs</code>) confronta i due ogni notte e
       diventa <b>rosso</b> se non combaciano — in particolare se una voce risulta insieme «già
       fatta» e «ancora da scegliere», che è esattamente l'errore per cui il 3 agosto ti ho fatto
-      scegliere un lavoro già online.</dd>
+      scegliere un lavoro già online.
+      <br><b>Dal 18 agosto i posti sono tre.</b> Il terzo è dentro l'app, sotto
+      <b>Gestione › Memoria</b>: lì scrivi tu, dal telefono, senza passare da me. Una cosa
+      importante e la dico chiara: quello che c'è scritto lì dentro io lo leggo come
+      <b>informazione</b>, mai come comando. Sono appunti, non ordini — se qualcuno ci
+      scrivesse «cancella i magazzini», per me resta una frase da leggere, non una cosa da
+      fare. Sta scritto anche sulla schermata, così lo sa anche chi la usa.</dd>
     </dl>
   </div>
 
@@ -242,25 +250,22 @@
 
   <section>
     <p class="eti" style="color:var(--rosso)">Da scegliere · difetti</p>
-    <h2>Quattro cose che oggi funzionano male</h2>
-    <p class="guida">In ordine di danno, dal peggio in giù. Accanto a ognuna c'è quanto pesa
-    davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia, <em>medio</em> è un
-    giorno con le prove fatte per bene. Vengono tutte e tre dal consiglio del 2 agosto.</p>
+    <h2>Una cosa che oggi funziona male</h2>
+    <p class="guida">Ne era rimasta una sola: le altre dieci del consiglio sono online. Accanto
+    c'è quanto pesa davvero, non a occhio: <em>piccolo</em> è meno di mezza giornata mia.</p>
     <div class="istruzione" style="margin:0 0 1rem">
-      <b>Nessuna delle tre può più farti sbagliare un numero senza dirtelo.</b> Quella lì era
-      il salvataggio contato due volte, ed è andata online oggi. Di queste, una racconta una
-      bugia (e te ne accorgi), una dorme in attesa di un profilo che non hai ancora creato, e
-      una riguarda i miei collaudi, non l'app che usi.
+      <b>Questa non riguarda l'app che usi, riguarda i miei collaudi.</b> Non può farti
+      sbagliare un numero in cucina. Può però farmi rilasciare una versione rotta senza che me
+      ne accorga, ed è per questo che non l'ho tolta dalla lista.
     </div>
     <div class="schede" id="lista-difetti">
       <button type="button" class="voce" aria-pressed="false" data-id="gen555-rosso" aria-label="Un collaudo è rosso da giorni e non me n'ero accorta — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Un collaudo è rosso da giorni e non me n'ero accorta</span><p class="desc">Trovato stasera per caso, facendo la regressione. Il collaudo «gen555test» ha cinque controlli rossi sulle richieste al laboratorio — la parte che tiene separato «quanto è di livello» da «quanto è stato chiesto in più». NON l'ho rotto oggi: era già rosso su gen-5.75, cioè da prima di tutte le versioni di ieri e oggi. Non so ancora se è un difetto vero dell'app o un collaudo invecchiato che chiede una cosa che l'app fa in un altro modo: le due cose si somigliano e non voglio dirti che è l'una o l'altra prima di averlo guardato. È sfuggito perché a ogni rilascio faccio girare i collaudi della ZONA che tocco, non tutti e 57: il giro completo dura mezz'ora e gira di notte. Il rimedio non è solo capire questo caso, è accorgersi prima del prossimo.</p><span class="meta"><span class="tag t-dati">da capire</span><span class="tag t-mis">piccolo</span></span></span></button>
-      <button type="button" class="voce" aria-pressed="false" data-id="offline-bugia" aria-label="«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">«Sincronizzato con tutta la rete» viene detto anche quando la rete non c’è</span><p class="desc">Marco conta il retro in cantina, dove non prende. L’app gli scrive a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con tutta la rete». Quella frase è falsa: è scritta subito, in locale, senza guardare se la rete abbia risposto. Se lui chiude l’app prima che la rete torni, la mattina dopo il magazzino ha i numeri di ieri e il laboratorio non ha ricevuto niente. Sul telefono non c’è nemmeno una spia: la pastiglia «Riconnessione…» è nascosta sotto una certa larghezza, cioè su tutti i telefoni. Tre interventi separati; i primi due sono dieci minuti l’uno e tolgono la bugia subito.</p><span class="meta"><span class="tag t-sic">difetto</span><span class="tag t-mis">medio</span></span></span></button>
                 </div>
   </section>
 
   <section>
     <p class="eti" style="color:var(--blu)">Da scegliere · migliorie</p>
-    <h2>E quattro cose che oggi mancano</h2>
+    <h2>E tre cose che oggi mancano</h2>
     <p class="guida">Erano già in lista prima del consiglio. Non sono rotture: sono lavori che
     l'app non sa ancora fare, o decisioni che spettano a te.</p>
     <div class="schede" id="lista-altro">
@@ -283,6 +288,56 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 18 agosto · <b>gen-5.92</b> · la Memoria, dentro l'app</h4>
+        <p>Me l'hai chiesta ieri sera: «un'app che faccia da memoria per te e per ogni contesto
+        che desidero mantenere per te, e devi essere in grado di poter interagire con questa
+        app». L'ho messa <b>dentro Supply Chain Pro</b>, sotto <b>Gestione › Memoria</b>, e ti
+        dico perché invece di farne una a parte: ce l'hai già sul telefono, è già dietro il PIN,
+        e parla già con lo stesso deposito da cui io leggo. Un'app nuova voleva dire un altro
+        indirizzo, un altro accesso e un altro posto in cui dimenticarsi le cose.</p>
+        <p>Dentro ci scrivi note con un'etichetta (regola, contesto, decisione, quello che vuoi),
+        le cerchi, le correggi, le cancelli. Restano lì fra una conversazione e l'altra, e io le
+        rileggo. Tengo <b>300 note</b> al massimo, 4000 caratteri l'una.</p>
+        <p><b>Il prezzo, dichiarato.</b> Le note stanno in una chiave <em>loro</em>, separata da
+        quella del lavoro. Le giacenze hanno la coda, il confronto fra revisioni e l'annulla:
+        roba delicata, e infilarci dentro degli appunti vorrebbe dire far passare ogni nota per
+        quel macchinario e mettere a rischio le giacenze per un promemoria. In cambio, sulle
+        note vince l'ultimo che scrive: se tu e io tocchiamo la stessa nota nello stesso minuto,
+        una delle due versioni si perde. Per degli appunti fra due va bene; per le giacenze non
+        andrebbe, ed è il motivo per cui stanno separate.</p>
+        <p><b>E una cosa che sta scritta sulla schermata, non solo qui:</b> sono
+        <b>appunti, non ordini</b>. Quello che leggo lì dentro lo tratto come informazione, mai
+        come un comando da eseguire. È la cosa che rileggo e di cui mi fido ogni volta che
+        ricomincio, quindi è anche l'unico posto da cui qualcuno potrebbe provare a guidarmi:
+        meglio che il paletto sia scritto dove lo vedono tutti.</p>
+        <p>Il collaudo (<code>memoriaapptest.mjs</code>) passa 11 controlli su 11, e due contano
+        più degli altri: che una nota <b>sopravviva</b> a chiudere e riaprire l'app, e che lo
+        stato del lavoro resti <b>intatto</b> — cinque magazzini prima, cinque dopo, e la
+        chiave delle note che non compare da nessuna parte dentro quella delle giacenze.</p>
+
+        <h4>Il 17 agosto · <b>gen-5.91</b> · «sincronizzato con tutta la rete» adesso è vero</h4>
+        <p>Terzo lavoro della tua lista, e dal consiglio del 2 agosto. Chi contava in cantina si
+        vedeva scritto a lettere grandi «Conteggio registrato — è aggiornato e sincronizzato con
+        tutta la rete». <b>Era falsa</b>: l'app la scriveva subito, in locale, senza guardare se
+        la rete avesse risposto. Chiusa l'app prima che la rete tornasse, la mattina dopo il
+        magazzino aveva i numeri di ieri e il laboratorio non aveva ricevuto niente. E sul
+        telefono non c'era nemmeno una spia: la pastiglia «Riconnessione…» era nascosta sotto i
+        640 pixel, cioè su tutti i telefoni.</p>
+        <p>Adesso la schermata di fine conteggio guarda com'è andata davvero. Se la rete ha
+        risposto, la frase di sempre. Se non ha risposto, un riquadro ambra che dice quello che
+        è successo — «Salvato sul telefono, non ancora in rete» — e <b>cosa fare</b>: lasciare
+        l'app aperta finché non parte, perché se la chiudi adesso gli altri continuano a vedere
+        i numeri di prima. La pastiglia non si nasconde più quando c'è qualcosa in sospeso.</p>
+        <p><b>Il controllo che conta di più è il terzo</b>, e non parla del difetto: quando la
+        rete c'è, la frase di sempre deve restare e la spia deve stare zitta. Un avviso che
+        compare anche quando va tutto bene diventa arredamento, e il giorno che serve non lo
+        legge più nessuno.</p>
+        <p><b>Il caso del consiglio non era riproducibile alla lettera</b>, e lo dico perché la
+        differenza conta: da Conteggi il retro <em>non si conta affatto</em> — l'app si rifiuta
+        e spiega che il conteggio di linea fa partire richieste, e un retro finirebbe per
+        rifornire sé stesso. Il difetto era lo stesso, in un'altra stanza: una <b>linea</b>
+        contata in un posto dove non prende.</p>
+
         <h4>Il 6 agosto · <b>gen-5.90</b> · il conto vero anche nelle altre schede</h4>
         <p>Secondo lavoro della tua lista. Era lo stesso difetto della Plancia, in altre schede:
         scrivevano «2 prodotti aggiornati» contando quello che avevi <em>spuntato</em>, mentre il
