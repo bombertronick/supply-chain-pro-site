@@ -42,8 +42,12 @@ const lab = st.magazzini.find((m) => m.tipo === "laboratorio");
    fermare, ed e' quella su cui prima l'app diceva «fatto» */
 const linea = st.magazzini.find((m) => m.tipo !== "laboratorio" && m.sedeId === lab.sedeId)
   || st.magazzini.find((m) => m.tipo !== "laboratorio");
+/* DAL 30 AGOSTO (gen-5.95) anche i comandi quantita' della Plancia stanno
+   dietro l'interruttore «correzioni»: questo collaudo prova il CONTO VERO
+   delle caselle toccate, non il pavimento del mestiere puro (che sta in
+   autorizzazionitest.mjs), quindi il suo profilo ha la spunta accesa. */
 st.profili = [{ id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: lab.sedeId,
-  colore: "#22B8CF", pinHash: hash("3333") }];
+  correzioni: true, colore: "#22B8CF", pinHash: hash("3333") }];
 
 /* due caselle sue, sotto il livello, e due della linea: cosi' si vede la
    differenza fra «quante ne ho scelte» e «quante ne ho toccate» */
