@@ -39,9 +39,14 @@ if (!magLab || !linea || !retro) throw new Error("banco povero: servono lab, lin
    una richiesta in attesa per il mestiere del lab, due righe d'ordine per
    il ciclo acquisti (una da ordinare, una ordinata con retro rifornibile) */
 base.prodotti[0].preparato = true;
-/* un prezzo nel banco: senza, il chip del valore non esiste per nessuno e i
-   controlli sull'euro sarebbero verdi a vuoto — misurato al primo giro */
-base.prodotti.find((x) => x.id === linea.articoli[0].prodottoId).prezzo = 2;
+/* un prezzo E la conversione nel banco: senza prezzo il chip del valore non
+   esiste per nessuno; e senza conversione nemmeno — l'articolo della linea
+   sta in u-gn mentre la base e' in pezzi, e una riga non convertibile finisce
+   fra le «senza prezzo». Misurato due volte, al primo e al secondo giro. */
+const pPrezzo = base.prodotti.find((x) => x.id === linea.articoli[0].prodottoId);
+pPrezzo.prezzo = 2;
+if (linea.articoli[0].uomId !== pPrezzo.uomBase)
+  pPrezzo.conv = { ...(pPrezzo.conv || {}), [linea.articoli[0].uomId]: 2 };
 magLab.articoli = base.prodotti.slice(0, 4).map((p) => ({ prodottoId: p.id, uomId: p.uomBase, qty: 5, par: 8 }));
 const artMezzo = linea.articoli[0];
 artMezzo.qty = 2.5; artMezzo.par = 3.5; artMezzo.parGiorni = { ven: 4.5 };
