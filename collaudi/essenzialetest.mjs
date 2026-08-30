@@ -67,11 +67,17 @@ const apri = async (profili, nome, pin) => {
   await p.waitForTimeout(1500);
   return { p, ctx };
 };
+/* DAL 30 AGOSTO (gen-5.95) le CORREZIONI sono un interruttore a parte:
+   questo collaudo prova il confine della STRUTTURA, quindi i suoi profili
+   hanno le correzioni accese — il pavimento del mestiere puro (tutto
+   spento) lo difende autorizzazionitest.mjs. E' lo stesso spostamento di
+   linea, deciso da Valerio, che gen-5.95 dichiara nel proprio header. */
 const PR = {
   admin: { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#111", pinHash: hash("1234") },
   op: { id: "pr-o", nome: "Op", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-    magazziniIds: [linea.id], pinHash: hash("2222") },
-  lab: { id: "pr-l", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", pinHash: hash("3333") },
+    magazziniIds: [linea.id], correzioni: true, pinHash: hash("2222") },
+  lab: { id: "pr-l", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF",
+    correzioni: true, pinHash: hash("3333") },
   labAut: { id: "pr-l2", nome: "LabPro", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF",
     struttura: true, pinHash: hash("3333") },
 };

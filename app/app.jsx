@@ -958,6 +958,44 @@ function InArrivo({ titolo, gen, testo }) {
   );
 }
 
+/* ─────────── SPIEGA: L'AIUTO CHE SI RICHIUDE (gen-5.95) ───────────
+   Un testo d'aiuto che non si puo' togliere insegna a non leggere niente:
+   chi conta due volte al giorno attraversava 400 caratteri di istruzioni
+   gia' imparate, due volte al giorno, per sempre. Aperto la prima volta;
+   richiuso resta richiuso SU QUESTO DISPOSITIVO (come il tour), e al posto
+   suo resta una pastiglia col titolo — che e' anche la strada per riaprirlo.
+   Se localStorage manca (navigazione privata), resta sempre aperto: meglio
+   ripetere che sparire. Lo stato si rilegge nell'inizializzatore, quindi il
+   rimontaggio della vista a ogni navigazione non riapre niente.
+   NON si usa per: avvisi che portano DATI (offline, righe mancanti),
+   conferme, form. Si richiude solo cio' che, una volta imparato, non serve
+   piu'. */
+const AIUTI_K = "scp:aiuti:v1";
+const aiutoChiuso = (id) => { try { return (JSON.parse(localStorage.getItem(AIUTI_K)) || {})[id] === 1; } catch { return false; } };
+const aiutoScrivi = (id, chiuso) => { try {
+  const v = JSON.parse(localStorage.getItem(AIUTI_K)) || {};
+  v[id] = chiuso ? 1 : 0; localStorage.setItem(AIUTI_K, JSON.stringify(v));
+} catch {} };
+function Spiega({ id, titolo = "Come funziona", colore = T.blu, sfondo = "#EFF4FE", icona: I = Sparkles, children }) {
+  const [chiuso, setChiuso] = useState(() => aiutoChiuso(id));
+  const cambia = () => setChiuso((c) => { aiutoScrivi(id, !c); return !c; });
+  if (chiuso) return (
+    <button type="button" onClick={cambia} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 mb-3 text-xs font-bold"
+      style={{ background: sfondo, color: colore }}>
+      <I size={13} /> {titolo}
+    </button>
+  );
+  return (
+    <div className="rounded-2xl px-3.5 py-3 mb-3 flex items-start gap-2.5"
+      style={{ background: sfondo, border: `1px solid ${T.bordo}` }}>
+      <I size={16} style={{ color: colore }} className="mt-0.5 shrink-0" />
+      <div className="flex-1 text-sm min-w-0" style={{ color: T.ink }}>{children}</div>
+      <button type="button" onClick={cambia} aria-label={`Chiudi l'aiuto: ${titolo}`}
+        className="rounded-full p-2 shrink-0" style={{ background: "#fff", color: T.dim }}><X size={14} /></button>
+    </div>
+  );
+}
+
 /* ─────────── ACCESSO · PROFILI + PIN ─────────── */
 function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
   const [vista, setVista] = useState("profili"); // profili | codice | richiesta | attesa
@@ -1875,6 +1913,42 @@ function puoModificare(profilo, m) {
 function puoStruttura(profilo) {
   return profilo?.ruolo === "admin" || !!profilo?.struttura;
 }
+/* ── TRE INTERRUTTORI, gen-5.95. Chiesto da Valerio: «le modifiche e la
+   gestione generale va lasciata all'admin, gli altri profili possono
+   essere autorizzati ma non e' scontato».
+   · struttura  = la forma del magazzino (gen-5.94, invariato)
+   · correzioni = i numeri: rettifica, scarto, trasferisci, inventario,
+                  comandi quantita' in Plancia, annulla, ripristino
+   · ordini     = il ciclo d'acquisto: ricalcola, segna ordinato, rimuovi
+                  riga, report e testi da mandare, storico ordini
+   Il MESTIERE — contare, evadere, produrre, scrivere le dosi, RICEVERE la
+   merce — non passa da qui e resta a tutti.
+   LA STRUTTURA COMPRENDE LE CORREZIONI: e' una scala, non tre assi — chi
+   puo' cambiare la forma puo' a maggior ragione correggere i numeri; il
+   contrario produrrebbe schermate a meta' (Soglie senza Riempi).
+   Un profilo vecchio non ha i campi: parte tutto spento.
+   LIMITE DICHIARATO: muta() non autorizza niente lato server — questi
+   muri sono interfaccia. Vale per tutta l'app, da sempre, e va sanato al
+   livello giusto (il server), non qui. */
+function puoCorreggere(profilo) {
+  return puoStruttura(profilo) || !!profilo?.correzioni;
+}
+function puoOrdinare(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.ordini;
+}
+/* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
+   Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
+   specialita' di ruolo che resta e' che il laboratorio e' competente solo
+   sui magazzini di tipo laboratorio. */
+function permessoSu(profilo, m) {
+  if (!m) return "lettura";
+  if (profilo.ruolo === "admin") return "pieno";
+  if (m.sedeId !== profilo.sedeId) return "lettura";
+  if (profilo.ruolo === "laboratorio" && m.tipo !== "laboratorio") return "lettura";
+  if (puoStruttura(profilo)) return "pieno";
+  if (puoCorreggere(profilo)) return "rettifica";
+  return "lettura";
+}
 /* le linee che questo magazzino laboratorio rifornisce davvero */
 function lineeDelLab(stato, mag) {
   if (!mag || mag.tipo !== "laboratorio") return [];
@@ -2322,14 +2396,16 @@ function PlanciaRete({ stato, mags, sel, onSelMag, onApri, onSelSotto, onScegli 
             </span>
           ))}
         </div>
-        <p className="text-xs px-1" style={{ color: T.dim }}>
-          Sotto al nome di ogni riquadro c'è scritto <b>da chi riceve la merce</b>, e le strade sono due,
-          separate. Il <b>laboratorio</b> rifornisce le linee collegate a lui, anche di un'altra sede: per
-          questo il suo nome resta scritto sotto al riquadro pure quando in mappa non compare. I
-          <b>magazzini retro</b> — secco e bevande — non passano dal laboratorio: si riforniscono dal
-          fornitore della propria sede, e da lì servono le linee che attingono alla loro scorta. Tocca un
-          magazzino per accendere il suo percorso, toccalo di nuovo per aprirlo; la casellina lo seleziona tutto.
-        </p>
+        <Spiega id="plancia-rete" titolo="Come si legge la mappa">
+          <p className="text-xs" style={{ color: T.dim }}>
+            Sotto al nome di ogni riquadro c'è scritto <b>da chi riceve la merce</b>, e le strade sono due,
+            separate. Il <b>laboratorio</b> rifornisce le linee collegate a lui, anche di un'altra sede: per
+            questo il suo nome resta scritto sotto al riquadro pure quando in mappa non compare. I
+            <b>magazzini retro</b> — secco e bevande — non passano dal laboratorio: si riforniscono dal
+            fornitore della propria sede, e da lì servono le linee che attingono alla loro scorta. Tocca un
+            magazzino per accendere il suo percorso, toccalo di nuovo per aprirlo; la casellina lo seleziona tutto.
+          </p>
+        </Spiega>
       </>)}
     </div>
   );
@@ -2529,11 +2605,13 @@ function PlanciaStruttura({ stato, mags, sel, onArt, onSelMag, onSelSede, onSelL
           </div>
         );
       })}
-      <p className="text-xs px-1" style={{ color: T.dim }}>
-        Le caselline seguono l'albero: sede, magazzino, categoria. Quella mezza piena dice che dentro
-        c'è già una parte selezionata. I segmenti sotto il nome della sede sono i suoi magazzini: uno per
-        uno, quanto sono pieni.
-      </p>
+      <Spiega id="plancia-struttura" titolo="Come si legge l'albero">
+        <p className="text-xs" style={{ color: T.dim }}>
+          Le caselline seguono l'albero: sede, magazzino, categoria. Quella mezza piena dice che dentro
+          c'è già una parte selezionata. I segmenti sotto il nome della sede sono i suoi magazzini: uno per
+          uno, quanto sono pieni.
+        </p>
+      </Spiega>
     </div>
   );
 }
@@ -2920,12 +2998,14 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
             <ChevronRight size={18} />
           </button>
         ) : (
-          <p className="text-xs px-1" style={{ color: T.dim }}>
-            La riga chiara in alto è tutto il magazzino giorno per giorno, e ogni categoria ha la sua anche a gruppo
-            chiuso: la colonna più alta è il giorno che pesa di più, e il numero accanto all'etichetta è il totale di
-            tutta la settimana. Tocca una riga per la settimana di quel prodotto, una lettera in alto per mettere a
-            fuoco un giorno, la casellina per prendere tutta la categoria.
-          </p>
+          <Spiega id="plancia-settimana" titolo="Come si legge la settimana">
+            <p className="text-xs" style={{ color: T.dim }}>
+              La riga chiara in alto è tutto il magazzino giorno per giorno, e ogni categoria ha la sua anche a gruppo
+              chiuso: la colonna più alta è il giorno che pesa di più, e il numero accanto all'etichetta è il totale di
+              tutta la settimana. Tocca una riga per la settimana di quel prodotto, una lettera in alto per mettere a
+              fuoco un giorno, la casellina per prendere tutta la categoria.
+            </p>
+          </Spiega>
         )}
       </>)}
     </div>
@@ -2937,9 +3017,18 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   const mags = magazziniVisti(stato, profilo);
   /* le caselle che non sono tue si vedono ma non si selezionano: così tutti
      gli strumenti di gruppo restano al sicuro senza doverli toccare uno a uno */
-  const mioMag = (mid) => puoModificare(profilo, trova(stato.magazzini, mid));
+  /* «scrivibile» e' la scala nuova: per la Plancia basta non essere in
+     sola lettura — quantita' con «correzioni», forma con «struttura» */
+  const scrivibile = (m) => permessoSu(profilo, m) !== "lettura";
+  const mioMag = (mid) => scrivibile(trova(stato.magazzini, mid));
   const nonTuo = () => mostraToast("Questo magazzino è di una sede che rifornisci: lo vedi, non lo modifichi", "errore");
-  const [tab, setTab] = useState("rete");
+  /* senza «struttura» la Plancia e' UNA stanza: le Caselle, dove si lavora
+     sulle quantita'. Rete/Struttura/Settimana sono lettura della forma e
+     comandi di forma — e la Settimana per un non autorizzato era fatta di
+     righe che sembravano tappabili e non facevano NIENTE (gen-5.95). */
+  const soloCaselle = !puoStruttura(profilo);
+  const [tabScelta, setTab] = useState(soloCaselle ? "caselle" : "rete");
+  const tab = soloCaselle ? "caselle" : tabScelta;
   const [magId, setMagId] = useState(null);
   const [sel, setSel] = useState(() => new Set());
   const [azione, setAzione] = useState(null);   // giacenza | soglia | unita | sposta | giorni
@@ -2956,14 +3045,14 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   /* aprendo le Caselle si parte da un magazzino tuo: per il laboratorio le
      linee rifornite ci sono, ma non è lì che deve mettere le mani per primo */
   const magCorr = trova(stato.magazzini, magId)
-    || mags.find((m) => puoModificare(profilo, m)) || mags[0] || null;
+    || mags.find((m) => scrivibile(m)) || mags[0] || null;
 
   const apri = (id) => { setMagId(id); setTab("caselle"); };
   const selSotto = () => {
     vibra(10);
     const n = new Set();
     for (const m of mags) {
-      if (!puoModificare(profilo, m)) continue;
+      if (!scrivibile(m)) continue;
       for (const a of m.articoli) if (a.qty < parOggi(a)) n.add(chiaveArt(m.id, a.prodottoId));
     }
     setSel(n);
@@ -2975,7 +3064,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     setSel((s) => { const n = new Set(s); const k = chiaveArt(mid, pid); n.has(k) ? n.delete(k) : n.add(k); return n; });
   };
   const toggleMag = (m) => {
-    if (!puoModificare(profilo, m)) return nonTuo();
+    if (!scrivibile(m)) return nonTuo();
     vibra(8);
     setSel((s) => {
       const n = new Set(s); const st = statoSelMag(m, s);
@@ -3014,6 +3103,8 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     mostraToast(`${chiavi.length} caselle selezionate`);
   };
   const step = (mid, pid, d) => {
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore");
     if (!mioMag(mid)) return nonTuo();
     vibra(8); muta((s) => {
     const m = trova(s.magazzini, mid); const a = m?.articoli.find((x) => x.prodottoId === pid); if (!a) return;
@@ -3039,13 +3130,22 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   };
   const tornaIndietro = () => {
     if (!annulla || !annulla.length) return;
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore");
+    /* par, unita' e livelli per giorno sono forma: chi non la tocca in
+       avanti non la tocca nemmeno all'indietro — per lui non sono mai
+       cambiati, quindi non si perde niente. Deciso FUORI da muta(). */
+    const conStruttura = puoStruttura(profilo);
     muta((s) => {
       for (const v of annulla) {
         const m = trova(s.magazzini, v.mid); const a = m?.articoli.find((x) => x.prodottoId === v.pid);
-        if (!a) continue;
+        if (!a || !scrivibile(m)) continue;
         const delta = v.qty - a.qty;
-        a.qty = v.qty; a.par = v.par; a.uomId = v.uomId;
-        if (v.parGiorni) a.parGiorni = { ...v.parGiorni }; else delete a.parGiorni;
+        a.qty = v.qty;
+        if (conStruttura) {
+          a.par = v.par; a.uomId = v.uomId;
+          if (v.parGiorni) a.parGiorni = { ...v.parGiorni }; else delete a.parGiorni;
+        }
         if (Math.abs(delta) > 1e-9) registraMov(s, { magId: v.mid, prodottoId: v.pid, uomId: a.uomId, delta, dopo: v.qty, causale: "plancia", chi: profilo?.nome, rif: "annullamento" });
       }
     }, `Annullata l'ultima modifica su ${annulla.length} caselle`);
@@ -3079,13 +3179,15 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   const tocacabili = () => [...sel].filter((k) => {
     const [mid, pid] = k.split("|");
     const m = trova(stato.magazzini, mid);
-    return !!m && puoModificare(profilo, m) && (m.articoli || []).some((x) => x.prodottoId === pid);
+    return !!m && scrivibile(m) && (m.articoli || []).some((x) => x.prodottoId === pid);
   });
 
   const AZIONI_STRUTTURA = new Set(["soglia", "giorni", "ungiorno", "interi", "unita", "sposta", "rimuovi"]);
   const applicaSel = (fn, msg) => {
     /* il muro rifatto dentro l'esecutore, non solo sui tasti: un tasto
        nascosto non e' un permesso negato */
+    if (!puoCorreggere(profilo))
+      { mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore"); return false; }
     if (AZIONI_STRUTTURA.has(azione) && !puoStruttura(profilo))
       { mostraToast("Per soglie e articoli serve l'autorizzazione dell'admin (Profili)", "errore"); return false; }
     if (!sel.size) { mostraToast("Seleziona prima qualcosa", "errore"); return false; }
@@ -3104,7 +3206,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       for (const k of sel) {
         const [mid, pid] = k.split("|");
         /* secondo controllo, non fidarsi di una selezione vecchia */
-        const m = trova(s.magazzini, mid); if (!m || !puoModificare(profilo, m)) continue;
+        const m = trova(s.magazzini, mid); if (!m || !scrivibile(m)) continue;
         const a = m.articoli.find((x) => x.prodottoId === pid); if (!a) continue;
         fn(s, m, a);
       }
@@ -3125,14 +3227,18 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     }, (n) => `Riempite ${n} caselle al livello previsto`);
     if (ok) { vibra(24); setColpo((c) => c + 1); }
   };
-  /* rimette a numeri interi giacenza, soglia e livelli per giorno: e' la
-     correzione dei prodotti che si spediscono solo interi */
+  /* rimette a numeri interi la giacenza — e, SOLO per chi ha la struttura,
+     anche soglia e livelli per giorno: quelli sono forma del magazzino, e
+     prima di gen-5.95 questo comando li riscriveva pur stando nel gruppo
+     Quantita', aperto a tutti. La decisione si prende QUI FUORI, una volta:
+     dentro muta() il blocco puo' essere rieseguito alla riconciliazione. */
   const arrotonda = () => {
+    const conStruttura = puoStruttura(profilo);
     const ok = applicaSel((s, m, a) => {
       const prima = a.qty;
       a.qty = Math.max(0, Math.round(a.qty || 0));
-      if (a.par != null) a.par = Math.max(0, Math.round(a.par));
-      if (a.parGiorni) {
+      if (conStruttura && a.par != null) a.par = Math.max(0, Math.round(a.par));
+      if (conStruttura && a.parGiorni) {
         const pg = {};
         for (const d in a.parGiorni) pg[d] = Math.max(0, Math.round(a.parGiorni[d] || 0));
         a.parGiorni = pg;
@@ -3156,7 +3262,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
        non e' tua non si sposta niente, ed e' bene dirlo invece di annunciare
        uno spostamento che non e' avvenuto. */
     const dest = trova(stato.magazzini, destId);
-    if (!dest || !puoModificare(profilo, dest)) {
+    if (!dest || !scrivibile(dest)) {
       mostraToast("Quel magazzino non è tuo: non è stato spostato niente", "errore");
       setAzione(null); setVal(""); return;
     }
@@ -3167,11 +3273,11 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     }
     const n = mie.length, fuori = sel.size - n;
     muta((s) => {
-      const mD = trova(s.magazzini, destId); if (!mD || !puoModificare(profilo, mD)) return;
+      const mD = trova(s.magazzini, destId); if (!mD || !scrivibile(mD)) return;
       for (const k of sel) {
         const [mid, pid] = k.split("|");
         if (mid === destId) continue;
-        const mO = trova(s.magazzini, mid); if (!mO || !puoModificare(profilo, mO)) continue;
+        const mO = trova(s.magazzini, mid); if (!mO || !scrivibile(mO)) continue;
         const a = mO.articoli.find((x) => x.prodottoId === pid); if (!a) continue;
         const prod = trova(s.prodotti, pid);
         const ex = mD.articoli.find((x) => x.prodottoId === pid);
@@ -3244,7 +3350,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       muta((s) => {
         for (const k of sel) {
           const [mid, pid] = k.split("|");
-          if (puoModificare(profilo, trova(s.magazzini, mid))) togliArticolo(s, mid, pid);
+          if (scrivibile(trova(s.magazzini, mid))) togliArticolo(s, mid, pid);
         }
       }, fuori ? `${quante} articoli rimossi da ${dove} magazzini · ${fuori} saltati`
         : `${quante} articoli rimossi da ${dove} magazzini`);
@@ -3328,14 +3434,16 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
 
   return (
     <div>
-      <Intesta titolo="Plancia" sotto="La rete a colpo d'occhio: struttura, livelli e comandi in blocco"
-        azione={<Chip colore={T.viola} pieno>beta</Chip>} />
-      <div className="mb-4">
+      {/* il chip «beta» e' andato: una schermata usata in produzione da mesi
+          non e' una beta, e l'etichetta insegnava solo a diffidare */}
+      <Intesta titolo="Plancia" sotto={soloCaselle
+        ? "Le caselle del tuo magazzino: riempi, imposta, azzera"
+        : "La rete a colpo d'occhio: struttura, livelli e comandi in blocco"} />
+      {!soloCaselle && <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "rete", nome: "Rete" }, { id: "struttura", nome: "Struttura" },
           { id: "settimana", nome: "Settimana" }, { id: "caselle", nome: "Caselle" },
-        ]} />
-      </div>
+        ]} /></div>}
 
       {/* barra di contesto: resta in alto mentre scorri, così non perdi
           mai il punto in cui sei e cosa hai in mano */}
@@ -3481,7 +3589,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
                vorrebbe dire far scegliere una cosa che poi viene rifiutata */
             <Selettore label="Magazzino di destinazione" valore={val} onCambia={setVal}
               opzioni={[{ id: "", nome: "— scegli —" },
-                ...magazziniPerSede(stato, mags.filter((m) => puoModificare(profilo, m))).map((m) => ({ id: m.id, nome: m.nome }))]} />
+                ...magazziniPerSede(stato, mags.filter((m) => scrivibile(m))).map((m) => ({ id: m.id, nome: m.nome }))]} />
           )}
           {azione === "rimuovi" && (() => {
             /* le linee che perderanno il prodotto perché nella selezione c'è un
@@ -3533,9 +3641,17 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      rimonta il contenuto — le schede aperte se ne vanno con lui. La navigazione
      normale non lo tocca e si comporta esattamente come prima. */
   const [giro, setGiro] = useState(0);
-  const vaiDallaLente = (v) => { setVista(v); setGiro((g) => g + 1); };
+  /* un salto e' per un viaggio solo: chi naviga senza dati AZZERA quelli
+     vecchi, cosi' il rientro in una schermata non riapre schede a sorpresa.
+     Si legge SOLO negli inizializzatori di useState (la key del contenuto
+     rimonta la vista a ogni cambio), mai in un effect. */
+  const [salto, setSalto] = useState(null);
+  const naviga = (v, dati) => { setSalto(dati || null); setVista(v); };
+  const vaiDallaLente = (v) => { setSalto(null); setVista(v); setGiro((g) => g + 1); };
   const nRic = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId && r.stato === "in-attesa").length;
-  const nOrd = stato.ordini.filter((o) => o.stato === "da-ordinare" &&
+  /* il conto delle righe da ordinare accende il badge solo per chi il
+     ciclo d'acquisto ce l'ha: per gli altri e' un invito a una porta chiusa */
+  const nOrd = (puoOrdinare(profilo) ? stato.ordini : []).filter((o) => o.stato === "da-ordinare" &&
     (profilo.ruolo === "admin" ? true :
       profilo.ruolo === "laboratorio" ? o.tipo === "lab" && o.sedeId === profilo.sedeId :
       o.tipo === "diretto" && o.sedeId === profilo.sedeId)).length;
@@ -3577,12 +3693,24 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
-  }[profilo.ruolo];
+  }[profilo.ruolo]
+    /* la Plancia e' un cruscotto di comandi: senza «correzioni» ne'
+       «struttura» e' una sala macchine con le leve spente — meglio nessuna
+       porta che una porta su una stanza vuota (gen-5.95) */
+    .filter((v) => profilo.ruolo === "admin" || v.id !== "plancia" || puoCorreggere(profilo));
   const voceAttiva = NAV.find((n) => n.id === vista) || NAV[0];
 
   /* primo accesso: avvia la panoramica una volta sola (per dispositivo) */
   useEffect(() => {
-    try { if (!localStorage.getItem("scp:tour:v1")) { setGuida(passiPanoramica(NAV)); localStorage.setItem("scp:tour:v1", "1"); } } catch {}
+    try {
+      /* per PROFILO, non per telefono: il secondo operatore sullo stesso
+         dispositivo di cucina non aveva mai visto il tour. La chiave vecchia
+         resta valida come «gia' visto», cosi' i telefoni esistenti non si
+         ributtano nel tour in massa (gen-5.95). */
+      const k = "scp:tour:v1:" + profilo.id;
+      if (!localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
+      localStorage.setItem(k, "1");
+    } catch {}
   }, []);
   /* Le pagine dentro «Gestione» non sono voci della barra in basso, e
      voceAttiva ripiega sulla prima voce quando non trova la vista: la guida
@@ -3604,22 +3732,36 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
   const IconaQui = sezioneQui?.icona || voceAttiva?.icona;
 
   const contenuto = () => {
-    if (vista === "home") return <HomeVista stato={stato} profilo={profilo} vaiA={setVista} muta={muta} mostraToast={mostraToast} />;
+    /* il gate difensivo (gen-5.95): finora le viste amministrative erano
+       protette solo dal fatto che nessun bottone ci portava — e due porte
+       lo smentivano (lo storico dalla Home, lo storico ordini da Ordini).
+       Un muro qui vale per ogni porta, comprese quelle di domani. */
+    const admin = profilo.ruolo === "admin";
+    const chiusa =
+      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico"].includes(vista)) ||
+      (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
+      (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
+      (vista === "conteggi" && profilo.ruolo === "laboratorio") ||
+      (vista === "richieste" && profilo.ruolo === "operatore");
+    if (chiusa) return <Scheda className="p-8"><Vuoto icona={ShieldCheck}
+      titolo="Questa sezione non è del tuo profilo"
+      testo="Serve un'autorizzazione che questo profilo non ha: la accende un Admin da Gestione, sezione Profili." /></Scheda>;
+    if (vista === "home") return <HomeVista stato={stato} profilo={profilo} vaiA={naviga} muta={muta} mostraToast={mostraToast} />;
     if (voceAttiva && !voceAttiva.pronta) return <InArrivo titolo={voceAttiva.nome} gen={voceAttiva.gen} />;
     if (vista === "catalogo") return <VistaCatalogo stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
-    if (vista === "magazzini") return <VistaMagazzini stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
+    if (vista === "magazzini") return <VistaMagazzini stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} salto={salto} />;
     if (vista === "plancia") return <VistaPlancia stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     if (vista === "analisi") return <VistaAnalisi stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
-    if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={setVista} />;
+    if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
       mostraToast={mostraToast} ripristina={ripristina} />;
-    if (vista === "altro") return <VistaAltro stato={stato} vaiA={setVista} nAcc={nAcc} />;
+    if (vista === "altro") return <VistaAltro stato={stato} vaiA={naviga} nAcc={nAcc} />;
     if (vista === "storico") return <VistaStorico stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />;
-    if (vista === "storico-ordini") return <VistaStoricoOrdini stato={stato} profilo={profilo} mostraToast={mostraToast} vaiA={setVista} />;
+    if (vista === "storico-ordini") return <VistaStoricoOrdini stato={stato} profilo={profilo} mostraToast={mostraToast} vaiA={naviga} />;
     if (vista === "sedi") return <VistaSedi stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "profili") return <VistaProfili stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     return <InArrivo titolo={vista} gen={3} />;
@@ -3629,7 +3771,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     const attiva = vista === v.id;
     const badge = v.badge || 0;
     return (
-      <button onClick={() => setVista(v.id)} data-tour={`nav-${v.id}`}
+      <button onClick={() => naviga(v.id)} data-tour={`nav-${v.id}`}
         className={`flex ${mobile ? "flex-col flex-1 min-w-0 py-2 gap-0.5" : "flex-row w-full px-4 py-3 gap-3"} items-center rounded-2xl font-bold text-xs md:text-sm transition-all`}
         style={{
           color: attiva ? T.blu : T.dim,
@@ -3721,7 +3863,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       <Foglio aperto={aiuto} titolo="Guida e tutorial" onChiudi={() => setAiuto(false)}>
         <div className="flex flex-col gap-2">
           <p className="text-sm mb-1" style={{ color: T.dim }}>Un aiuto veloce, quando vuoi. Puoi sempre saltarlo.</p>
-          <button onClick={() => { setAiuto(false); setVista("plancia"); }}
+          <button onClick={() => { setAiuto(false); naviga("plancia"); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
             <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gamepad2 size={18} /></span>
             <span className="flex-1"><span className="font-extrabold block" style={{ color: T.ink }}>Plancia: la rete a colpo d'occhio</span>
@@ -4293,7 +4435,10 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
      della modifica in blocco. Qui si guarda solo che ci sia qualcosa da
      disfare. */
   const puoTornare = (e) => !!((e.cambi?.length || e.cambiP?.length) && stato && muta && profilo
-    && (e.cambi || []).every((c) => puoModificare(profilo, trova(stato.magazzini, c.k.split("|")[0]))));
+    && puoCorreggere(profilo)
+    /* i cambi al CATALOGO (cambiP) sono forma: prima non erano gatati affatto */
+    && (!e.cambiP?.length || puoStruttura(profilo))
+    && (e.cambi || []).every((c) => permessoSu(profilo, trova(stato.magazzini, c.k.split("|")[0])) !== "lettura"));
 
   const esegui = (e) => {
     let n = 0, np = 0;
@@ -4588,10 +4733,10 @@ const AZIONI = [
   { n: "Prezzi e conversioni dei prodotti", d: "catalogo", ic: Tag,
     c: "Catalogo → Prodotti → matita",
     p: ["prezzo", "prezzi", "costo", "conversione", "conversioni", "quanto costa"] },
-  { n: "Report ordine da mandare al fornitore", d: "ordini", ic: Truck,
+  { n: "Report ordine da mandare al fornitore", d: "ordini", ic: Truck, serve: "ordini",
     c: "Ordini → Report ordine",
     p: ["report", "ordine", "ordinare", "fornitore", "whatsapp", "mandare", "inviare"] },
-  { n: "Da mandare adesso (tutto, sede per sede)", d: "ordini", ic: Truck,
+  { n: "Da mandare adesso (tutto, sede per sede)", d: "ordini", ic: Truck, serve: "ordini",
     c: "Ordini → la scheda verde in cima",
     p: ["mandare", "inviare", "whatsapp", "spedire", "adesso", "messaggio"] },
   { n: "Registrare la merce arrivata", d: "ordini", ic: PackageCheck,
@@ -4649,8 +4794,14 @@ function azioniTrovate(profilo, q) {
   const t = senzaAccenti(q).trim();
   if (t.length < 2) return [];
   /* un operatore non deve trovare porte che poi non può aprire */
-  const suo = (a) => profilo.ruolo === "admin"
-    || !["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema"].includes(a.d);
+  const suo = (a) => {
+    if (profilo.ruolo === "admin") return true;
+    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema"].includes(a.d)) return false;
+    if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
+    if (a.d === "plancia") return puoCorreggere(profilo);
+    if (a.serve === "ordini") return puoOrdinare(profilo);
+    return true;
+  };
   return AZIONI.filter(suo).filter((a) =>
     senzaAccenti(a.n).includes(t) || a.p.some((x) => senzaAccenti(x).includes(t) || t.includes(senzaAccenti(x))));
 }
@@ -4874,19 +5025,22 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
                 testo="Chiedi a un Admin di assegnarti i magazzini linea dalla sezione Profili." /></Scheda>
             : miei.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato}
                 azione={<Bottone variante="tonale" piccolo icona={Boxes}
-                  onClick={() => vaiA("magazzini")}>Apri in Magazzini</Bottone>} />)}
+                  onClick={() => vaiA("magazzini", { magId: m.id })}>Apri questo magazzino</Bottone>} />)}
         </div>
-        <Scheda className="p-5">
-          <div className="flex items-baseline justify-between gap-2 mb-2">
-            <span className="font-extrabold" style={{ color: T.ink }}>Attività recente</span>
-            <button onClick={() => vaiA("storico")}
-              className="text-xs font-extrabold rounded-full px-3 py-2 shrink-0"
-              style={{ background: "#EAF0FE", color: T.blu }}>
-              vedi tutto
-            </button>
-          </div>
-          <LogLista log={stato.log} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
-        </Scheda>
+        {/* il registro compare solo a chi puo' CORREGGERE (e' anche la via del
+            ripristino), e mostra i magazzini SUOI: prima era il log grezzo di
+            tutta l'azienda, e Marco leggeva i conteggi di un'altra sede.
+            Niente piu' porta sullo storico aziendale (gen-5.95). */}
+        {puoCorreggere(profilo) && (() => {
+          const idsMiei = new Set(magazziniVisti(stato, profilo).map((m) => m.id));
+          const logMiei = (stato.log || []).filter((e) => (e.cambi || []).some((c) => idsMiei.has(c.k.split("|")[0])));
+          return (
+            <Scheda className="p-5">
+              <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
+              <LogLista log={logMiei} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
+            </Scheda>
+          );
+        })()}
       </div>
     );
   }
@@ -4901,19 +5055,26 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
       <Intesta titolo={`${saluto}, ${profilo.nome}`}
         sotto={`${sede?.nome || "Laboratorio"} · rifornisce ${servite.length} sedi operatore`}
         azione={<Bottone icona={FlaskConical} onClick={() => vaiA("richieste")}>Apri richieste</Bottone>} />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-        <StatCard icona={FlaskConical} colore={T.ciano} label="Richieste in attesa" valore={inAttesa} />
-        <StatCard icona={Boxes} colore={T.viola} label="Magazzini laboratorio" valore={magLab.length} />
-        <StatCard icona={AlertTriangle} colore={T.ambra} label="Articoli sotto scorta"
-          valore={magLab.reduce((s, m) => s + sottoScorta(m), 0)} />
-      </div>
+      {/* le tre statistiche che stavano qui dicevano cose gia' scritte
+          altrove: le richieste in attesa sono il badge della barra, il
+          numero dei magazzini non cambia mai, il sotto-scorta sta sui Chip
+          delle schede qui sotto. Via (gen-5.95): un numero ripetuto e' una
+          riga da leggere in piu', non un'informazione in piu'. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        {magLab.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato} />)}
+        {magLab.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato}
+          azione={<Bottone variante="tonale" piccolo icona={Boxes}
+            onClick={() => vaiA("magazzini", { magId: m.id })}>Apri questo magazzino</Bottone>} />)}
       </div>
-      <Scheda className="p-5">
-        <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
-        <LogLista log={stato.log} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
-      </Scheda>
+      {puoCorreggere(profilo) && (() => {
+        const idsMiei = new Set(magazziniVisti(stato, profilo).map((m) => m.id));
+        const logMiei = (stato.log || []).filter((e) => (e.cambi || []).some((c) => idsMiei.has(c.k.split("|")[0])));
+        return (
+          <Scheda className="p-5">
+            <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
+            <LogLista log={logMiei} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
+          </Scheda>
+        );
+      })()}
     </div>
   );
 }
@@ -6379,6 +6540,8 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [sedeId, setSedeId] = useState(item?.sedeId || "");
   const [magIds, setMagIds] = useState(item?.magazziniIds || []);
   const [struttura, setStruttura] = useState(!!item?.struttura);
+  const [correzioni, setCorrezioni] = useState(!!item?.correzioni);
+  const [ordini, setOrdini] = useState(!!item?.ordini);
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
@@ -6409,6 +6572,8 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         sedeId: ruolo === "admin" ? undefined : sedeId,
         magazziniIds: ruolo === "operatore" ? magIds : undefined,
         struttura: ruolo === "admin" ? undefined : (struttura || undefined),
+        correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
+        ordini: ruolo === "admin" ? undefined : (ordini || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -6452,28 +6617,42 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
             </div>}
       </div>
     )}
-    {ruolo !== "admin" && (
-      <button type="button" onClick={() => setStruttura((v) => !v)} aria-pressed={struttura}
-        className="flex items-start gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
-        style={struttura
-          ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` }
-          : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
-        <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-          style={{ background: struttura ? T.blu : "#fff", border: `1.5px solid ${struttura ? T.blu : T.tenue}` }}>
-          {struttura && <Check size={13} color="#fff" />}
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-extrabold" style={{ color: T.ink }}>
-            Può modificare la struttura dei magazzini
+    {ruolo !== "admin" && (() => {
+      /* i TRE interruttori (gen-5.95), la stessa grafica del primo: di
+         solito restano spenti — il mestiere non passa da qui */
+      const InterruttoreAut = ({ acceso, onCambia, titolo, sotto }) => (
+        <button type="button" onClick={onCambia} aria-pressed={acceso}
+          className="flex items-start gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+          style={acceso
+            ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` }
+            : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+          <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+            style={{ background: acceso ? T.blu : "#fff", border: `1.5px solid ${acceso ? T.blu : T.tenue}` }}>
+            {acceso && <Check size={13} color="#fff" />}
           </span>
-          <span className="block text-xs mt-0.5" style={{ color: T.dim }}>
-            Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco.
-            Il lavoro di tutti i giorni — contare, rettificare, scartare, trasferire, produrre,
-            evadere — non c'entra con questa spunta e resta comunque.
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-extrabold" style={{ color: T.ink }}>{titolo}</span>
+            <span className="block text-xs mt-0.5" style={{ color: T.dim }}>{sotto}</span>
           </span>
-        </span>
-      </button>
-    )}
+        </button>
+      );
+      return (
+        <div className="flex flex-col gap-2">
+          <span className="block text-sm font-bold" style={{ color: T.ink }}>
+            Autorizzazioni <span className="font-normal" style={{ color: T.tenue }}>· di solito restano spente</span>
+          </span>
+          <InterruttoreAut acceso={correzioni} onCambia={() => setCorrezioni((v) => !v)}
+            titolo="Può correggere le quantità"
+            sotto="Rettifiche, scarti, trasferimenti, inventario e comandi quantità in Plancia. Contare, produrre, evadere e ricevere la merce restano comunque a tutti." />
+          <InterruttoreAut acceso={ordini} onCambia={() => setOrdini((v) => !v)}
+            titolo="Può gestire gli ordini"
+            sotto="Ricalcolo dei fabbisogni, segnare ordinato, togliere righe, report e testi da mandare. Ricevere la merce arrivata resta a tutti." />
+          <InterruttoreAut acceso={struttura} onCambia={() => setStruttura((v) => !v)}
+            titolo="Può modificare la struttura dei magazzini"
+            sotto="Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco. Comprende anche le correzioni delle quantità." />
+        </div>
+      );
+    })()}
     <SceltaColore valore={colore} onCambia={setColore} />
     <Campo label={item ? "Nuovo PIN · 4 cifre (facoltativo)" : "PIN di accesso · 4 cifre"} valore={pin}
       onCambia={(v) => setPin(v.slice(0, 16))} tipo="password"
@@ -7886,7 +8065,10 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
 function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const [sel, setSel] = useState(() => new Set());
   const [q, setQ] = useState("");
-  const altri = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id);
+  /* solo destinazioni su cui si ha permesso PIENO: prima l'elenco offriva
+     TUTTI i magazzini, comprese le sedi altrui — offrire cio' che poi va
+     rifiutato e' il difetto, non la protezione */
+  const altri = magazziniPerSede(stato, stato.magazzini.filter((m) => permessoSu(profilo, m) === "pieno")).filter((m) => m.id !== mag.id);
   const [destId, setDestId] = useState(altri[0]?.id || "");
   const lista = articoliPerNome(stato, mag.articoli).filter((a) => {
     const p = trova(stato.prodotti, a.prodottoId);
@@ -7898,6 +8080,8 @@ function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const sposta = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     if (!dest) return mostraToast("Scegli il magazzino di destinazione", "errore");
+    if (permessoSu(profilo, dest) !== "pieno")
+      return mostraToast("Quel magazzino non e' di tua competenza: scegli una destinazione tua", "errore");
     /* stesso conto vero: qui il ciclo fa «if (!a) continue» sulle righe che
        non trova, e il messaggio le contava lo stesso */
     const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
@@ -8033,9 +8217,10 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
         <Chip colore={T.dim}>{sede?.nome}</Chip>
         {retro && <Chip colore={T.ambra}>Rif: {retro.nome}</Chip>}
         {permesso === "rettifica" && <Chip colore={T.blu}>Rettifica giacenze</Chip>}
-        {(() => {
-          /* quanto vale quello che c'è qui dentro. Se non si può calcolare
-             non si mostra un numero a caso: si dice quante righe mancano */
+        {profilo.ruolo === "admin" && (() => {
+          /* quanto vale quello che c'e' qui dentro — solo all'admin: il
+             valore economico e' controllo di gestione, non lavoro di linea.
+             Se non si puo' calcolare non si mostra un numero a caso */
           const v = valoreMag(stato, mag);
           if (v.contate === 0) return null;
           const mancanti = v.senzaPrezzo + v.senzaConv;
@@ -8100,7 +8285,7 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
                     magazzino di laboratorio, a chi può toccare le giacenze. Su una
                     linea o su un retro non c'entra niente — lì i preparati arrivano,
                     non si fanno. */}
-                {permesso !== "lettura" && mag.tipo === "laboratorio" && preparato(p) && (
+                {(permesso !== "lettura" || profilo.ruolo === "laboratorio") && mag.tipo === "laboratorio" && preparato(p) && (
                   <button onClick={() => setProduz(a)} aria-label={`Ho prodotto ${p?.nome}`}
                     className="rounded-full p-2.5" style={{ background: "#E8F6F0", color: T.verde }}><FlaskConical size={14} /></button>
                 )}
@@ -8549,7 +8734,7 @@ function invDi(stato, profilo, chiave) {
   const vecchio = stato.inventario;
   if (vecchio && (vecchio.magIds || []).some((id) => {
     const m = trova(stato.magazzini, id);
-    return m && puoModificare(profilo, m);
+    return m && permessoSu(profilo, m) !== "lettura";
   })) return vecchio;
   return null;
 }
@@ -8666,14 +8851,14 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
      aperto, l'admin ci entra dentro invece di aprirne un secondo. */
   const [sedeScelta, setSedeScelta] = useState(null);
   const sceglibili = profilo.sedeId ? [] : sediViste(stato, profilo)
-    .filter((sd) => stato.magazzini.some((m) => m.sedeId === sd.id && puoModificare(profilo, m)));
+    .filter((sd) => stato.magazzini.some((m) => m.sedeId === sd.id && permessoSu(profilo, m) !== "lettura"));
   const chiave = profilo.sedeId || sedeScelta || "_tutte";
   const inv = invDi(stato, profilo, chiave);
   const deveScegliere = !profilo.sedeId && sceglibili.length > 1 && !sedeScelta && !inv;
   /* i miei magazzini, meno quelli che stanno già nell'inventario di un altro */
   const occupati = magOccupati(stato, profilo, chiave);
   const tutti = magazziniVisti(stato, profilo)
-    .filter((m) => puoModificare(profilo, m))
+    .filter((m) => permessoSu(profilo, m) !== "lettura")
     /* se l'admin ha scelto una sede, il giro è quello di quella sede e basta */
     .filter((m) => chiave === "_tutte" || m.sedeId === chiave);
   const mios = tutti.filter((m) => !occupati.has(m.id));
@@ -8688,11 +8873,14 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
   const fogli = stato.inventari || [];
 
   const inclusi = (inv?.magIds || []).map((id) => trova(stato.magazzini, id)).filter(Boolean)
-    .filter((m) => puoModificare(profilo, m));
+    .filter((m) => permessoSu(profilo, m) !== "lettura");
   const diff = inv ? differenzeInv(stato, inv) : [];
   const tuttiChiusi = inclusi.length > 0 && inclusi.every((m) => (inv.chiusi || []).includes(m.id));
 
   const avvia = () => {
+    /* il muro anche qui, non solo sul tasto di VistaMagazzini */
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per l'inventario serve l'autorizzazione dell'admin (Profili)", "errore");
     if (!mios.length) return mostraToast("Non hai magazzini da inventariare", "errore");
     const n = mios.length;
     muta((s) => {
@@ -8701,7 +8889,7 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
          vecchio vorrebbe dire prendersi un magazzino che ora è di un altro */
       const occ = magOccupati(s, profilo, chiave);
       const liberi = magazziniVisti(s, profilo)
-        .filter((m) => puoModificare(profilo, m) && !occ.has(m.id))
+        .filter((m) => permessoSu(profilo, m) !== "lettura" && !occ.has(m.id))
         /* il filtro della sede va rifatto ANCHE qui dentro: fuori serve a
            disegnare la schermata, qui a decidere cosa entra davvero nella
            sessione. Senza, l'admin che ha scelto una sede si portava dentro
@@ -8797,7 +8985,7 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
         per ultimo.
       </p>
       {sceglibili.map((sd) => {
-        const suoi = stato.magazzini.filter((m) => m.sedeId === sd.id && puoModificare(profilo, m));
+        const suoi = stato.magazzini.filter((m) => m.sedeId === sd.id && permessoSu(profilo, m) !== "lettura");
         const aperto = (stato.invCorso || {})[sd.id];
         const fatti = aperto ? (aperto.chiusi || []).length : 0;
         return (
@@ -9128,14 +9316,20 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
   );
 }
 
-function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
+function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
 
   const admin = profilo.ruolo === "admin";
   /* il laboratorio apre su «tutte»: la prima cosa che deve vedere è a chi
-     sta mandando la roba, non solo il proprio scaffale */
-  const [filtro, setFiltro] = useState(
-    admin || profilo.ruolo === "laboratorio" ? "tutte" : profilo.sedeId);
-  const [apertoId, setApertoId] = useState(null);
+     sta mandando la roba, non solo il proprio scaffale.
+     «salto» arriva dalla Home («Apri questo magazzino»): si legge SOLO qui
+     negli inizializzatori — la vista viene rimontata a ogni navigazione,
+     quindi il dato e' sempre fresco e non serve nessun effect. */
+  const [filtro, setFiltro] = useState(() => {
+    const m = salto?.magId && trova(stato.magazzini, salto.magId);
+    if (m) return m.sedeId;
+    return admin || profilo.ruolo === "laboratorio" ? "tutte" : profilo.sedeId;
+  });
+  const [apertoId, setApertoId] = useState(salto?.magId ?? null);
   const [form, setForm] = useState(null);
   const [del, setDel] = useState(null);
   const [assegna, setAssegna] = useState(false);   // assegna prodotti a più magazzini
@@ -9144,7 +9338,7 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
   const visti = magazziniVisti(stato, profilo);
   /* l'inventario si offre solo su quello che quel profilo puo' davvero
      correggere: contare un magazzino che poi non puoi scrivere e' una beffa */
-  const inventariabili = visti.filter((m) => puoModificare(profilo, m));
+  const inventariabili = visti.filter((m) => permessoSu(profilo, m) !== "lettura");
   /* ── IL TASTO NON PARLA A NOME D'ALTRI ──
      L'admin non ha una sede, quindi un inventario «suo» per sede non esiste.
      Prima, se una squadra stava contando, il tasto pescava la PRIMA sessione
@@ -9179,17 +9373,11 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
 
   /* permessi sul dettaglio: admin pieno; operatore rettifica giacenze
      nella propria sede; laboratorio rettifica sui magazzini lab */
-  const permessoDi = (m) => {
-    if (admin) return "pieno";
-    if (m.sedeId !== profilo.sedeId) return "lettura";
-    /* sui magazzini laboratorio della propria sede il laboratorio lavora;
-       la superficie STRUTTURALE (aggiungi/modifica/rimuovi articoli,
-       gestione rapida) si apre solo se l'admin gliel'ha autorizzata dal
-       profilo. Senza, scende a «rettifica»: quantita' si', forma no. */
-    if (profilo.ruolo === "laboratorio")
-      return m.tipo !== "laboratorio" ? "lettura" : puoStruttura(profilo) ? "pieno" : "rettifica";
-    return "rettifica";
-  };
+  /* da gen-5.95 la scala sta in permessoSu, una regola sola per tutte le
+     schermate: struttura=pieno, correzioni=rettifica, altrimenti lettura.
+     Sana anche l'asimmetria di gen-5.94: l'operatore autorizzato alla
+     struttura adesso ha «pieno» anche qui, non solo in Plancia. */
+  const permessoDi = (m) => permessoSu(profilo, m);
 
   return (
     <div>
@@ -9197,7 +9385,9 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
         ? "Linee, retro e magazzini laboratorio: articoli, livelli previsti e UdM"
         : profilo.ruolo === "laboratorio"
         ? "I tuoi magazzini, più le linee che rifornisci: quelle si vedono soltanto"
-        : "I magazzini della tua sede: consulta e rettifica le giacenze in tempo reale"}
+        : puoCorreggere(profilo)
+        ? "I magazzini della tua sede: consulta e rettifica le giacenze in tempo reale"
+        : "I magazzini della tua sede: le giacenze in tempo reale"}
         azione={<div className="flex gap-2 flex-wrap">
           {inventariabili.length > 0 && (
             <Bottone variante={invProprio ? "primario" : "tonale"} icona={ClipboardList}
@@ -9732,15 +9922,17 @@ function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
             conta da qui, ma nasconderlo in silenzio lascia chi guarda a chiedersi
             dove sia finito: meglio dirlo, con dentro il nome. */}
         {nonLinee.length > 0 && (
-          <div className="rounded-2xl px-3.5 py-3 mb-3 text-sm"
-            style={{ background: "#FFF6E8", border: "1px solid #F2DCC0", color: "#7A4A00" }}>
-            {nonLinee.length === 1
-              ? `«${nonLinee[0].nome}» non è una linea, quindi non si conta da qui: `
-              : `${nonLinee.length} magazzini assegnati non sono linee (${nonLinee.map((m) => m.nome).join(", ")}), quindi non si contano da qui: `}
-            il conteggio di linea fa partire richieste e prelievi, e un magazzino
-            di retro finirebbe per rifornire se stesso. Per correggere le giacenze
-            usa l'<b>Inventario</b> da Magazzini.
-          </div>
+          <Spiega id="conteggi-non-linee" titolo="Perché alcuni magazzini non si contano qui"
+            colore="#7A4A00" sfondo="#FFF6E8" icona={AlertTriangle}>
+            <p>
+              {nonLinee.length === 1
+                ? `«${nonLinee[0].nome}» non è una linea, quindi non si conta da qui: `
+                : `${nonLinee.length} magazzini assegnati non sono linee (${nonLinee.map((m) => m.nome).join(", ")}), quindi non si contano da qui: `}
+              il conteggio di linea fa partire richieste e prelievi, e un magazzino
+              di retro finirebbe per rifornire se stesso. Per correggere le giacenze
+              usa l'<b>Inventario</b> da Magazzini.
+            </p>
+          </Spiega>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {miei.length === 0
@@ -9766,9 +9958,8 @@ function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
         <ArrowLeft size={15} /> Magazzini
       </button>
       <Intesta titolo={mag.nome} sotto={meta.nome} azione={<Chip colore={meta.colore}>{meta.breve}</Chip>} />
-      <Scheda className="p-3.5 mb-3 flex items-start gap-2.5" style={{ background: "#EFF4FE" }}>
-        <Sparkles size={16} style={{ color: T.blu }} className="mt-0.5 shrink-0" />
-        <p className="text-sm" style={{ color: T.ink }}>
+      <Spiega id="conteggi-guida" titolo="Come si conta">
+        <p>
           Scrivi <b>quanto vedi</b> per ogni articolo. Lascia vuoto per saltarlo:
           al conferma penserà il sistema a scalare e convertire.
           <span className="block mt-1.5">
@@ -9777,7 +9968,7 @@ function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
             e chiedimene 2 in più». La giacenza resta zero: cresce solo la richiesta.
           </span>
         </p>
-      </Scheda>
+      </Spiega>
 
       <div className="flex flex-col gap-2.5">
         {perCategoria(stato, mag.articoli).map(({ cat, arts }) => {
@@ -11009,10 +11200,15 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
      sembrava che gli ordini fatti fossero spariti. Non era vero: erano nella
      scheda accanto. Ora si apre sulla prima scheda che ha qualcosa, e «Da
      ordinare» resta la preferita quando c'è del lavoro da fare. */
+  /* senza «ordini» il ciclo d'acquisto non e' suo: restano le schede della
+     merce in arrivo (ricevere e' mestiere). Le stesse schede guidano anche
+     «primaPiena» e «altrove»: offrire un «vai a Da ordinare» a chi non ha
+     la scheda sarebbe una porta dipinta sul muro. */
+  const STATI_MIEI = puoOrdinare(profilo) ? ["da-ordinare", "ordinato", "ricevuto"] : ["ordinato", "ricevuto"];
   const primaPiena = (() => {
     const conta = (st) => (stato.ordini || []).filter((o) => ordineVisibile(profilo, o) && o.stato === st).length;
-    for (const st of ["da-ordinare", "ordinato", "ricevuto"]) if (conta(st)) return st;
-    return "da-ordinare";
+    for (const st of STATI_MIEI) if (conta(st)) return st;
+    return STATI_MIEI[0];
   })();
   const [tab, setTab] = useState(primaPiena);
   const [reportAperto, setReportAperto] = useState(false);
@@ -11080,7 +11276,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
   /* Quante righe ci sono nelle ALTRE schede: se questa è vuota bisogna dirlo,
      se no il vuoto si legge come «i miei ordini non ci sono più». */
   const ETICHETTE = { "da-ordinare": "Da ordinare", ordinato: "Ordinati", ricevuto: "Ricevuti" };
-  const altrove = ["da-ordinare", "ordinato", "ricevuto"]
+  const altrove = STATI_MIEI
     .filter((st) => st !== tab)
     .map((st) => ({ st, n: miei.filter((o) => o.stato === st).length }))
     .filter((x) => x.n > 0);
@@ -11121,6 +11317,8 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
   const whatsapp = (t) => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
 
   const ricalcola = () => {
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
     let esito = { righe: 0, inArrivo: 0 };
     const fatto = muta((s) => { esito = ricalcolaFabbisogni(s, profilo); },
       `Fabbisogni ricalcolati da ${profilo.nome}`);
@@ -11135,9 +11333,13 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
       : "Report aggiornato dalle scorte attuali");
   };
 
-  const segna = (ids) => muta((s) => {
+  const segna = (ids) => {
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
+    return muta((s) => {
     s.ordini.forEach((o) => { if (ids.includes(o.id)) { o.stato = "ordinato"; o.tOrdine = Date.now(); o.ordinatoDa = profilo.nome; } });
   }, `${ids.length} righe segnate come ordinate da ${profilo.nome}`);
+  };
 
   /* Ricezione in blocco: tutta la merce di un fornitore arrivata come
      ordinata. Carica ogni magazzino di destinazione con la quantità
@@ -11172,27 +11374,33 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
 
   const [ricezione, setRicezione] = useState(null);
 
-  const rimuovi = (id) => muta((s) => { s.ordini = s.ordini.filter((o) => o.id !== id); }, "Riga ordine rimossa");
+  const rimuovi = (id) => {
+    /* prima di gen-5.95 QUESTO era senza nessuna condizione: chiunque
+       vedesse una riga poteva cancellarla, in qualunque stato */
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
+    muta((s) => { s.ordini = s.ordini.filter((o) => o.id !== id); }, "Riga ordine rimossa");
+  };
 
   return (
     <div>
       <Intesta titolo="Ordini" sotto="Report acquisti nelle unità di misura dei fornitori, raggruppati per categoria"
-        azione={<div className="flex gap-2 flex-wrap">
+        azione={puoOrdinare(profilo) && <div className="flex gap-2 flex-wrap">
           {/* Lo Storico ordini sta anche sotto «Gestione», ma «Gestione» ce l'ha
-              solo l'admin: un operatore o il laboratorio non avrebbero avuto
-              nessuna strada per arrivarci. Il posto dove uno lo cerca è
-              comunque questo — accanto agli ordini di adesso. */}
+              solo l'admin: chi ha l'interruttore «ordini» lo cerca comunque
+              qui — accanto agli ordini di adesso. Per gli altri questi tre
+              tasti sono gestione, non mestiere (gen-5.95). */}
           {vaiA && <Bottone variante="tonale" icona={History} onClick={() => vaiA("storico-ordini")}>Storico</Bottone>}
           <Bottone variante="tonale" icona={RotateCcw} onClick={ricalcola}>Ricalcola</Bottone>
           <Bottone icona={ClipboardList} onClick={() => setReportAperto(true)} disabilitato={!reportCat.length}>Report ordine</Bottone>
         </div>} />
-      <DaMandare stato={stato} profilo={profilo} mostraToast={mostraToast} />
+      {puoOrdinare(profilo) && <DaMandare stato={stato} profilo={profilo} mostraToast={mostraToast} />}
 
       {/* ── NESSUNO A CUI CHIEDERLO ──
           Rosso e non ambra: l'ambra nell'app vuol dire «sta finendo», e questo
           non e' un livello basso, e' una strada interrotta. Finche' resta cosi'
           quel prodotto non arrivera' mai, per quanto si ricalcoli. */}
-      {senzaLaboratorio.length > 0 && (
+      {(profilo.ruolo === "admin" || puoOrdinare(profilo)) && senzaLaboratorio.length > 0 && (
         <Scheda className="p-4 mb-3" style={{ border: `1.5px solid ${T.rosso}55`, background: "#FFF4F6" }}>
           <div className="flex items-center gap-3 flex-wrap mb-2.5">
             <div className="rounded-2xl p-2.5" style={{ background: "#FBDDE4", color: T.rosso }}>
@@ -11231,8 +11439,10 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
             ))}
           </div>
           <p className="text-xs mt-2.5" style={{ color: T.dim }}>
-            Si sistema da <b>Gestione → Sedi</b>: apri la sede e scegli quale laboratorio la
-            rifornisce. Se un laboratorio non c'è ancora, va creato prima da <b>Magazzini</b>.
+            {profilo.ruolo === "admin"
+              ? <>Si sistema da <b>Gestione → Sedi</b>: apri la sede e scegli quale laboratorio la
+                  rifornisce. Se un laboratorio non c'è ancora, va creato prima da <b>Magazzini</b>.</>
+              : <>Da segnalare a un <b>Admin</b>: si sistema da Gestione → Sedi.</>}
           </p>
         </Scheda>
       )}
@@ -11266,13 +11476,12 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
       <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "lab", nome: `Al laboratorio · ${nLabAttesa}` },
-          { id: "da-ordinare", nome: `Da ordinare · ${miei.filter((o) => o.stato === "da-ordinare").length}` },
-          { id: "ordinato", nome: `Ordinati · ${miei.filter((o) => o.stato === "ordinato").length}` },
-          { id: "ricevuto", nome: `Ricevuti · ${miei.filter((o) => o.stato === "ricevuto").length}` },
+          ...STATI_MIEI.map((st) => ({ id: st,
+            nome: `${{ "da-ordinare": "Da ordinare", ordinato: "Ordinati", ricevuto: "Ricevuti" }[st]} · ${miei.filter((o) => o.stato === st).length}` })),
         ]} />
       </div>
 
-      {tab === "da-ordinare" && (costoDaOrdinare.tot > 0 || costoDaOrdinare.senza > 0) && (
+      {profilo.ruolo === "admin" && tab === "da-ordinare" && (costoDaOrdinare.tot > 0 || costoDaOrdinare.senza > 0) && (
         <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3"
           style={{ background: "#F1F8F4", border: `1px solid ${T.verde}33` }}>
           <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.verde}22`, color: T.verde }}>
@@ -11350,7 +11559,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                   <div className="font-extrabold" style={{ color: T.ink }}>{f.nome}</div>
                   <div className="text-xs" style={{ color: T.dim }}>{rf.length} righe</div>
                 </div>
-                {tab === "da-ordinare" && (
+                {tab === "da-ordinare" && puoOrdinare(profilo) && (
                   <Bottone variante="tonale" piccolo icona={CheckCheck}
                     onClick={() => segna(rf.map((o) => o.id))}>Tutto ordinato</Bottone>
                 )}
@@ -11402,7 +11611,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                           </span>
                           {/* erano 30×30: in cucina, con le mani bagnate, si
                               sbaglia bersaglio. Il minimo comodo è 32. */}
-                          {tab === "da-ordinare" && (
+                          {tab === "da-ordinare" && puoOrdinare(profilo) && (
                             <button onClick={() => segna([o.id])} aria-label="Segna come ordinato"
                               className="rounded-full p-2.5 shrink-0" style={{ background: "#E4F6EE", color: T.verde }}>
                               <Check size={16} /></button>
@@ -11413,9 +11622,11 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                               className="rounded-full p-2.5 shrink-0" style={{ background: "#E4F6EE", color: T.verde }}>
                               <PackageCheck size={16} /></button>
                           )}
-                          <button onClick={() => rimuovi(o.id)} aria-label="Rimuovi riga"
-                            className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
-                            <Trash2 size={16} /></button>
+                          {puoOrdinare(profilo) && (
+                            <button onClick={() => rimuovi(o.id)} aria-label="Rimuovi riga"
+                              className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
+                              <Trash2 size={16} /></button>
+                          )}
                           {/* a tutta larghezza, in fondo: la riga ha gia' il
                               «vai a capo», e questa spiegazione stretta in una
                               colonna da tre parole diventava una filastrocca

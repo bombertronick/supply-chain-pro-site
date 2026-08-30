@@ -55,7 +55,13 @@ const scena = () => {
   const sedeLab = s.sedi.find((x) => x.tipo === "laboratorio") || s.sedi[0];
   s.profili = [
     { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-    { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6", pinHash: hash("2222") },
+    /* TUTTI GLI INTERRUTTORI ACCESI, di proposito (gen-5.95): il giro deve
+       entrare in OGNI scheda del pavimento — Plancia, ordini, inventario,
+       gestione rapida. Il pavimento dei profili SPENTI lo difende
+       autorizzazionitest.mjs, con i controcontrolli. Stessa divisione dei
+       compiti del commento qui sotto sul laboratorio. */
+    { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6",
+      correzioni: true, ordini: true, struttura: true, pinHash: hash("2222") },
     /* AUTORIZZATO ALLA STRUTTURA, di proposito. Da gen-5.94 un laboratorio
        senza la spunta non vede piu' «Gestione rapida», «Aggiungi articolo» e
        la matita — ed e' GIUSTO cosi': lo dimostra essenzialetest.mjs, coi
@@ -66,7 +72,7 @@ const scena = () => {
        diceva la verita' — la scheda non era piu' raggiungibile da nessuno
        dei tre profili del banco. */
     { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF",
-      struttura: true, pinHash: hash("3333") },
+      struttura: true, correzioni: true, ordini: true, pinHash: hash("3333") },
   ];
 
   /* ── LE SITUAZIONI CHE FANNO ESISTERE LE SCHEDE (4 agosto) ──
