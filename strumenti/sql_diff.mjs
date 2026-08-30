@@ -61,7 +61,11 @@ for (const z of zone) {
   prev = z.off + z.len;
 }
 if (vecchio.length > prev) righe.push({ tipo: "src", da: prev + 1, quanti: vecchio.length - prev });
-righe.forEach((r, i) => { r.k = `tmp:${tag}:p${String(i + 1).padStart(2, "0")}`; });
+/* TRE cifre di zero-padding, non due: con piu' di 99 tessere «p100» si
+   ordina PRIMA di «p11» e la ricomposizione order-by-key esce mescolata.
+   Il cancello md5 lo prende, ma il rilascio fallirebbe — successo davvero
+   con gen-5.95, 176 tessere, fermato dal conto prima del cancello. */
+righe.forEach((r, i) => { r.k = `tmp:${tag}:p${String(i + 1).padStart(3, "0")}`; });
 
 const q = (s) => "'" + s.replace(/'/g, "''") + "'";
 const L = [];

@@ -55,13 +55,22 @@ const scena = () => {
   const sedeLab = s.sedi.find((x) => x.tipo === "laboratorio") || s.sedi[0];
   s.profili = [
     { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-    /* TUTTI GLI INTERRUTTORI ACCESI, di proposito (gen-5.95): il giro deve
-       entrare in OGNI scheda del pavimento — Plancia, ordini, inventario,
-       gestione rapida. Il pavimento dei profili SPENTI lo difende
-       autorizzazionitest.mjs, con i controcontrolli. Stessa divisione dei
-       compiti del commento qui sotto sul laboratorio. */
+    /* CORREZIONI E ORDINI, MA NIENTE STRUTTURA, di proposito (30 agosto,
+       gen-5.95). La prima stesura gli dava tutti e tre gli interruttori e il
+       pavimento e' passato da 9/9 a 7/9: «Rettifica giacenza» e «Trasferisci
+       le scorte» non si aprivano piu'. Misurato, non dedotto: quelle due
+       porte esistono SOLO a permesso «rettifica» (la matita di riga e il
+       bottone «Trasferisci scorte» stanno dietro permesso==="rettifica";
+       chi ha «pieno» passa da Gestione rapida, che e' un livello piu' in
+       fondo di dove il giro preme). Con la struttura l'operatore diventa
+       «pieno» dappertutto e quelle porte non esistono per NESSUNO dei tre
+       profili. Quindi: l'operatore e' quello a meta' strada — corregge ma
+       non modella — e le schede da «pieno» (Gestione rapida, Aggiungi
+       articolo) le coprono l'admin e il laboratorio. Il pavimento dei
+       profili tutti SPENTI lo difende autorizzazionitest.mjs, coi
+       controcontrolli. */
     { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6",
-      correzioni: true, ordini: true, struttura: true, pinHash: hash("2222") },
+      correzioni: true, ordini: true, pinHash: hash("2222") },
     /* AUTORIZZATO ALLA STRUTTURA, di proposito. Da gen-5.94 un laboratorio
        senza la spunta non vede piu' «Gestione rapida», «Aggiungi articolo» e
        la matita — ed e' GIUSTO cosi': lo dimostra essenzialetest.mjs, coi

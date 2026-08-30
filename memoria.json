@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.94",
-    "len": 741966,
-    "md5": "be71b7a3bab904ca33e9958ce31b2bc2",
-    "quando": "2026-08-18",
+    "gen": "gen-5.95",
+    "len": 755150,
+    "md5": "7fe37f874d86519e243ebab5686a6e2b",
+    "quando": "2026-08-30",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.95",
+      "chiude": [],
+      "prova": "autorizzazionitest.mjs",
+      "cosa": "La revisione human factor. Il MESTIERE (contare, evadere, produrre, dosi, ricevere merce) resta a tutti; correzioni/ordini/struttura sono tre interruttori sul profilo, spenti di default anche per i profili esistenti, accesi dall'admin in Gestione > Profili. La scala: struttura COMPRENDE correzioni; ordini e' indipendente. permessoSu() e' la regola unica (pieno/rettifica/lettura) per dettaglio, inventario, Plancia e ripristino. Carico cognitivo: Plancia fuori barra senza comandi e a UNA stanza (Caselle) senza struttura; Home senza log globale ne' StatCard ridondanti e con «Apri questo magazzino» che apre QUELLO (meccanismo salto compatibile col remount); aiuti richiudibili (componente Spiega, scp:aiuti:v1); chip «beta» via; euro solo admin; Ordini ridotti a ricezione senza interruttore; tutorial per-profilo (scp:tour:v1:<id> con fallback legacy); lente coerente coi permessi; gate difensivo in contenuto().",
+      "_nota": "OTTO BUCHI CHIUSI NELLA STESSA PASSATA, trovati dalla mappatura: Arrotonda riscriveva par/parGiorni nel gruppo Quantita' aperto a tutti; Annulla ripristinava par/uomId/parGiorni; il cestino delle righe d'ordine era SENZA NESSUNA CONDIZIONE; FormSpostaMulti offriva destinazioni fuori sede; puoTornare ignorava e.cambiP (catalogo); l'inventario usava puoModificare e il lab scriveva dove il dettaglio gli era in lettura; la lente portava il lab in Conteggi; storico e storico-ordini bucavano i confini di ruolo (contenuto() senza gate). I muri stanno DENTRO gli esecutori (applicaSel, step, tornaIndietro, avvia, ricalcola, segna, rimuovi, sposta), non solo sui tasti. AI SUOI PROFILI VERI: tutto spento al rilascio — se il personale rettificava/ordinava, Valerio deve accendere gli interruttori, e gli e' stato detto in cima al rapporto."
+    },
     {
       "gen": null,
       "chiude": [],
@@ -254,7 +261,7 @@
     }
   ],
   "tuoi": [
-    "CHI AUTORIZZI ALLA STRUTTURA: da gen-5.94 operatori e laboratorio non toccano piu' articoli/soglie/livelli finche' non accendi la spunta sul loro profilo (Gestione > Profili). Il tuo profilo laboratorio VERO parte spento: se deve poter scrivere articoli, va acceso — un tocco.",
+    "CHI AUTORIZZI, E A COSA: da gen-5.95 i profili non-admin partono col solo mestiere. Rettifiche/scarti/trasferimenti/inventario/Plancia => spunta «correzioni»; mandare ordini => «ordini»; articoli e soglie => «struttura» (comprende correzioni). Tre tocchi in Gestione > Profili, per profilo. Finche' non li accendi, il personale NON puo' correggere giacenze ne' gestire ordini.",
     "Il giro di ricarica su tutti i telefoni: chi tiene l'app aperta da prima di gen-5.80 usa ancora la versione vecchia.",
     "I 7 giorni di fiducia su una riga «ordinato» prima di richiedere la stessa merce.",
     "Il PIN dell'admin, ancora quello di partenza. Il repository e' PUBBLICO.",
