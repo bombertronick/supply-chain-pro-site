@@ -442,6 +442,14 @@ const CAUSALI = {
   plancia: { nome: "Plancia rapida", colore: T.ciano },
   produzione: { nome: "Prodotto in laboratorio", colore: T.verde },
   consumo: { nome: "Usato per produrre", colore: T.ambra },
+  /* gen-5.96: lo scarico da vendita in cassa. NON sta in USCITE_STORICO, di
+     proposito e con i numeri: a 100 scontrini al giorno sono ~250 uscite/dì,
+     il tetto delle 2000 si riempirebbe in 8 giorni buttando via proprio i
+     conteggi e i prelievi che nutrono le soglie consigliate (che per parlare
+     devono vedere due volte lo stesso giorno della settimana). Le vendite
+     hanno il loro secchio in sfoltisciMov, e le soglie per ora NON le
+     vedono: e' dichiarato, non dimenticato. */
+  vendita: { nome: "Vendita in cassa", colore: T.blu },
 };
 /* I movimenti non servono tutti alla stessa cosa, e trattarli allo stesso
    modo costava caro due volte.
@@ -475,6 +483,8 @@ const CAUSALI = {
 const SETT_USCITE = 56;          // giorni di storico uscite che servono alle soglie
 const MAX_ALTRI_MOV = 250;       // il resto: quanto basta a storico e grafico
 const MAX_USCITE_MOV = 2000;     // parapetto: sopra il fabbisogno vero (~1300)
+const GIORNI_MOV_VENDITA = 14;   // al kardex e al grafico bastano; le soglie non le usano
+const MAX_MOV_VENDITA = 600;     // ~100 scontrini/di' × 2,5 righe × qualche giorno
 /* Quante modifiche gia' registrate lo stato si ricorda (gen-5.81). Serve a
    non contare due volte un salvataggio arrivato di cui si e' persa la
    risposta. Trecento nomi sono circa 4KB su uno stato di 165KB: sotto il
@@ -485,11 +495,16 @@ const MAX_USCITE_MOV = 2000;     // parapetto: sopra il fabbisogno vero (~1300)
 const MAX_APPLICATE = 300;
 function sfoltisciMov(lista) {
   const limite = Date.now() - SETT_USCITE * 86400000;
+  const limiteVen = Date.now() - GIORNI_MOV_VENDITA * 86400000;
   const out = [];
-  let altri = 0, uscite = 0;
+  let altri = 0, uscite = 0, vendite = 0;
   for (const mv of lista) {
     if (USCITE_STORICO.has(mv.causale) && mv.delta < 0) {
       if (mv.t >= limite && uscite < MAX_USCITE_MOV) { out.push(mv); uscite++; }
+    } else if (mv.causale === "vendita") {
+      /* il secchio della cassa (gen-5.96): dentro il tetto delle uscite le
+         vendite avrebbero affogato i conteggi in otto giorni */
+      if (mv.t >= limiteVen && vendite < MAX_MOV_VENDITA) { out.push(mv); vendite++; }
     } else if (altri < MAX_ALTRI_MOV) { out.push(mv); altri++; }
   }
   return out;
@@ -549,6 +564,114 @@ function sfoltisciOrdini(lista) {
     return tenute.has(o.id);
   });
 }
+/* ─────────── LA CASSA (gen-5.96) ───────────
+   La catena chiesta da Valerio il 31 agosto: cliente → cassa → scarico →
+   riordino. Le regole, decise nel piano e qui incise:
+   · le vendite NON si cancellano mai (lo storno, quando arrivera', sara' una
+     riga contraria — mai una gomma);
+   · lo scarico esce SEMPRE dal magazzino di cassa designato della sede,
+     anche sotto zero: il negativo al banco e' informazione vera («hai
+     venduto piu' di quanto risulta: conta»), il fallback su un altro
+     magazzino sarebbe una bugia che falsifica il riordino due volte;
+   · tetti dal giorno uno: lo stato viaggia INTERO a ogni scrittura (~170KB)
+     e una riga di vendita pesa ~570 byte — senza tetto le vendite sarebbero
+     la prima collezione della storia dell'app a crescere di 100+ righe al
+     giorno. I totali sopravvivono in s.giornate; per la contabilita' lunga
+     c'e' l'export CSV in Sistema, come per gli ordini.
+   LIMITE DICHIARATO nel piano: bene fino a ~100 scontrini al giorno su una
+   cassa sola. Oltre, la cura vera e' una chiave kv separata con append lato
+   server (decisione in roadmap), non un tetto piu' furbo qui. */
+const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
+const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
+const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
+const giornoDi = (t) => { const d = new Date(t);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+/* il magazzino da cui esce quello che si vende: quello designato sulla sede,
+   o la prima linea della sede — dove sta fisicamente il banco */
+function magCassaDi(stato, sedeId) {
+  const sede = trova(stato.sedi, sedeId);
+  const scelto = sede?.cassaMagId && stato.magazzini.find((m) => m.id === sede.cassaMagId && m.sedeId === sedeId);
+  return scelto
+    || stato.magazzini.find((m) => m.sedeId === sedeId && m.tipo.startsWith("linea"))
+    || stato.magazzini.find((m) => m.sedeId === sedeId)
+    || null;
+}
+/* Da «ho battuto queste voci» a «cosa esce, e da dove». NON tocca niente,
+   come calcoloProduzione: prepara righe ridotte a id+numeri. Quello che non
+   si puo' scalare (articolo assente dal magazzino di cassa, conversione
+   mancante) finisce in `problemi` e NON produce righe: la vendita passa
+   comunque — un banco non si ferma sullo stock — ma il buco resta scritto
+   sulla riga, non nascosto. */
+function calcoloScarico(stato, righeCarrello, sedeId) {
+  const out = { righe: [], problemi: [], magId: null };
+  const mag = magCassaDi(stato, sedeId);
+  if (!mag) { out.problemi.push("Questa sede non ha un magazzino di cassa: niente scarico."); return out; }
+  out.magId = mag.id;
+  const somme = new Map();
+  for (const rc of righeCarrello) {
+    for (const ing of rc.distinta || []) {
+      const ip = trova(stato.prodotti, ing.prodottoId);
+      if (!ip) { out.problemi.push("Un prodotto della distinta non è più a catalogo: la voce di listino va rivista."); continue; }
+      const a = (mag.articoli || []).find((x) => x.prodottoId === ing.prodottoId);
+      if (!a) { out.problemi.push(`«${ip.nome}» non è nel magazzino di cassa «${mag.nome}»: non lo scalo.`); continue; }
+      const serve = (+ing.qty || 0) * rc.qty;
+      const q = a.uomId === ing.uomId ? serve : converti(ip, serve, ing.uomId, a.uomId);
+      if (q == null) { out.problemi.push(`Manca la conversione di «${ip.nome}» verso l'unità della casella: non lo scalo.`); continue; }
+      const k = ing.prodottoId;
+      somme.set(k, { prodottoId: ing.prodottoId, magId: mag.id, uomId: a.uomId,
+        quanto: +(((somme.get(k)?.quanto) || 0) + q).toFixed(4) });
+    }
+  }
+  out.righe = [...somme.values()].filter((r) => r.quanto > 1e-9);
+  return out;
+}
+function sfoltisciVendite(lista) {
+  const limite = Date.now() - ORE_VENDITE * 3600000;
+  return (lista || []).filter((v) => v && v.t >= limite)
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
+}
+/* filtro puro come sfoltisciOrdini: il tetto e' PER SEDE, se no con due sedi
+   i novanta giorni diventerebbero quarantacinque */
+function sfoltisciGiornate(lista) {
+  const perSede = new Map();
+  const ordinate = (lista || []).filter(Boolean).sort((a, b) => (b.giorno < a.giorno ? -1 : 1));
+  return ordinate.filter((g) => {
+    const n = perSede.get(g.sedeId) || 0;
+    if (n >= MAX_GIORNATE_SEDE) return false;
+    perSede.set(g.sedeId, n + 1);
+    return true;
+  });
+}
+/* L'applicazione vera, gemella di applicaProduzione: SOLO id e numeri, gia'
+   calcolati fuori — id della vendita COMPRESO, perche' questa closure viene
+   rieseguita a ogni riallineamento della coda e un uid() qui dentro
+   diventerebbe una vendita nuova a ogni replay. Lo scarico non ha clamp:
+   sul replay dopo un conflitto la scelta e' comunque stantia, e il negativo
+   e' il precedente dichiarato di applicaProduzione. La giornata si aggiorna
+   QUI DENTRO, cosi' l'exactly-once del logId copre vendita e totale insieme. */
+function applicaVendita(s, v) {
+  s.vendite = sfoltisciVendite([{ ...v, stato: "registrata" }, ...(s.vendite || [])]);
+  for (const r of v.scarico || []) {
+    const mm = trova(s.magazzini, r.magId);
+    const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
+    if (!aa) continue;
+    aa.qty = +(aa.qty - r.quanto).toFixed(4);
+    registraMov(s, { magId: mm.id, prodottoId: r.prodottoId, uomId: aa.uomId, delta: -r.quanto,
+      dopo: aa.qty, causale: "vendita", chi: v.chi });
+  }
+  const idG = v.giorno + "|" + v.sedeId;
+  let g = (s.giornate || []).find((x) => x.id === idG);
+  if (!g) {
+    g = { id: idG, giorno: v.giorno, sedeId: v.sedeId, totale: 0, nVendite: 0, nStorni: 0,
+      metodi: { contanti: 0, carta: 0, altro: 0 } };
+    s.giornate = [g, ...(s.giornate || [])];
+  }
+  g.totale = +(g.totale + v.totale).toFixed(2);
+  g.nVendite += 1;
+  g.metodi[v.metodo] = +((g.metodi[v.metodo] || 0) + v.totale).toFixed(2);
+  s.giornate = sfoltisciGiornate(s.giornate);
+}
+
 const numCsv = (n) => String(n ?? "").replace(".", ",");
 const dataIt = (t) => new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function scaricaCsv(nomeFile, righe) {
@@ -1360,6 +1483,8 @@ const GUIDA_NAV = {
   ordini: "Cosa ordinare, cosa è stato ordinato e cosa è arrivato. Da qui invii l'ordine (anche su WhatsApp) e registri la merce.",
   richieste: "Le richieste che le linee mandano al laboratorio: le evadi indicando quanto invii davvero.",
   plancia: "La rete a colpo d'occhio: chi rifornisce chi, cosa contiene ogni magazzino e cosa gli manca. Da qui si lavora anche su più magazzini insieme.",
+  cassa: "Le vendite al cliente: tocchi le voci del listino, incassi, e il magazzino di cassa si scarica da solo secondo la distinta di ogni voce.",
+  listino: "Le voci che compaiono in Cassa: nome, prezzo di vendita, varianti e la distinta di cosa scalare dal magazzino a ogni vendita.",
   catalogo: "L'anagrafica di tutta la rete: prodotti, categorie, fornitori, unità e prezzi. Qui c'è «Modifica in blocco», che cambia anche chi fa un prodotto: il laboratorio o un fornitore.",
   analisi: "Numeri e tendenze: copertura scorte, consumi, soglie consigliate dai dati veri e valore della merce ferma.",
   storico: "Tutto quello che è stato fatto, in ordine di tempo, con il tasto per riportare le cose com'erano.",
@@ -1396,6 +1521,16 @@ const GUIDA_SEZIONE = {
   richieste: [
     { titolo: "Le richieste dalla linea", testo: "Qui arrivano le richieste che le linee mandano al laboratorio quando sono sotto scorta." },
     { titolo: "Evadi la richiesta", testo: "Indichi quanto invii davvero: la linea si carica esattamente di quello e, se mandi meno, la richiesta resta aperta per il resto." },
+  ],
+  cassa: [
+    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento." },
+    { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
+    { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
+  ],
+  listino: [
+    { titolo: "Le voci di vendita", testo: "Una voce di listino non è un prodotto di magazzino: una «Margherita» scala farina, mozzarella e pomodoro. Nome, gruppo e prezzo sono quelli che il banco vede in Cassa." },
+    { titolo: "La distinta", testo: "Per ogni voce dici cosa esce dal magazzino a ogni vendita, e in che unità. Una voce senza distinta si vende comunque: semplicemente non scala niente." },
+    { titolo: "Varianti e IVA", testo: "Le varianti aggiungono o tolgono qualcosa al prezzo («Maxi +1,50»). L'aliquota è solo informativa, per i totali di giornata: lo scontrino fiscale resta al registratore telematico." },
   ],
   /* Le nove qui sotto non c'erano. Nove schermate su quattordici aprivano il
      « ? » su una scheda sola, e la Plancia — che è una voce della barra, non
@@ -1935,6 +2070,12 @@ function puoCorreggere(profilo) {
 }
 function puoOrdinare(profilo) {
   return profilo?.ruolo === "admin" || !!profilo?.ordini;
+}
+/* il QUARTO interruttore (gen-5.96): battere in cassa e' mestiere DI CHI STA
+   IN CASSA, non di tutti — e non e' compreso in nessuno degli altri tre:
+   vendere non da' correzioni, ne' ordini, ne' struttura, e viceversa. */
+function puoCassa(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.cassa;
 }
 /* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
    Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
@@ -3694,6 +3835,14 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
   }[profilo.ruolo]
+    /* CASSA SCAVALCA PLANCIA (gen-5.96): la barra regge CINQUE voci, misurate
+       a gen-5.52 — una sesta rompe «Magazzini» a 360px. Chi ha l'interruttore
+       «cassa» durante il servizio sta in cassa, non alla Plancia: la Cassa ne
+       prende il posto in barra, e la Plancia resta raggiungibile dalla lente
+       per chi ha anche le correzioni. La barra dell'admin non cambia:
+       l'admin arriva in Cassa dalla lente. */
+    .map((v) => (v.id === "plancia" && profilo.ruolo !== "admin" && puoCassa(profilo)
+      ? { id: "cassa", nome: "Cassa", icona: Store, pronta: true } : v))
     /* la Plancia e' un cruscotto di comandi: senza «correzioni» ne'
        «struttura» e' una sala macchine con le leve spente — meglio nessuna
        porta che una porta su una stanza vuota (gen-5.95) */
@@ -3738,9 +3887,10 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
        Un muro qui vale per ogni porta, comprese quelle di domani. */
     const admin = profilo.ruolo === "admin";
     const chiusa =
-      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico"].includes(vista)) ||
+      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino"].includes(vista)) ||
       (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
       (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
+      (vista === "cassa" && !puoCassa(profilo)) ||
       (vista === "conteggi" && profilo.ruolo === "laboratorio") ||
       (vista === "richieste" && profilo.ruolo === "operatore");
     if (chiusa) return <Scheda className="p-8"><Vuoto icona={ShieldCheck}
@@ -3755,6 +3905,8 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
+    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
@@ -4625,6 +4777,8 @@ function AvvisiScorta({ stato, vaiA }) {
 const SEZIONI_ALTRO = [
   { id: "catalogo", nome: "Catalogo", icona: Package, col: "#8A63F4",
     sotto: "Prodotti, unità, categorie, fornitori, prezzi e conversioni" },
+  { id: "listino", nome: "Listino", icona: Tag, col: "#DB8A2E",
+    sotto: "Le voci della Cassa: prezzi di vendita, varianti e cosa scalano dal magazzino" },
   { id: "analisi", nome: "Analisi", icona: BarChart3, col: "#3D7DEA",
     sotto: "Consumi, valore della merce, soglie consigliate dai dati veri" },
   { id: "storico", nome: "Storico", icona: History, col: "#D96AC0",
@@ -4745,6 +4899,12 @@ const AZIONI = [
   { n: "Contare quello che c'è", d: "conteggi", ic: ClipboardList,
     c: "Conteggi",
     p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
+  { n: "Battere una vendita", d: "cassa", ic: Store,
+    c: "Cassa",
+    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos"] },
+  { n: "Listino di cassa: prezzi di vendita", d: "listino", ic: Tag,
+    c: "Gestione → Listino",
+    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota"] },
   { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
     c: "Gestione → Analisi",
     p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
@@ -4796,9 +4956,12 @@ function azioniTrovate(profilo, q) {
   /* un operatore non deve trovare porte che poi non può aprire */
   const suo = (a) => {
     if (profilo.ruolo === "admin") return true;
-    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema"].includes(a.d)) return false;
+    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino"].includes(a.d)) return false;
     if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
     if (a.d === "plancia") return puoCorreggere(profilo);
+    /* senza questa riga il ripiego finale mostrerebbe la porta della Cassa
+       anche a chi non puo' aprirla (gen-5.96) */
+    if (a.d === "cassa") return puoCassa(profilo);
     if (a.serve === "ordini") return puoOrdinare(profilo);
     return true;
   };
@@ -6368,6 +6531,11 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [tipo, setTipo] = useState(item?.tipo || "operatore");
   const [labId, setLabId] = useState(item?.labSedeId || lab[0]?.id || "");
+  /* il magazzino di cassa (gen-5.96): da dove esce quello che si vende.
+     Si sceglie solo modificando una sede esistente — alla creazione i
+     magazzini non ci sono ancora — e senza scelta vale la prima linea. */
+  const [cassaMagId, setCassaMagId] = useState(item?.cassaMagId || "");
+  const magSede = item ? stato.magazzini.filter((m) => m.sedeId === item.id) : [];
   const salva = () => {
     if (!nome.trim()) return mostraToast("Inserisci il nome della sede", "errore");
     if (tipo === "operatore" && !labId) return mostraToast("Crea prima una sede laboratorio di riferimento", "errore");
@@ -6376,6 +6544,7 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
         const x = trova(s.sedi, item.id);
         x.nome = nome.trim();
         if (x.tipo === "operatore") x.labSedeId = labId;
+        x.cassaMagId = cassaMagId || undefined;
       } else {
         s.sedi.push({ id: uid("sede"), nome: nome.trim(), tipo, ...(tipo === "operatore" ? { labSedeId: labId } : {}) });
       }
@@ -6397,6 +6566,10 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
         ? <Selettore label="Rifornita dal laboratorio" valore={labId} onCambia={setLabId} opzioni={lab} />
         : <p className="text-sm font-semibold" style={{ color: T.ambra }}>
             Nessuna sede laboratorio disponibile: creane una prima.</p>
+    )}
+    {item && magSede.length > 0 && (
+      <Selettore label="Magazzino di cassa" valore={cassaMagId} onCambia={setCassaMagId}
+        opzioni={magSede} placeholder="La prima linea della sede (predefinito)" />
     )}
     <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
   </div>);
@@ -6542,6 +6715,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [struttura, setStruttura] = useState(!!item?.struttura);
   const [correzioni, setCorrezioni] = useState(!!item?.correzioni);
   const [ordini, setOrdini] = useState(!!item?.ordini);
+  const [cassa, setCassa] = useState(!!item?.cassa);
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
@@ -6574,6 +6748,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         struttura: ruolo === "admin" ? undefined : (struttura || undefined),
         correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
         ordini: ruolo === "admin" ? undefined : (ordini || undefined),
+        cassa: ruolo === "admin" ? undefined : (cassa || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -6647,6 +6822,9 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
           <InterruttoreAut acceso={ordini} onCambia={() => setOrdini((v) => !v)}
             titolo="Può gestire gli ordini"
             sotto="Ricalcolo dei fabbisogni, segnare ordinato, togliere righe, report e testi da mandare. Ricevere la merce arrivata resta a tutti." />
+          <InterruttoreAut acceso={cassa} onCambia={() => setCassa((v) => !v)}
+            titolo="Può battere in cassa"
+            sotto="La vista Cassa: vendite al cliente con scarico automatico dal magazzino di cassa della sede. In barra prende il posto della Plancia. Non comprende correzioni né ordini." />
           <InterruttoreAut acceso={struttura} onCambia={() => setStruttura((v) => !v)}
             titolo="Può modificare la struttura dei magazzini"
             sotto="Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco. Comprende anche le correzioni delle quantità." />
@@ -11700,6 +11878,350 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
    stanno separati. */
 const CHIAVE_MEM = "mem:v1";
 const CHIAVE_INDICE = "scp:backup-indice";
+/* ─────────── IL LISTINO (gen-5.96, solo admin) ───────────
+   Le voci che il banco vede in Cassa. NON sono i prodotti del catalogo:
+   una «Margherita» scala farina, mozzarella e pomodoro — la distinta ha la
+   stessa forma degli ingredienti di una ricetta, ed e' la stessa idea. */
+function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [gruppo, setGruppo] = useState(item?.gruppo || "");
+  const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
+  const [aliquota, setAliquota] = useState(item?.aliquota != null ? String(item.aliquota) : "");
+  const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
+  const [varianti, setVarianti] = useState((item?.varianti || []).map((v) => ({ ...v, delta: String(v.delta) })));
+  const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
+
+  const toccaVar = (i, campo, v) => setVarianti((xs) => xs.map((x, j) => (j === i ? { ...x, [campo]: v } : x)));
+  const toccaDis = (i, campo, v) => setDistinta((xs) => xs.map((x, j) => {
+    if (j !== i) return x;
+    /* cambiando prodotto l'unita' vecchia puo' non esistere piu': si riparte
+       dalla base del prodotto nuovo, mai da un id orfano */
+    if (campo === "prodottoId") return { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || "" };
+    return { ...x, [campo]: v };
+  }));
+
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("Inserisci il nome della voce", "errore");
+    const nP = num(prezzo);
+    if (nP == null || nP < 0) return mostraToast("Il prezzo di vendita è in euro, zero compreso (un omaggio è legittimo)", "errore");
+    const nA = aliquota.trim() === "" ? undefined : num(aliquota);
+    if (aliquota.trim() !== "" && (nA == null || nA < 0 || nA > 100)) return mostraToast("L'aliquota è una percentuale fra 0 e 100", "errore");
+    const vOk = [];
+    for (const v of varianti) {
+      if (!v.nome.trim() && v.delta.trim() === "") continue;
+      const d = num(v.delta) ?? 0;
+      if (!v.nome.trim()) return mostraToast("Ogni variante ha un nome", "errore");
+      if (nP + d < 0) return mostraToast(`«${v.nome}»: il prezzo con la variante andrebbe sotto zero`, "errore");
+      vOk.push({ id: v.id || uid("va"), nome: v.nome.trim(), delta: d });
+    }
+    const dOk = [];
+    for (const d of distinta) {
+      if (!d.prodottoId && d.qty.trim() === "") continue;
+      const q = num(d.qty);
+      if (!d.prodottoId || q == null || q <= 0 || !d.uomId)
+        return mostraToast("Ogni riga della distinta richiede prodotto, quantità e unità", "errore");
+      dOk.push({ prodottoId: d.prodottoId, qty: q, uomId: d.uomId });
+    }
+    const dati = { nome: nome.trim(), gruppo: gruppo.trim(), prezzo: nP,
+      aliquota: nA, attivo, varianti: vOk, distinta: dOk };
+    muta((s) => {
+      if (item) Object.assign(trova(s.listino || [], item.id) || {}, dati);
+      else s.listino = [...(s.listino || []), { id: uid("li"), ...dati }];
+    }, `Voce di listino «${nome.trim()}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+
+  return (<div className="flex flex-col gap-4">
+    <Campo label="Nome in cassa" valore={nome} onCambia={setNome} placeholder="Es. Margherita" autoFocus />
+    <div className="grid grid-cols-2 gap-3">
+      <Campo label="Gruppo" valore={gruppo} onCambia={setGruppo} placeholder="Es. Pizze" />
+      <Campo label="Prezzo di vendita (€)" valore={prezzo} onCambia={setPrezzo} inputMode="decimal" placeholder="Es. 8,50"
+        suggerimento="IVA inclusa: è il prezzo che paga il cliente." />
+    </div>
+    <Campo label="Aliquota IVA % · facoltativa" valore={aliquota} onCambia={setAliquota} inputMode="decimal"
+      placeholder="Es. 10" suggerimento="Solo informativa, per i totali di giornata: lo scontrino resta al registratore telematico." />
+    <button type="button" onClick={() => setAttivo((v) => !v)} aria-pressed={attivo}
+      className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+      style={attivo ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` } : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+      <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+        style={{ background: attivo ? T.blu : "#fff", border: `1.5px solid ${attivo ? T.blu : T.tenue}` }}>
+        {attivo && <Check size={13} color="#fff" />}
+      </span>
+      <span className="text-sm font-extrabold" style={{ color: T.ink }}>
+        {attivo ? "In vendita: il banco la vede" : "Spenta: resta qui, il banco non la vede"}
+      </span>
+    </button>
+    <div>
+      <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Varianti <span className="font-normal" style={{ color: T.tenue }}>· cambiano solo il prezzo</span></span>
+      <div className="flex flex-col gap-2">
+        {varianti.map((v, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input value={v.nome} onChange={(e) => toccaVar(i, "nome", e.target.value)} placeholder="Es. Maxi"
+              className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+            <input value={v.delta} onChange={(e) => toccaVar(i, "delta", e.target.value)} placeholder="+ €" inputMode="decimal"
+              className="w-24 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+            <button onClick={() => setVarianti((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli variante ${v.nome || i + 1}`}
+              className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+          </div>
+        ))}
+        <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setVarianti((xs) => [...xs, { nome: "", delta: "" }])}>Aggiungi variante</Bottone>
+      </div>
+    </div>
+    <div>
+      <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Distinta <span className="font-normal" style={{ color: T.tenue }}>· cosa esce dal magazzino a ogni vendita</span></span>
+      <div className="flex flex-col gap-2">
+        {distinta.map((d, i) => {
+          const prod = trova(stato.prodotti, d.prodottoId);
+          return (
+            <div key={i} className="flex gap-2 items-center flex-wrap">
+              <div className="flex-1 min-w-40"><Selettore valore={d.prodottoId} onCambia={(v) => toccaDis(i, "prodottoId", v)}
+                opzioni={[...stato.prodotti].sort((a, b) => a.nome.localeCompare(b.nome, "it"))} placeholder="Prodotto…" /></div>
+              <input value={d.qty} onChange={(e) => toccaDis(i, "qty", e.target.value)} placeholder="Qtà" inputMode="decimal"
+                className="w-20 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+              <div className="w-28">{prod
+                ? <Selettore valore={d.uomId} onCambia={(v) => toccaDis(i, "uomId", v)}
+                    opzioni={unitaProdotto(stato, prod).map((u) => ({ id: u.id, nome: u.simbolo }))} placeholder="UdM" />
+                : <span className="text-xs" style={{ color: T.tenue }}>—</span>}</div>
+              <button onClick={() => setDistinta((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli ingrediente ${prod?.nome || i + 1}`}
+                className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+            </div>
+          );
+        })}
+        <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setDistinta((xs) => [...xs, { prodottoId: "", qty: "", uomId: "" }])}>Aggiungi ingrediente</Bottone>
+      </div>
+      <p className="text-xs mt-1.5" style={{ color: T.tenue }}>Una voce senza distinta si vende comunque: semplicemente non scala niente.</p>
+    </div>
+    <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+  </div>);
+}
+
+function VistaListino({ stato, muta, mostraToast }) {
+  const [modal, setModal] = useState(null);
+  const [del, setDel] = useState(null);
+  const voci = stato.listino || [];
+  const gruppi = [...new Set(voci.map((v) => v.gruppo || "Senza gruppo"))].sort((a, b) => a.localeCompare(b, "it"));
+  return (
+    <div>
+      <Intesta titolo="Listino" sotto="Quello che il banco vede in Cassa: prezzi di vendita e cosa scalano dal magazzino"
+        azione={<Bottone icona={Plus} onClick={() => setModal({})}>Nuova voce</Bottone>} />
+      {voci.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={Tag} titolo="Il listino è vuoto"
+            testo="Le voci che crei qui compaiono nella Cassa di chi ha l'interruttore «Può battere in cassa»." /></Scheda>
+        : gruppi.map((g) => (
+          <div key={g} className="mb-4">
+            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+            <div className="flex flex-col gap-2">
+              {voci.filter((v) => (v.gruppo || "Senza gruppo") === g)
+                .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
+                <Scheda key={v.id} className="p-3 flex items-center gap-3">
+                  <span className="flex-1 min-w-0">
+                    <span className="font-extrabold block" style={{ color: T.ink }}>{v.nome}</span>
+                    <span className="text-xs flex gap-2 flex-wrap mt-0.5" style={{ color: T.dim }}>
+                      <b style={{ color: T.ink }}>{fmtEuro(v.prezzo || 0)}</b>
+                      {v.aliquota != null && <span>IVA {v.aliquota}%</span>}
+                      {(v.varianti || []).length > 0 && <span>{v.varianti.length} variant{v.varianti.length === 1 ? "e" : "i"}</span>}
+                      {(v.distinta || []).length > 0
+                        ? <span>scala {v.distinta.length} prodott{v.distinta.length === 1 ? "o" : "i"}</span>
+                        : <span style={{ color: T.ambra }}>non scala niente</span>}
+                    </span>
+                  </span>
+                  {v.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
+                  <button onClick={() => setModal({ item: v })} aria-label={`Modifica ${v.nome}`}
+                    className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+                  <button onClick={() => setDel(v)} aria-label={`Rimuovi ${v.nome}`}
+                    className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+                </Scheda>
+              ))}
+            </div>
+          </div>
+        ))}
+      <Foglio aperto={!!modal} titolo={modal?.item ? "Modifica voce di listino" : "Nuova voce di listino"} onChiudi={() => setModal(null)} larga>
+        {modal && <FormVoceListino stato={stato} item={modal.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setModal(null)} />}
+      </Foglio>
+      <Conferma aperto={!!del} titolo={`Togliere «${del?.nome}» dal listino?`}
+        testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
+        onNo={() => setDel(null)}
+        onSi={() => { muta((s) => { s.listino = (s.listino || []).filter((x) => x.id !== del.id); }, `Voce di listino «${del.nome}» rimossa`); setDel(null); }} />
+    </div>
+  );
+}
+
+/* ─────────── LA CASSA (gen-5.96) ───────────
+   Il carrello e' stato LOCALE della vista, di proposito: e' di una persona,
+   su un telefono, per un minuto — nello stato condiviso ogni tap sarebbe una
+   scrittura di rete e si vedrebbe il conto dell'altra cassa. Il poll che
+   aggiorna lo stato non smonta la vista, quindi il conto sopravvive ai
+   refresh; cambiando schermata si azzera, ed e' sano cosi' (un conto
+   fantasma che riappare dopo un'ora e' peggio). */
+function VistaCassa({ stato, profilo, muta, mostraToast }) {
+  const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
+  const [sedeId, setSedeId] = useState(profilo.sedeId || sediOp[0]?.id || "");
+  const [carrello, setCarrello] = useState([]);
+  const [scelta, setScelta] = useState(null);   // voce con varianti in attesa di scelta
+  const [incasso, setIncasso] = useState(false);
+  const [metodo, setMetodo] = useState("contanti");
+
+  const voci = (stato.listino || []).filter((v) => v.attivo !== false);
+  const gruppi = [...new Set(voci.map((v) => v.gruppo || "Altro"))].sort((a, b) => a.localeCompare(b, "it"));
+  const magCassa = magCassaDi(stato, sedeId);
+  const oggi = giornoDi(Date.now());
+  const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
+  const venditeOggi = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === oggi);
+
+  const aggiungi = (voce, variante) => {
+    const chiave = voce.id + "|" + (variante?.id || "");
+    /* il prezzo si congela QUI: se domani il listino cambia, il conto gia'
+       aperto non si muove da solo sotto le dita di chi batte */
+    const prezzo = Math.max(0, (+voce.prezzo || 0) + (variante ? +variante.delta || 0 : 0));
+    setCarrello((c) => {
+      const gia = c.find((r) => r.chiave === chiave);
+      if (gia) return c.map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + 1 } : r));
+      return [...c, { chiave, voceId: voce.id, varianteId: variante?.id,
+        nome: voce.nome + (variante ? " + " + variante.nome : ""), prezzo, qty: 1,
+        distinta: (voce.distinta || []).map((d) => ({ ...d })) }];
+    });
+    setScelta(null);
+  };
+  const cambia = (chiave, delta) => setCarrello((c) => c
+    .map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + delta } : r))
+    .filter((r) => r.qty > 0));
+  const totale = +carrello.reduce((a, r) => a + r.prezzo * r.qty, 0).toFixed(2);
+  const sc = incasso ? calcoloScarico(stato, carrello, sedeId) : null;
+
+  const registra = () => {
+    /* un tasto nascosto non e' un permesso negato (regola di gen-5.95) */
+    if (!puoCassa(profilo))
+      return mostraToast("Per battere in cassa serve l'autorizzazione dell'admin (Profili)", "errore");
+    if (!carrello.length || !sedeId) return;
+    const t = Date.now();
+    const scarico = calcoloScarico(stato, carrello, sedeId);
+    /* TUTTO calcolato fuori da muta, id compreso: la closure viene rieseguita
+       a ogni riallineamento della coda e deve restare pura su (s, dati) */
+    const vendita = {
+      id: uid("vn"), t, giorno: giornoDi(t), sedeId, chi: profilo.nome,
+      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo }) =>
+        ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo })),
+      totale, metodo, scarico: scarico.righe,
+      ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
+    };
+    muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
+    mostraToast(`Incassato ${fmtEuro(totale)}`);
+    setCarrello([]); setIncasso(false); setMetodo("contanti");
+  };
+
+  return (
+    <div>
+      <Intesta titolo="Cassa" sotto={magCassa
+        ? `Ogni vendita scarica «${magCassa.nome}»`
+        : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
+      {profilo.ruolo === "admin" && sediOp.length > 1 && (
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); }} opzioni={sediOp} /></div>
+      )}
+      {(giornata || venditeOggi.length > 0) && (
+        <Scheda className="p-3.5 mb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-extrabold" style={{ color: T.ink }}>Oggi</span>
+            <Chip colore={T.verde} pieno>{fmtEuro(giornata?.totale || 0)}</Chip>
+            <span className="text-sm" style={{ color: T.dim }}>{giornata?.nVendite || 0} vendite</span>
+            <span className="text-xs" style={{ color: T.tenue }}>
+              contanti {fmtEuro(giornata?.metodi?.contanti || 0)} · carta {fmtEuro(giornata?.metodi?.carta || 0)}
+              {(giornata?.metodi?.altro || 0) > 0 ? ` · altro ${fmtEuro(giornata.metodi.altro)}` : ""}
+            </span>
+          </div>
+          {venditeOggi.slice(0, 8).map((v) => (
+            <div key={v.id} className="flex items-center gap-2 text-xs mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}`, color: T.dim }}>
+              <span className="font-bold" style={{ color: T.tenue }}>
+                {new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="flex-1 min-w-0 truncate">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+              {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
+              <b style={{ color: T.ink }}>{fmtEuro(v.totale)}</b>
+            </div>
+          ))}
+        </Scheda>
+      )}
+      {voci.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={Store} titolo="Il listino è vuoto"
+            testo="Le voci della Cassa le prepara un Admin da Gestione → Listino." /></Scheda>
+        : gruppi.map((g) => (
+          <div key={g} className="mb-3">
+            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {voci.filter((v) => (v.gruppo || "Altro") === g)
+                .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
+                <button key={v.id} aria-label={`Aggiungi ${v.nome}`}
+                  onClick={() => ((v.varianti || []).length ? setScelta(v) : aggiungi(v, null))}
+                  className="rounded-2xl px-3 py-3.5 text-left"
+                  style={{ background: "#fff", border: `1.5px solid ${T.bordo}` }}>
+                  <span className="font-extrabold block text-sm" style={{ color: T.ink }}>{v.nome}</span>
+                  <span className="text-xs font-bold" style={{ color: T.blu }}>{fmtEuro(v.prezzo || 0)}
+                    {(v.varianti || []).length > 0 && <span style={{ color: T.tenue }}> · varianti</span>}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      {carrello.length > 0 && (
+        <Scheda className="p-3.5 mt-1">
+          <div className="font-extrabold mb-2" style={{ color: T.ink }}>Il conto</div>
+          <div className="flex flex-col gap-2">
+            {carrello.map((r) => (
+              <div key={r.chiave} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{r.nome}</span>
+                <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(r.prezzo)}</span>
+                <button onClick={() => cambia(r.chiave, -1)} aria-label={`Diminuisci ${r.nome}`}
+                  className="rounded-full p-2 shrink-0" style={{ background: "#F0F3FB", color: T.dim }}><Minus size={14} /></button>
+                <b className="w-6 text-center" style={{ color: T.ink }}>{r.qty}</b>
+                <button onClick={() => cambia(r.chiave, +1)} aria-label={`Aumenta ${r.nome}`}
+                  className="rounded-full p-2 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Plus size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
+            <button onClick={() => setCarrello([])} aria-label="Svuota il conto"
+              className="text-xs font-bold" style={{ color: T.tenue }}>Svuota</button>
+            <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>
+            <Bottone icona={CheckCheck} onClick={() => setIncasso(true)}>Incassa</Bottone>
+          </div>
+        </Scheda>
+      )}
+      <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={() => setScelta(null)}>
+        {scelta && (
+          <div className="flex flex-col gap-2">
+            <button onClick={() => aggiungi(scelta, null)} aria-label={`${scelta.nome} senza variante`}
+              className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
+              Così com'è · {fmtEuro(Math.max(0, +scelta.prezzo || 0))}
+            </button>
+            {(scelta.varianti || []).map((va) => (
+              <button key={va.id} onClick={() => aggiungi(scelta, va)} aria-label={`${scelta.nome} ${va.nome}`}
+                className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
+                {va.nome} · {fmtEuro(Math.max(0, (+scelta.prezzo || 0) + (+va.delta || 0)))}
+              </button>
+            ))}
+          </div>
+        )}
+      </Foglio>
+      <Foglio aperto={incasso} titolo="Incasso" onChiudi={() => setIncasso(false)}>
+        <div className="flex flex-col gap-4">
+          <div className="text-center font-extrabold text-3xl" style={{ color: T.ink }}>{fmtEuro(totale)}</div>
+          {sc && sc.problemi.length > 0 && (
+            <div className="rounded-2xl p-3 text-xs" style={{ background: "#FFF6E8", color: "#7A4A00" }}>
+              <b>La vendita passa comunque, ma:</b>
+              {sc.problemi.map((pr, i) => <div key={i} className="mt-1">· {pr}</div>)}
+            </div>
+          )}
+          <div>
+            <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Metodo di pagamento</span>
+            <Segmenti valore={metodo} onCambia={setMetodo} opzioni={[
+              { id: "contanti", nome: "Contanti" }, { id: "carta", nome: "Carta" }, { id: "altro", nome: "Altro" },
+            ]} />
+          </div>
+          <Bottone icona={CheckCheck} onClick={registra}>Registra l'incasso</Bottone>
+        </div>
+      </Foglio>
+    </div>
+  );
+}
+
 function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
   const [punti, setPunti] = useState(null);
   const [nota, setNota] = useState("");
@@ -11816,6 +12338,23 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
     scaricaCsv(`catalogo-${oggiFile()}.csv`, esportaCatalogoRighe(stato));
     mostraToast("CSV catalogo scaricato");
   };
+  /* le vendite hanno un tetto di 48 ore nello stato: QUESTO export e la
+     tabella delle giornate sono il modo di tenerle per sempre (gen-5.96) */
+  const esportaVendite = () => {
+    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino"]];
+    (stato.vendite || []).forEach((v) => v.righe.forEach((r) => {
+      righe.push([dataIt(v.t), trova(stato.sedi, v.sedeId)?.nome, v.chi, r.nome,
+        numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id]);
+    }));
+    righe.push([]);
+    righe.push(["Giornata", "Sede", "", "", "Vendite", "", "Totale", "Contanti", "Carta", "Altro"]);
+    (stato.giornate || []).forEach((g) => {
+      righe.push([g.giorno, trova(stato.sedi, g.sedeId)?.nome, "", "", numCsv(g.nVendite), "",
+        numCsv(g.totale), numCsv(g.metodi?.contanti || 0), numCsv(g.metodi?.carta || 0), numCsv(g.metodi?.altro || 0)]);
+    });
+    scaricaCsv(`vendite-${oggiFile()}.csv`, righe);
+    mostraToast("CSV vendite scaricato");
+  };
   const analizzaCat = () => {
     if (!impCatTesto.trim()) return mostraToast("Incolla o carica un file CSV", "errore");
     const rep = applicaCatalogoCsv(clona(stato), impCatTesto);
@@ -11899,6 +12438,7 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
           <Bottone variante="tonale" piccolo icona={Boxes} onClick={esportaGiacenze}>Giacenze</Bottone>
           <Bottone variante="tonale" piccolo icona={Truck} onClick={esportaOrdini}>Ordini</Bottone>
           <Bottone variante="tonale" piccolo icona={History} onClick={esportaMovimenti}>Movimenti</Bottone>
+          <Bottone variante="tonale" piccolo icona={Tag} onClick={esportaVendite}>Vendite</Bottone>
         </div>
       </Scheda>
 
@@ -12706,7 +13246,8 @@ export default function App() {
     setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), 2800);
   };
 
-  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [], ...s });
+  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
+    listino: [], vendite: [], giornate: [], ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {

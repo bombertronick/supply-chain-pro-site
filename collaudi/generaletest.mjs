@@ -70,7 +70,7 @@ const scena = () => {
        profili tutti SPENTI lo difende autorizzazionitest.mjs, coi
        controcontrolli. */
     { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6",
-      correzioni: true, ordini: true, pinHash: hash("2222") },
+      correzioni: true, ordini: true, cassa: true, pinHash: hash("2222") },
     /* AUTORIZZATO ALLA STRUTTURA, di proposito. Da gen-5.94 un laboratorio
        senza la spunta non vede piu' «Gestione rapida», «Aggiungi articolo» e
        la matita — ed e' GIUSTO cosi': lo dimostra essenzialetest.mjs, coi
@@ -114,6 +114,16 @@ const scena = () => {
   s.ordini = [{ id: "ord-prova", t: Date.now(), tOrdine: Date.now(), tipo: "diretto",
     sedeId: sedeOp.id, prodottoId: s.prodotti[3].id, fornitoreId: s.fornitori?.[0]?.id || null,
     qty: 6, uomId: s.prodotti[3].uomBase, stato: "ordinato" }];
+
+  /* un listino con una voce semplice e una con variante → la Cassa ha la
+     griglia vera da misurare, non lo stato vuoto (stessa lezione delle
+     quattro schede che «non si aprivano perche' non esistevano») */
+  s.listino = [
+    { id: "li-giro1", nome: "Voce di prova", gruppo: "Banco", prezzo: 4, attivo: true, varianti: [],
+      distinta: [{ prodottoId: s.prodotti[5].id, qty: 0.2, uomId: s.prodotti[5].uomBase }] },
+    { id: "li-giro2", nome: "Voce con variante", gruppo: "Banco", prezzo: 6, attivo: true,
+      varianti: [{ id: "va-giro", nome: "Grande", delta: 1 }], distinta: [] },
+  ];
   return s;
 };
 
@@ -129,11 +139,16 @@ const scena = () => {
    l'elenco resta a mano, e accanto c'e' un controllo (§0) che lo confronta
    con quello che l'app mette davvero nel menu: se ne compare una che qui non
    c'e', diventa rosso e va aggiunta a mano dopo averla guardata. */
-const GESTIONE = ["Catalogo", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili",
+const GESTIONE = ["Catalogo", "Listino", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili",
   "Accessi", "Sistema", "Memoria"];
+/* L'OPERATORE DEL GIRO HA ANCHE «cassa» (31 agosto, gen-5.96): la Cassa
+   scavalca la Plancia in barra — cinque posti, misurati — quindi la sua
+   barra qui sotto porta «Cassa» e la Plancia del giro resta coperta da
+   admin e laboratorio. Il pavimento della Cassa per chi NON ce l'ha lo
+   difende cassatest.mjs §1, coi contro-controlli. */
 const RUOLI = [
   { nome: "Admin", pin: "1234", barra: ["Home", "Magazzini", "Plancia", "Ordini"], gestione: GESTIONE },
-  { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Plancia", "Ordini"], gestione: [] },
+  { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Cassa", "Ordini"], gestione: [] },
   { nome: "Laboratorio", pin: "3333", barra: ["Home", "Richieste", "Magazzini", "Plancia", "Ordini"], gestione: [] },
 ];
 
