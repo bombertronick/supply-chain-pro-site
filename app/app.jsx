@@ -749,6 +749,61 @@ function testoGiornata(stato, sedeId, giorno) {
   return out.join("\n");
 }
 
+/* ─────────── LE COMANDE (gen-5.98) ───────────
+   Chiesto da Valerio il 31 agosto, parole sue: «dalla cassa l'ordine viene
+   visualizzato dalle postazioni produttive di appartenenza; se chi fa i
+   fritti fa anche i dolci, deve poterlo vedere». Disegno vinto in giudizio
+   a tre lenti (traffico, replay, cucina), unanime:
+   LA COMANDA E' LA VENDITA — nessuna seconda collezione. Cosi' storno,
+   sfoltimento (48h/300), replay, dedup e guardie di stato proteggono le
+   comande per costruzione, senza una seconda verita' da sincronizzare.
+   · il GRUPPO si congela sulla riga alla battuta, come nome/prezzo/aliquota:
+     risalire da voceId al listino e' fragile (la voce cambia o sparisce, e
+     la Conferma del Listino promette che le vendite battute non cambiano);
+   · le POSTAZIONI (s.postazioni) sono configurazione di VISTA: abbinano
+     gruppi per nome, si disegnano nel Listino, e ridisegnarle non tocca MAI
+     i dati battuti — v.fatte e' per NOME GRUPPO, un fatto eterno («i Fritti
+     delle 12:41 li ha spuntati Marco»), non per postazioneId;
+   · la SPUNTA e' UNA per scontrino-per-postazione: sul canale che spedisce
+     lo stato intero (~170KB) a ogni scrittura, la spunta per piatto
+     triplicherebbe le scritture (bocciata col veto in giudizio). Anche
+     cosi' le comande RADDOPPIANO le scritture del giorno: il limite dei
+     ~100 scontrini/giorno diventa ~50 equivalenti — dichiarato in roadmap,
+     con la cura (chiave kv separata, append lato server) come prerequisito
+     alla crescita;
+   · un gruppo che NESSUNA postazione della sede reclama e' di TUTTI: righe
+     «senza postazione» su ogni schermo — mai un piatto invisibile;
+   · niente quinto interruttore: guardare lo schermo e spuntare quello che
+     esce e' MESTIERE (regola «resta a tutti»); resta scritto CHI ha
+     spuntato, il lucchetto no (muta non autorizza lato server, limite
+     dichiarato). NON e' un buzzer: la card arriva col ritardo del giro
+     (~3-5s a schermo acceso, MAI a schermo spento) e non suona. */
+/* UN solo ripiego per il gruppo vuoto in tutta l'app: prima «Altro» viveva
+   in Cassa e «Senza gruppo» nel Listino — due nomi per lo stesso vuoto sono
+   due gruppi diversi, e le comande smistano per nome */
+const gruppoDi = (v) => ((v?.gruppo || "").trim()) || "Altro";
+/* la chiave con cui i gruppi si confrontano: il listino e' testo libero e
+   «Pizze» e «pizze » sono la stessa pizzeria (riusa senzaAccenti) */
+const chiaveGruppo = (g) => senzaAccenti((g || "").trim());
+/* la finestra della vista comande e' per ORA, non per giorno di calendario:
+   giornoDi taglierebbe a mezzanotte la coda di una pizzeria in servizio */
+const ORE_COMANDE = 12;
+/* La spunta di cucina, gemella di applicaStorno: pura su (s, d) — d viene
+   TUTTO da fuori (niente id da generare qui dentro) — con la guardia di
+   stato come primo atto: su vendita stornata o gia' sfoltita la spunta
+   muore in silenzio, ed e' giusto cosi'. Rieseguita sul replay scrive gli
+   stessi valori: idempotente nei fatti. d.togli e' il tocco sbagliato. */
+function applicaComanda(s, d) {
+  const v = (s.vendite || []).find((x) => x.id === d.venditaId);
+  if (!v || v.stato !== "registrata") return;
+  const f = { ...(v.fatte || {}) };
+  for (const g of d.gruppi || []) {
+    if (d.togli) delete f[g];
+    else f[g] = { t: d.t, chi: d.chi };
+  }
+  v.fatte = f;
+}
+
 const numCsv = (n) => String(n ?? "").replace(".", ",");
 const dataIt = (t) => new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function scaricaCsv(nomeFile, righe) {
@@ -1561,6 +1616,7 @@ const GUIDA_NAV = {
   richieste: "Le richieste che le linee mandano al laboratorio: le evadi indicando quanto invii davvero.",
   plancia: "La rete a colpo d'occhio: chi rifornisce chi, cosa contiene ogni magazzino e cosa gli manca. Da qui si lavora anche su più magazzini insieme.",
   cassa: "Le vendite al cliente: tocchi le voci del listino, incassi, e il magazzino di cassa si scarica da solo secondo la distinta di ogni voce.",
+  comande: "Gli scontrini battuti in Cassa, smistati alla postazione che li produce: chi cucina spunta quello che esce.",
   listino: "Le voci che compaiono in Cassa: nome, prezzo di vendita, varianti e la distinta di cosa scalare dal magazzino a ogni vendita.",
   catalogo: "L'anagrafica di tutta la rete: prodotti, categorie, fornitori, unità e prezzi. Qui c'è «Modifica in blocco», che cambia anche chi fa un prodotto: il laboratorio o un fornitore.",
   analisi: "Numeri e tendenze: copertura scorte, consumi, soglie consigliate dai dati veri e valore della merce ferma.",
@@ -1598,6 +1654,11 @@ const GUIDA_SEZIONE = {
   richieste: [
     { titolo: "Le richieste dalla linea", testo: "Qui arrivano le richieste che le linee mandano al laboratorio quando sono sotto scorta." },
     { titolo: "Evadi la richiesta", testo: "Indichi quanto invii davvero: la linea si carica esattamente di quello e, se mandi meno, la richiesta resta aperta per il resto." },
+  ],
+  comande: [
+    { titolo: "La tua postazione", testo: "In alto scegli a quale postazione ti siedi (anche più di una: chi fa i fritti stasera può fare anche i dolci). La scelta resta su questo dispositivo." },
+    { titolo: "La coda", testo: "Ogni card è uno scontrino: vedi solo la TUA parte, col numero da chiamare e da quanto aspetta. La più vecchia sta in cima. «Fatto» dice che la tua parte è uscita; un tocco in «Fatte» la riporta in coda se hai sbagliato." },
+    { titolo: "Il ritardo e lo storno", testo: "La comanda arriva col giro dell'app: qualche secondo a schermo ACCESO — a schermo spento non arriva niente, quindi il tablet di postazione resta acceso sull'app. Uno scontrino stornato resta a schermo barrato in rosso col motivo, finché non tocchi «Vista»." },
   ],
   cassa: [
     { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento." },
@@ -3920,6 +3981,15 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
        l'admin arriva in Cassa dalla lente. */
     .map((v) => (v.id === "plancia" && profilo.ruolo !== "admin" && puoCassa(profilo)
       ? { id: "cassa", nome: "Cassa", icona: Store, pronta: true } : v))
+    /* LE COMANDE PRENDONO IL POSTO VUOTO (gen-5.98): l'operatore senza
+       cassa ne' correzioni perdeva la Plancia dal filtro qui sotto e
+       restava con quattro voci — quel posto e' della cucina, che e'
+       esattamente chi guarda le comande tutto il servizio. Chi ha cassa
+       o correzioni tiene la sua voce e raggiunge le Comande dalla lente,
+       come l'admin; il laboratorio resta com'e'. */
+    .map((v) => (v.id === "plancia" && profilo.ruolo === "operatore"
+      && !puoCassa(profilo) && !puoCorreggere(profilo)
+      ? { id: "comande", nome: "Comande", icona: CheckCheck, pronta: true } : v))
     /* la Plancia e' un cruscotto di comandi: senza «correzioni» ne'
        «struttura» e' una sala macchine con le leve spente — meglio nessuna
        porta che una porta su una stanza vuota (gen-5.95) */
@@ -3960,7 +4030,8 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      NAV[0] rimetteva «Guida di "Home"» su un tasto che non parla della Home —
      misurato dalla revisione, ed e' esattamente la regressione che il
      commento qui sopra dichiarava sanata. */
-  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gamepad2 } };
+  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gamepad2 },
+    comande: { nome: "Comande", icona: CheckCheck } };
   const fuori = !NAV.some((n) => n.id === vista) && FUORI_BARRA[vista];
   const nomeQui = sezioneQui?.nome || fuori?.nome || voceAttiva?.nome || "questa sezione";
   const IconaQui = sezioneQui?.icona || fuori?.icona || voceAttiva?.icona;
@@ -3991,6 +4062,9 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
     if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    /* le Comande NON stanno nella lista chiusa: guardare lo schermo e
+       spuntare quello che esce e' mestiere, come contare (gen-5.98) */
+    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
@@ -4987,6 +5061,9 @@ const AZIONI = [
   { n: "Battere una vendita", d: "cassa", ic: Store,
     c: "Cassa",
     p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos"] },
+  { n: "Le comande in cucina", d: "comande", ic: CheckCheck,
+    c: "Comande",
+    p: ["comande", "comanda", "cucina", "postazione", "postazioni", "friggitoria", "pizzeria", "schermo", "fatto", "uscita", "ordine del cliente"] },
   { n: "Listino di cassa: prezzi di vendita", d: "listino", ic: Tag,
     c: "Gestione → Listino",
     p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota"] },
@@ -5047,6 +5124,9 @@ function azioniTrovate(profilo, q) {
     /* senza questa riga il ripiego finale mostrerebbe la porta della Cassa
        anche a chi non puo' aprirla (gen-5.96) */
     if (a.d === "cassa") return puoCassa(profilo);
+    /* esplicito, non per ripiego: le comande sono mestiere e si trovano
+       da ogni profilo (gen-5.98) */
+    if (a.d === "comande") return true;
     if (a.serve === "ordini") return puoOrdinare(profilo);
     return true;
   };
@@ -12091,12 +12171,49 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
 function VistaListino({ stato, muta, mostraToast }) {
   const [modal, setModal] = useState(null);
   const [del, setDel] = useState(null);
+  const [post, setPost] = useState(null);     // la postazione in modifica (gen-5.98)
+  const [delPost, setDelPost] = useState(null);
   const voci = stato.listino || [];
-  const gruppi = [...new Set(voci.map((v) => v.gruppo || "Senza gruppo"))].sort((a, b) => a.localeCompare(b, "it"));
+  /* stesso ripiego della Cassa («Altro», via gruppoDi): prima qui si leggeva
+     «Senza gruppo» e di la' «Altro» — due nomi per lo stesso vuoto, e le
+     comande smistano per nome (gen-5.98) */
+  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
   return (
     <div>
       <Intesta titolo="Listino" sotto="Quello che il banco vede in Cassa: prezzi di vendita e cosa scalano dal magazzino"
         azione={<Bottone icona={Plus} onClick={() => setModal({})}>Nuova voce</Bottone>} />
+      {/* LE POSTAZIONI (gen-5.98) stanno QUI, non in una settima sezione:
+          abbinano i gruppi di questo listino, e chi ridisegna l'uno vede
+          l'altra. Sono configurazione di vista: cambiarle non tocca mai le
+          vendite gia' battute. */}
+      <Scheda className="p-3.5 mb-3">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="font-extrabold" style={{ color: T.ink }}>Postazioni</span>
+          <span className="flex-1" />
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setPost({})}>Nuova postazione</Bottone>
+        </div>
+        <p className="text-xs mb-1" style={{ color: T.tenue }}>
+          Chi vede cosa in cucina: ogni postazione abbina i gruppi del listino che produce, e le Comande le
+          smistano per gruppo. Un gruppo che nessuna postazione reclama compare su tutti gli schermi.
+          Prima di creare la prima postazione ricarica TUTTI i telefoni: una vendita battuta da un telefono
+          vecchio esce senza gruppo e finisce fra le «senza postazione».
+        </p>
+        {(stato.postazioni || []).map((po) => (
+          <div key={po.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
+            <span className="flex-1 min-w-0">
+              <b style={{ color: T.ink }}>{po.nome}</b>
+              <span className="text-xs block truncate" style={{ color: T.dim }}>
+                {(po.gruppi || []).join(", ") || "nessun gruppo"}
+                {po.sedeId ? ` · ${trova(stato.sedi, po.sedeId)?.nome || "sede rimossa"}` : " · tutte le sedi"}
+              </span>
+            </span>
+            <button onClick={() => setPost({ item: po })} aria-label={`Modifica la postazione ${po.nome}`}
+              className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+            <button onClick={() => setDelPost(po)} aria-label={`Rimuovi la postazione ${po.nome}`}
+              className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+          </div>
+        ))}
+      </Scheda>
       {voci.length === 0
         ? <Scheda className="p-8"><Vuoto icona={Tag} titolo="Il listino è vuoto"
             testo="Le voci che crei qui compaiono nella Cassa di chi ha l'interruttore «Può battere in cassa»." /></Scheda>
@@ -12104,7 +12221,7 @@ function VistaListino({ stato, muta, mostraToast }) {
           <div key={g} className="mb-4">
             <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
             <div className="flex flex-col gap-2">
-              {voci.filter((v) => (v.gruppo || "Senza gruppo") === g)
+              {voci.filter((v) => gruppoDi(v) === g)
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
                 <Scheda key={v.id} className="p-3 flex items-center gap-3">
                   <span className="flex-1 min-w-0">
@@ -12131,10 +12248,251 @@ function VistaListino({ stato, muta, mostraToast }) {
       <Foglio aperto={!!modal} titolo={modal?.item ? "Modifica voce di listino" : "Nuova voce di listino"} onChiudi={() => setModal(null)} larga>
         {modal && <FormVoceListino stato={stato} item={modal.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setModal(null)} />}
       </Foglio>
+      <Foglio aperto={!!post} titolo={post?.item ? "Modifica postazione" : "Nuova postazione"} onChiudi={() => setPost(null)}>
+        {post && <FormPostazione stato={stato} item={post.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setPost(null)} />}
+      </Foglio>
       <Conferma aperto={!!del} titolo={`Togliere «${del?.nome}» dal listino?`}
         testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
         onNo={() => setDel(null)}
         onSi={() => { muta((s) => { s.listino = (s.listino || []).filter((x) => x.id !== del.id); }, `Voce di listino «${del.nome}» rimossa`); setDel(null); }} />
+      <Conferma aperto={!!delPost} titolo={`Togliere la postazione «${delPost?.nome}»?`}
+        testo="I suoi gruppi restano nel listino: senza una postazione che li reclama compariranno su tutti gli schermi delle Comande."
+        onNo={() => setDelPost(null)}
+        onSi={() => { muta((s) => { s.postazioni = (s.postazioni || []).filter((x) => x.id !== delPost.id); }, `Postazione «${delPost.nome}» rimossa`); setDelPost(null); }} />
+    </div>
+  );
+}
+
+/* ── LA POSTAZIONE: nome, sede e gruppi A SPUNTA dall'elenco vero del
+   listino — il gruppo e' testo libero e riscriverlo a mano qui sarebbe il
+   secondo posto dove sbagliarlo. I gruppi gia' abbinati ma spariti dal
+   listino restano visibili (per poterli staccare). (gen-5.98) */
+function FormPostazione({ stato, item, muta, mostraToast, onChiudi }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [sedeScelta, setSedeScelta] = useState(item?.sedeId || "tutte");
+  const [gruppi, setGruppi] = useState(item?.gruppi || []);
+  const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
+  const disponibili = [...new Set([...(stato.listino || []).map(gruppoDi), ...gruppi])]
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const giraGruppo = (g) => setGruppi((gs) => (gs.includes(g) ? gs.filter((x) => x !== g) : [...gs, g]));
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("La postazione ha bisogno di un nome", "errore");
+    if (!gruppi.length) return mostraToast("Abbina almeno un gruppo: una postazione senza gruppi non vede niente", "errore");
+    /* l'id nasce QUI FUORI, come per le voci di listino: un uid() dentro la
+       closure diventerebbe una postazione nuova a ogni replay della coda */
+    const dati = { id: item?.id || uid("po"), nome: nome.trim(),
+      sedeId: sedeScelta === "tutte" ? "" : sedeScelta, gruppi };
+    muta((s) => {
+      const lista = s.postazioni || [];
+      s.postazioni = lista.some((x) => x.id === dati.id)
+        ? lista.map((x) => (x.id === dati.id ? dati : x))
+        : [...lista, dati];
+    }, `Postazione «${dati.nome}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <Campo label="Nome della postazione" valore={nome} onCambia={setNome}
+        placeholder="Es. Friggitoria" autoFocus />
+      {sediOp.length > 1 && (
+        <Selettore label="Sede" valore={sedeScelta} onCambia={setSedeScelta}
+          opzioni={[{ id: "tutte", nome: "Tutte le sedi" }, ...sediOp]} />
+      )}
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>I gruppi che produce</span>
+        {disponibili.length === 0
+          ? <p className="text-xs" style={{ color: T.tenue }}>Il listino non ha ancora gruppi: scrivili sulle voci, poi torna qui.</p>
+          : <div className="flex gap-2 flex-wrap">
+              {disponibili.map((g) => { const giu = gruppi.includes(g); return (
+                <button key={g} onClick={() => giraGruppo(g)}
+                  aria-label={giu ? `Stacca il gruppo ${g}` : `Abbina il gruppo ${g}`}
+                  className="rounded-2xl px-3 py-2 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={13} />}{g}
+                </button>
+              ); })}
+            </div>}
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+          «Chi fa i fritti fa anche i dolci» si scrive qui: una postazione, due gruppi.
+        </p>
+      </div>
+      <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+    </div>
+  );
+}
+
+/* ─────────── LE COMANDE: LA VISTA (gen-5.98) ───────────
+   Sola lettura piu' UN bottone. La verita' sta in v.fatte, non in stato
+   locale: il poll non smonta la vista (come per il carrello della Cassa) e
+   due schermi sulla stessa postazione vedono le stesse spunte. La SEDIA e'
+   del DISPOSITIVO (localStorage), non del profilo: lo schermo di cucina e'
+   un oggetto fisico attaccato alla corrente. Ci si puo' sedere a PIU'
+   postazioni («stasera faccio anche i dolci»): la vista mostra l'unione.
+   Le stornate NON spariscono sotto le mani del cuoco: card barrata col
+   motivo finche' qualcuno tocca «Vista» — presa d'atto locale, zero
+   scritture. */
+function VistaComande({ stato, profilo, muta, mostraToast }) {
+  const postazioni = stato.postazioni || [];
+  const [sedute, setSedute] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("scp:comande:v1") || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  });
+  const [congedate, setCongedate] = useState(() => new Set());
+  const siediti = (id) => setSedute((prima) => {
+    const dopo = prima.includes(id) ? prima.filter((x) => x !== id) : [...prima, id];
+    try { localStorage.setItem("scp:comande:v1", JSON.stringify(dopo)); } catch {}
+    return dopo;
+  });
+  /* una sedia puo' puntare a una postazione rimossa: si ignora, non si rompe */
+  const mie = new Set(sedute.filter((id) => postazioni.some((p) => p.id === id)));
+
+  const finestra = Date.now() - ORE_COMANDE * 3600000;
+  /* chi reclama un gruppo nella sede di QUESTA vendita; se nessuna
+     postazione lo reclama, e' di tutti («senza postazione») */
+  const reclamanti = (v, gruppo) => postazioni.filter((po) =>
+    (!po.sedeId || po.sedeId === v.sedeId)
+    && (po.gruppi || []).some((x) => chiaveGruppo(x) === chiaveGruppo(gruppo)));
+
+  const carte = [];
+  for (const v of stato.vendite || []) {
+    if (v.t < finestra) continue;
+    if (v.stato !== "registrata" && v.stato !== "stornata") continue;
+    if (v.stato === "stornata" && congedate.has(v.id)) continue;
+    const mieRighe = []; const altrui = new Set();
+    for (const r of v.righe || []) {
+      const g = r.gruppo || "Altro";   // righe dei telefoni non aggiornati: senza gruppo
+      const chi = reclamanti(v, g);
+      if (chi.length === 0 || chi.some((po) => mie.has(po.id))) {
+        mieRighe.push({ ...r, gruppo: g, orfana: chi.length === 0 });
+      } else {
+        for (const po of chi) altrui.add(po.nome);
+      }
+    }
+    if (!mieRighe.length) continue;
+    const gruppiMiei = [...new Set(mieRighe.map((r) => r.gruppo))];
+    carte.push({ v, mieRighe, altrui: [...altrui].sort((a, b) => a.localeCompare(b, "it")),
+      gruppiMiei, fatta: gruppiMiei.every((g) => v.fatte?.[g]) });
+  }
+  const stornate = carte.filter((c) => c.v.stato === "stornata").sort((a, b) => a.v.t - b.v.t);
+  /* la coda di cucina: la piu' VECCHIA in cima — il contrario del prepend
+     di s.vendite, perche' qui si serve, non si consulta */
+  const inCoda = carte.filter((c) => c.v.stato === "registrata" && !c.fatta).sort((a, b) => a.v.t - b.v.t);
+  const fatte = carte.filter((c) => c.v.stato === "registrata" && c.fatta).sort((a, b) => b.v.t - a.v.t).slice(0, 10);
+
+  const oraDi = (t) => new Date(t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const etaDi = (t) => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? "adesso" : `${m} min`; };
+  const spunta = (c, togli) => {
+    /* dati TUTTI da fuori, come per vendita e storno: la closure resta pura */
+    const dati = { venditaId: c.v.id, gruppi: c.gruppiMiei, t: Date.now(), chi: profilo.nome,
+      ...(togli ? { togli: true } : {}) };
+    muta((s) => applicaComanda(s, dati));
+  };
+
+  const intestaCarta = (c) => (
+    <div className="flex items-center gap-2 text-xs mb-1.5" style={{ color: T.dim }}>
+      {c.v.n != null && <b className="text-sm" style={{ color: T.ink }}>#{c.v.n}</b>}
+      <span className="font-bold" style={{ color: T.tenue }}>{oraDi(c.v.t)}</span>
+      <span>{etaDi(c.v.t)}</span>
+      <span className="flex-1" />
+      <span className="truncate">{c.v.chi}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <Intesta titolo="Comande"
+        sotto="La tua parte di ogni scontrino battuto in Cassa: arriva col giro dell'app (qualche secondo), a schermo acceso" />
+      {postazioni.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Non ci sono ancora postazioni"
+            testo="Le disegna un Admin da Gestione → Listino: ogni postazione abbina i gruppi del listino che produce." /></Scheda>
+        : <>
+          <Scheda className="p-3.5 mb-3">
+            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>La tua postazione</div>
+            <div className="flex gap-2 flex-wrap">
+              {postazioni.map((po) => { const giu = mie.has(po.id); return (
+                <button key={po.id} onClick={() => siediti(po.id)}
+                  aria-label={giu ? `Alzati da ${po.nome}` : `Siediti a ${po.nome}`}
+                  className="rounded-2xl px-3.5 py-2.5 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={14} />}{po.nome}
+                </button>
+              ); })}
+            </div>
+          </Scheda>
+          {mie.size === 0
+            ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Scegli la tua postazione"
+                testo="Tocca qui sopra la postazione di cui ti occupi — anche più di una: chi fa i fritti stasera può fare anche i dolci. La scelta resta su questo dispositivo." /></Scheda>
+            : <>
+              {stornate.map((c) => {
+                const contro = (stato.vendite || []).find((x) => x.origId === c.v.id && x.stato === "storno");
+                const eraFatta = Object.keys(c.v.fatte || {}).length > 0;
+                return (
+                  <Scheda key={c.v.id} className="p-3.5 mb-2" style={{ border: `1.5px solid ${T.rosso}` }}>
+                    {intestaCarta(c)}
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <Chip colore={T.rosso} pieno>Stornata</Chip>
+                      {eraFatta && <Chip colore={T.ambra}>era già segnata fatta</Chip>}
+                    </div>
+                    <div className="flex flex-col gap-1 mb-1.5">
+                      {c.mieRighe.map((r, i) => (
+                        <span key={i} className="text-base font-bold line-through" style={{ color: T.dim }}>{r.qty}× {r.nome}</span>
+                      ))}
+                    </div>
+                    <p className="text-xs mb-2" style={{ color: T.rosso }}>Motivo: {contro?.motivo || "—"}</p>
+                    <button onClick={() => setCongedate((prev) => new Set([...prev, c.v.id]))}
+                      aria-label={`Vista: congeda la comanda stornata delle ${oraDi(c.v.t)}`}
+                      className="rounded-full px-5 py-3 text-sm font-bold w-full"
+                      style={{ background: "#FCE9EE", color: T.rosso }}>Vista</button>
+                  </Scheda>
+                );
+              })}
+              {inCoda.length === 0 && stornate.length === 0
+                ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Nessuna comanda in coda"
+                    testo="Le vendite battute in Cassa compaiono qui in qualche secondo. Lo schermo deve restare acceso: da spento non arriva niente." /></Scheda>
+                : inCoda.map((c) => (
+                  <Scheda key={c.v.id} className="p-3.5 mb-2">
+                    {intestaCarta(c)}
+                    <div className="flex flex-col gap-1 mb-2">
+                      {c.mieRighe.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-extrabold" style={{ color: T.ink }}>{r.qty}× {r.nome}</span>
+                          {r.orfana && <Chip colore={T.ambra}>senza postazione</Chip>}
+                        </div>
+                      ))}
+                    </div>
+                    {c.altrui.length > 0 && (
+                      <p className="text-xs mb-2" style={{ color: T.tenue }}>anche per: {c.altrui.join(", ")}</p>
+                    )}
+                    <button onClick={() => spunta(c)}
+                      aria-label={`Fatta la comanda delle ${oraDi(c.v.t)}`}
+                      className="rounded-full px-5 py-3 text-sm font-bold w-full inline-flex items-center justify-center gap-2"
+                      style={{ background: T.grad, color: "#fff", boxShadow: "0 10px 22px -10px rgba(110,100,244,.55)" }}>
+                      <Check size={17} />Fatto</button>
+                  </Scheda>
+                ))}
+              {fatte.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>Fatte</div>
+                  {fatte.map((c) => (
+                    <Scheda key={c.v.id} className="p-3 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold shrink-0" style={{ color: T.tenue }}>
+                          {c.v.n != null ? `#${c.v.n} · ` : ""}{oraDi(c.v.t)}</span>
+                        <span className="flex-1 min-w-0 text-sm truncate" style={{ color: T.dim }}>
+                          {c.mieRighe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+                        <button onClick={() => spunta(c, true)}
+                          aria-label={`Riporta in coda la comanda delle ${oraDi(c.v.t)}`}
+                          className="rounded-full p-2 shrink-0" style={{ background: "#F0F3FB", color: T.dim }}>
+                          <RotateCcw size={13} /></button>
+                      </div>
+                    </Scheda>
+                  ))}
+                </div>
+              )}
+            </>}
+        </>}
     </div>
   );
 }
@@ -12162,7 +12520,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
 
   const voci = (stato.listino || []).filter((v) => v.attivo !== false);
-  const gruppi = [...new Set(voci.map((v) => v.gruppo || "Altro"))].sort((a, b) => a.localeCompare(b, "it"));
+  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
   const magCassa = magCassaDi(stato, sedeId);
   const oggi = giornoDi(Date.now());
   const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
@@ -12181,6 +12539,9 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         /* l'aliquota si congela come il prezzo: serve allo scorporo del
            report anche se domani la voce cambia o sparisce (gen-5.97) */
         aliquota: voce.aliquota,
+        /* e il GRUPPO si congela per le comande (gen-5.98): la postazione
+           smista per nome, e la voce domani puo' cambiare o sparire */
+        gruppo: gruppoDi(voce),
         distinta: (voce.distinta || []).map((d) => ({ ...d })) }];
     });
     setScelta(null);
@@ -12206,9 +12567,13 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
        a ogni riallineamento della coda e deve restare pura su (s, dati) */
     const vendita = {
       id: uid("vn"), t, giorno: giornoDi(t), sedeId, chi: profilo.nome,
-      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota }) =>
+      /* il progressivo da urlare in cucina («la 47 e' pronta»), congelato
+         QUI FUORI come l'id; con due casse in parallelo puo' uscire doppio —
+         dentro il limite dichiarato di una cassa va bene, e va detto (gen-5.98) */
+      n: (giornata?.nVendite || 0) + 1,
+      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota, gruppo }) =>
         ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo,
-          ...(aliquota != null ? { aliquota } : {}) })),
+          ...(aliquota != null ? { aliquota } : {}), gruppo })),
       totale, metodo, scarico: scarico.righe,
       ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
     };
@@ -12291,7 +12656,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
           <div key={g} className="mb-3">
             <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {voci.filter((v) => (v.gruppo || "Altro") === g)
+              {voci.filter((v) => gruppoDi(v) === g)
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
                 <button key={v.id} aria-label={`Aggiungi ${v.nome}`}
                   onClick={() => ((v.varianti || []).length ? setScelta(v) : aggiungi(v, null))}
@@ -13433,7 +13798,7 @@ export default function App() {
   };
 
   const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
-    listino: [], vendite: [], giornate: [], ...s });
+    listino: [], vendite: [], giornate: [], postazioni: [], ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {

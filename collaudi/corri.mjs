@@ -84,7 +84,15 @@ for (const f of lista) {
     continue;
   }
   const t0 = Date.now();
-  const r = spawnSync("node", [f], { encoding: "utf8", timeout: 900000 });
+  /* IL TETTO DI TEMPO E' PER FILE, non uguale per tutti (31/08, gen-5.98):
+     generaletest apre OGNI vista e ogni scheda per tre ruoli su due
+     schermi, e l'app e' cresciuta — gen-5.96/97/98 le hanno dato Listino,
+     Cassa e Comande da aprire. Misurato due volte il 31/08: 900s non gli
+     bastano piu' NEMMENO DA SOLO (35-40 ok, 0 KO, ucciso dal tetto — tempo,
+     non difetti). Il tetto degli altri resta stretto: e' il guinzaglio che
+     smaschera una suite appesa. */
+  const TETTO_MS = { "generaletest.mjs": 1800000 };
+  const r = spawnSync("node", [f], { encoding: "utf8", timeout: TETTO_MS[f] || 900000 });
   const out = (r.stdout || "") + (r.stderr || "");
   /* Le suite non parlano tutte la stessa lingua: le piu' nuove stampano
      «  ok  » / «  KO  », le vecchie infilano PASS o CHECK in fondo alla riga.
