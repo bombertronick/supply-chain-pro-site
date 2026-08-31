@@ -650,7 +650,10 @@ function sfoltisciGiornate(lista) {
    e' il precedente dichiarato di applicaProduzione. La giornata si aggiorna
    QUI DENTRO, cosi' l'exactly-once del logId copre vendita e totale insieme. */
 function applicaVendita(s, v) {
-  s.vendite = sfoltisciVendite([{ ...v, stato: "registrata" }, ...(s.vendite || [])]);
+  /* la riga nuova NON passa dal filtro d'eta': una vendita rimasta in coda
+     piu' di 48 ore va applicata E vista — la fara' scadere lo sfoltimento
+     successivo, non la nascita (revisione gen-5.96) */
+  s.vendite = [{ ...v, stato: "registrata" }, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
   for (const r of v.scarico || []) {
     const mm = trova(s.magazzini, r.magId);
     const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
@@ -3877,8 +3880,16 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      guida del Catalogo o dello Storico. Un nome falso su un tasto è peggio di
      un nome assente: chi legge si fida e non lo tocca. */
   const sezioneQui = SEZIONI_ALTRO.find((s) => s.id === vista);
-  const nomeQui = sezioneQui?.nome || voceAttiva?.nome || "questa sezione";
-  const IconaQui = sezioneQui?.icona || voceAttiva?.icona;
+  /* le viste raggiungibili SENZA stare in barra ne' sotto Gestione: l'admin
+     in Cassa dalla lente, e chi ha cassa+correzioni in Plancia (lo swap di
+     gen-5.96 gliel'ha tolta dalla barra). Senza questa mappa il ripiego su
+     NAV[0] rimetteva «Guida di "Home"» su un tasto che non parla della Home —
+     misurato dalla revisione, ed e' esattamente la regressione che il
+     commento qui sopra dichiarava sanata. */
+  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gamepad2 } };
+  const fuori = !NAV.some((n) => n.id === vista) && FUORI_BARRA[vista];
+  const nomeQui = sezioneQui?.nome || fuori?.nome || voceAttiva?.nome || "questa sezione";
+  const IconaQui = sezioneQui?.icona || fuori?.icona || voceAttiva?.icona;
 
   const contenuto = () => {
     /* il gate difensivo (gen-5.95): finora le viste amministrative erano
@@ -11924,9 +11935,14 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
     }
     const dati = { nome: nome.trim(), gruppo: gruppo.trim(), prezzo: nP,
       aliquota: nA, attivo, varianti: vOk, distinta: dOk };
+    /* l'id nasce QUI FUORI, come per le vendite: un uid() dentro la closure
+       cambierebbe a ogni replay della coda, e la modifica successiva —
+       che ha in mano l'id del primo render — cadrebbe nel vuoto in silenzio
+       (trovato dalla revisione di gen-5.96) */
+    const nuovoId = item ? null : uid("li");
     muta((s) => {
       if (item) Object.assign(trova(s.listino || [], item.id) || {}, dati);
-      else s.listino = [...(s.listino || []), { id: uid("li"), ...dati }];
+      else s.listino = [...(s.listino || []), { id: nuovoId, ...dati }];
     }, `Voce di listino «${nome.trim()}» ${item ? "aggiornata" : "creata"}`);
     onChiudi();
   };
@@ -11957,8 +11973,10 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
         {varianti.map((v, i) => (
           <div key={i} className="flex gap-2 items-center">
             <input value={v.nome} onChange={(e) => toccaVar(i, "nome", e.target.value)} placeholder="Es. Maxi"
+              aria-label={`Nome della variante ${i + 1}`}
               className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
             <input value={v.delta} onChange={(e) => toccaVar(i, "delta", e.target.value)} placeholder="+ €" inputMode="decimal"
+              aria-label={`Differenza di prezzo della variante ${i + 1}, in euro`}
               className="w-24 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
             <button onClick={() => setVarianti((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli variante ${v.nome || i + 1}`}
               className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
@@ -11977,6 +11995,7 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
               <div className="flex-1 min-w-40"><Selettore valore={d.prodottoId} onCambia={(v) => toccaDis(i, "prodottoId", v)}
                 opzioni={[...stato.prodotti].sort((a, b) => a.nome.localeCompare(b.nome, "it"))} placeholder="Prodotto…" /></div>
               <input value={d.qty} onChange={(e) => toccaDis(i, "qty", e.target.value)} placeholder="Qtà" inputMode="decimal"
+                aria-label={`Quantità dell'ingrediente ${i + 1}`}
                 className="w-20 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
               <div className="w-28">{prod
                 ? <Selettore valore={d.uomId} onCambia={(v) => toccaDis(i, "uomId", v)}
@@ -12092,7 +12111,11 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     /* un tasto nascosto non e' un permesso negato (regola di gen-5.95) */
     if (!puoCassa(profilo))
       return mostraToast("Per battere in cassa serve l'autorizzazione dell'admin (Profili)", "errore");
-    if (!carrello.length || !sedeId) return;
+    if (!carrello.length) return;
+    /* un tasto che non fa nulla e non dice perche' e' il peggio dei due
+       mondi: senza sede operatore lo si spiega (revisione gen-5.96) */
+    if (!sedeId)
+      return mostraToast("La vendita ha bisogno di una sede operatore: creala da Gestione → Sedi", "errore");
     const t = Date.now();
     const scarico = calcoloScarico(stato, carrello, sedeId);
     /* TUTTO calcolato fuori da muta, id compreso: la closure viene rieseguita
@@ -12111,7 +12134,9 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
 
   return (
     <div>
-      <Intesta titolo="Cassa" sotto={magCassa
+      <Intesta titolo="Cassa" sotto={!sedeId
+        ? "Non c'è una sede operatore: le vendite non si possono battere"
+        : magCassa
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
@@ -12187,12 +12212,15 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
       <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={() => setScelta(null)}>
         {scelta && (
           <div className="flex flex-col gap-2">
-            <button onClick={() => aggiungi(scelta, null)} aria-label={`${scelta.nome} senza variante`}
+            {/* niente aria-label: il testo visibile e' gia' univoco dentro il
+                foglio, e un nome accessibile diverso da quello stampato e' un
+                tranello per chi ascolta (revisione gen-5.96) */}
+            <button onClick={() => aggiungi(scelta, null)}
               className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
               Così com'è · {fmtEuro(Math.max(0, +scelta.prezzo || 0))}
             </button>
             {(scelta.varianti || []).map((va) => (
-              <button key={va.id} onClick={() => aggiungi(scelta, va)} aria-label={`${scelta.nome} ${va.nome}`}
+              <button key={va.id} onClick={() => aggiungi(scelta, va)}
                 className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
                 {va.nome} · {fmtEuro(Math.max(0, (+scelta.prezzo || 0) + (+va.delta || 0)))}
               </button>
@@ -12353,7 +12381,9 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
         numCsv(g.totale), numCsv(g.metodi?.contanti || 0), numCsv(g.metodi?.carta || 0), numCsv(g.metodi?.altro || 0)]);
     });
     scaricaCsv(`vendite-${oggiFile()}.csv`, righe);
-    mostraToast("CSV vendite scaricato");
+    /* la finestra va DETTA dove si esporta, o l'export settimanale perde
+       cinque giorni di dettaglio in silenzio (revisione gen-5.96) */
+    mostraToast("CSV vendite: il dettaglio copre le ultime 48 ore, i totali di giornata 90 giorni");
   };
   const analizzaCat = () => {
     if (!impCatTesto.trim()) return mostraToast("Incolla o carica un file CSV", "errore");
@@ -13277,6 +13307,12 @@ export default function App() {
        metterla nei singoli punti che creano ordini vorrebbe dire dimenticarsene
        nel prossimo che si aggiunge */
     b.ordini = sfoltisciOrdini(b.ordini);
+    /* e per la stessa identica ragione le vendite e le giornate (gen-5.96):
+       la prima stesura le potava solo dentro applicaVendita, e 300 righe
+       scadute avrebbero viaggiato in rete finche' qualcuno non batteva la
+       vendita successiva — trovato dalla revisione, non da me */
+    b.vendite = sfoltisciVendite(b.vendite);
+    b.giornate = sfoltisciGiornate(b.giornate);
     return b;
   };
 
@@ -13387,6 +13423,8 @@ export default function App() {
       try { fn(b); } catch {}
       if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       b.ordini = sfoltisciOrdini(b.ordini);
+      b.vendite = sfoltisciVendite(b.vendite);
+      b.giornate = sfoltisciGiornate(b.giornate);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;

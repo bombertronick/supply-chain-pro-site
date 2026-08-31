@@ -145,7 +145,10 @@ const GESTIONE = ["Catalogo", "Listino", "Analisi", "Storico", "Storico ordini",
    scavalca la Plancia in barra — cinque posti, misurati — quindi la sua
    barra qui sotto porta «Cassa» e la Plancia del giro resta coperta da
    admin e laboratorio. Il pavimento della Cassa per chi NON ce l'ha lo
-   difende cassatest.mjs §1, coi contro-controlli. */
+   difende cassatest.mjs §1, coi contro-controlli. DICHIARATO, NON
+   DIMENTICATO: la variante «Plancia con sole correzioni» (una stanza sola)
+   con questo scambio esce dal giro del dito — la difende
+   autorizzazionitest.mjs §3, che ne misura le superfici una per una. */
 const RUOLI = [
   { nome: "Admin", pin: "1234", barra: ["Home", "Magazzini", "Plancia", "Ordini"], gestione: GESTIONE },
   { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Cassa", "Ordini"], gestione: [] },
