@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.96",
-    "len": 792436,
-    "md5": "46881a1596b5bcb814f3431a5a1c7f13",
+    "gen": "gen-5.97",
+    "len": 801714,
+    "md5": "1d6e3ca91559e6bf617c89095ab00a52",
     "quando": "2026-08-31",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.97",
+      "chiude": [],
+      "prova": "cassatest.mjs",
+      "cosa": "Lo storno e il report di giornata (FASE B del piano Cassa). Storno = riga CONTRARIA, mai una gomma: l'originale resta marcata «stornata» con stornoId, motivo obbligatorio, PIN di un admin qualsiasi per i non-admin (hashPin FUORI da muta, autorizzataDa registrato sulla riga), giacenze ripristinate dallo snapshot scarico, guardia stato!==registrata DENTRO applicaStorno (replay-safe: due telefoni non ripristinano due volte), salti da magazzino sparito CONTATI sulla riga (nonRipristinate), giornata decrementata sul giorno DELLA VENDITA, causale «storno» (delta positivo, secchio altri). Report di giornata: totali/metodi/scorporo IVA per aliquota con aliquota CONGELATA sulla riga come il prezzo; storni col segno meno cosi' una vendita stornata fa zero; frase onesta sul registratore telematico; Copia. Guard: senza alcun admin con PIN il Conferma e' spento con spiegazione.",
+      "_nota": "CENSIMENTO COMPLETO TORNATO PULITO nello stesso giro: 89 file, 15 rossi triagati da 5 lettori con causa misurata (file:riga). 10 banchi invecchiati da gen-5.95 (inventario/DaMandare/Storico-Ricalcola/Plancia-in-barra/pieno dietro interruttori: spunte accese con commento datato); gen554 dormiva dal 4/18 agosto (campo non piu' vuoto di gen-5.79 + ALFABETO di gen-5.93 che ha cambiato l'ordine delle schede: indirizzare per scheda, mai per posizione); ricettetest dal 5 agosto (gen-5.86 mostra il riquadro-rimedio, non la frase); roadmaptest non sapeva leggere lo zero («nessuno»=0 nel vocabolario + forma negativa); pin535/soglie erano l'init di Playwright su about:blank (SecurityError, try/catch nell'init, APP PULITA); pin2/gen560 con SONDE prima di giudicare. generaletest era il tetto di tempo del censimento sotto carico. REGOLA NUOVA: il censimento completo gira a OGNI rilascio, non ogni tanto — 3 file dormivano rossi da settimane."
+    },
     {
       "gen": "gen-5.96",
       "chiude": [],
@@ -268,6 +275,7 @@
     }
   ],
   "tuoi": [
+    "IL PIN ADMIN ORA CONTA DOPPIO: da gen-5.97 autorizza anche gli storni di cassa, ed e' ANCORA quello dimostrativo. Va cambiato da Gestione > Profili prima di usare la cassa davvero.",
     "LA CASSA VA ARMATA DA VALERIO: (1) riempire il Listino da Gestione > Listino — senza voci la Cassa e' vuota; (2) accendere «Puo' battere in cassa» sul profilo di chi sta al banco; (3) se il banco non scarica dalla prima linea, scegliere il magazzino di cassa in Gestione > Sedi. DECISIONE APERTA: quanti scontrini/giorno fa davvero? Oltre ~100, o con due casse, serve la chiave vendite separata lato server (progettata, non fatta).",
     "CHI AUTORIZZI, E A COSA: da gen-5.95 i profili non-admin partono col solo mestiere. Rettifiche/scarti/trasferimenti/inventario/Plancia => spunta «correzioni»; mandare ordini => «ordini»; articoli e soglie => «struttura» (comprende correzioni). Tre tocchi in Gestione > Profili, per profilo. Finche' non li accendi, il personale NON puo' correggere giacenze ne' gestire ordini.",
     "Il giro di ricarica su tutti i telefoni: chi tiene l'app aperta da prima di gen-5.80 usa ancora la versione vecchia.",
