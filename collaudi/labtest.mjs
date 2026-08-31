@@ -23,8 +23,14 @@ s.magazzini.push(lineaRm);
 
 s.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+  /* DAL 30 AGOSTO (gen-5.95) la FORMA del magazzino — aggiungere articoli,
+     Gestione rapida, cestino — sta dietro «struttura» (permessoSu → "pieno").
+     Questo collaudo prova LA CASCATA: togliendo un prodotto dal laboratorio
+     deve sparire anche dalle linee rifornite. Serve un laboratorio
+     autorizzato; che senza spunta la superficie sparisca lo difende
+     essenzialetest (31/08/2026, dal triage del censimento). */
   { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#8A63F4",
-    magazziniIds: [magLab.id], pinHash: hash("3333") },
+    struttura: true, magazziniIds: [magLab.id], pinHash: hash("3333") },
   { id: "pr-op", nome: "Op", ruolo: "operatore", sedeId: FM.id, colore: "#E8A13C",
     magazziniIds: [lineaFm.id], pinHash: hash("2222") },
 ];

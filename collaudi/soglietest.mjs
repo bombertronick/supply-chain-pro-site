@@ -38,7 +38,11 @@ seed.movimenti = [
 const URL = "file://" + path.resolve("index.html");
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
 const ctx = await b.newContext({ viewport: { width: 1280, height: 950 } });
-await ctx.addInitScript((s) => {
+/* 31/08/2026 — lo script di init gira anche sull'about:blank che Playwright
+   apre prima del goto: origine opaca, leggere localStorage tira SecurityError.
+   L'app è a posto (in app.jsx i localStorage sono tutti in try/catch): qui
+   l'errore si vedeva solo perché ctx.on("page") lo sente in tempo. */
+await ctx.addInitScript((s) => { try {
   if (!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1", s);
   localStorage.setItem("scp:tour:v1", "1");
   window.storage = {
@@ -46,7 +50,7 @@ await ctx.addInitScript((s) => {
     async set(k, v) { localStorage.setItem("db:" + k, v); return true; },
     async delete(k) { localStorage.removeItem("db:" + k); return true; },
   };
-}, JSON.stringify(seed));
+} catch {} }, JSON.stringify(seed));
 const errs = []; ctx.on("page", (pg) => pg.on("pageerror", (e) => errs.push(e.message)));
 const p = await ctx.newPage();
 const digita = async (pin) => { for (const d of pin) { await p.getByRole("button", { name: d, exact: true }).first().click(); await p.waitForTimeout(170); } await p.waitForTimeout(1600); };
@@ -87,7 +91,8 @@ await p.screenshot({ path: "soglie-2-applicata.png", fullPage: true });
 /* un operatore la legge ma non la può applicare */
 await p.evaluate(() => localStorage.removeItem("db:scp:stato:v1"));
 const ctx2 = await b.newContext({ viewport: { width: 1280, height: 950 } });
-await ctx2.addInitScript((s) => {
+await ctx2.addInitScript((s) => { try {
+  /* stessa mina dell'init sopra: disinnescata insieme (31/08/2026) */
   localStorage.setItem("db:scp:stato:v1", s);
   localStorage.setItem("scp:tour:v1", "1");
   window.storage = {
@@ -95,7 +100,7 @@ await ctx2.addInitScript((s) => {
     async set(k, v) { localStorage.setItem("db:" + k, v); return true; },
     async delete(k) { localStorage.removeItem("db:" + k); return true; },
   };
-}, JSON.stringify(seed));
+} catch {} }, JSON.stringify(seed));
 const p2 = await ctx2.newPage();
 await p2.goto(URL); await p2.waitForTimeout(1600);
 await p2.getByText("Op", { exact: true }).first().click(); await p2.waitForTimeout(400);

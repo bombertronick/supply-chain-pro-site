@@ -185,10 +185,15 @@ s2.magazzini = [retroFm, retroRm];
 s2.richieste = []; s2.ordini = []; s2.movimenti = []; s2.log = []; s2.codici = []; s2.accessi = [];
 s2.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+  /* DAL 30 AGOSTO (gen-5.95) l'inventario sta dietro l'interruttore
+     «correzioni»: qui si prova che DUE SEDI inventariano in parallelo senza
+     mescolarsi, non il pavimento del mestiere puro (quello sta in
+     autorizzazionitest.mjs), quindi i due operatori hanno la spunta accesa
+     (31/08/2026, dal triage del censimento). */
   { id: "pr-fm", nome: "Fm", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-    magazziniIds: [retroFm.id], pinHash: hash("2222") },
+    correzioni: true, magazziniIds: [retroFm.id], pinHash: hash("2222") },
   { id: "pr-rm", nome: "Rm", ruolo: "operatore", sedeId: RM.id, colore: "#E8A13C",
-    magazziniIds: [retroRm.id], pinHash: hash("4444") },
+    correzioni: true, magazziniIds: [retroRm.id], pinHash: hash("4444") },
 ];
 
 /* Fiumicino apre il suo e conta */

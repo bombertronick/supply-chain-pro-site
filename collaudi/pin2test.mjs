@@ -15,10 +15,12 @@ seed.profili = [
 const URL = "file://" + path.resolve("index.html");
 const b = await chromium.launch({executablePath:exe,args:["--no-sandbox"]});
 const ctx = await b.newContext({viewport:{width:1280,height:950}});
-const init = (s) => { if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s);
+/* 31/08/2026 — try/catch sull'init: sull'about:blank pre-goto l'origine è
+   opaca e localStorage tira SecurityError (stessa mina di pin535/soglie). */
+const init = (s) => { try { if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s);
   localStorage.setItem("scp:tour:v1","1");
   window.storage={async get(k){const v=localStorage.getItem("db:"+k);return v==null?null:{value:v}},
-    async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}}; };
+    async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}}; } catch {} };
 await ctx.addInitScript(init, JSON.stringify(seed));
 const errs = []; ctx.on("page", pg => pg.on("pageerror", e => errs.push(e.message)));
 
@@ -75,6 +77,16 @@ ok(pino?.pinHash === hash("5555"), "«Pino» ha in archivio il PIN che ha messo 
    Adesso non si aspetta un TEMPO, si aspetta il FATTO: B e' allineato quando
    in elenco compare «Pino», che un attimo prima non c'era. */
 await B.bringToFront();
+/* sonda del 31/08/2026 (triage): PRIMA di aspettare, si stampa cosa vede B
+   davvero — così un rosso qui dice DOVE guardare invece di far dedurre */
+console.log("   B stato:", JSON.stringify(await B.evaluate(() => ({
+  hidden: document.hidden, vis: document.visibilityState,
+  haStorage: !!window.storage,
+  profili: (JSON.parse(localStorage.getItem("db:scp:stato:v1"))||{}).profili?.map(p=>p.nome),
+  rev: (JSON.parse(localStorage.getItem("db:scp:stato:v1"))||{}).rev,
+  spia: localStorage.getItem("db:scp:rev:v1"),
+}))));
+console.log("   errori JS finora:", errs.join(" · ") || "nessuno");
 await B.getByText("Pino", { exact: false }).first().waitFor({ state: "visible", timeout: 30000 });
 console.log("   B vede:", (await B.locator("body").innerText()).replace(/\n/g," | ").slice(0,320));
 await B.getByText("Gigi",{exact:false}).first().click(); await B.waitForTimeout(400);

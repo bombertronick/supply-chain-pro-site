@@ -72,7 +72,11 @@ const scena = (preparato) => {
   s.ordini = []; s.richieste = []; s.movimenti = []; s.log = []; s.codici = []; s.accessi = [];
   s.profili = [
     { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", pinHash: hash("3333") },
+    /* DAL 30 AGOSTO (gen-5.95) «Ricalcola» in Ordini sta dietro l'interruttore
+       «ordini»: qui serve solo come via più diretta per far girare i
+       fabbisogni, quindi il laboratorio del banco ha la spunta accesa
+       (31/08/2026, dal triage del censimento). */
+    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", ordini: true, pinHash: hash("3333") },
     { id: "pr-fm", nome: "Fm", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
       magazziniIds: [linea.id], pinHash: hash("2222") },
   ];
@@ -156,6 +160,9 @@ await O4.p.getByLabel(`Conteggio ${PA.nome}`).fill("0"); await O4.p.waitForTimeo
 await O4.p.getByRole("button", { name: /Verifica e conferma/ }).first().click();
 await O4.p.waitForTimeout(900);
 const t4 = await testo(O4.p);
+/* sonda del 31/08/2026 (triage): si stampa il riepilogo vero prima di
+   giudicarlo — un rosso qui deve dire cosa c'era scritto */
+console.log("   RIEPILOGO:", t4.slice(0, 600));
 ok(/chiede al laboratorio/.test(t4) || /richiesta al laboratorio/i.test(t4),
   "il riepilogo dice che il retro lo chiede al laboratorio");
 ok(!new RegExp(`ordine[\\s\\S]{0,40}a ${F1.nome}`).test(t4),

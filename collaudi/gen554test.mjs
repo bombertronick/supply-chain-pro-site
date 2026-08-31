@@ -93,10 +93,17 @@ ok(await campoA.count() === 1, "c'è il campo del primo articolo");
 
 /* la via che funziona su ogni telefono: il tasto meno. Sulla tastiera
    numerica dell'iPhone il segno meno non c'è, quindi è QUESTA che va provata,
-   non il testo battuto a mano. Il campo parte vuoto, che vale zero: due
-   pressioni fanno −2, non «previsto meno due». */
-const meno = O.p.locator('button[aria-label="Diminuisci"]').first();
-for (let i = 0; i < IN_PIU; i++) { await meno.click(); await O.p.waitForTimeout(160); }
+   non il testo battuto a mano.
+   DUE INVECCHIAMENTI PRESI DAL TRIAGE DEL 31/08/2026:
+   · gen-5.93 (18 ago) ordina gli articoli in ALFABETO dentro la categoria:
+     «Pachino no condito» viene prima di «Patate forno», quindi .first() non
+     era più la scheda giusta — il meno si prende dalla scheda del campo,
+     non dalla posizione in pagina;
+   · gen-5.79 (4 ago): la casella NON parte più vuota, mostra la giacenza,
+     e il meno scende da lì. Per arrivare a −2 partendo dai 3 della linea
+     servono PAR_A + IN_PIU pressioni. */
+const meno = campoA.locator('xpath=preceding-sibling::button[@aria-label="Diminuisci"]');
+for (let i = 0; i < PAR_A + IN_PIU; i++) { await meno.click(); await O.p.waitForTimeout(160); }
 ok((await campoA.inputValue()) === String(-IN_PIU),
   `premendo il meno si scende sotto zero: il campo dice ${await campoA.inputValue()}`);
 
@@ -130,8 +137,10 @@ await campoA.fill(String(-IN_PIU)); await O.p.waitForTimeout(300);
 ok((await campoA.inputValue()) === String(-IN_PIU),
   "e il meno si può anche battere a mano, dove la tastiera ce l'ha");
 
-/* il secondo articolo lo lascio a livello: non deve generare niente */
-await O.p.getByRole("button", { name: "Uguale al previsto" }).nth(1).click();
+/* il secondo articolo lo lascio a livello: non deve generare niente.
+   Anche qui per SCHEDA e non per posizione (alfabeto di gen-5.93). */
+const campoB = O.p.locator(`input[aria-label^="Conteggio ${PB.nome}"]`).first();
+await campoB.locator('xpath=following-sibling::button[@aria-label="Uguale al previsto"]').click();
 await O.p.waitForTimeout(300);
 await O.p.getByRole("button", { name: /Verifica e conferma/ }).click();
 await O.p.waitForTimeout(1200);

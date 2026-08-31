@@ -31,8 +31,13 @@ for (const m of [retroFm, retroRm]) {
 s.ordini = []; s.movimenti = []; s.log = []; s.richieste = []; s.codici = []; s.accessi = [];
 s.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+  /* DAL 30 AGOSTO (gen-5.95) l'inventario sta dietro l'interruttore
+     «correzioni»: senza, permessoSu() dà "lettura" su tutto, «inventariabili»
+     resta vuoto e il tasto «Inventario» non viene proprio disegnato. Qui il
+     giro d'inventario dell'operatore È l'oggetto della prova, quindi
+     l'operatore va autorizzato (31/08/2026, dal triage del censimento). */
   { id: "pr-op", nome: "Op", ruolo: "operatore", sedeId: FM.id, colore: "#E8A13C",
-    magazziniIds: [retroFm.id], pinHash: hash("2222") },
+    correzioni: true, magazziniIds: [retroFm.id], pinHash: hash("2222") },
 ];
 
 const URL = "file://" + path.resolve("index.html");

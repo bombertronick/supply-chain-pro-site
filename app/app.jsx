@@ -450,6 +450,9 @@ const CAUSALI = {
      hanno il loro secchio in sfoltisciMov, e le soglie per ora NON le
      vedono: e' dichiarato, non dimenticato. */
   vendita: { nome: "Vendita in cassa", colore: T.blu },
+  /* gen-5.97: il rientro merce di uno storno. Delta positivo, quindi cade nel
+     secchio «altri»: gli storni sono rari per costruzione (motivo + PIN). */
+  storno: { nome: "Storno di vendita", colore: T.rosso },
 };
 /* I movimenti non servono tutti alla stessa cosa, e trattarli allo stesso
    modo costava caro due volte.
@@ -673,6 +676,77 @@ function applicaVendita(s, v) {
   g.nVendite += 1;
   g.metodi[v.metodo] = +((g.metodi[v.metodo] || 0) + v.totale).toFixed(2);
   s.giornate = sfoltisciGiornate(s.giornate);
+}
+/* Lo storno (gen-5.97): MAI una gomma — una riga contraria che ripristina le
+   giacenze dallo snapshot e lascia l'originale marcata. La guardia sullo
+   stato sta DENTRO la closure, come in applicaEvasione: due telefoni che
+   stornano lo stesso scontrino non devono ripristinare due volte. I salti
+   (magazzino sparito nel frattempo) si CONTANO sulla riga contraria invece
+   di sparire: un fatto per un lavoro non fatto e' la bugia peggiore. La
+   giornata decrementata e' quella del giorno DELLA VENDITA, non di oggi. */
+function applicaStorno(s, d) {
+  const orig = (s.vendite || []).find((v) => v.id === d.origId);
+  if (!orig || orig.stato !== "registrata") return;
+  orig.stato = "stornata";
+  orig.stornoId = d.stornoId;
+  let salti = 0;
+  for (const r of orig.scarico || []) {
+    const mm = trova(s.magazzini, r.magId);
+    const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
+    if (!aa) { salti++; continue; }
+    aa.qty = +(aa.qty + r.quanto).toFixed(4);
+    registraMov(s, { magId: mm.id, prodottoId: r.prodottoId, uomId: aa.uomId, delta: r.quanto,
+      dopo: aa.qty, causale: "storno", chi: d.chi, rif: d.motivo });
+  }
+  const contro = { id: d.stornoId, t: d.t, giorno: orig.giorno, sedeId: orig.sedeId, chi: d.chi,
+    stato: "storno", origId: orig.id, motivo: d.motivo, autorizzataDa: d.autorizzataDa,
+    righe: (orig.righe || []).map((x) => ({ ...x })), totale: -orig.totale, metodo: orig.metodo,
+    scarico: [], ...(salti ? { nonRipristinate: salti } : {}) };
+  s.vendite = [contro, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
+  const idG = orig.giorno + "|" + orig.sedeId;
+  let g = (s.giornate || []).find((x) => x.id === idG);
+  if (!g) {
+    g = { id: idG, giorno: orig.giorno, sedeId: orig.sedeId, totale: 0, nVendite: 0, nStorni: 0,
+      metodi: { contanti: 0, carta: 0, altro: 0 } };
+    s.giornate = [g, ...(s.giornate || [])];
+  }
+  g.totale = +(g.totale - orig.totale).toFixed(2);
+  g.nStorni += 1;
+  g.metodi[orig.metodo] = +((g.metodi[orig.metodo] || 0) - orig.totale).toFixed(2);
+  s.giornate = sfoltisciGiornate(s.giornate);
+}
+/* Il report di giornata (gen-5.97): totali per metodo e SCORPORO IVA per
+   aliquota — informativo, calcolato sul dettaglio ancora in stato (48 ore).
+   Gli storni entrano col segno meno, cosi' una vendita stornata fa zero. */
+function testoGiornata(stato, sedeId, giorno) {
+  const sede = trova(stato.sedi, sedeId);
+  const g = (stato.giornate || []).find((x) => x.id === giorno + "|" + sedeId);
+  const righeGiorno = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === giorno);
+  const perAliquota = new Map();
+  for (const v of righeGiorno) {
+    const segno = v.stato === "storno" ? -1 : 1;
+    for (const r of v.righe || []) {
+      const k = r.aliquota != null ? r.aliquota : "—";
+      perAliquota.set(k, +(((perAliquota.get(k) || 0) + segno * r.qty * r.prezzo)).toFixed(2));
+    }
+  }
+  const out = [];
+  out.push(`${(sede?.nome || "Sede").toUpperCase()} · ${new Date().toLocaleDateString("it-IT")}`);
+  out.push(`Totale: ${fmtEuro(g?.totale || 0)} · ${g?.nVendite || 0} vendite · ${g?.nStorni || 0} storni`);
+  out.push(`Contanti ${fmtEuro(g?.metodi?.contanti || 0)} · Carta ${fmtEuro(g?.metodi?.carta || 0)} · Altro ${fmtEuro(g?.metodi?.altro || 0)}`);
+  const conAliquota = [...perAliquota.entries()].filter(([k, v]) => Math.abs(v) > 1e-9);
+  if (conAliquota.length) {
+    out.push("");
+    out.push("Scorporo IVA · informativo, sul dettaglio delle ultime 48 ore:");
+    for (const [k, lordo] of conAliquota.sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
+      if (k === "—") { out.push(`Senza aliquota: lordo ${fmtEuro(lordo)}`); continue; }
+      const imponibile = +(lordo / (1 + k / 100)).toFixed(2);
+      out.push(`IVA ${k}%: lordo ${fmtEuro(lordo)} · imponibile ${fmtEuro(imponibile)} · imposta ${fmtEuro(+(lordo - imponibile).toFixed(2))}`);
+    }
+  }
+  out.push("");
+  out.push("Lo scontrino fiscale resta al registratore telematico: questo report serve a cassa e magazzino.");
+  return out.join("\n");
 }
 
 const numCsv = (n) => String(n ?? "").replace(".", ",");
@@ -12079,6 +12153,13 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const [scelta, setScelta] = useState(null);   // voce con varianti in attesa di scelta
   const [incasso, setIncasso] = useState(false);
   const [metodo, setMetodo] = useState("contanti");
+  const [stornoDi, setStornoDi] = useState(null); // la vendita da stornare (gen-5.97)
+  const [motivo, setMotivo] = useState("");
+  const [pinA, setPinA] = useState("");
+  const [report, setReport] = useState(false);
+  /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
+     meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
+  const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
 
   const voci = (stato.listino || []).filter((v) => v.attivo !== false);
   const gruppi = [...new Set(voci.map((v) => v.gruppo || "Altro"))].sort((a, b) => a.localeCompare(b, "it"));
@@ -12097,6 +12178,9 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
       if (gia) return c.map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + 1 } : r));
       return [...c, { chiave, voceId: voce.id, varianteId: variante?.id,
         nome: voce.nome + (variante ? " + " + variante.nome : ""), prezzo, qty: 1,
+        /* l'aliquota si congela come il prezzo: serve allo scorporo del
+           report anche se domani la voce cambia o sparisce (gen-5.97) */
+        aliquota: voce.aliquota,
         distinta: (voce.distinta || []).map((d) => ({ ...d })) }];
     });
     setScelta(null);
@@ -12122,14 +12206,38 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
        a ogni riallineamento della coda e deve restare pura su (s, dati) */
     const vendita = {
       id: uid("vn"), t, giorno: giornoDi(t), sedeId, chi: profilo.nome,
-      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo }) =>
-        ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo })),
+      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota }) =>
+        ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo,
+          ...(aliquota != null ? { aliquota } : {}) })),
       totale, metodo, scarico: scarico.righe,
       ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
     };
     muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
     setCarrello([]); setIncasso(false); setMetodo("contanti");
+  };
+
+  const storna = async () => {
+    if (!puoCassa(profilo))
+      return mostraToast("Per battere in cassa serve l'autorizzazione dell'admin (Profili)", "errore");
+    if (!stornoDi) return;
+    if (!motivo.trim())
+      return mostraToast("Serve il motivo: uno storno senza perché non si può rileggere", "errore");
+    /* il PIN si verifica QUI FUORI (hashPin e' async, e i permessi non si
+       decidono dentro muta): vale il limite dichiarato — e' un muro client,
+       come il login (gen-5.97) */
+    let autorizzataDa = profilo.nome;
+    if (profilo.ruolo !== "admin") {
+      const h = await hashPin(pinA);
+      const adm = stato.profili.find((p) => p.ruolo === "admin" && p.pinHash === h);
+      if (!adm) return mostraToast("PIN non riconosciuto: serve il PIN di un profilo Admin", "errore");
+      autorizzataDa = adm.nome;
+    }
+    const dati = { stornoId: uid("vn"), origId: stornoDi.id, t: Date.now(),
+      motivo: motivo.trim(), chi: profilo.nome, autorizzataDa };
+    muta((s) => applicaStorno(s, dati), `Storno di ${fmtEuro(stornoDi.totale)}: ${dati.motivo}`);
+    mostraToast(`Stornato ${fmtEuro(stornoDi.totale)}`);
+    setStornoDi(null); setMotivo(""); setPinA("");
   };
 
   return (
@@ -12152,16 +12260,28 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
               contanti {fmtEuro(giornata?.metodi?.contanti || 0)} · carta {fmtEuro(giornata?.metodi?.carta || 0)}
               {(giornata?.metodi?.altro || 0) > 0 ? ` · altro ${fmtEuro(giornata.metodi.altro)}` : ""}
             </span>
+            <span className="flex-1" />
+            <Bottone variante="tonale" piccolo icona={BarChart3} onClick={() => setReport(true)}>Report di giornata</Bottone>
           </div>
-          {venditeOggi.slice(0, 8).map((v) => (
+          {venditeOggi.slice(0, 8).map((v) => {
+            const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+            return (
             <div key={v.id} className="flex items-center gap-2 text-xs mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}`, color: T.dim }}>
-              <span className="font-bold" style={{ color: T.tenue }}>
-                {new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="font-bold" style={{ color: T.tenue }}>{ora}</span>
               <span className="flex-1 min-w-0 truncate">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
               {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
-              <b style={{ color: T.ink }}>{fmtEuro(v.totale)}</b>
+              {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
+              {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
+              {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
+              <b style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
+              {v.stato === "registrata" && (
+                <button onClick={() => { setStornoDi(v); setMotivo(""); setPinA(""); }}
+                  aria-label={`Storna la vendita delle ${ora}`}
+                  className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
+                  <RotateCcw size={13} /></button>
+              )}
             </div>
-          ))}
+          ); })}
         </Scheda>
       )}
       {voci.length === 0
@@ -12245,6 +12365,42 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
           </div>
           <Bottone icona={CheckCheck} onClick={registra}>Registra l'incasso</Bottone>
         </div>
+      </Foglio>
+      <Foglio aperto={!!stornoDi} titolo="Storno" onChiudi={() => setStornoDi(null)}>
+        {stornoDi && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm" style={{ color: T.dim }}>
+              {stornoDi.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")} · <b style={{ color: T.ink }}>{fmtEuro(stornoDi.totale)}</b> ({stornoDi.metodo})
+            </p>
+            <p className="text-xs" style={{ color: T.tenue }}>
+              La vendita non si cancella: nasce una riga contraria, le giacenze tornano su, e resta scritto chi e perché.
+            </p>
+            <Campo label="Motivo dello storno" valore={motivo} onCambia={setMotivo}
+              placeholder="Es. errore di battitura" autoFocus />
+            {profilo.ruolo !== "admin" && (adminConPin
+              ? <Campo label="PIN di un Admin" valore={pinA} onCambia={(v) => setPinA(v.slice(0, 4))}
+                  tipo="password" inputMode="numeric" maxLength={4}
+                  suggerimento="Lo storno lo autorizza un Admin: il suo PIN resta registrato sulla riga." />
+              : <p className="text-sm font-semibold" style={{ color: T.ambra }}>
+                  Nessun profilo Admin ha un PIN: lo storno non si può autorizzare da qui.</p>)}
+            <Bottone variante="pericolo" icona={RotateCcw} onClick={storna}
+              disabilitato={profilo.ruolo !== "admin" && !adminConPin}>Conferma lo storno</Bottone>
+          </div>
+        )}
+      </Foglio>
+      <Foglio aperto={report} titolo="Report di giornata" onChiudi={() => setReport(false)}>
+        {report && (() => {
+          const testo = testoGiornata(stato, sedeId, oggi);
+          return (
+            <div className="flex flex-col gap-3">
+              <pre className="text-xs rounded-2xl p-3 overflow-x-auto" style={{ background: "#F6F8FE", color: T.ink, whiteSpace: "pre-wrap" }}>{testo}</pre>
+              <Bottone variante="tonale" icona={Copy}
+                onClick={() => navigator.clipboard?.writeText(testo).then(
+                  () => mostraToast("Copiato: ora incollalo dove serve"),
+                  () => mostraToast("Copia a mano dal riquadro", "avviso"))}>Copia il report</Bottone>
+            </div>
+          );
+        })()}
       </Foglio>
     </div>
   );

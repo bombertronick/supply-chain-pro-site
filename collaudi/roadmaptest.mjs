@@ -69,7 +69,10 @@ const n = await voci.count();
 const conteggi = await p.evaluate(() => {
   /* il numero puo' capitare a inizio frase o in mezzo: si confronta minuscolo,
      se no un «sei» perfettamente italiano diventa un falso allarme */
-  const parole = { una:1, uno:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
+  /* «nessuno» e' il modo in cui questa pagina scrive lo zero, ed e' quello
+     giusto: «restano zero difetti» non lo direbbe nessuno (31/08/2026). */
+  const parole = { nessuno:0, nessuna:0, nessun:0, zero:0,
+    una:1, uno:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
     nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
   const num = (t) => parole[(t || "").toLowerCase()] ?? null;
   const testo = document.querySelector(".apertura").textContent;
@@ -81,7 +84,11 @@ const conteggi = await p.evaluate(() => {
      che, preso alla lettera, avrebbe spinto a piegare il testo allo schema
      invece del contrario. Adesso si aggancia solo alla parola che conta. */
   return {
-    difetti: { detti: num(testo.match(/restan[oa][^.]*?(\w+)\s+difett/i)?.[1]),
+    /* due forme legittime, e non si sceglie fra loro: «restano N difetti»
+       quando ce ne sono, «di difetti non ne resta nessuno» quando sono zero —
+       li' il numero sta DOPO la parola, non prima (31/08/2026). */
+    difetti: { detti: [/restan[oa][^.]*?(\w+)\s+difett/i, /difett[^.]*?non ne rest\w*\s+(\w+)/i]
+                 .map((r) => num(testo.match(r)?.[1])).find((v) => v !== null) ?? null,
                contati: document.querySelectorAll("#lista-difetti .voce").length },
     altro:   { detti: num(testo.match(/(\w+)\s+(?:modifiche|migliorie)/i)?.[1]),
                contati: document.querySelectorAll("#lista-altro .voce").length },

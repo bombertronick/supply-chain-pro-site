@@ -15,9 +15,14 @@ seed.profili = [
 const URL = "file://" + path.resolve("index.html");
 const b = await chromium.launch({executablePath:exe,args:["--no-sandbox"]});
 const ctx = await b.newContext({viewport:{width:1280,height:950}});
-await ctx.addInitScript((s)=>{ if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s); localStorage.setItem("scp:tour:v1","1");
+/* 31/08/2026 — lo script di init gira anche sull'about:blank che Playwright
+   apre prima del goto: lì l'origine è opaca e leggere localStorage tira
+   SecurityError. Non è un difetto dell'app (in app.jsx i tocchi a
+   localStorage sono tutti dentro try/catch): si vedeva solo qui perché
+   ctx.on("page") aggancia il listener in tempo per sentirlo. */
+await ctx.addInitScript((s)=>{ try { if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s); localStorage.setItem("scp:tour:v1","1");
  window.storage={async get(k){const v=localStorage.getItem("db:"+k);return v==null?null:{value:v}},
-   async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}};}, JSON.stringify(seed));
+   async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}};} catch {} }, JSON.stringify(seed));
 const errs = []; ctx.on("page", pg => pg.on("pageerror", e => errs.push(e.message)));
 const p = await ctx.newPage();
 const db = async () => JSON.parse(await p.evaluate(()=>localStorage.getItem("db:scp:stato:v1")));

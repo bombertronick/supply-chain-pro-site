@@ -161,8 +161,14 @@ await p2.getByText("Quanto ne hai prodotto", { exact: false }).waitFor({ state: 
 await p2.getByPlaceholder("0", { exact: true }).last().fill("10");
 await p2.waitForTimeout(500);
 const senza = (await p2.locator(".sc-su").last().innerText()).replace(/\s+/g, " ");
-ok(/Non c'è una ricetta/.test(senza),
-  "lo dice invece di far finta di niente: «Non c'è una ricetta per questo prodotto»");
+/* gen-5.86 (5 ago): il «Non c'è una ricetta per questo prodotto» non si
+   mostra più come riga d'avviso — calcoloProduzione lo tiene nei problemi ma
+   la UI lo rende solo con una ricetta vera. Al suo posto c'è il riquadro
+   «Questo si fa con altri prodotti?», che dice la stessa cosa E offre di
+   rimediare. Il collaudo era rimasto alla frase vecchia
+   (31/08/2026, dal triage del censimento). */
+ok(/Questo si fa con altri prodotti|Scrivi cosa ci vuole/.test(senza),
+  "lo dice invece di far finta di niente, e offre di scrivere la ricetta");
 ok(!/Esce dai magazzini/.test(senza),
   "e non mostra nessun ingrediente da scalare, perche' non ne conosce");
 /* e la quantita' sale lo stesso: senza ricetta il gesto resta utile */

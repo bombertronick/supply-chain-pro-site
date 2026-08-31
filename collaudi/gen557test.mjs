@@ -156,8 +156,13 @@ s3.magazzini = [rFm, rRm];
 s3.ordini = []; s3.richieste = []; s3.movimenti = []; s3.log = []; s3.codici = []; s3.accessi = [];
 s3.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+  /* DAL 30 AGOSTO (gen-5.95): l'inventario sta dietro «correzioni». Senza,
+     il tasto non si disegna affatto e la prova sembrerebbe dire «l'operatore
+     trova un altro inventario» quando invece non ne trova nessuno. Qui la
+     prova è proprio che ENTRI nel giro aperto dall'admin, quindi l'operatore
+     va autorizzato (31/08/2026, dal triage del censimento). */
   { id: "pr-fm", nome: "Fm", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-    magazziniIds: [rFm.id], pinHash: hash("2222") },
+    correzioni: true, magazziniIds: [rFm.id], pinHash: hash("2222") },
 ];
 
 const A3 = await apri("Admin", "1234", s3, "Magazzini");

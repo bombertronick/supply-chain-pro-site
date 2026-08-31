@@ -270,6 +270,107 @@ await prova("§7", async () => {
   await S.ctx.close();
 });
 
+/* ═══ 8. LO STORNO (gen-5.97, FASE B del piano approvato) ═══
+   Mai una gomma: riga contraria, motivo obbligatorio, PIN di un admin se chi
+   storna non lo e'. Contro gen-5.96 devono essere ROSSI §8a/§8b/§8d e §9. */
+console.log("\n— 8. lo storno: riga contraria, mai una gomma —");
+await prova("§8a", async () => {
+  const A8 = await apri(base, [PR.admin], "Admin", "1234");
+  await lente(A8.p, "vendita");
+  await A8.p.getByText("Battere una vendita", { exact: true }).first().click();
+  await A8.p.waitForTimeout(1200);
+  await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(250);
+  await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(350);
+  await incassa(A8.p, "Contanti");
+  await A8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
+  await A8.p.waitForTimeout(600);
+  await A8.p.locator("input:visible").first().fill("prova del banco"); await A8.p.waitForTimeout(200);
+  await A8.p.getByRole("button", { name: "Conferma lo storno", exact: true }).click();
+  await A8.p.waitForTimeout(1400);
+  const st = await stato(A8.p);
+  const orig = (st.vendite || []).find((v) => v.totale === 10 && v.stato === "stornata");
+  const contro = (st.vendite || []).find((v) => v.totale === -10);
+  ok(!!orig, "l'originale resta, marcata «stornata» — non cancellata");
+  ok(!!contro && contro.motivo === "prova del banco" && contro.origId === orig?.id,
+    "e c'è la riga contraria: −€ 10, col motivo e il riferimento all'originale");
+  const aA = st.magazzini.find((m) => m.id === linea.id).articoli.find((a) => a.prodottoId === artA.prodottoId);
+  ok(Math.abs(aA.qty - 10) < 1e-9, `CONTRO-PROVA: la giacenza è tornata a 10 — vale ${aA.qty}`);
+  ok((st.movimenti || []).some((mv) => mv.causale === "storno" && Math.abs(mv.delta - 1) < 1e-9),
+    "col movimento causale «storno», delta +1");
+  const g = (st.giornate || []).find((x) => x.giorno === giornoDi(Date.now()) && x.sedeId === FM.id);
+  ok(!!g && Math.abs(g.totale) < 1e-9 && g.nStorni === 1 && Math.abs(g.metodi?.contanti || 0) < 1e-9,
+    "e la giornata torna a zero: € 0, 1 storno, contanti € 0");
+  await A8.ctx.close();
+});
+
+console.log("\n— 8b. chi non è admin storna SOLO col PIN di un admin —");
+await prova("§8b", async () => {
+  const O8 = await apri(base, [PR.opCassa, PR.admin], "OpCassa", "2222");
+  await vaiA(O8.p, "Cassa");
+  await O8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await O8.p.waitForTimeout(350);
+  await incassa(O8.p, "Contanti");
+  await O8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
+  await O8.p.waitForTimeout(600);
+  await O8.p.locator("input:visible").first().fill("errore di battitura"); await O8.p.waitForTimeout(200);
+  const pinCampo = O8.p.locator("input:visible").nth(1);
+  await pinCampo.fill("9999"); await O8.p.waitForTimeout(200);
+  await O8.p.getByRole("button", { name: "Conferma lo storno", exact: true }).click();
+  await O8.p.waitForTimeout(900);
+  let st = await stato(O8.p);
+  ok(!(st.vendite || []).some((v) => v.stato === "stornata"),
+    "col PIN sbagliato NON succede niente: l'originale resta «registrata»");
+  await pinCampo.fill("1234"); await O8.p.waitForTimeout(200);
+  await O8.p.getByRole("button", { name: "Conferma lo storno", exact: true }).click();
+  await O8.p.waitForTimeout(1400);
+  st = await stato(O8.p);
+  const contro = (st.vendite || []).find((v) => v.totale < 0);
+  ok(!!contro && contro.autorizzataDa === "Admin",
+    "col PIN giusto lo storno passa e porta scritto CHI l'ha autorizzato");
+  await O8.ctx.close();
+});
+
+console.log("\n— 8d. senza motivo non si storna —");
+await prova("§8d", async () => {
+  const M8 = await apri(base, [PR.admin], "Admin", "1234");
+  await lente(M8.p, "vendita");
+  await M8.p.getByText("Battere una vendita", { exact: true }).first().click();
+  await M8.p.waitForTimeout(1200);
+  await M8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await M8.p.waitForTimeout(350);
+  await incassa(M8.p, "Contanti");
+  await M8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
+  await M8.p.waitForTimeout(600);
+  await M8.p.getByRole("button", { name: "Conferma lo storno", exact: true }).click();
+  await M8.p.waitForTimeout(700);
+  const st = await stato(M8.p);
+  ok(!(st.vendite || []).some((v) => v.stato === "stornata"),
+    "senza motivo lo storno non parte: uno storno senza perché non si può rileggere");
+  await M8.ctx.close();
+});
+
+/* ═══ 9. IL REPORT DI GIORNATA (gen-5.97) ═══ */
+console.log("\n— 9. il report di giornata: totali, metodi e scorporo IVA informativo —");
+await prova("§9", async () => {
+  const R9 = await apri(base, [PR.opCassa], "OpCassa", "2222");
+  await vaiA(R9.p, "Cassa");
+  await R9.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R9.p.waitForTimeout(250);
+  await R9.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R9.p.waitForTimeout(350);
+  await incassa(R9.p, "Contanti");
+  await R9.p.getByRole("button", { name: "Aggiungi Panino" }).click(); await R9.p.waitForTimeout(500);
+  await R9.p.getByRole("button", { name: /Maxi/ }).first().click(); await R9.p.waitForTimeout(400);
+  await incassa(R9.p, "Carta");
+  await R9.p.getByRole("button", { name: "Report di giornata", exact: true }).click();
+  await R9.p.waitForTimeout(700);
+  const t = await testoDi(R9.p);
+  ok(/€ 19,50/.test(t), "il report dice il totale vero: € 19,50 (10 + 9,50)");
+  ok(/[Cc]ontanti/.test(t) && /€ 10,00/.test(t) && /[Cc]arta/.test(t) && /€ 9,50/.test(t),
+    "diviso per metodo: contanti € 10, carta € 9,50");
+  ok(/IVA 10%/.test(t) && /[Ii]mponibile/.test(t), "con lo scorporo IVA per aliquota (lo Spritz è al 10%)");
+  ok(/registratore telematico/.test(t), "e la frase onesta: lo scontrino fiscale resta al registratore telematico");
+  ok((await R9.p.getByRole("button", { name: "Copia il report", exact: true }).count()) > 0,
+    "col tasto per copiarlo");
+  await R9.ctx.close();
+});
+
 console.log(`\nerrori di pagina: ${errs.length}`); errs.slice(0, 3).forEach((e) => console.log("   ", e));
 if (errs.length) ko++;
 await b.close();

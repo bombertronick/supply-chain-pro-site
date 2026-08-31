@@ -30,9 +30,14 @@ s.magazzini = [
 ];
 s.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-  { id: "pr-gigi", nome: "Gigi", ruolo: "laboratorio", sedeId: "sede-po", colore: "#22B8CF", pinHash: hash("1111") },
+  /* DAL 30 AGOSTO (gen-5.95) la «Plancia» esce dalla barra per chi non ha
+     «correzioni»: è un cruscotto di comandi, e senza autorizzazione sarebbe
+     una porta su una stanza vuota. Qui la Plancia serve perché è la schermata
+     che DISEGNA LA MAPPA della rete, quindi i due profili non-admin hanno la
+     spunta accesa (31/08/2026, dal triage del censimento). */
+  { id: "pr-gigi", nome: "Gigi", ruolo: "laboratorio", sedeId: "sede-po", colore: "#22B8CF", correzioni: true, pinHash: hash("1111") },
   { id: "pr-op", nome: "Op", ruolo: "operatore", sedeId: "sede-fm", colore: "#E8A13C",
-    magazziniIds: ["mag-linea-fm", "mag-fritti-fm"], pinHash: hash("2222") },
+    correzioni: true, magazziniIds: ["mag-linea-fm", "mag-fritti-fm"], pinHash: hash("2222") },
 ];
 s.movimenti = [];
 

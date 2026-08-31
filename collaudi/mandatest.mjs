@@ -12,8 +12,13 @@ const P1 = s.prodotti[0], P2 = s.prodotti[1], P3 = s.prodotti[2];
 const F1 = s.fornitori[0], F2 = s.fornitori[1] || s.fornitori[0];
 s.profili = [
   { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+  /* DAL 30 AGOSTO (gen-5.95) i testi «Da mandare» stanno dietro l'interruttore
+     «ordini». Questo collaudo prova che l'operatore AUTORIZZATO veda il
+     riquadro con la SOLA sua sede: senza interruttore le verifiche a valle
+     erano verdi A VUOTO — certificavano un riquadro assente
+     (31/08/2026, dal triage del censimento). */
   { id: "pr-op", nome: "Op", ruolo: "operatore", sedeId: FM.id, colore: "#E8A13C",
-    magazziniIds: [], pinHash: hash("2222") },
+    ordini: true, magazziniIds: [], pinHash: hash("2222") },
 ];
 /* due richieste al laboratorio da Fm, una da Rm; e tre righe da ordinare */
 s.richieste = [
