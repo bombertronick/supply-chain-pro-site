@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.95",
-    "len": 755150,
-    "md5": "7fe37f874d86519e243ebab5686a6e2b",
-    "quando": "2026-08-30",
+    "gen": "gen-5.96",
+    "len": 792436,
+    "md5": "46881a1596b5bcb814f3431a5a1c7f13",
+    "quando": "2026-08-31",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.96",
+      "chiude": [],
+      "prova": "cassatest.mjs",
+      "cosa": "La Cassa: la catena [cliente > cassa > scarico > riordino] dentro l'app vera, tradotta con onesta' dal «Protocollo ERP/POS» incollato da Valerio (che prescriveva Firebase/zustand: rifiutato rifare l'app, costruito l'anello mancante). s.listino (solo admin, Gestione > Listino): nome, gruppo, prezzo di vendita IVA INCLUSA, aliquota informativa, varianti {nome,delta}, distinta {prodottoId,qty,uomId} come gli ingredienti ricetta. Quarto interruttore «cassa» sul profilo (puoCassa; default spento; NON compreso in nessun altro e non comprende niente): in barra la Cassa SCAVALCA la Plancia (cinque posti misurati a gen-5.52; la Plancia resta dalla lente per chi ha correzioni; barra admin invariata, admin dalla lente). Vendita: prezzo e nome CONGELATI nella riga, scarico snapshottato, id generato FUORI da muta (replay!), applicaVendita pura su (s,dati) aggiorna vendita+movimenti+giornata nella STESSA closure. Scarico SEMPRE dal magazzino di cassa designato (sede.cassaMagId, default prima linea; FormSede lo sceglie), anche SOTTO ZERO senza clamp: il negativo al banco e' informazione; cio' che non si puo' scalare finisce in vendita.problemi, MAI scalato di nascosto da un altro magazzino.",
+      "_nota": "I NUMERI CHE REGGONO LE SCELTE (dal critico indipendente, prima del codice): stato ~170KB viaggia INTERO a ogni scrittura, riga vendita ~570B => tetti dal giorno uno: vendite 48h/300 (sfoltisciVendite in applicaVendita), giornate 90 PER SEDE con totali che sopravvivono, export CSV vendite in Sistema. Causale «vendita» FUORI da USCITE_STORICO col suo secchio in sfoltisciMov (14gg/600): dentro le uscite avrebbe riempito il tetto 2000 in 8 giorni ammutolendo le soglie consigliate; le soglie NON vedono le vendite, dichiarato. LIMITE DICHIARATO: bene fino a ~100 scontrini/giorno su una cassa; oltre serve la chiave kv separata con append lato server (in decisioni). NIENTE scontrino fiscale: resta al registratore telematico, scritto anche nella guida. gen-5.97 (storno con PIN admin + report giornata con scorporo IVA) e' la FASE B gia' approvata nel piano."
+    },
     {
       "gen": "gen-5.95",
       "chiude": [],
@@ -261,6 +268,7 @@
     }
   ],
   "tuoi": [
+    "LA CASSA VA ARMATA DA VALERIO: (1) riempire il Listino da Gestione > Listino — senza voci la Cassa e' vuota; (2) accendere «Puo' battere in cassa» sul profilo di chi sta al banco; (3) se il banco non scarica dalla prima linea, scegliere il magazzino di cassa in Gestione > Sedi. DECISIONE APERTA: quanti scontrini/giorno fa davvero? Oltre ~100, o con due casse, serve la chiave vendite separata lato server (progettata, non fatta).",
     "CHI AUTORIZZI, E A COSA: da gen-5.95 i profili non-admin partono col solo mestiere. Rettifiche/scarti/trasferimenti/inventario/Plancia => spunta «correzioni»; mandare ordini => «ordini»; articoli e soglie => «struttura» (comprende correzioni). Tre tocchi in Gestione > Profili, per profilo. Finche' non li accendi, il personale NON puo' correggere giacenze ne' gestire ordini.",
     "Il giro di ricarica su tutti i telefoni: chi tiene l'app aperta da prima di gen-5.80 usa ancora la versione vecchia.",
     "I 7 giorni di fiducia su una riga «ordinato» prima di richiedere la stessa merce.",
@@ -272,6 +280,11 @@
     "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
   ],
   "sbagliato": [
+    {
+      "quando": "2026-08-31",
+      "dicevo": "(rilascio gen-5.96, tessere via MCP) Copiare a mano un blocco base64 da 10KB dentro la chiamata e' un'operazione affidabile: al massimo il cancello md5 finale la respinge.",
+      "invece": "Ho «ricostruito» la coda del blocco invece di copiarla (decimale al posto di decimal, finale inventato) e me ne sono accorto solo rileggendo. Il cancello avrebbe respinto lo scambio, ma la regola nuova e' un'altra: le tessere di testo nuovo si scrivono a pezzi <=2.8KB con md5 CUMULATIVO verificato dopo OGNI pezzo, e prima del cancello si fa l'audit md5 PER TESSERA contro l'atteso calcolato in locale (61/61 combaciate). Copiare non e' un gesto sicuro: e' un gesto da misurare."
+    },
     {
       "quando": "2026-08-18",
       "dicevo": "(prima versione della dispensa, 20 controlli verdi) Il cancello di revisione protegge l indice: se un altro scrive prima, chi perde se ne accorge.",
