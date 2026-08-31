@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.97",
-    "len": 801714,
-    "md5": "1d6e3ca91559e6bf617c89095ab00a52",
+    "gen": "gen-5.98",
+    "len": 824233,
+    "md5": "fb497bd144f2f21b8182b934bfa80d94",
     "quando": "2026-08-31",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.98",
+      "chiude": [],
+      "prova": "comandetest.mjs",
+      "cosa": "Le Comande alle postazioni — l'anello mancante della catena chiesta da Valerio: [cliente -> cassa -> POSTAZIONI -> scarico -> riordino]. Disegno vinto in gara (3 progettisti, 3 giudici avversari: traffico/replay/cucina, unanime): LA COMANDA E' LA VENDITA, nessuna seconda collezione — storno, replay, dedup, tetti e sfoltimento proteggono le comande per costruzione. Gruppo CONGELATO sulla riga alla battuta (gruppoDi unifica i ripieghi 'Altro'/'Senza gruppo'); s.postazioni = configurazione di vista {id,nome,sedeId(''=tutte),gruppi[]}, editor nel Listino admin, abbinamento per chiave normalizzata (chiaveGruppo = senzaAccenti+trim: 'Pizze'='pizze'); v.fatte[gruppo]={t,chi} scritto da applicaComanda (guardia stato!=='registrata' primo atto, dati fuori muta, idempotente per valori, togli per l'annulla); spunta UNA per scontrino-per-postazione (per piatto = scritture triplicate, VETO in giudizio); vista: coda per t crescente, finestra 12 ORE per t (non per giorno: mezzanotte non taglia il servizio), progressivo #n congelato fuori-muta (con 2 casse puo' uscire doppio, dichiarato), eta' in minuti, sedia MULTIPLA per dispositivo (localStorage scp:comande:v1), stornate barrate rosse col motivo + 'Vista' locale, righe orfane 'senza postazione' su TUTTI gli schermi. Barra: Comande prende il posto della Plancia filtrata (operatore senza cassa ne' correzioni); niente quinto interruttore (mestiere resta a tutti); admin/cassa/correzioni dalla lente. Rossi prima: 13; verdi dopo: 34; sabotaggi contati: barra 0->5, snapshot gruppo 0->7, resa storno 0->2.",
+      "_nota": "LIMITI DICHIARATI delle comande: NON e' un buzzer (arrivo col poll ~3-5s, MAI a schermo spento: tablet acceso obbligatorio, scritto in guida e roadmap); la spunta non e' un lucchetto (muta non autorizza lato server); un piatto stornato puo' essere gia' in padella (il canale non lo previene, rimedio a voce); rinominare un gruppo orfana le vendite gia' battute per 48h (si tampona abbinando anche il nome vecchio); le comande RADDOPPIANO le scritture -> il limite dei ~100 scontrini/giorno diventa ~50 EQUIVALENTI: sopra ~50 scontrini veri, la chiave kv-append (progettata, non fatta) si fa PRIMA di accendere le comande — REGOLA scritta in roadmap. Flotta: ricaricare TUTTI i telefoni PRIMA di creare la prima postazione (un telefono vecchio batte righe senza gruppo -> 'senza postazione'; normalizza fa {...s} quindi NON butta via postazioni/fatte, verificato dal giudice replay). Tetto di tempo di corri.mjs ora PER FILE: generaletest 1800s (misurato 2 volte il 31/08: 900s non bastano piu' nemmeno da solo — l'app e' cresciuta di Listino+Cassa+Comande, 0 KO, solo tempo)."
+    },
     {
       "gen": "gen-5.97",
       "chiude": [],
