@@ -267,6 +267,9 @@ await prova("§5", async () => {
   await AD3.p.getByRole("button", { name: "Aggiungi Fritto misto" }).click();
   await AD3.p.waitForTimeout(250);
   await incassa(AD3.p);
+  /* gen-6.00 (1/9): le ultime vendite stanno dietro il Foglio «Ultime
+     vendite» — la riga si tocca per stornare, l'aria-label e' rimasto */
+  await AD3.p.getByRole("button", { name: "Ultime vendite" }).click(); await AD3.p.waitForTimeout(600);
   await AD3.p.getByRole("button", { name: /Storna la vendita/ }).first().click();
   await AD3.p.waitForTimeout(500);
   await AD3.p.locator("input:visible").first().fill("cliente andato via");

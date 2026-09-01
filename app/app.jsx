@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-5.99";
+const VERSIONE = "gen-6.00";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -1684,7 +1684,8 @@ const GUIDA_SEZIONE = {
     { titolo: "Il ritardo e lo storno", testo: "La comanda arriva col giro dell'app: qualche secondo a schermo ACCESO — a schermo spento non arriva niente, quindi il tablet di postazione resta acceso sull'app. Uno scontrino stornato resta a schermo barrato in rosso col motivo, finché non tocchi «Vista»." },
   ],
   cassa: [
-    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento." },
+    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
+    { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini di oggi: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
     { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
     { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
   ],
@@ -12577,12 +12578,33 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const [motivo, setMotivo] = useState("");
   const [pinA, setPinA] = useState("");
   const [report, setReport] = useState(false);
+  const [ultime, setUltime] = useState(false);    // il Foglio delle ultime vendite (gen-6.00)
+  const [svuotato, setSvuotato] = useState(null); // l'ultimo conto svuotato, per il ripristino
+  const [ricevuti, setRicevuti] = useState("");   // contanti in mano: SOLO per il resto, mai registrato
   /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
      meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
   const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
 
   const voci = (stato.listino || []).filter((v) => v.attivo !== false);
-  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
+  /* i gruppi si ordinano per BATTUTE, non in alfabeto: quello che si vende
+     di piu' sta in cima, sotto il pollice. Il conteggio viene dalle vendite
+     presenti nello stato — che per costruzione sono le ultime 48 ore
+     (sfoltisciVendite) — quindi e' un sort client, zero scritture. Le righe
+     degli storni contano come battute: per l'ordine va bene cosi'. «Altro»
+     sta SEMPRE in fondo anche se batte piu' di tutti: e' il ripieno delle
+     voci senza gruppo, non un gruppo scelto (gen-6.00). */
+  const battute = {};
+  for (const v of stato.vendite || [])
+    for (const r of v.righe || [])
+      battute[gruppoDi(r)] = (battute[gruppoDi(r)] || 0) + Math.abs(+r.qty || 0);
+  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => {
+    if ((a === "Altro") !== (b === "Altro")) return a === "Altro" ? 1 : -1;
+    return (battute[b] || 0) - (battute[a] || 0) || a.localeCompare(b, "it");
+  });
+  /* quante ce ne sono gia' nel conto, voce per voce: il badge sulla cella
+     risponde al tocco DOVE il tocco e' caduto (gen-6.00) */
+  const nelConto = {};
+  for (const r of carrello) nelConto[r.voceId] = (nelConto[r.voceId] || 0) + r.qty;
   const magCassa = magCassaDi(stato, sedeId);
   const oggi = giornoDi(Date.now());
   const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
@@ -12607,6 +12629,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         distinta: (voce.distinta || []).map((d) => ({ ...d })) }];
     });
     setScelta(null);
+    setSvuotato(null); // un conto nuovo che parte: il vecchio svuotato non torna piu'
   };
   const cambia = (chiave, delta) => setCarrello((c) => c
     .map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + delta } : r))
@@ -12641,7 +12664,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     };
     muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
-    setCarrello([]); setIncasso(false); setMetodo("contanti");
+    setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
   };
 
   const storna = async () => {
@@ -12675,40 +12698,23 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
-        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); }} opzioni={sediOp} /></div>
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); }} opzioni={sediOp} /></div>
       )}
+      {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
+          registro. Le ultime vendite — coi loro storni — stanno dietro il
+          Foglio «Ultime vendite», e i metodi dentro il report (gen-6.00,
+          dalle foto 09-10 della revisione della veste). */}
       {(giornata || venditeOggi.length > 0) && (
         <Scheda className="p-3.5 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-extrabold" style={{ color: T.ink }}>Oggi</span>
             <Chip colore={T.verde} pieno>{fmtEuro(giornata?.totale || 0)}</Chip>
-            <span className="text-sm" style={{ color: T.dim }}>{giornata?.nVendite || 0} vendite</span>
-            <span className="text-xs" style={{ color: T.tenue }}>
-              contanti {fmtEuro(giornata?.metodi?.contanti || 0)} · carta {fmtEuro(giornata?.metodi?.carta || 0)}
-              {(giornata?.metodi?.altro || 0) > 0 ? ` · altro ${fmtEuro(giornata.metodi.altro)}` : ""}
-            </span>
+            <span className="text-sm" style={{ color: T.dim }}>
+              {giornata?.nVendite || 0} vendite{(giornata?.nStorni || 0) > 0 ? ` · ${giornata.nStorni} storni` : ""}</span>
             <span className="flex-1" />
+            <Bottone variante="tonale" piccolo icona={History} onClick={() => setUltime(true)}>Ultime vendite</Bottone>
             <Bottone variante="tonale" piccolo icona={BarChart3} onClick={() => setReport(true)}>Report di giornata</Bottone>
           </div>
-          {venditeOggi.slice(0, 8).map((v) => {
-            const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-            return (
-            <div key={v.id} className="flex items-center gap-2 text-xs mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}`, color: T.dim }}>
-              <span className="font-bold" style={{ color: T.tenue }}>{ora}</span>
-              <span className="flex-1 min-w-0 truncate">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
-              {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
-              {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
-              {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
-              {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
-              <b style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
-              {v.stato === "registrata" && (
-                <button onClick={() => { setStornoDi(v); setMotivo(""); setPinA(""); }}
-                  aria-label={`Storna la vendita delle ${ora}`}
-                  className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
-                  <RotateCcw size={13} /></button>
-              )}
-            </div>
-          ); })}
         </Scheda>
       )}
       {voci.length === 0
@@ -12722,11 +12728,21 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
                 <button key={v.id} aria-label={`Aggiungi ${v.nome}`}
                   onClick={() => ((v.varianti || []).length ? setScelta(v) : aggiungi(v, null))}
-                  className="rounded-2xl px-3 py-3.5 text-left"
-                  style={{ background: "#fff", border: `1.5px solid ${T.bordo}` }}>
+                  className="relative rounded-2xl px-3 py-3.5 text-left"
+                  data-nel-conto={nelConto[v.id] || 0}
+                  style={{ background: "#fff", border: `1.5px solid ${nelConto[v.id] ? T.blu : T.bordo}` }}>
+                  {/* il badge: il tocco risponde DOVE e' caduto, senza dover
+                      cercare la riga nel conto piu' in basso (gen-6.00) */}
+                  {(nelConto[v.id] || 0) > 0 && (
+                    <span className="absolute -top-2 -right-1.5 rounded-full text-xs font-extrabold px-2 py-0.5"
+                      style={{ background: T.blu, color: "#fff" }}>{nelConto[v.id]}</span>
+                  )}
                   <span className="font-extrabold block text-sm" style={{ color: T.ink }}>{v.nome}</span>
-                  <span className="text-xs font-bold" style={{ color: T.blu }}>{fmtEuro(v.prezzo || 0)}
-                    {(v.varianti || []).length > 0 && <span style={{ color: T.tenue }}> · varianti</span>}</span>
+                  <span className="text-sm font-bold" style={{ color: T.blu }}>{fmtEuro(v.prezzo || 0)}</span>
+                  {(v.varianti || []).length > 0 && (
+                    <span className="ml-1.5 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
+                      style={{ background: "#EAF0FE", color: T.blu }}>varianti</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -12740,19 +12756,37 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
               <div key={r.chiave} className="flex items-center gap-2">
                 <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{r.nome}</span>
                 <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(r.prezzo)}</span>
+                {/* 44 punti: al banco si batte col pollice, di fretta — un
+                    piu' da 30 punti manca una volta su tre (gen-6.00) */}
                 <button onClick={() => cambia(r.chiave, -1)} aria-label={`Diminuisci ${r.nome}`}
-                  className="rounded-full p-2 shrink-0" style={{ background: "#F0F3FB", color: T.dim }}><Minus size={14} /></button>
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ background: "#F0F3FB", color: T.dim, width: 44, height: 44 }}><Minus size={16} /></button>
                 <b className="w-6 text-center" style={{ color: T.ink }}>{r.qty}</b>
                 <button onClick={() => cambia(r.chiave, +1)} aria-label={`Aumenta ${r.nome}`}
-                  className="rounded-full p-2 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Plus size={14} /></button>
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ background: "#EAF0FE", color: T.blu, width: 44, height: 44 }}><Plus size={16} /></button>
               </div>
             ))}
           </div>
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
-            <button onClick={() => setCarrello([])} aria-label="Svuota il conto"
-              className="text-xs font-bold" style={{ color: T.tenue }}>Svuota</button>
+            <button onClick={() => { setSvuotato(carrello); setCarrello([]); }} aria-label="Svuota il conto"
+              className="text-xs font-bold rounded-full px-4 shrink-0"
+              style={{ color: T.tenue, background: "#F0F3FB", minHeight: 44 }}>Svuota</button>
             <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>
-            <Bottone icona={CheckCheck} onClick={() => setIncasso(true)}>Incassa</Bottone>
+            <Bottone icona={CheckCheck} onClick={() => { setRicevuti(""); setIncasso(true); }}>Incassa</Bottone>
+          </div>
+        </Scheda>
+      )}
+      {/* «Svuota» si puo' disfare: il dito che sbaglia tasto non deve
+          ribattere un conto di dieci righe. Il conto svuotato resta qui
+          finche' non ne parte uno nuovo (gen-6.00). */}
+      {carrello.length === 0 && (svuotato?.length || 0) > 0 && (
+        <Scheda className="p-3.5 mt-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex-1 text-sm" style={{ color: T.dim }}>
+              Conto svuotato: {svuotato.length === 1 ? "1 riga" : `${svuotato.length} righe`}.</span>
+            <Bottone variante="tonale" piccolo icona={RotateCcw}
+              onClick={() => { setCarrello(svuotato); setSvuotato(null); }}>Ripristina il conto</Bottone>
           </div>
         </Scheda>
       )}
@@ -12790,8 +12824,75 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
               { id: "contanti", nome: "Contanti" }, { id: "carta", nome: "Carta" }, { id: "altro", nome: "Altro" },
             ]} />
           </div>
+          {/* il resto: un aiuto per chi sta al banco, e NIENTE di piu' —
+              vive nello stato della vista e muore qui: la vendita registrata
+              non porta ricevuti ne' resto, zero fiscale, zero peso sul
+              canale (gen-6.00) */}
+          {metodo === "contanti" && (
+            <div>
+              <Campo label="Ricevuti" valore={ricevuti} onCambia={setRicevuti} inputMode="decimal"
+                placeholder="I contanti che ti hanno dato"
+                suggerimento="Serve solo a fare il resto: non finisce nella vendita registrata." />
+              {(() => {
+                if (String(ricevuti).trim() === "") return null;
+                const resto = (parseFloat(String(ricevuti).replace(",", ".")) || 0) - totale;
+                return resto >= 0
+                  ? <div className="text-center mt-2">
+                      <span className="block text-xs font-bold" style={{ color: T.tenue }}>Resto</span>
+                      <span className="text-3xl font-extrabold" style={{ color: T.verde }}>{fmtEuro(resto)}</span>
+                    </div>
+                  : <p className="text-sm font-semibold text-center mt-2" style={{ color: T.ambra }}>
+                      Mancano {fmtEuro(-resto)}</p>;
+              })()}
+            </div>
+          )}
           <Bottone icona={CheckCheck} onClick={registra}>Registra l'incasso</Bottone>
         </div>
+      </Foglio>
+      {/* le ultime vendite, TRASLOCATE qui dalla card «Oggi» (gen-6.00): la
+          riga intera si tocca per stornare — via i cerchietti da 26 punti —
+          e tiene l'aria-label di sempre, cosi' i banchi vecchi si
+          riallineano senza riscriversi. */}
+      <Foglio aperto={ultime} titolo="Le ultime vendite" onChiudi={() => setUltime(false)}>
+        {ultime && (
+          <div className="flex flex-col gap-1">
+            {venditeOggi.length === 0 && (
+              <p className="text-sm" style={{ color: T.dim }}>Oggi non è ancora passato nessuno.</p>
+            )}
+            {venditeOggi.length > 0 && (
+              <p className="text-xs mb-1" style={{ color: T.tenue }}>
+                Una vendita si storna toccando la sua riga.</p>
+            )}
+            {venditeOggi.slice(0, 60).map((v) => {
+              const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+              const dentro = (
+                <>
+                  <span className="font-bold shrink-0" style={{ color: T.tenue }}>{ora}</span>
+                  <span className="flex-1 min-w-0 truncate text-left">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+                  {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
+                  {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
+                  {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
+                  {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
+                  <b className="shrink-0" style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
+                </>
+              );
+              return v.stato === "registrata" ? (
+                <button key={v.id} onClick={() => { setUltime(false); setStornoDi(v); setMotivo(""); setPinA(""); }}
+                  aria-label={`Storna la vendita delle ${ora}`}
+                  className="flex items-center gap-2 text-xs rounded-xl px-2"
+                  style={{ color: T.dim, minHeight: 44, border: `1px solid ${T.bordo}`, background: "#fff" }}>
+                  {dentro}<RotateCcw size={13} className="shrink-0" style={{ color: T.rosso }} /></button>
+              ) : (
+                <div key={v.id} className="flex items-center gap-2 text-xs rounded-xl px-2"
+                  style={{ color: T.dim, minHeight: 44 }}>{dentro}</div>
+              );
+            })}
+            {venditeOggi.length > 60 && (
+              <p className="text-xs mt-1" style={{ color: T.tenue }}>
+                … e altre {venditeOggi.length - 60} di oggi: il CSV in Sistema le tiene tutte.</p>
+            )}
+          </div>
+        )}
       </Foglio>
       <Foglio aperto={!!stornoDi} titolo="Storno" onChiudi={() => setStornoDi(null)}>
         {stornoDi && (

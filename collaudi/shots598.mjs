@@ -1,6 +1,10 @@
-/* Fotografie di gen-5.98 per la revisione «veste professionale» (01/09):
-   schermate vere, dati realistici, telefono 390x844. Non e' un collaudo:
-   e' il materiale su cui il gruppo di critici lavora. */
+/* Fotografie per la revisione «veste professionale» (nato su gen-5.98 il
+   01/09): schermate vere, dati realistici, telefono 390x844. Non e' un
+   collaudo: e' il materiale su cui il gruppo di critici lavora, e SI RIGIRA
+   a ogni generazione della veste — la regola del piano: ogni rilascio che
+   tocca la Cassa produce anche la foto del carrello. Da gen-6.00 le foto
+   sono 22: si aggiungono 10b (svuota/ripristina), 11b (il resto) e
+   12b (le ultime vendite dietro il Foglio). */
 import { chromium } from "playwright";
 import { readFileSync, existsSync, mkdirSync } from "fs";
 import path from "path"; import crypto from "crypto";
@@ -106,8 +110,21 @@ await vaiA(S.p, "Cassa"); await shot(S.p, "09-cassa-griglia");
 await S.p.getByRole("button", { name: "Aggiungi Fritto misto" }).click(); await S.p.waitForTimeout(250);
 await S.p.getByRole("button", { name: "Aggiungi Tiramisù" }).click(); await S.p.waitForTimeout(350);
 await shot(S.p, "10-cassa-carrello");
+/* gen-6.00: «Svuota» con la via del ritorno */
+await S.p.getByRole("button", { name: "Svuota il conto" }).click().catch(() => {});
+await S.p.waitForTimeout(400); await shot(S.p, "10b-cassa-svuotato");
+await S.p.getByRole("button", { name: "Ripristina il conto" }).click().catch(() => {});
+await S.p.waitForTimeout(400);
 await S.p.getByRole("button", { name: "Incassa", exact: true }).click(); await S.p.waitForTimeout(700);
 await shot(S.p, "11-cassa-incasso");
+/* gen-6.00: il resto dei contanti, da leggere a un metro */
+await S.p.locator(".fixed.inset-0 input:visible").first().fill("50").catch(() => {});
+await S.p.waitForTimeout(400); await shot(S.p, "11b-cassa-resto");
+await S.p.getByRole("button", { name: "Chiudi", exact: true }).last().click().catch(() => {});
+await S.p.waitForTimeout(400);
+/* gen-6.00: le ultime vendite dietro il loro Foglio */
+await S.p.getByRole("button", { name: "Ultime vendite" }).click().catch(() => {});
+await S.p.waitForTimeout(600); await shot(S.p, "12b-cassa-ultime");
 await S.p.getByRole("button", { name: "Chiudi", exact: true }).last().click().catch(() => {});
 await S.p.waitForTimeout(400);
 await S.p.getByRole("button", { name: "Report di giornata" }).click().catch(() => {});

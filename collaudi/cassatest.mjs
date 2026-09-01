@@ -282,6 +282,9 @@ await prova("§8a", async () => {
   await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(250);
   await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(350);
   await incassa(A8.p, "Contanti");
+  /* gen-6.00 (1/9): le ultime vendite sono traslocate dietro il Foglio
+     «Ultime vendite» — la riga si tocca per stornare, l'aria-label e' rimasto */
+  await A8.p.getByRole("button", { name: "Ultime vendite" }).click(); await A8.p.waitForTimeout(600);
   await A8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
   await A8.p.waitForTimeout(600);
   await A8.p.locator("input:visible").first().fill("prova del banco"); await A8.p.waitForTimeout(200);
@@ -309,6 +312,8 @@ await prova("§8b", async () => {
   await vaiA(O8.p, "Cassa");
   await O8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await O8.p.waitForTimeout(350);
   await incassa(O8.p, "Contanti");
+  /* gen-6.00 (1/9): prima si apre il Foglio delle ultime vendite */
+  await O8.p.getByRole("button", { name: "Ultime vendite" }).click(); await O8.p.waitForTimeout(600);
   await O8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
   await O8.p.waitForTimeout(600);
   await O8.p.locator("input:visible").first().fill("errore di battitura"); await O8.p.waitForTimeout(200);
@@ -337,6 +342,8 @@ await prova("§8d", async () => {
   await M8.p.waitForTimeout(1200);
   await M8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await M8.p.waitForTimeout(350);
   await incassa(M8.p, "Contanti");
+  /* gen-6.00 (1/9): prima si apre il Foglio delle ultime vendite */
+  await M8.p.getByRole("button", { name: "Ultime vendite" }).click(); await M8.p.waitForTimeout(600);
   await M8.p.getByRole("button", { name: /^Storna la vendita/ }).first().click();
   await M8.p.waitForTimeout(600);
   await M8.p.getByRole("button", { name: "Conferma lo storno", exact: true }).click();
