@@ -139,8 +139,11 @@ const scena = () => {
    l'elenco resta a mano, e accanto c'e' un controllo (§0) che lo confronta
    con quello che l'app mette davvero nel menu: se ne compare una che qui non
    c'e', diventa rosso e va aggiunta a mano dopo averla guardata. */
+/* «Informazioni» e' di gen-5.99 (la carta d'identita': versione, assistenza,
+   limiti dichiarati): il §0 e' diventato rosso da solo, come promesso qui
+   sopra, e la voce entra nell'elenco DOPO averla guardata (01/09). */
 const GESTIONE = ["Catalogo", "Listino", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili",
-  "Accessi", "Sistema", "Memoria"];
+  "Accessi", "Sistema", "Memoria", "Informazioni"];
 /* L'OPERATORE DEL GIRO HA ANCHE «cassa» (31 agosto, gen-5.96): la Cassa
    scavalca la Plancia in barra — cinque posti, misurati — quindi la sua
    barra qui sotto porta «Cassa» e la Plancia del giro resta coperta da
