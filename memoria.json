@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-6.00",
-    "len": 840372,
-    "md5": "9f00b4a0a6629c664d659dac78052959",
+    "gen": "gen-6.01",
+    "len": 845589,
+    "md5": "550f5b8b33f6e9414729b839e47686c3",
     "quando": "2026-09-01",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-6.01",
+      "chiude": [],
+      "prova": "postazionitest.mjs",
+      "cosa": "«Le postazioni sono di chi ci lavora» — CHIESTO DA VALERIO a voce durante il giro di gen-6.00: «non posso ancora visualizzare le postazioni nei profili nei quali li assegno, ogni cassa deve mandare le comande solo alle postazioni di appartenenza». (1) profilo.postazioniIds: array di id, assegnabile in FormProfilo per i NON admin quando c'e' una sede, in un blocco «Postazioni di cucina» messo PRIMA e FUORI dal riquadro Autorizzazioni (non e' un permesso: non apre e non chiude niente). Salvato solo se non vuoto e mai per l'admin. Le assegnabili sono quelle della sede del profilo + le «tutte le sedi». (2) LA SEDIA: stato interno «scelta» = null quando la chiave localStorage scp:comande:v1 e' ASSENTE (non vuota) -> sedute = profilo.postazioniIds; al primo siediti() il dispositivo scrive e comanda per sempre; «Torna alle mie postazioni» fa removeItem e rimette il profilo. Il tablet di cucina non cambia sedia al cambio login: disegno confermato. (3) postazioniQui: il pannello offre solo le postazioni della PROPRIA sede + «tutte le sedi»; l'admin le vede tutte col nome della sede accanto. mie{} filtra su postazioniQui. Rossi prima: 10; verdi dopo: 24; sabotaggi: default dal profilo tolto 0->3, filtro di sede tolto 0->1.",
+      "_nota": "Il banco ha imparato due cose: il PRIMO «Modifica» nell'elenco profili e' quello dell'Admin (che il blocco NON deve avere: e' diventato un contro-controllo), e cassa2test inchiodava la versione a «gen-6.00» — sarebbe diventato rosso a ogni rilascio futuro, ora controlla che non sia PIU' VECCHIA di gen-6.00. RESTA DA FARE (chiesto da Valerio subito dopo): poter scegliere per profilo se in barra vede la POSTAZIONE (comande) o la CASSA — oggi la regola e' automatica (cassa scavalca Plancia; comande solo per l'operatore senza cassa e senza correzioni) — e la Home dell'operatore che mostri i magazzini della sua sede, non solo le linee assegnate (in Magazzini li vede gia' tutti: magazziniVisti filtra per sede, r.2190-2194)."
+    },
     {
       "gen": "gen-6.00",
       "chiude": [],

@@ -118,8 +118,18 @@ const incassa = async (p, metodo) => {
 /* ═══ 1. LA FONTE: la versione sale, il prezzo in cella sale a text-sm ═══ */
 console.log("\n— 1. la fonte —");
 const src = readFileSync("../app/app.jsx", "utf8");
-ok(/const VERSIONE = "gen-6\.00"/.test(src),
-  "VERSIONE dichiara gen-6.00 (la regola di gen-5.99: si alza A OGNI rilascio)");
+/* 01/09: qui c'era la versione inchiodata a «gen-6.00». Era giusta il giorno
+   del rilascio e SBAGLIATA da quello dopo: al primo rilascio successivo
+   (gen-6.01, le postazioni ai profili) e' diventata rossa da sola senza che
+   niente fosse rotto — il tipo di rosso che insegna a non fidarsi del rosso.
+   Quello che questo banco deve difendere e' che la Cassa da banco non torni
+   indietro: la versione non puo' essere PIU' VECCHIA di quella che l'ha
+   introdotta. Che salga a ogni rilascio lo garantiscono il rito del rilascio
+   (meta + roadmap + memoria verificate) e memoriatest, che confronta le due
+   lingue. */
+const ver = (src.match(/const VERSIONE = "gen-(\d+)\.(\d+)"/) || []).slice(1).map(Number);
+ok(ver.length === 2 && (ver[0] > 6 || (ver[0] === 6 && ver[1] >= 0)),
+  `VERSIONE è gen-${ver.join(".")}: non più vecchia di gen-6.00, che ha portato la Cassa da banco`);
 /* il prezzo dentro la cella della griglia: oggi text-xs, deve salire.
    01/09: l'aggancio «prima riga con fmtEuro(v.prezzo || 0)» pescava la riga
    SBAGLIATA — quella dell'elenco del Listino (app.jsx:12288), che è in

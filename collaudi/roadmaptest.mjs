@@ -46,7 +46,11 @@ const stato = await p.evaluate(() => {
   const box = document.querySelector(".stato");
   if (!box) return null;
   const dt = [...box.querySelectorAll("dt")].map((x) => x.textContent.trim());
-  const gen = (box.textContent.match(/gen-5\.\d+/) || [])[0] || null;
+  /* 01/09: terzo banco con la famiglia «gen-5» inchiodata (dopo memoriatest e
+     roadmap-md): col passaggio a gen-6 diceva «nessuna versione in cucina»
+     su una roadmap che la nominava benissimo. La famiglia non e' un dato
+     del collaudo: qualunque gen-N.NN. */
+  const gen = (box.textContent.match(/gen-\d+\.\d+/) || [])[0] || null;
   const fatte = [...document.querySelectorAll("details .dentro")]
     .map((x) => x.textContent).join(" ");
   return { dt, gen, raccontata: gen ? fatte.includes(gen) : false };
