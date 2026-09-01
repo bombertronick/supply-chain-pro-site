@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.98",
-    "len": 824233,
-    "md5": "fb497bd144f2f21b8182b934bfa80d94",
-    "quando": "2026-08-31",
+    "gen": "gen-5.99",
+    "len": 833714,
+    "md5": "7dc13681561dcd789069adec3fd99854",
+    "quando": "2026-09-01",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-5.99",
+      "chiude": [],
+      "prova": "veritatest.mjs",
+      "cosa": "«Lingua e verita'» — primo dei tre rilasci del piano veste-professionale (dispensa: piano-veste; nato dal prompt originale di Valerio, eseguito con 8 voci critiche su 19 fotografie vere + 3 giudici avversari). LA BUGIA: 'in tempo reale' compariva 8 volte con un canale poll da 3-5s — tolta ovunque, frasi oneste ('si allinea da solo in qualche secondo'). Plurali veri (1 linea assegnata / 1 sede operatore). Semafori sinceri: niente 'A livello' verde su magazzino VUOTO (chip 'vuoto · da riempire', in ENTRAMBE le card gemelle), copertura Analisi a soglie (>=90 verde, >=50 ambra, sotto rosso + ' · critica: conta o tara le soglie'), sottotitolo dei magazzini col nome BREVE del tipo (via il doppione 'Magazzino Laboratorio/Magazzino laboratorio' in 4 punti). Home admin: allarme sotto scorta PRIMA carta. Ordini: il vuoto di 'da ordinare' ammette gli articoli sotto scorta della PROPRIA vista e nomina il tasto col nome vero ('Ricalcola', non 'Ricalcola fabbisogni' — 3 banchi usano /^Ricalcola$/ e non si toccano). Report di giornata: datiGiornata() PURA usata da testo E righe (mai due calcoli), render a righe con Totale grande e chips metodi, <pre> sparito dallo schermo, Copia copia testoGiornata come prima. Distruttivo fuori dalle liste: Elimina del magazzino nel foglio Modifica (onElimina), 'Togli dal listino'/'Togli questa postazione' nei loro fogli, via i cestini dalle righe. Scheda 'Informazioni e assistenza' in Gestione (VERSIONE dichiarata, come si aggiorna, limiti). Identita': Bottone primario T.blu PIENO (via T.grad dai bottoni e toggle; resta sui 7 decorativi: eroi login/install, chip codice), Fatto delle comande in VERDE, Gamepad2 eliminato (Gauge, 8 usi + import). Rossi prima: 16; verdi dopo: 23; sabotaggi: semaforo-vuoto 0->1 (il primo colpo ha morso la gemella sbagliata: il banco difende la card di VistaMagazzini, non SchedaMagazzino — lezione registrata), report 0->2.",
+      "_nota": "REGOLA NUOVA DA gen-5.99: esiste const VERSIONE nel sorgente (vicino a ORE_VENDITE) letta dalla scheda Informazioni — VA AGGIORNATA A OGNI RILASCIO insieme alla meta, o la scheda nata per dire la verita' mente. Il piano veste continua: gen-6.00 'La Cassa da banco' (Oggi a una riga, storno in riga, sort per uso, badge quantita', RESTO CONTANTI, Svuota con ripristino, 44px, FOTO del carrello obbligatoria) e gen-6.01 'barra del conto + cucina leggibile' (barra fissa DA SOLA come unica modifica di Cassa; eta' comande a colori con soglie 5/10 min agganci TESTUALI non solo colore, numero gigante). Decisione di Valerio ancora aperta: bip+WakeLock in cucina (funzionalita', non veste)."
+    },
     {
       "gen": "gen-5.98",
       "chiude": [],
