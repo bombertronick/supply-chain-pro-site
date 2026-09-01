@@ -49,7 +49,10 @@ await p.waitForTimeout(400);
 const inPagina = await p.evaluate(() => ({
   difetti: [...document.querySelectorAll("#lista-difetti .voce")].map((x) => x.dataset.id),
   altro: [...document.querySelectorAll("#lista-altro .voce")].map((x) => x.dataset.id),
-  cucina: (document.querySelector(".stato dd")?.textContent || "").match(/gen-5\.\d+/)?.[0] || null,
+  /* 01/09: cercava «gen-5.qualcosa» e col passaggio a gen-6.00 ha tirato fuori
+     null, diventando rossa da sola — che e' il suo mestiere: ha visto una
+     differenza vera fra le due lingue. La famiglia adesso e' generica. */
+  cucina: (document.querySelector(".stato dd")?.textContent || "").match(/gen-\d+\.\d+/)?.[0] || null,
 }));
 const vistiInPagina = [...inPagina.difetti, ...inPagina.altro].sort();
 const vistiInMemoria = mem.aperti.map((v) => v.id).sort();

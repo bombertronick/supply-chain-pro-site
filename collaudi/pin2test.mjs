@@ -108,11 +108,25 @@ await C.goto(URL);
    no — e il collaudo diventava rosso a caso. E' il peggior tipo di rosso:
    insegna a non fidarsi del rosso. Adesso aspetta che «Pino» ci sia davvero,
    fino a mezzo minuto, e riparte appena compare. */
-await C.getByText("Pino", { exact: false }).first().waitFor({ state: "visible", timeout: 30000 });
+/* 01/09/2026 — la mezz'ora di attesa non bastava ancora: nel censimento di
+   gen-5.99 questa riga e' scaduta a 30s (da sola, subito dopo, verde) e —
+   peggio del rosso — ha ucciso il file con un'eccezione non gestita,
+   portandosi via i due controlli che restavano e stampando uno stack di
+   node al posto di un motivo leggibile. Un banco lento deve CONTARE un
+   rosso, non morire: attesa a 60s e, se non compare, si dice quale passo
+   non e' stato provato. */
+await C.getByText("Pino", { exact: false }).first()
+  .waitFor({ state: "visible", timeout: 60000 }).catch(() => {});
 console.log("   C vede:", (await C.locator("body").innerText()).replace(/\n/g," | ").slice(0,320));
-await C.getByText("Pino",{exact:false}).first().click(); await C.waitForTimeout(400);
-await digita(C,"5555"); await C.waitForTimeout(1800);
-ok(await dentro(C), "dispositivo C: «Pino» entra col PIN messo dall'admin");
+const cVedePino = (await C.getByText("Pino",{exact:false}).count()) > 0;
+ok(cVedePino, "dispositivo C: il telefono appena aperto trova «Pino» nella lista");
+if (cVedePino) {
+  await C.getByText("Pino",{exact:false}).first().click(); await C.waitForTimeout(400);
+  await digita(C,"5555"); await C.waitForTimeout(1800);
+  ok(await dentro(C), "dispositivo C: «Pino» entra col PIN messo dall'admin");
+} else {
+  ok(false, "dispositivo C: l'ingresso col PIN nuovo non e' stato provato (la lista non ha mai mostrato «Pino»)");
+}
 await C.screenshot({path:"pin2-C.png"});
 
 ok(errs.length===0, "nessun errore JS" + (errs.length?" → "+errs[0]:""));

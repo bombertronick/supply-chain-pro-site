@@ -44,7 +44,12 @@ const dd = [...h.matchAll(/<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/g)]
   .map((m) => [testo(m[1]), testo(m[2])]);
 const quando = testo((h.match(/class="occhiello">([\s\S]*?)<\/p>/) || [, ""])[1])
   .replace(/^Supply Chain Pro · /, "");
-const cucina = (dd.find(([t]) => /cucina/i.test(t))?.[1] || "").match(/gen-5\.\d+/)?.[0] || "?";
+/* 01/09: la famiglia e' passata da gen-5.99 a gen-6.00 e questa riga cercava
+   ancora «gen-5.qualcosa»: scriveva «in cucina gira ?» senza lamentarsi.
+   Un estrattore che non trova deve accorgersene, non inventare un punto
+   interrogativo — adesso accetta qualunque generazione e lo dice se manca. */
+const cucina = (dd.find(([t]) => /cucina/i.test(t))?.[1] || "").match(/gen-\d+\.\d+/)?.[0] || "?";
+if (cucina === "?") console.log("ATTENZIONE: nella roadmap non trovo la versione in cucina");
 
 const difetti = voci("lista-difetti");
 const altro = voci("lista-altro");

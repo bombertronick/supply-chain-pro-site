@@ -121,13 +121,21 @@ const src = readFileSync("../app/app.jsx", "utf8");
 ok(/const VERSIONE = "gen-6\.00"/.test(src),
   "VERSIONE dichiara gen-6.00 (la regola di gen-5.99: si alza A OGNI rilascio)");
 /* il prezzo dentro la cella della griglia: oggi text-xs, deve salire.
-   L'aggancio è la riga della cella che stampa fmtEuro(v.prezzo || 0). */
-const cella = src.split("\n").find((r) => /fmtEuro\(v\.prezzo \|\| 0\)/.test(r)) || "";
+   01/09: l'aggancio «prima riga con fmtEuro(v.prezzo || 0)» pescava la riga
+   SBAGLIATA — quella dell'elenco del Listino (app.jsx:12288), che è in
+   grassetto e non ha classi di taglia. La cella della Cassa è l'unica che
+   stampa quel prezzo in T.blu: si àncora lì. */
+const cella = src.split("\n").find((r) =>
+  /fmtEuro\(v\.prezzo \|\| 0\)/.test(r) && /T\.blu/.test(r)) || "";
 ok(/text-sm/.test(cella), "il prezzo in cella è text-sm, non più text-xs");
 
 /* ═══ 2. LA GRIGLIA: gruppi per battute, «Altro» ultimo, badge sul conto ═══ */
 console.log("\n— 2. la griglia che impara dalle battute —");
-const G = await apri(base, [PR.opCassa], "OpCassa", "2222");
+/* l'Admin sta nel banco anche se non entra mai: senza un admin col PIN il
+   Foglio dello storno NON mostra il campo del PIN (guardia adminConPin,
+   app.jsx:12586) e §3d non avrebbe la seconda casella da riempire — la
+   sonda del 01/09 ha misurato esattamente questo: un solo input visibile */
+const G = await apri(base, [PR.opCassa, PR.admin], "OpCassa", "2222");
 await prova("§2", async () => {
   await vaiA(G.p, "Cassa");
   const t0 = await testoDi(G.p);

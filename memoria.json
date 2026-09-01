@@ -2,9 +2,9 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-5.99",
-    "len": 833714,
-    "md5": "7dc13681561dcd789069adec3fd99854",
+    "gen": "gen-6.00",
+    "len": 840372,
+    "md5": "9f00b4a0a6629c664d659dac78052959",
     "quando": "2026-09-01",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-6.00",
+      "chiude": [],
+      "prova": "cassa2test.mjs",
+      "cosa": "«La Cassa da banco» — secondo rilascio del piano veste (R2+R3 del piano-veste in dispensa; nato dalla foto 09-10 della revisione: la Cassa si apriva sul REGISTRO, non sulla battuta). LA CARD «Oggi» compressa a UNA riga (totale + n vendite + n storni); le ultime vendite traslocate nel Foglio «Ultime vendite», dove la RIGA INTERA si tocca per stornare (aria-label «Storna la vendita delle HH:MM» conservato apposta: i banchi vecchi si riallineano aggiungendo l'apertura del Foglio, non riscrivendosi). GRUPPI ordinati per BATTUTE (somma |qty| su tutte le righe delle vendite in stato = ultime 48h per costruzione; sort CLIENT, zero scritture) con «Altro» SEMPRE ultimo anche se batte piu' di tutti. BADGE quantita' sulla cella + data-nel-conto (aggancio da collaudo) + bordo blu quando la voce e' nel conto; prezzo in cella text-sm e chip «varianti». RESTO CONTANTI: campo «Ricevuti» nel Foglio d'incasso solo con metodo contanti, resto in text-3xl verde (o «Mancano X» in ambra), stato LOCALE della vista: la vendita registrata NON porta ricevuti ne' resto — zero fiscale, zero peso sul canale. «Svuota» con RIPRISTINO (scheda «Conto svuotato: N righe» + «Ripristina il conto»; si azzera al primo tocco su una voce e al cambio sede). Tasti +/-/Svuota a 44px misurati. Guida di sezione aggiornata (scheda nuova «Ultime vendite, storni e resto»). Rossi prima: 16; verdi dopo: 24; sabotaggi contati: regola «Altro ultimo» tolta 0->1, ricevuti registrati sulla vendita 0->1, «Svuota» senza ritorno 0->3.",
+      "_nota": "Banchi riallineati con commento datato (01/09): cassatest §8a/§8b/§8d e comandetest §5 aprono il Foglio «Ultime vendite» prima di cercare il tasto di storno. pin2test: sotto il carico del censimento la sua attesa a 30s scadeva e MORIVA con eccezione non gestita (portandosi via i controlli successivi) — ora attesa a 60s, esito CONTATO, e si dice quale passo non e' stato provato. Il collaudo di gen-6.00 aveva due difetti suoi, trovati e corretti: l'ancora del prezzo pescava la riga del Listino invece della cella della Cassa (si ancora su T.blu), e §3 cercava il campo del PIN in un banco senza nessun Admin (adminConPin lo nasconde) — sonda usa-e-getta per misurarlo, poi cancellata."
+    },
     {
       "gen": "gen-5.99",
       "chiude": [],
