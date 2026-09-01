@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.00";
+const VERSIONE = "gen-6.01";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -1679,7 +1679,7 @@ const GUIDA_SEZIONE = {
     { titolo: "Evadi la richiesta", testo: "Indichi quanto invii davvero: la linea si carica esattamente di quello e, se mandi meno, la richiesta resta aperta per il resto." },
   ],
   comande: [
-    { titolo: "La tua postazione", testo: "In alto scegli a quale postazione ti siedi (anche più di una: chi fa i fritti stasera può fare anche i dolci). La scelta resta su questo dispositivo." },
+    { titolo: "La tua postazione", testo: "In alto scegli a quale postazione ti siedi (anche più di una: chi fa i fritti stasera può fare anche i dolci). Se un Admin te ne ha assegnate nel profilo, uno schermo nuovo parte già da quelle; appena tocchi qui comanda questo schermo, e «Torna alle mie postazioni» rimette la scelta del profilo. Vedi solo le postazioni della tua sede." },
     { titolo: "La coda", testo: "Ogni card è uno scontrino: vedi solo la TUA parte, col numero da chiamare e da quanto aspetta. La più vecchia sta in cima. «Fatto» dice che la tua parte è uscita; un tocco in «Fatte» la riporta in coda se hai sbagliato." },
     { titolo: "Il ritardo e lo storno", testo: "La comanda arriva col giro dell'app: qualche secondo a schermo ACCESO — a schermo spento non arriva niente, quindi il tablet di postazione resta acceso sull'app. Uno scontrino stornato resta a schermo barrato in rosso col motivo, finché non tocchi «Vista»." },
   ],
@@ -6919,6 +6919,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [colore, setColore] = useState(item?.colore || PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   const [sedeId, setSedeId] = useState(item?.sedeId || "");
   const [magIds, setMagIds] = useState(item?.magazziniIds || []);
+  const [postIds, setPostIds] = useState(item?.postazioniIds || []);
   const [struttura, setStruttura] = useState(!!item?.struttura);
   const [correzioni, setCorrezioni] = useState(!!item?.correzioni);
   const [ordini, setOrdini] = useState(!!item?.ordini);
@@ -6927,8 +6928,16 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
   const lineeSede = stato.magazzini.filter((m) => m.sedeId === sedeId && m.tipo.startsWith("linea"));
-  const cambiaRuolo = (r) => { setRuolo(r); setSedeId(""); setMagIds([]); };
+  const cambiaRuolo = (r) => { setRuolo(r); setSedeId(""); setMagIds([]); setPostIds([]); };
   const toggleMag = (id) => setMagIds((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  const togglePost = (id) => setPostIds((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  /* le postazioni assegnabili a questo profilo: quelle della sua sede piu'
+     quelle dichiarate «tutte le sedi». Assegnargli la postazione di
+     un'ALTRA sede non servirebbe: le comande di quella sede non gli
+     arriverebbero comunque, il filtro della sede resta quello di sempre
+     (gen-6.01, chiesto da Valerio: «ogni cassa deve mandare le comande
+     solo alle postazioni di appartenenza»). */
+  const postSede = (stato.postazioni || []).filter((po) => !po.sedeId || po.sedeId === sedeId);
 
   /* commento dal vivo sotto al campo: chi scrive deve vedere subito se
      quello che sta digitando diventerà davvero il nuovo PIN */
@@ -6952,6 +6961,9 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         nome: nome.trim(), ruolo, colore, pinHash,
         sedeId: ruolo === "admin" ? undefined : sedeId,
         magazziniIds: ruolo === "operatore" ? magIds : undefined,
+        /* niente per l'admin e niente quando e' vuoto: il campo assente e'
+           il verso giusto anche qui (gen-6.01) */
+        postazioniIds: ruolo === "admin" || postIds.length === 0 ? undefined : postIds,
         struttura: ruolo === "admin" ? undefined : (struttura || undefined),
         correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
         ordini: ruolo === "admin" ? undefined : (ordini || undefined),
@@ -6997,6 +7009,39 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
                 );
               })}
             </div>}
+      </div>
+    )}
+    {/* LE POSTAZIONI DEL PROFILO (gen-6.01) — chieste da Valerio: «non posso
+        ancora visualizzare le postazioni nei profili nei quali li assegno».
+        Stanno QUI, prima e FUORI dal riquadro «Autorizzazioni», perche' non
+        sono un permesso: non aprono e non chiudono niente, dicono soltanto
+        «di solito tu stai qui», e servono da punto di partenza allo schermo
+        che non ha ancora scelto. */}
+    {ruolo !== "admin" && sedeId && (
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Postazioni di cucina</span>
+        {postSede.length === 0
+          ? <p className="text-sm" style={{ color: T.tenue }}>
+              Questa sede non ha ancora postazioni: le disegna un Admin da Gestione → Listino.</p>
+          : <>
+            <div className="flex flex-wrap gap-2">
+              {postSede.map((po) => {
+                const sel = postIds.includes(po.id);
+                return (
+                  <button key={po.id} onClick={() => togglePost(po.id)}
+                    className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
+                    style={sel
+                      ? { background: T.blu, color: "#fff" }
+                      : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
+                    {sel && <Check size={13} />}{po.nome}
+                    {!po.sedeId && <span className="text-xs font-semibold" style={{ opacity: .75 }}>· tutte le sedi</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+              Non è un permesso: è il punto di partenza dello schermo che apre le Comande. Chi lavora può sempre cambiare sedia dal suo schermo.</span>
+          </>}
       </div>
     )}
     {ruolo !== "admin" && (() => {
@@ -12396,20 +12441,44 @@ function FormPostazione({ stato, item, muta, mostraToast, onChiudi, onElimina })
    scritture. */
 function VistaComande({ stato, profilo, muta, mostraToast }) {
   const postazioni = stato.postazioni || [];
-  const [sedute, setSedute] = useState(() => {
+  /* IL PROFILO PROPONE, IL DISPOSITIVO COMANDA (gen-6.01). La sedia resta
+     del DISPOSITIVO — il tablet di cucina e' un oggetto fisico attaccato
+     alla corrente e non deve cambiare postazione perche' a meta' servizio
+     ha fatto il login un'altra persona. Ma uno schermo che non ha MAI
+     scelto (chiave assente, non vuota) parte dalle postazioni scritte sul
+     profilo: cosi' il telefono nuovo di chi lavora apre gia' giusto.
+     null = mai scelto; un array (anche vuoto) = il dispositivo ha deciso. */
+  const [scelta, setScelta] = useState(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("scp:comande:v1") || "[]");
-      return Array.isArray(v) ? v : [];
-    } catch { return []; }
+      const grezzo = localStorage.getItem("scp:comande:v1");
+      if (grezzo == null) return null;
+      const v = JSON.parse(grezzo);
+      return Array.isArray(v) ? v : null;
+    } catch { return null; }
   });
+  const sedute = scelta === null ? (profilo.postazioniIds || []) : scelta;
   const [congedate, setCongedate] = useState(() => new Set());
-  const siediti = (id) => setSedute((prima) => {
-    const dopo = prima.includes(id) ? prima.filter((x) => x !== id) : [...prima, id];
+  const siediti = (id) => {
+    const dopo = sedute.includes(id) ? sedute.filter((x) => x !== id) : [...sedute, id];
     try { localStorage.setItem("scp:comande:v1", JSON.stringify(dopo)); } catch {}
-    return dopo;
-  });
-  /* una sedia puo' puntare a una postazione rimossa: si ignora, non si rompe */
-  const mie = new Set(sedute.filter((id) => postazioni.some((p) => p.id === id)));
+    setScelta(dopo);   // dal primo tocco in poi comanda questo schermo
+  };
+  const tornaAlProfilo = () => {
+    try { localStorage.removeItem("scp:comande:v1"); } catch {}
+    setScelta(null);
+  };
+  /* OGNI CASSA ALLE SUE (gen-6.01, parole di Valerio): questo schermo puo'
+     sedersi solo alle postazioni della PROPRIA sede, piu' quelle dichiarate
+     «tutte le sedi». Offrire la postazione di un'altra sede sarebbe una
+     porta su una stanza vuota: le comande di quella sede non arrivano qui
+     comunque, perche' il filtro di reclamanti() guarda la sede della
+     vendita. L'admin le vede tutte, con scritto di quale sede sono. */
+  const postazioniQui = profilo.ruolo === "admin"
+    ? postazioni
+    : postazioni.filter((po) => !po.sedeId || po.sedeId === profilo.sedeId);
+  /* una sedia puo' puntare a una postazione rimossa (o di un'altra sede, se
+     il profilo e' stato spostato): si ignora, non si rompe */
+  const mie = new Set(sedute.filter((id) => postazioniQui.some((p) => p.id === id)));
 
   const finestra = Date.now() - ORE_COMANDE * 3600000;
   /* chi reclama un gruppo nella sede di QUESTA vendita; se nessuna
@@ -12467,26 +12536,37 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
     <div>
       <Intesta titolo="Comande"
         sotto="La tua parte di ogni scontrino battuto in Cassa: arriva col giro dell'app (qualche secondo), a schermo acceso" />
-      {postazioni.length === 0
+      {postazioniQui.length === 0
         ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Non ci sono ancora postazioni"
             testo="Le disegna un Admin da Gestione → Listino: ogni postazione abbina i gruppi del listino che produce." /></Scheda>
         : <>
           <Scheda className="p-3.5 mb-3">
             <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>La tua postazione</div>
             <div className="flex gap-2 flex-wrap">
-              {postazioni.map((po) => { const giu = mie.has(po.id); return (
+              {postazioniQui.map((po) => { const giu = mie.has(po.id); return (
                 <button key={po.id} onClick={() => siediti(po.id)}
                   aria-label={giu ? `Alzati da ${po.nome}` : `Siediti a ${po.nome}`}
                   className="rounded-2xl px-3.5 py-2.5 text-sm font-bold inline-flex items-center gap-1.5"
                   style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
                   {giu && <Check size={14} />}{po.nome}
+                  {profilo.ruolo === "admin" && po.sedeId && (
+                    <span className="text-xs font-semibold" style={{ opacity: .75 }}>
+                      · {trova(stato.sedi, po.sedeId)?.nome || "sede"}</span>
+                  )}
                 </button>
               ); })}
             </div>
+            {/* la via del ritorno: cancella la scelta di QUESTO schermo e
+                rimette quella scritta sul profilo (gen-6.01) */}
+            {scelta !== null && (profilo.postazioniIds || []).length > 0 && (
+              <button onClick={tornaAlProfilo}
+                className="text-xs font-bold mt-2 rounded-full px-3.5"
+                style={{ color: T.blu, background: "#EAF0FE", minHeight: 36 }}>Torna alle mie postazioni</button>
+            )}
           </Scheda>
           {mie.size === 0
             ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Scegli la tua postazione"
-                testo="Tocca qui sopra la postazione di cui ti occupi — anche più di una: chi fa i fritti stasera può fare anche i dolci. La scelta resta su questo dispositivo." /></Scheda>
+                testo="Tocca qui sopra la postazione di cui ti occupi — anche più di una: chi fa i fritti stasera può fare anche i dolci. La scelta resta su questo schermo; se un Admin te ne ha assegnate nel profilo, «Torna alle mie postazioni» rimette quelle." /></Scheda>
             : <>
               {stornate.map((c) => {
                 const contro = (stato.vendite || []).find((x) => x.origId === c.v.id && x.stato === "storno");
