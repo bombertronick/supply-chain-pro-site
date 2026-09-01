@@ -6,7 +6,10 @@ import {
   Store, ShieldCheck, ArrowLeft, Database, Copy, Upload, Download,
   RotateCcw, History, Save, CheckCheck, KeyRound, UserPlus, Send, Clock,
   BarChart3, TrendingUp, ArrowLeftRight, FileSpreadsheet, PackageCheck, Search, PackageMinus,
-  Minus, Gauge, Zap, Gamepad2,
+  /* niente joypad: l'icona da videogioco sulla Plancia diceva «giocattolo»
+     a chi valutava l'app — la Plancia e' un cruscotto, l'icona e' Gauge
+     (gen-5.99, dal giudizio del gruppo misto) */
+  Minus, Gauge, Zap,
 } from "lucide-react";
 
 /* ═══════════════ SUPPLY CHAIN PRO · Gen 1 ═══════════════
@@ -584,6 +587,11 @@ function sfoltisciOrdini(lista) {
    LIMITE DICHIARATO nel piano: bene fino a ~100 scontrini al giorno su una
    cassa sola. Oltre, la cura vera e' una chiave kv separata con append lato
    server (decisione in roadmap), non un tetto piu' furbo qui. */
+/* LA VERSIONE DICHIARATA (gen-5.99): la legge la scheda «Informazioni».
+   SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
+   direbbe una bugia proprio nella schermata nata per dire la verita'.
+   (Regola scritta anche in memoria.json.) */
+const VERSIONE = "gen-5.99";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -718,7 +726,10 @@ function applicaStorno(s, d) {
 /* Il report di giornata (gen-5.97): totali per metodo e SCORPORO IVA per
    aliquota — informativo, calcolato sul dettaglio ancora in stato (48 ore).
    Gli storni entrano col segno meno, cosi' una vendita stornata fa zero. */
-function testoGiornata(stato, sedeId, giorno) {
+/* i numeri del report, PURI e in un posto solo: li usano sia il testo da
+   copiare sia le righe a schermo — due calcoli separati divergerebbero al
+   primo ritocco (gen-5.99) */
+function datiGiornata(stato, sedeId, giorno) {
   const sede = trova(stato.sedi, sedeId);
   const g = (stato.giornate || []).find((x) => x.id === giorno + "|" + sedeId);
   const righeGiorno = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === giorno);
@@ -730,18 +741,27 @@ function testoGiornata(stato, sedeId, giorno) {
       perAliquota.set(k, +(((perAliquota.get(k) || 0) + segno * r.qty * r.prezzo)).toFixed(2));
     }
   }
+  const aliquote = [...perAliquota.entries()].filter(([, v]) => Math.abs(v) > 1e-9)
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    .map(([k, lordo]) => {
+      if (k === "—") return { k, lordo, imponibile: null, imposta: null };
+      const imponibile = +(lordo / (1 + k / 100)).toFixed(2);
+      return { k, lordo, imponibile, imposta: +(lordo - imponibile).toFixed(2) };
+    });
+  return { sede, g, aliquote };
+}
+function testoGiornata(stato, sedeId, giorno) {
+  const { sede, g, aliquote } = datiGiornata(stato, sedeId, giorno);
   const out = [];
   out.push(`${(sede?.nome || "Sede").toUpperCase()} · ${new Date().toLocaleDateString("it-IT")}`);
   out.push(`Totale: ${fmtEuro(g?.totale || 0)} · ${g?.nVendite || 0} vendite · ${g?.nStorni || 0} storni`);
   out.push(`Contanti ${fmtEuro(g?.metodi?.contanti || 0)} · Carta ${fmtEuro(g?.metodi?.carta || 0)} · Altro ${fmtEuro(g?.metodi?.altro || 0)}`);
-  const conAliquota = [...perAliquota.entries()].filter(([k, v]) => Math.abs(v) > 1e-9);
-  if (conAliquota.length) {
+  if (aliquote.length) {
     out.push("");
     out.push("Scorporo IVA · informativo, sul dettaglio delle ultime 48 ore:");
-    for (const [k, lordo] of conAliquota.sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
-      if (k === "—") { out.push(`Senza aliquota: lordo ${fmtEuro(lordo)}`); continue; }
-      const imponibile = +(lordo / (1 + k / 100)).toFixed(2);
-      out.push(`IVA ${k}%: lordo ${fmtEuro(lordo)} · imponibile ${fmtEuro(imponibile)} · imposta ${fmtEuro(+(lordo - imponibile).toFixed(2))}`);
+    for (const a of aliquote) {
+      if (a.k === "—") { out.push(`Senza aliquota: lordo ${fmtEuro(a.lordo)}`); continue; }
+      out.push(`IVA ${a.k}%: lordo ${fmtEuro(a.lordo)} · imponibile ${fmtEuro(a.imponibile)} · imposta ${fmtEuro(a.imposta)}`);
     }
   }
   out.push("");
@@ -1055,7 +1075,9 @@ function Scheda({ children, className = "", style, onClick }) {
 }
 function Bottone({ figli, children, variante = "primario", icona: I, onClick, disabilitato, className = "", piccolo }) {
   const stili = {
-    primario: { background: T.grad, color: "#fff", border: "none", boxShadow: "0 10px 22px -10px rgba(110,100,244,.55)" },
+    /* T.blu PIENO, non il gradiente: sui bottoni il viola-fucsia diceva
+       «template», e il colore d'azione dell'app e' il blu (gen-5.99) */
+    primario: { background: T.blu, color: "#fff", border: "none", boxShadow: "0 10px 22px -10px rgba(61,125,234,.5)" },
     tonale: { background: "#EAF0FE", color: T.blu, border: "none" },
     fantasma: { background: "transparent", color: T.dim, border: `1px solid ${T.bordo}` },
     pericolo: { background: "#FCE9EE", color: T.rosso, border: "none" },
@@ -1378,7 +1400,7 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
         </div>
         <h1 className="text-3xl md:text-4xl font-extrabold" style={{ color: T.ink }}>Supply Chain Pro</h1>
         <p className="text-sm max-w-sm" style={{ color: T.dim }}>
-          Rifornimenti multi-sede in tempo reale: linee, retro, laboratorio e ordini fornitori.
+          Magazzino, cassa e comande per la tua rete: linee, retro, laboratorio e ordini fornitori.
         </p>
       </div>
 
@@ -1429,7 +1451,7 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
           <p className="text-xs text-center mt-3 leading-relaxed" style={{ color: T.tenue }}>
             {sync === "locale"
               ? "Archiviazione condivisa non disponibile: i dati resteranno solo su questo dispositivo."
-              : "Accesso su invito · i dati sono sincronizzati in tempo reale fra gli utenti autorizzati."}
+              : "Accesso su invito · i dati si allineano da soli, in qualche secondo, fra i telefoni autorizzati."}
           </p>
         </div>
       )}
@@ -1504,7 +1526,7 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
           <div className="text-center">
             <div className="text-xl font-extrabold" style={{ color: T.ink }}>Richiedi l'accesso</div>
             <p className="text-sm mt-1" style={{ color: T.dim }}>
-              L'amministratore vedrà i tuoi dati in tempo reale e potrà approvarti.
+              L'amministratore vedrà la tua richiesta e potrà approvarti.
             </p>
           </div>
           <Campo label="Il tuo nome" valore={nome} onCambia={setNome} placeholder="Es. Luca" autoFocus />
@@ -1626,6 +1648,7 @@ const GUIDA_NAV = {
   profili: "Le persone che accedono, con ruolo e magazzini assegnati.",
   accessi: "Inviti e richieste di primo accesso: generi i codici per far entrare nuove persone.",
   sistema: "Backup, punti di ripristino, export dei dati e stato della sincronizzazione.",
+  informazioni: "La carta d'identità dell'app: quale versione gira, come si aggiorna, a chi chiedere aiuto e i limiti dichiarati.",
 };
 const GUIDA_SEZIONE = {
   magazzini: [
@@ -2662,7 +2685,7 @@ function PlanciaRete({ stato, mags, sel, onSelMag, onApri, onSelSotto, onScegli 
             <p className="text-xs mb-1" style={{ color: T.ambra }}>Nessun collegamento configurato per questo magazzino.</p>
           )}
           <div className="flex gap-2 mt-2">
-            <Bottone piccolo icona={Gamepad2} onClick={() => onApri(magF.id)}>Apri</Bottone>
+            <Bottone piccolo icona={Gauge} onClick={() => onApri(magF.id)}>Apri</Bottone>
             <Bottone piccolo variante="tonale" icona={Check} onClick={() => onSelMag(magF)}>Seleziona tutto</Bottone>
           </div>
         </div>
@@ -2807,7 +2830,7 @@ function PlanciaStruttura({ stato, mags, sel, onArt, onSelMag, onSelSede, onSelL
                           <span className="block mt-1.5"><Barra pieno={pieno} /></span>
                         </button>
                         <button onClick={() => onApri(m.id)} aria-label={`Apri ${m.nome}`} className="rounded-xl p-2 shrink-0"
-                          style={{ background: "#EAF0FE", color: T.blu }}><Gamepad2 size={15} /></button>
+                          style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={15} /></button>
                         <button onClick={() => cambia(`m${m.id}`)} aria-label="Espandi" className="shrink-0"><Freccia aperto={apM} /></button>
                       </div>
 
@@ -3264,7 +3287,7 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
 
         {gFocus ? (
           <button onClick={() => onColonna(gFocus, nSel > 0)} className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3"
-            style={{ background: T.grad, color: "#fff", textAlign: "left", boxShadow: "0 12px 30px -14px rgba(80,60,180,.7)" }}>
+            style={{ background: T.blu, color: "#fff", textAlign: "left", boxShadow: "0 12px 30px -14px rgba(61,125,234,.6)" }}>
             <TrendingUp size={18} />
             <span className="flex-1 min-w-0">
               <span className="font-extrabold block">
@@ -3775,7 +3798,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       {volo && (
         <div key={volo.k} className="pointer-events-none fixed inset-x-0 flex justify-center" style={{ bottom: "calc(9.6rem + env(safe-area-inset-bottom))", zIndex: 45 }}>
           <span className="sc-vola rounded-full px-3.5 py-1.5 text-sm font-extrabold flex items-center gap-1.5"
-            style={{ background: T.grad, color: "#fff", boxShadow: "0 10px 26px -10px rgba(80,60,180,.75)" }}>
+            style={{ background: T.blu, color: "#fff", boxShadow: "0 10px 26px -10px rgba(61,125,234,.65)" }}>
             <Check size={15} />{volo.n} caselle
           </span>
         </div>
@@ -3804,7 +3827,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
             <div key={gruppo} className="sc-fade flex gap-2 pb-1">
               {cmdGruppo.map((b, k) => (
                 <button key={k} onClick={b.on} className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 flex-1 min-w-0"
-                  style={{ background: b.forte ? T.grad : b.rosso ? "rgba(226,92,119,.22)" : "rgba(255,255,255,.1)",
+                  style={{ background: b.forte ? T.blu : b.rosso ? "rgba(226,92,119,.22)" : "rgba(255,255,255,.1)",
                     color: b.rosso ? "#FFC3CF" : "#fff" }}>
                   <b.ic size={18} /><span className="text-xs font-bold truncate w-full text-center">{b.t}</span>
                 </button>
@@ -3954,7 +3977,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     admin: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
       { id: "altro", nome: "Gestione", icona: ShieldCheck, pronta: true, badge: nAcc },
     ],
@@ -3962,14 +3985,14 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "conteggi", nome: "Conteggi", icona: ClipboardList, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
     laboratorio: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "richieste", nome: "Richieste", icona: FlaskConical, pronta: true, badge: nRic },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
   }[profilo.ruolo]
@@ -4030,7 +4053,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      NAV[0] rimetteva «Guida di "Home"» su un tasto che non parla della Home —
      misurato dalla revisione, ed e' esattamente la regressione che il
      commento qui sopra dichiarava sanata. */
-  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gamepad2 },
+  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gauge },
     comande: { nome: "Comande", icona: CheckCheck } };
   const fuori = !NAV.some((n) => n.id === vista) && FUORI_BARRA[vista];
   const nomeQui = sezioneQui?.nome || fuori?.nome || voceAttiva?.nome || "questa sezione";
@@ -4043,7 +4066,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
        Un muro qui vale per ogni porta, comprese quelle di domani. */
     const admin = profilo.ruolo === "admin";
     const chiusa =
-      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino"].includes(vista)) ||
+      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino", "informazioni"].includes(vista)) ||
       (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
       (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
       (vista === "cassa" && !puoCassa(profilo)) ||
@@ -4068,6 +4091,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
+    if (vista === "informazioni") return <VistaInformazioni stato={stato} sync={sync} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
       mostraToast={mostraToast} ripristina={ripristina} />;
     if (vista === "altro") return <VistaAltro stato={stato} vaiA={naviga} nAcc={nAcc} />;
@@ -4124,7 +4148,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
         <div className="rounded-2xl p-2" style={{ background: T.grad }}><Boxes size={18} color="#fff" /></div>
         <div className="min-w-0">
           <div className="font-extrabold leading-tight" style={{ color: T.ink }}>Supply Chain Pro</div>
-          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>Rete rifornimenti · tempo reale</div>
+          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>Magazzino, cassa e comande</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <SincroChip sync={sync} />
@@ -4176,7 +4200,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
           <p className="text-sm mb-1" style={{ color: T.dim }}>Un aiuto veloce, quando vuoi. Puoi sempre saltarlo.</p>
           <button onClick={() => { setAiuto(false); naviga("plancia"); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
-            <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gamepad2 size={18} /></span>
+            <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></span>
             <span className="flex-1"><span className="font-extrabold block" style={{ color: T.ink }}>Plancia: la rete a colpo d'occhio</span>
               <span className="text-xs" style={{ color: T.dim }}>Come sono collegati i magazzini e cosa contiene ognuno, sui dati veri</span></span>
             <ChevronRight size={18} style={{ color: T.tenue }} />
@@ -4868,12 +4892,19 @@ function SchedaMagazzino({ m, stato, azione }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-extrabold truncate" style={{ color: T.ink }}>{m.nome}</div>
-          <div className="text-xs" style={{ color: T.dim }}>{meta.nome}</div>
+          {/* il nome BREVE del tipo: quello lungo doppiava il nome del
+              magazzino («Magazzino Laboratorio / Magazzino laboratorio»)
+              e sembrava stampato due volte per sbaglio (gen-5.99) */}
+          <div className="text-xs" style={{ color: T.dim }}>{meta.breve}</div>
         </div>
       </div>
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <Chip colore={T.dim}>{m.articoli.length} articoli</Chip>
-        {sotto > 0
+        {/* un bollino verde su un magazzino VUOTO e' una bugia: chi mente
+            sulle piccole cose... (Gigi, dal giudizio) (gen-5.99) */}
+        {m.articoli.length === 0
+          ? <Chip colore={T.tenue}>vuoto · da riempire</Chip>
+          : sotto > 0
           ? <Chip colore={T.ambra}><AlertTriangle size={11} /> {sotto} sotto scorta</Chip>
           : <Chip colore={T.verde}><Check size={11} /> A livello</Chip>}
       </div>
@@ -4961,6 +4992,11 @@ const SEZIONI_ALTRO = [
     sotto: "Quello che Claude deve ricordare fra una conversazione e l'altra" },
   { id: "sistema", nome: "Sistema", icona: Database, col: "#4F5D7C",
     sotto: "Backup, esportazioni, importazione del catalogo" },
+  /* la carta d'identita' (gen-5.99): versione, come si aggiorna, assistenza.
+     Un gestionale senza un posto che dica «cosa sono e chi chiamare» sembra
+     un progetto, non un prodotto (dal giudizio del gruppo). */
+  { id: "informazioni", nome: "Informazioni", icona: Cloud, col: "#3D7DEA",
+    sotto: "Versione, come si aggiorna, assistenza e limiti dichiarati" },
 ];
 function VistaAltro({ stato, vaiA, nAcc }) {
   return (
@@ -5094,7 +5130,10 @@ const AZIONI = [
   { n: "Backup, esportazioni e ripristino", d: "sistema", ic: Database,
     c: "Gestione → Sistema",
     p: ["backup", "esporta", "esportazione", "csv", "excel", "ripristino", "salvataggio", "importa"] },
-  { n: "La rete a colpo d'occhio", d: "plancia", ic: Gamepad2,
+  { n: "Versione e assistenza", d: "informazioni", ic: Cloud,
+    c: "Gestione → Informazioni",
+    p: ["versione", "aggiornamento", "assistenza", "aiuto", "chi chiamare", "informazioni", "limiti"] },
+  { n: "La rete a colpo d'occhio", d: "plancia", ic: Gauge,
     c: "Plancia",
     p: ["plancia", "mappa", "rete", "colpo d'occhio", "collegamenti", "schema"] },
 ];
@@ -5118,7 +5157,7 @@ function azioniTrovate(profilo, q) {
   /* un operatore non deve trovare porte che poi non può aprire */
   const suo = (a) => {
     if (profilo.ruolo === "admin") return true;
-    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino"].includes(a.d)) return false;
+    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino", "informazioni"].includes(a.d)) return false;
     if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
     if (a.d === "plancia") return puoCorreggere(profilo);
     /* senza questa riga il ripiego finale mostrerebbe la porta della Cassa
@@ -5293,10 +5332,12 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
       <div>
         <Intesta titolo={`${saluto}, ${profilo.nome}`} sotto="Panoramica della rete e delle anagrafiche" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          <StatCard icona={Building2} colore={T.blu} label="Sedi in rete" valore={stato.sedi.length} />
+          {/* prima cio' che chiede AZIONE, poi l'anagrafica che non cambia
+              mai: l'occhio cade sulla prima carta (gen-5.99, giudizio) */}
+          <StatCard icona={AlertTriangle} colore={sottoTot ? T.ambra : T.verde} label="Articoli sotto scorta" valore={sottoTot} />
           <StatCard icona={Package} colore={T.viola} label="Prodotti a catalogo" valore={stato.prodotti.length} />
           <StatCard icona={Users} colore={T.ciano} label="Profili attivi" valore={stato.profili.length} />
-          <StatCard icona={AlertTriangle} colore={sottoTot ? T.ambra : T.verde} label="Articoli sotto scorta" valore={sottoTot} />
+          <StatCard icona={Building2} colore={T.blu} label="Sedi in rete" valore={stato.sedi.length} />
         </div>
         <AvvisiScorta stato={stato} vaiA={vaiA} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -5322,7 +5363,7 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
               ].map(([n, t]) => (
                 <li key={n} className="flex gap-2.5">
                   <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold text-white"
-                    style={{ background: T.grad }}>{n}</span>
+                    style={{ background: T.blu }}>{n}</span>
                   <span>{t}</span>
                 </li>
               ))}
@@ -5345,7 +5386,7 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
     return (
       <div>
         <Intesta titolo={`${saluto}, ${profilo.nome}`}
-          sotto={`Sede ${sede?.nome || "—"} · ${linee.length} linee assegnate · ${retro.length} retro`}
+          sotto={`Sede ${sede?.nome || "—"} · ${linee.length === 1 ? "1 linea assegnata" : `${linee.length} linee assegnate`} · ${retro.length} retro`}
           azione={<Bottone icona={ClipboardList} onClick={() => vaiA("conteggi")}>Inizia conteggio</Bottone>} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
           {miei.length === 0
@@ -5381,7 +5422,7 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
   return (
     <div>
       <Intesta titolo={`${saluto}, ${profilo.nome}`}
-        sotto={`${sede?.nome || "Laboratorio"} · rifornisce ${servite.length} sedi operatore`}
+        sotto={`${sede?.nome || "Laboratorio"} · rifornisce ${servite.length === 1 ? "1 sede operatore" : `${servite.length} sedi operatore`}`}
         azione={<Bottone icona={FlaskConical} onClick={() => vaiA("richieste")}>Apri richieste</Bottone>} />
       {/* le tre statistiche che stavano qui dicevano cose gia' scritte
           altrove: le richieste in attesa sono il badge della barra, il
@@ -5927,7 +5968,7 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
       </select>
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-          style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+          style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
         {stato.categorie.map((c) => (
           <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
             style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -6820,7 +6861,7 @@ function VistaSedi({ stato, muta, mostraToast }) {
             <div className="font-extrabold text-lg leading-tight" style={{ color: T.ink }}>{sede.nome}</div>
             <div className="text-xs mt-0.5" style={{ color: T.dim }}>
               {isLab
-                ? `Rifornisce ${servite.length} sedi operatore`
+                ? `Rifornisce ${servite.length === 1 ? "1 sede operatore" : `${servite.length} sedi operatore`}`
                 : `Rifornita da ${rifornita?.nome || "—"}`}
             </div>
           </div>
@@ -6948,7 +6989,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
                   <button key={m.id} onClick={() => toggleMag(m.id)}
                     className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
                     style={sel
-                      ? { background: T.grad, color: "#fff" }
+                      ? { background: T.blu, color: "#fff" }
                       : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
                     {sel && <Check size={13} />}{m.nome}
                   </button>
@@ -7559,7 +7600,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
 }
 
 /* ─────────── GESTIONE MAGAZZINI ─────────── */
-function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa }) {
+function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa, onElimina }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [sedeId, setSedeId] = useState(item?.sedeId || sedeFissa || stato.sedi[0]?.id || "");
   const sede = trova(stato.sedi, sedeId);
@@ -7601,6 +7642,9 @@ function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa }) 
         retroSede.length
           ? <Selettore label="Retro di riferimento" valore={rifId} onCambia={setRifId} opzioni={retroSede} />
           : <p className="text-sm font-semibold" style={{ color: T.ambra }}>Nessun retro in questa sede: creane uno prima.</p>
+      )}
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Elimina questo magazzino</Bottone>
       )}
       <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
     </div>
@@ -8145,7 +8189,7 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
       </div>
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-          style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+          style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
         {stato.categorie.map((c) => (
           <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
             style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -8556,7 +8600,7 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Chip colore={meta.colore}>{meta.nome}</Chip>
+        <Chip colore={meta.colore}>{meta.breve}</Chip>
         <Chip colore={T.dim}>{sede?.nome}</Chip>
         {retro && <Chip colore={T.ambra}>Rif: {retro.nome}</Chip>}
         {permesso === "rettifica" && <Chip colore={T.blu}>Rettifica giacenze</Chip>}
@@ -8986,7 +9030,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
         </div>
         <div className="flex gap-1.5 flex-wrap mb-2">
           <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-            style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+            style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
           {stato.categorie.map((c) => (
             <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
               style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -9729,8 +9773,8 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
         : profilo.ruolo === "laboratorio"
         ? "I tuoi magazzini, più le linee che rifornisci: quelle si vedono soltanto"
         : puoCorreggere(profilo)
-        ? "I magazzini della tua sede: consulta e rettifica le giacenze in tempo reale"
-        : "I magazzini della tua sede: le giacenze in tempo reale"}
+        ? "I magazzini della tua sede: consulta e rettifica le giacenze, allineate fra i telefoni in qualche secondo"
+        : "I magazzini della tua sede: le giacenze, allineate fra i telefoni in qualche secondo"}
         azione={<div className="flex gap-2 flex-wrap">
           {inventariabili.length > 0 && (
             <Bottone variante={invProprio ? "primario" : "tonale"} icona={ClipboardList}
@@ -9752,7 +9796,7 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
             <button key={s.id} onClick={() => setFiltro(s.id)}
               className="rounded-full px-3.5 py-2 text-sm font-bold"
               style={filtro === s.id
-                ? { background: T.grad, color: "#fff" }
+                ? { background: T.blu, color: "#fff" }
                 : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>
               {s.nome}
             </button>
@@ -9777,23 +9821,26 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-extrabold truncate" style={{ color: T.ink }}>{m.nome}</div>
-                  <div className="text-xs truncate" style={{ color: T.dim }}>{sede?.nome} · {meta.nome}</div>
+                  <div className="text-xs truncate" style={{ color: T.dim }}>{sede?.nome} · {meta.breve}</div>
                 </div>
                 <ChevronRight size={18} style={{ color: T.tenue }} />
               </div>
               <div className="flex items-center gap-2 mt-3 flex-wrap">
                 <Chip colore={T.dim}>{m.articoli.length} articoli</Chip>
-                {sotto > 0
+                {m.articoli.length === 0
+                  ? <Chip colore={T.tenue}>vuoto · da riempire</Chip>
+                  : sotto > 0
                   ? <Chip colore={T.ambra}><AlertTriangle size={11} /> {sotto} sotto scorta</Chip>
                   : <Chip colore={T.verde}><Check size={11} /> A livello</Chip>}
                 {righeOrd > 0 && <Chip colore={T.rosa}><Truck size={11} /> {righeOrd} righe ordine</Chip>}
               </div>
               {admin && (
                 <div className="flex gap-2 justify-end mt-3">
+                  {/* niente «Elimina» a vista sull'elenco: il distruttivo sta
+                      nel foglio Modifica, dove si vede COSA si sta toccando
+                      (gen-5.99, dal giudizio del gruppo) */}
                   <Bottone variante="tonale" piccolo icona={Pencil}
                     onClick={(e) => { e.stopPropagation(); setForm({ item: m }); }}>Modifica</Bottone>
-                  <Bottone variante="pericolo" piccolo icona={Trash2}
-                    onClick={(e) => { e.stopPropagation(); setDel(m); }}>Elimina</Bottone>
                 </div>
               )}
             </Scheda>
@@ -9811,7 +9858,8 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
       </Foglio>
       <Foglio aperto={!!form} titolo={form?.item ? "Modifica magazzino" : "Nuovo magazzino"} onChiudi={() => setForm(null)}>
         {form && <FormMagazzino key={form.item?.id || "n"} stato={stato} item={form.item}
-          muta={muta} mostraToast={mostraToast} onChiudi={() => setForm(null)} />}
+          muta={muta} mostraToast={mostraToast} onChiudi={() => setForm(null)}
+          onElimina={() => { const m = form.item; setForm(null); setDel(m); }} />}
       </Foglio>
       <Foglio aperto={!!del} titolo={del ? `Eliminare «${del.nome}»?` : ""} onChiudi={() => setDel(null)}>
         {del && <EliminaMagazzino key={del.id} stato={stato} mag={del} muta={muta}
@@ -10300,7 +10348,7 @@ function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
         style={{ color: T.dim, background: "#EDF1FA" }}>
         <ArrowLeft size={15} /> Magazzini
       </button>
-      <Intesta titolo={mag.nome} sotto={meta.nome} azione={<Chip colore={meta.colore}>{meta.breve}</Chip>} />
+      <Intesta titolo={mag.nome} sotto={meta.breve} azione={<Chip colore={meta.colore}>{meta.breve}</Chip>} />
       <Spiega id="conteggi-guida" titolo="Come si conta">
         <p>
           Scrivi <b>quanto vedi</b> per ogni articolo. Lascia vuoto per saltarlo:
@@ -11027,8 +11075,8 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
             titolo={tab === "in-attesa" ? "Nessuna richiesta in attesa" : "Archivio vuoto"}
             testo={tab === "in-attesa"
               ? (preparatiLab.length
-                ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale. Intanto, se stai preparando per dopo, segnalo con «Ho prodotto» qui sopra: quello che è segnato parte subito quando la richiesta arriva."
-                : "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale.")
+                ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in qualche secondo. Intanto, se stai preparando per dopo, segnalo con «Ho prodotto» qui sopra: quello che è segnato parte subito quando la richiesta arriva."
+                : "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in qualche secondo.")
               : "Le richieste evase, parziali o annullate finiranno qui."} /></Scheda>
         )}
         {lista.map((r) => {
@@ -11883,7 +11931,15 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
           <Scheda><Vuoto icona={Truck}
             titolo={tab === "da-ordinare" ? "Nessun acquisto da fare" : tab === "ordinato" ? "Nessun ordine in attesa di consegna" : "Nessuna merce ricevuta"}
             testo={tab === "da-ordinare"
-              ? "Le righe compaiono quando retro o laboratorio scendono sotto il livello previsto. Usa «Ricalcola fabbisogni» per rigenerarle dalle scorte."
+              /* la Home urlava «88 sotto scorta» e questo vuoto rispondeva
+                 «niente da fare»: adesso il vuoto AMMETTE la scorta bassa e
+                 nomina il tasto col suo nome vero, «Ricalcola» (gen-5.99) */
+              ? (() => { const sottoTot = stato.magazzini
+                    .filter((m) => profilo.ruolo === "admin" || m.sedeId === profilo.sedeId)
+                    .reduce((n, m) => n + sottoScorta(m), 0);
+                  return sottoTot > 0
+                    ? `Eppure ${sottoTot} articoli sono sotto scorta: le righe nascono dai conteggi delle linee, oppure da «Ricalcola» qui sopra, che le rigenera dalle scorte di retro e laboratorio.`
+                    : "Le righe compaiono quando retro o laboratorio scendono sotto il livello previsto. «Ricalcola» qui sopra le rigenera dalle scorte."; })()
               : tab === "ordinato"
                 ? "Le righe segnate come ordinate finiranno qui, in attesa che la merce arrivi."
                 : "Quando segni un ordine come ricevuto, il magazzino si carica e la riga finisce qui."} /></Scheda>
@@ -12047,7 +12103,7 @@ const CHIAVE_INDICE = "scp:backup-indice";
    Le voci che il banco vede in Cassa. NON sono i prodotti del catalogo:
    una «Margherita» scala farina, mozzarella e pomodoro — la distinta ha la
    stessa forma degli ingredienti di una ricetta, ed e' la stessa idea. */
-function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
+function FormVoceListino({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [gruppo, setGruppo] = useState(item?.gruppo || "");
   const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
@@ -12164,6 +12220,9 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi }) {
       </div>
       <p className="text-xs mt-1.5" style={{ color: T.tenue }}>Una voce senza distinta si vende comunque: semplicemente non scala niente.</p>
     </div>
+    {item && onElimina && (
+      <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli dal listino</Bottone>
+    )}
     <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
   </div>);
 }
@@ -12209,8 +12268,6 @@ function VistaListino({ stato, muta, mostraToast }) {
             </span>
             <button onClick={() => setPost({ item: po })} aria-label={`Modifica la postazione ${po.nome}`}
               className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
-            <button onClick={() => setDelPost(po)} aria-label={`Rimuovi la postazione ${po.nome}`}
-              className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
           </div>
         ))}
       </Scheda>
@@ -12236,20 +12293,22 @@ function VistaListino({ stato, muta, mostraToast }) {
                     </span>
                   </span>
                   {v.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
+                  {/* il cestino non sta piu' sulla riga: si toglie da dentro
+                      il foglio, dove si vede cosa si sta togliendo (gen-5.99) */}
                   <button onClick={() => setModal({ item: v })} aria-label={`Modifica ${v.nome}`}
                     className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
-                  <button onClick={() => setDel(v)} aria-label={`Rimuovi ${v.nome}`}
-                    className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
                 </Scheda>
               ))}
             </div>
           </div>
         ))}
       <Foglio aperto={!!modal} titolo={modal?.item ? "Modifica voce di listino" : "Nuova voce di listino"} onChiudi={() => setModal(null)} larga>
-        {modal && <FormVoceListino stato={stato} item={modal.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setModal(null)} />}
+        {modal && <FormVoceListino stato={stato} item={modal.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setModal(null)}
+          onElimina={() => { const v = modal.item; setModal(null); setDel(v); }} />}
       </Foglio>
       <Foglio aperto={!!post} titolo={post?.item ? "Modifica postazione" : "Nuova postazione"} onChiudi={() => setPost(null)}>
-        {post && <FormPostazione stato={stato} item={post.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setPost(null)} />}
+        {post && <FormPostazione stato={stato} item={post.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setPost(null)}
+          onElimina={() => { const po = post.item; setPost(null); setDelPost(po); }} />}
       </Foglio>
       <Conferma aperto={!!del} titolo={`Togliere «${del?.nome}» dal listino?`}
         testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
@@ -12267,7 +12326,7 @@ function VistaListino({ stato, muta, mostraToast }) {
    listino — il gruppo e' testo libero e riscriverlo a mano qui sarebbe il
    secondo posto dove sbagliarlo. I gruppi gia' abbinati ma spariti dal
    listino restano visibili (per poterli staccare). (gen-5.98) */
-function FormPostazione({ stato, item, muta, mostraToast, onChiudi }) {
+function FormPostazione({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [sedeScelta, setSedeScelta] = useState(item?.sedeId || "tutte");
   const [gruppi, setGruppi] = useState(item?.gruppi || []);
@@ -12316,6 +12375,9 @@ function FormPostazione({ stato, item, muta, mostraToast, onChiudi }) {
           «Chi fa i fritti fa anche i dolci» si scrive qui: una postazione, due gruppi.
         </p>
       </div>
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli questa postazione</Bottone>
+      )}
       <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
     </div>
   );
@@ -12468,7 +12530,7 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
                     <button onClick={() => spunta(c)}
                       aria-label={`Fatta la comanda delle ${oraDi(c.v.t)}`}
                       className="rounded-full px-5 py-3 text-sm font-bold w-full inline-flex items-center justify-center gap-2"
-                      style={{ background: T.grad, color: "#fff", boxShadow: "0 10px 22px -10px rgba(110,100,244,.55)" }}>
+                      style={{ background: T.verde, color: "#fff", boxShadow: "0 10px 22px -10px rgba(31,154,110,.55)" }}>
                       <Check size={17} />Fatto</button>
                   </Scheda>
                 ))}
@@ -12755,18 +12817,102 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
       </Foglio>
       <Foglio aperto={report} titolo="Report di giornata" onChiudi={() => setReport(false)}>
         {report && (() => {
-          const testo = testoGiornata(stato, sedeId, oggi);
+          /* righe con gerarchia, non un blocco da terminale: questa e' la
+             schermata che si mostra al commercialista (gen-5.99). Il testo
+             grezzo resta la cosa che «Copia» mette negli appunti. */
+          const { sede, g, aliquote } = datiGiornata(stato, sedeId, oggi);
           return (
             <div className="flex flex-col gap-3">
-              <pre className="text-xs rounded-2xl p-3 overflow-x-auto" style={{ background: "#F6F8FE", color: T.ink, whiteSpace: "pre-wrap" }}>{testo}</pre>
+              <div className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>
+                {sede?.nome || "Sede"} · {new Date().toLocaleDateString("it-IT")}</div>
+              <div className="flex items-end gap-3 flex-wrap">
+                <span>
+                  <span className="block text-xs font-bold" style={{ color: T.tenue }}>Totale</span>
+                  <span className="text-3xl font-extrabold" style={{ color: T.ink }}>{fmtEuro(g?.totale || 0)}</span>
+                </span>
+                <span className="text-sm pb-1" style={{ color: T.dim }}>
+                  {g?.nVendite || 0} vendite · {g?.nStorni || 0} storni</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Chip colore={T.verde}>Contanti {fmtEuro(g?.metodi?.contanti || 0)}</Chip>
+                <Chip colore={T.blu}>Carta {fmtEuro(g?.metodi?.carta || 0)}</Chip>
+                {(g?.metodi?.altro || 0) !== 0 && <Chip colore={T.dim}>Altro {fmtEuro(g.metodi.altro)}</Chip>}
+              </div>
+              {aliquote.length > 0 && (
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide mb-1" style={{ color: T.tenue }}>
+                    Scorporo IVA · informativo, ultime 48 ore</div>
+                  {aliquote.map((a) => (
+                    <div key={String(a.k)} className="flex items-center gap-2 text-sm py-1.5"
+                      style={{ borderTop: `1px solid ${T.bordo}` }}>
+                      <span className="font-bold w-16 shrink-0" style={{ color: T.ink }}>
+                        {a.k === "—" ? "Senza" : `IVA ${a.k}%`}</span>
+                      <span className="flex-1" style={{ color: T.dim }}>lordo {fmtEuro(a.lordo)}</span>
+                      {a.imponibile != null && (
+                        <span className="text-xs" style={{ color: T.tenue }}>
+                          imponibile {fmtEuro(a.imponibile)} · imposta {fmtEuro(a.imposta)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: T.tenue }}>
+                Lo scontrino fiscale resta al registratore telematico: questo report serve a cassa e magazzino.</p>
               <Bottone variante="tonale" icona={Copy}
-                onClick={() => navigator.clipboard?.writeText(testo).then(
+                onClick={() => navigator.clipboard?.writeText(testoGiornata(stato, sedeId, oggi)).then(
                   () => mostraToast("Copiato: ora incollalo dove serve"),
-                  () => mostraToast("Copia a mano dal riquadro", "avviso"))}>Copia il report</Bottone>
+                  () => mostraToast("Seleziona e copia a mano", "avviso"))}>Copia il report</Bottone>
             </div>
           );
         })()}
       </Foglio>
+    </div>
+  );
+}
+
+/* ── INFORMAZIONI E ASSISTENZA (gen-5.99) ──
+   La carta d'identita': versione, come si aggiorna, chi chiamare, e i
+   limiti DICHIARATI — scritti qui come sono scritti nel codice, perche'
+   un prodotto serio dice anche cosa non sa fare. */
+function VistaInformazioni({ stato, sync }) {
+  return (
+    <div>
+      <Intesta titolo="Informazioni" sotto="La carta d'identità dell'app: versione, aggiornamenti, assistenza" />
+      <Scheda className="p-4 mb-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl p-3 shrink-0" style={{ background: `${T.blu}14`, color: T.blu }}><Cloud size={20} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="font-extrabold" style={{ color: T.ink }}>Supply Chain Pro · {VERSIONE}</div>
+            <div className="text-xs" style={{ color: T.dim }}>
+              {sync === "locale" ? "Modalità locale: i dati restano su questo telefono" : "Collegata alla rete condivisa"}</div>
+          </div>
+        </div>
+      </Scheda>
+      <Scheda className="p-4 mb-3">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>Come si aggiorna</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Da sola: basta chiudere e riaprire l'app. I dati si allineano fra i telefoni in qualche
+          secondo, a schermo acceso. Prima di accendere una funzione nuova (cassa, comande) fai un
+          giro di ricarica su TUTTI i telefoni, così nessuno resta sulla versione vecchia.</p>
+      </Scheda>
+      <Scheda className="p-4 mb-3">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>Se qualcosa non torna</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Ogni rilascio lascia un backup: si torna indietro in un minuto. Scrivi cosa hai visto in
+          Gestione → Memoria (data, schermata, cosa ti aspettavi): è il canale che viene riletto a
+          ogni ripresa del lavoro. Lo Storico (Gestione → Storico) tiene traccia di chi ha fatto
+          cosa, col tasto per riportare le cose com'erano.</p>
+      </Scheda>
+      <Scheda className="p-4">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>I limiti, detti chiari</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Lo scontrino fiscale resta al registratore telematico: la Cassa serve a magazzino,
+          comande e totali. Le comande arrivano col giro dell'app (qualche secondo) e mai a
+          schermo spento. Le vendite in dettaglio vivono 48 ore (i totali di giornata tre mesi,
+          l'export CSV sta in Sistema). Con cassa e comande accese l'app va bene fino a
+          ~50 scontrini veri al giorno su una cassa: sopra, c'è un lavoro già progettato da fare
+          prima.</p>
+      </Scheda>
     </div>
   );
 }
@@ -13158,7 +13304,7 @@ function FormCodice({ stato, profilo, richiesta, muta, mostraToast, onChiudi, on
               return (
                 <button key={m.id} onClick={() => setMagIds((v) => (sel ? v.filter((x) => x !== m.id) : [...v, m.id]))}
                   className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
-                  style={sel ? { background: T.grad, color: "#fff" }
+                  style={sel ? { background: T.blu, color: "#fff" }
                     : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
                   {sel && <Check size={13} />}{m.nome}
                 </button>
@@ -13200,7 +13346,7 @@ function VistaAccessi({ stato, profilo, muta, mostraToast }) {
           <div className="rounded-2xl p-2.5" style={{ background: "#EAF0FE", color: T.blu }}><UserPlus size={18} /></div>
           <div>
             <div className="font-extrabold" style={{ color: T.ink }}>Richieste di primo accesso</div>
-            <div className="text-xs" style={{ color: T.tenue }}>Dati di chi sta provando a connettersi, in tempo reale</div>
+            <div className="text-xs" style={{ color: T.tenue }}>Dati di chi sta provando a connettersi</div>
           </div>
           {attese.length > 0 && <Chip colore={T.rosso}>{attese.length} in attesa</Chip>}
         </div>
@@ -13543,8 +13689,12 @@ function VistaAnalisi({ stato, muta, mostraToast, profilo }) {
       <Intesta titolo="Analisi" sotto="Andamento della rete: copertura scorte, movimenti e fabbisogni" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard icona={TrendingUp} colore={T.blu} label="Movimenti · 7 giorni" valore={mov7} />
-        <StatCard icona={Check} colore={artTot && artOk === artTot ? T.verde : T.ambra} label="Copertura scorte"
-          valore={`${artTot ? Math.round((artOk / artTot) * 100) : 100}%`} nota={`${artOk} su ${artTot} articoli a livello`} />
+        {/* la spunta fissa accanto a «2%» era il semaforo che mentiva di
+            piu' (gen-5.99): soglie vere, e sotto il 50% la parola giusta */}
+        {(() => { const pct = artTot ? Math.round((artOk / artTot) * 100) : 100;
+          return <StatCard icona={pct >= 90 ? Check : AlertTriangle}
+            colore={pct >= 90 ? T.verde : pct >= 50 ? T.ambra : T.rosso} label="Copertura scorte"
+            valore={`${pct}%`} nota={`${artOk} su ${artTot} articoli a livello${pct < 50 ? " · critica: conta o tara le soglie" : ""}`} />; })()}
         <StatCard icona={FlaskConical} colore={T.ciano} label="Richieste evase · 7 giorni" valore={evase7} />
         <StatCard icona={Truck} colore={T.rosa} label="Righe da ordinare" valore={ordAperti.length} />
       </div>
