@@ -110,6 +110,15 @@ const incassa = async (p) => {
 const tocca = async (p, nome, attesa = 300) => {
   await p.getByRole("button", { name: nome, exact: true }).click(); await p.waitForTimeout(attesa);
 };
+/* gen-6.04: la fascia degli ingredienti parte CHIUSA (Valerio: «non deve
+   essere visibile in cassa se non quando richiesto»). Toccare un chip senza
+   averla aperta e' cercare un tasto dietro uno sportello chiuso. Questo e' il
+   gesto che fa un cassiere vero; quello che il banco pretende non cambia. */
+const apriFascia = async (p) => {
+  if (await p.locator('[data-fascia="1"]').count()) return;
+  const pastiglia = p.locator('[data-fascia-chiusa="1"] button').first();
+  if (await pastiglia.count()) { await pastiglia.click(); await p.waitForTimeout(420); }
+};
 
 /* ═══ 1. LA FONTE ═══ */
 console.log("\n— 1. la fonte —");
@@ -184,10 +193,14 @@ await prova("§3", async () => {
      e l'ordine non conta piu' (parole di Valerio). Il banco prova la
      stessa INTENZIONE — due margherite, una coi broccoletti — col gesto
      nuovo: il collaudo di gen-6.03 (gen603test.mjs) prova il resto. */
+  /* gen-6.04: i chip si leggono a fascia APERTA. Prima questa riga guardava
+     una barra che era sempre li'; adesso va chiesta, come fa il cassiere. */
+  await apriFascia(C.p);
   const tf = await testoDi(C.p);
   ok(/Broccoletti/.test(tf) && /Salsiccia/.test(tf),
     "la fascia porta le aggiunte del gruppo «Pizze» (anche con «pizze» minuscolo nel catalogo)");
   ok(!/Bufala/.test(tf), "e la Bufala spenta non si propone: finita è finita");
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 500);
   const t3 = await testoDi(C.p);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 1
@@ -197,6 +210,7 @@ await prova("§3", async () => {
   /* la seconda passa nella riga composta: stessa pizza + stesse aggiunte =
      una riga sola con qty 2, non due righe gemelle */
   await tocca(C.p, "Lavora su Margherita", 400);
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 500);
   const t3b = await testoDi(C.p);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 0,
@@ -213,6 +227,7 @@ await prova("§4", async () => {
      quello che ha sempre detto (cassatest §2b e cassa2test §5 lo cercano) */
   ok(/Così com'è · € 8,00/.test(tf) && /Maxi · € 9,50/.test(tf),
     "§4 contro-controllo: senza aggiunte spuntate il foglio è quello di sempre");
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia", 300);
   const tf2 = (await foglio(C.p).innerText()).replace(/\s+/g, " ");
   ok(/Con Salsiccia · € 10,00/.test(tf2) && /Maxi \+ Salsiccia · € 11,50/.test(tf2),
