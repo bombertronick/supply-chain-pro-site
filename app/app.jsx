@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.03";
+const VERSIONE = "gen-6.04";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -852,6 +852,21 @@ const aggiunteTutte = (stato) => (stato.aggiunte || [])
    le stampa. Campo vuoto = non si mostra niente: un vuoto e' onesto. */
 const dentroDi = (stato, voceId) =>
   ((trova(stato.listino || [], voceId) || {}).dentro || "").trim();
+/* IL CONTO DELLE COMPOSIZIONI (gen-6.04, riparazione di un mio difetto).
+   In gen-6.03 avevo detto a Valerio che le voci senza composizione sono
+   marcate in ambra. Era vero a meta': la marcatura per-card compare solo
+   dove c'e' gia' una DISTINTA, quindi una pizza senza distinta non veniva
+   segnalata e chi scorreva il Listino se la perdeva.
+   La cura NON e' marcare tutto: scrivere «composizione da scrivere» sopra
+   l'Acqua vorrebbe dire far indovinare all'app quali voci ne hanno bisogno,
+   e l'app non lo sa. Sa dire soltanto DOVE SEI ARRIVATO, e questo conta
+   tutte le voci — quelle con la distinta e quelle senza. Quali meritino una
+   composizione lo decide chi fa le pizze. Derivato, mai salvato. */
+const conteggioDentro = (voci) => {
+  const tot = (voci || []).length;
+  const fatte = (voci || []).filter((v) => (v.dentro || "").trim()).length;
+  return { fatte, tot, senza: tot - fatte };
+};
 /* la finestra della vista comande e' per ORA, non per giorno di calendario:
    giornoDi taglierebbe a mezzanotte la coda di una pizzeria in servizio */
 const ORE_COMANDE = 12;
@@ -12366,10 +12381,18 @@ function VistaListino({ stato, muta, mostraToast }) {
   const [agg, setAgg] = useState(null);       // l'aggiunta in modifica (gen-6.02)
   const [delAgg, setDelAgg] = useState(null);
   const voci = stato.listino || [];
+  /* IL FILTRO delle composizioni (gen-6.04): e' un paio di occhiali, non una
+     preferenza. Vive nella vista e muore col rimontaggio, perche' serve per
+     la sera in cui si compilano le pizze e mai piu' — salvarlo vorrebbe dire
+     ritrovarselo acceso fra un mese senza ricordare perche' meta' listino e'
+     sparito. Zero byte sul canale. */
+  const [soloSenza, setSoloSenza] = useState(false);
+  const conta = conteggioDentro(voci);
+  const vociViste = soloSenza ? voci.filter((v) => !(v.dentro || "").trim()) : voci;
   /* stesso ripiego della Cassa («Altro», via gruppoDi): prima qui si leggeva
      «Senza gruppo» e di la' «Altro» — due nomi per lo stesso vuoto, e le
      comande smistano per nome (gen-5.98) */
-  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
+  const gruppi = [...new Set(vociViste.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
   return (
     <div>
       <Intesta titolo="Listino" sotto="Quello che il banco vede in Cassa: prezzi di vendita e cosa scalano dal magazzino"
@@ -12437,6 +12460,28 @@ function VistaListino({ stato, muta, mostraToast }) {
           </div>
         ))}
       </Scheda>
+      {/* DOVE SEI ARRIVATO. Un numero solo, sopra l'elenco, che conta tutte
+          le voci: e' l'unica cosa onesta che l'app puo' dire, perche' quali
+          voci meritino una composizione non lo sa (gen-6.04). */}
+      {voci.length > 0 && (
+        <Scheda className="p-3 mb-3 flex items-center gap-3 flex-wrap">
+          <span className="flex-1 min-w-0">
+            <span className="text-sm font-bold block" style={{ color: T.ink }}>
+              Cosa c'è dentro: scritta su {conta.fatte} voc{conta.fatte === 1 ? "e" : "i"} di {conta.tot}</span>
+            <span className="text-xs block" style={{ color: T.tenue }}>
+              {conta.senza === 0
+                ? "tutte le voci hanno la loro composizione"
+                : `${conta.senza} non ce l'${conta.senza === 1 ? "ha" : "hanno"} — l'app non sa quali ne abbiano bisogno: lo decidi tu`}</span>
+          </span>
+          {/* solo icone gia' importate: Eye e Filter non ci sono, e importarne
+              una nuova rompe l'app (commento in cima al file) */}
+          {conta.senza > 0 && (
+            <Bottone variante="tonale" piccolo icona={soloSenza ? ClipboardList : Search}
+              onClick={() => setSoloSenza((x) => !x)}>
+              {soloSenza ? "Mostra tutte" : "Mostra solo quelle senza"}</Bottone>
+          )}
+        </Scheda>
+      )}
       {voci.length === 0
         ? <Scheda className="p-8"><Vuoto icona={Tag} titolo="Il listino è vuoto"
             testo="Le voci che crei qui compaiono nella Cassa di chi ha l'interruttore «Può battere in cassa»." /></Scheda>
@@ -12444,7 +12489,7 @@ function VistaListino({ stato, muta, mostraToast }) {
           <div key={g} className="mb-4">
             <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
             <div className="flex flex-col gap-2">
-              {voci.filter((v) => gruppoDi(v) === g)
+              {vociViste.filter((v) => gruppoDi(v) === g)
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
                 <Scheda key={v.id} className="p-3 flex items-center gap-3">
                   <span className="flex-1 min-w-0">
