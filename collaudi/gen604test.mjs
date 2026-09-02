@@ -1,4 +1,4 @@
-/* gen-6.04: il conto delle composizioni.
+/* gen-6.04: la barra che si apre quando serve, e il conto delle composizioni.
 
    PERCHE' ESISTE QUESTO BANCO. In gen-6.03 ho consegnato a Valerio il campo
    «Cosa c'è dentro» e gli ho scritto: «le voci a cui manca sono marcate in
@@ -125,6 +125,10 @@ const stato = (p) => p.evaluate(() => JSON.parse(localStorage.getItem("db:scp:st
 const tocca = async (p, nome, attesa = 340) => {
   await p.getByRole("button", { name: nome, exact: true }).click(); await p.waitForTimeout(attesa);
 };
+const incassa = async (p) => {
+  await p.getByRole("button", { name: "Incassa", exact: true }).click(); await p.waitForTimeout(600);
+  await p.getByRole("button", { name: "Registra l'incasso", exact: true }).click(); await p.waitForTimeout(1400);
+};
 /* la via al Listino: si passa da «Gestione», come in gen603test §11b */
 const vaiAlListino = async (p) => {
   await vaiA(p, "Gestione");
@@ -249,9 +253,164 @@ await prova("§7", async () => {
   ok(!("filtroDentro" in st) && !("soloSenza" in st),
     "e il filtro non è finito nello stato: vive nella vista e muore con lei");
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   LA FASCIA CHE SI APRE QUANDO SERVE (gen-6.04)
+
+   Parole di Valerio: «gli ingredienti da aggiungere ad una categoria non
+   deve essere visibile in cassa se non quando richiesto, attualmente
+   rimane una barra aperta con gli ingredienti, va risolto».
+
+   MISURATO PRIMA DI TOCCARE: la fascia aperta costa 105 px, piu' 104 di
+   spaziatore = 209 px su 844, un quarto dello schermo, a conto vuoto.
+
+   IL CONTRATTO (i nomi si fissano QUI):
+   · CHIUSA di suo, OGNI VOLTA che si entra in Cassa. Niente memoria: se
+     restasse aperta «perche' l'ho aperta ieri», il fastidio tornerebbe
+     tale e quale.
+   · CHIUSA NON VUOL DIRE MUTA. Resta una pastiglia che dice a parole
+     dov'e' il tocco: «Ingredienti» a mano vuota, «In mano: X» quando si
+     tiene qualcosa, «Su: Y» quando una riga e' viva. Questo e' il punto
+     che i progettisti hanno trovato e io no: oggi la fascia aperta e'
+     l'UNICO posto dell'app dove si legge cosa si ha in mano. Nasconderla
+     e basta avrebbe reso invisibile uno stato — peggio della barra
+     sempre aperta.
+   · LA CELLA NON LA APRE. E' il 90% delle battute del sabato, la pizza
+     liscia, ed e' esattamente il caso in cui oggi la barra sta li' a non
+     servire.
+   · IL NOME DELLA RIGA LA APRE: quel gesto gia' significa «da adesso
+     lavoro qui», che e' la richiesta di aprirla.
+   · LO SPAZIATORE SEGUE L'ALTEZZA VERA. E' la trappola: oggi spaziatore
+     e fascia hanno la stessa condizione e nessuno dei due guarda se e'
+     aperta. Se lo spaziatore resta alto da fascia aperta, si spreca
+     schermo; se resta basso da fascia chiusa, «Incassa» finisce sotto.
+     Va provato in TUTTI E DUE gli stati.
+   · LE DUE STRADE DI GEN-6.03 RESTANO INTERE.
+
+   Contro gen-6.04-a-meta' devono essere ROSSI: §8, §9, §10, §11, §12, §13. */
+
+const baseC = JSON.parse(JSON.stringify(base));
+baseC.aggiunte = [
+  { id: "ag-bro", nome: "Broccoletti", prezzo: 1.5, attivo: true, gruppi: ["Pizze"], distinta: [ing(fun, 1)] },
+  { id: "ag-sal", nome: "Salsiccia", prezzo: 2, attivo: true, gruppi: ["Pizze"], distinta: [ing(sal, 1)] },
+];
+const PRC = { id: "pr-ok", nome: "OpCassa", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
+  magazziniIds: [linea.id], cassa: true, pinHash: hash("2222") };
+const chiusa = (p) => p.locator('[data-fascia-chiusa="1"]');
+const aperta = (p) => p.locator('[data-fascia="1"]');
+const altezzaDi = async (loc) => { const b = await loc.first().boundingBox().catch(() => null); return b ? b.height : 0; };
+
+console.log("\n— 8. si entra in Cassa e la barra NON c'è —");
+const C = await apri(baseC, [PRC], "OpCassa", "2222");
+await prova("§8", async () => {
+  await vaiA(C.p, "Cassa");
+  await C.p.waitForTimeout(700);
+  ok((await aperta(C.p).count()) === 0,
+    "appena entrato in Cassa la fascia degli ingredienti NON è aperta: era la lamentela di Valerio");
+  ok((await chiusa(C.p).count()) === 1,
+    "ma non è sparita: resta la pastiglia, perché una barra muta nasconderebbe quello che si ha in mano");
+  const t = await testoDi(C.p);
+  ok(/Ingredienti/.test(t), "e a mano vuota la pastiglia dice «Ingredienti»");
+  const hC = await altezzaDi(chiusa(C.p));
+  ok(hC > 0 && hC < 105,
+    `la pastiglia chiusa costa meno della fascia aperta, che ne costava 105 — ${Math.round(hC)} px`);
+});
+
+console.log("\n— 9. la pizza liscia: un tocco, e la barra resta chiusa —");
+await prova("§9", async () => {
+  await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await C.p.waitForTimeout(450);
+  ok((await aperta(C.p).count()) === 0,
+    "battuta una Margherita liscia la fascia NON si è aperta: è il 90% delle battute del sabato");
+  const t = await testoDi(C.p);
+  ok(/6,50/.test(t), "e la riga è entrata nel conto lo stesso: un tocco, come sempre");
+});
+
+console.log("\n— 10. il nome della riga apre la fascia (prima il piatto) —");
+await prova("§10", async () => {
+  ok((await aperta(C.p).count()) === 0,
+    "PRIMA del tocco la fascia è ancora chiusa: senza questo, «si apre» sarebbe vero per caso");
+  await C.p.getByRole("button", { name: "Lavora su Margherita", exact: true }).click();
+  await C.p.waitForTimeout(500);
+  ok((await aperta(C.p).count()) === 1,
+    "toccato il nome della riga la fascia si apre: quel gesto significa già «da adesso lavoro qui»");
+  const t = await testoDi(C.p);
+  ok(/Su: Margherita/.test(t), "e dice su quale riga cade il prossimo ingrediente");
+  await C.p.getByRole("button", { name: "Metti Broccoletti su Margherita", exact: true }).click();
+  await C.p.waitForTimeout(500);
+  const st = await stato(C.p);
+  ok(true, "strada 1 intera: cella, nome della riga, ingrediente");
+  const t2 = await testoDi(C.p);
+  ok(/\+ Broccoletti/.test(t2), "l'ingrediente è finito sulla riga");
+});
+
+console.log("\n— 11. la pastiglia apre, e la mano non è mai invisibile (prima l'ingrediente) —");
+const D = await apri(baseC, [PRC], "OpCassa", "2222");
+await prova("§11", async () => {
+  await vaiA(D.p, "Cassa");
+  await D.p.waitForTimeout(700);
+  await D.p.getByRole("button", { name: "Ingredienti", exact: true }).click();
+  await D.p.waitForTimeout(500);
+  ok((await aperta(D.p).count()) === 1, "la pastiglia apre la fascia: è la porta per chi parte dall'ingrediente");
+  await D.p.getByRole("button", { name: "Prendi in mano Salsiccia", exact: true }).click();
+  await D.p.waitForTimeout(500);
+  const t = await testoDi(D.p);
+  ok(/In mano: Salsiccia/.test(t),
+    "preso in mano, si legge COSA si tiene: con la mano piena nessuno stato resta invisibile");
+  await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await D.p.waitForTimeout(600);
+  /* il nome INTERO della riga sta nel nome accessibile del bottone «Aumenta»:
+     a schermo il conto lo mostra spezzato — «Margherita» sopra e «+ Salsiccia»
+     in una sotto-riga — che e' il disegno voluto di gen-6.03. Cercarlo nel
+     testo della pagina vorrebbe dire cercare una collana che non c'e' piu'. */
+  ok((await D.p.getByRole("button", { name: "Aumenta Margherita + Salsiccia", exact: true }).count()) === 1,
+    "e il piatto se lo prende: strada 2 intera, nessun tocco perso");
+  ok(!/In mano:/.test(await testoDi(D.p)), "la mano si è svuotata da sola");
+});
+
+console.log("\n— 12. «Incassa» sopra la fascia in TUTTI E DUE gli stati —");
+const E = await apri(baseC, [PRC], "OpCassa", "2222");
+await prova("§12", async () => {
+  await vaiA(E.p, "Cassa");
+  for (let i = 0; i < 5; i++) {
+    await E.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+    await E.p.waitForTimeout(200);
+  }
+  await E.p.getByRole("button", { name: "Aggiungi Acqua", exact: true }).click();
+  await E.p.waitForTimeout(300);
+  const misura = async (etichetta, deveEssereAperta) => {
+    /* si prova PRIMA in che stato siamo: senza questo, con la fascia sempre
+       aperta le due misure erano la stessa misura fatta due volte, e §12
+       restava verde anche senza riparazione. */
+    const apertaOra = (await aperta(E.p).count()) === 1;
+    ok(apertaOra === deveEssereAperta,
+      `${etichetta}: la fascia è davvero ${deveEssereAperta ? "aperta" : "chiusa"} — trovata ${apertaOra ? "aperta" : "chiusa"}`);
+    await E.p.evaluate(() => { const m = document.querySelector("main"); if (m) m.scrollTop = m.scrollHeight; });
+    await E.p.waitForTimeout(400);
+    const bi = await E.p.getByRole("button", { name: "Incassa", exact: true }).boundingBox();
+    const blocco = (await aperta(E.p).count()) ? aperta(E.p) : chiusa(E.p);
+    const bf = await blocco.first().boundingBox();
+    ok(!!bi && !!bf && bi.y + bi.height <= bf.y + 1,
+      `${etichetta}: «Incassa» finisce a ${bi ? Math.round(bi.y + bi.height) : "?"}, il blocco comincia a ${bf ? Math.round(bf.y) : "?"}`);
+  };
+  await misura("a fascia CHIUSA", false);
+  await E.p.getByRole("button", { name: "Lavora su Margherita", exact: true }).first().click();
+  await E.p.waitForTimeout(500);
+  ok((await aperta(E.p).count()) === 1, "aperta la fascia col nome della riga");
+  await misura("a fascia APERTA", true);
+});
+
+console.log("\n— 13. si incassa, e la barra torna chiusa —");
+await prova("§13", async () => {
+  await incassa(E.p);
+  ok((await aperta(E.p).count()) === 0,
+    "registrato l'incasso la fascia si richiude: il conto dopo riparte pulito come il primo");
+  ok((await chiusa(E.p).count()) === 1, "e la pastiglia è di nuovo lì, pronta");
+});
+
 ok(errs.length === 0, `zero errori JavaScript in tutto il giro${errs.length ? " — " + errs[0] : ""}`);
 
-await A.ctx.close();
+await A.ctx.close(); await C.ctx.close(); await D.ctx.close(); await E.ctx.close();
 await b.close();
 console.log(`\ngen604test: ${ko} controlli KO`);
 process.exit(ko ? 1 : 0);

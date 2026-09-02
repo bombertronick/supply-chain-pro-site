@@ -12994,6 +12994,19 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
      cassiere debba chiedersi se il chip appoggia o prende. */
   const [viva, setViva] = useState(null);
   const [mano, setMano] = useState([]);
+  /* LA FASCIA SI APRE QUANDO SERVE (gen-6.04, parole di Valerio: «non deve
+     essere visibile in cassa se non quando richiesto, attualmente rimane una
+     barra aperta»). Misurato prima di toccare: aperta costava 105 px piu' 104
+     di spaziatore = 209 su 844, un quarto dello schermo, a conto vuoto.
+     PARTE CHIUSA OGNI VOLTA, e NON si ricorda: se restasse aperta perche'
+     qualcuno l'ha aperta ieri, il fastidio tornerebbe tale e quale. Per
+     questo non c'e' nessun localStorage qui, al contrario della sedia delle
+     comande — quella e' una preferenza, questa e' un attrezzo per un gesto.
+     CHIUSA NON VUOL DIRE MUTA: resta una pastiglia che dice a parole cosa si
+     ha in mano, perche' la fascia aperta era l'UNICO posto dell'app dove lo
+     si leggeva, e nasconderla e basta avrebbe reso invisibile uno stato —
+     peggio della barra sempre aperta. */
+  const [fasciaSu, setFasciaSu] = useState(false);
   /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
      meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
   const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
@@ -13148,6 +13161,14 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
      «da adesso lavoro qui». Se si tiene qualcosa in mano, il piatto lo
      prende, esattamente come farebbe la cella. */
   const lavoraSu = (r) => {
+    /* IL GESTO CHE APRE (gen-6.04). Il tocco sul nome della riga significa
+       gia' «da adesso lavoro qui», che e' parola per parola la richiesta di
+       vedere gli ingredienti: aprirla qui non e' un tocco in piu', e' lo
+       stesso tocco che dice cosa vuoi. La CELLA del listino invece NON la
+       apre, ed e' il punto di tutta la riparazione: la pizza liscia e' il
+       90% delle battute del sabato, ed e' esattamente il caso in cui la
+       barra stava li' aperta a non servire a niente. */
+    setFasciaSu(true);
     if (!mano.length) { setViva(r.chiave); return; }
     const voce = trova(voci, r.voceId);
     if (!voce) { setViva(r.chiave); return; }
@@ -13193,7 +13214,9 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
     setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
-    setViva(null); setMano([]);
+    /* chiude anche la fascia: il conto dopo riparte pulito come il primo
+       della serata, senza ereditare la barra aperta di quello prima */
+    setViva(null); setMano([]); setFasciaSu(false);
   };
 
   const storna = async () => {
@@ -13227,7 +13250,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
-        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); }} opzioni={sediOp} /></div>
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); }} opzioni={sediOp} /></div>
       )}
       {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
           registro. Le ultime vendite — coi loro storni — stanno dietro il
@@ -13362,7 +13385,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
               ); })}
           </div>
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
-            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); }} aria-label="Svuota il conto"
+            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); setFasciaSu(false); }} aria-label="Svuota il conto"
               className="text-xs font-bold rounded-full px-4 shrink-0"
               style={{ color: T.tenue, background: "#F0F3FB", minHeight: 44 }}>Svuota</button>
             <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>
@@ -13388,8 +13411,16 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
           «Incassa» sopra di lei. Misurato, non a occhio: il collaudo §12
           confronta i boundingBox. Compare alla stessa condizione della
           fascia — chi non ha aggiunte non paga un pixel. */}
+      {/* LO SPAZIATORE SEGUE L'ALTEZZA VERA DEL BLOCCO (gen-6.04). E' la
+          trappola di questa riparazione: prima spaziatore e fascia avevano la
+          stessa condizione e nessuno dei due guardava se fosse aperta. Se
+          resta alto da fascia aperta si spreca schermo per niente; se resta
+          basso da fascia chiusa «Incassa» finisce sotto la fascia — che e'
+          il sabotaggio n.9 di gen-6.03. Per questo il collaudo lo misura in
+          TUTTI E DUE gli stati, non in uno solo. */}
       {aggiunteTutte(stato).length > 0 && (
-        <div aria-hidden="true" style={{ height: "calc(6.5rem + env(safe-area-inset-bottom))" }} />
+        <div aria-hidden="true" data-spaziatore="1"
+          style={{ height: `calc(${fasciaSu ? "6.5rem" : "4rem"} + env(safe-area-inset-bottom))` }} />
       )}
       {/* ═══ LA FASCIA DEGLI INGREDIENTI (gen-6.03) ═══
           Parole di Valerio: «devo poterlo fare in qualsiasi momento, non
@@ -13405,6 +13436,29 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         const inMano = mano.length > 0;
         const rv = inMano ? null : rigaViva;
         const chips = perBanco(rv ? aggiunteDelGruppo(rv.gruppo) : aggiunteTutte(stato));
+        /* LA PAROLA CHE DICE DOV'E' IL TOCCO. E' la stessa a fascia aperta e
+           a fascia chiusa, di proposito: chiudere la fascia non deve mai
+           togliere l'informazione, solo lo spazio. */
+        const dove = inMano ? `In mano: ${nomiDi(mano)}` : rv ? `Su: ${nomeBase(rv)}` : "Ingredienti";
+        if (!fasciaSu) return (
+          /* CHIUSA: una pastiglia sola, alta un dito, che dice a parole cosa
+             si ha in mano e apre al tocco. Ambra quando la mano e' piena,
+             perche' quello e' l'unico stato che, dimenticato, fa sbagliare
+             la pizza dopo. */
+          <div data-fascia-chiusa="1" className="fixed z-30"
+            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            <button onClick={() => setFasciaSu(true)} aria-label={dove}
+              className="w-full rounded-2xl px-3 flex items-center gap-2"
+              style={{ minHeight: 48, background: inMano ? "#FFF6E8" : "#fff",
+                border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 8px 20px -12px rgba(20,30,60,.4)" }}>
+              <Plus size={16} style={{ color: inMano ? "#7A4A00" : T.blu, flexShrink: 0 }} />
+              <span className="flex-1 min-w-0 text-sm font-extrabold truncate text-left"
+                style={{ color: inMano ? "#7A4A00" : T.ink }}>{dove}</span>
+              <span className="text-[11px] font-semibold shrink-0" style={{ color: T.tenue }}>
+                {inMano ? "la prende il prossimo piatto" : "tocca per aprire"}</span>
+            </button>
+          </div>
+        );
         return (
           <div data-fascia="1" className="fixed z-30"
             style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
@@ -13426,6 +13480,12 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                     style={{ minHeight: 44, background: inMano ? "#fff" : "#F0F3FB", color: inMano ? "#7A4A00" : T.tenue }}>
                     <X size={14} />{inMano ? "Lascia" : "Stacca"}</button>
                 )}
+                {/* chiudere la fascia NON lascia la mano: si richiude sulla
+                    pastiglia, che resta ambra e dice cosa si sta tenendo.
+                    Sono due gesti diversi e devono restare due bottoni. */}
+                <button onClick={() => setFasciaSu(false)} aria-label="Chiudi gli ingredienti"
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ width: 44, height: 44, background: "#F0F3FB", color: T.tenue }}><X size={15} /></button>
               </div>
               <div className="flex gap-2 overflow-x-auto">
                 {chips.map((a) => {
