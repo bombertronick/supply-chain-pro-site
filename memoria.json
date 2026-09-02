@@ -2,10 +2,10 @@
   "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
   "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
   "online": {
-    "gen": "gen-6.01",
-    "len": 845589,
-    "md5": "550f5b8b33f6e9414729b839e47686c3",
-    "quando": "2026-09-01",
+    "gen": "gen-6.02",
+    "len": 864543,
+    "md5": "8abbf123a1a6913b37ef5da640a109ac",
+    "quando": "2026-09-02",
     "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che 'gen' combaci con quello che la roadmap dice di avere in cucina; NON puo' controllare da solo che combaci con la produzione vera, perche' in CI non c'e' la chiave del database. Quel confronto lo fa strumenti/memoria-produzione.mjs, a mano, al momento del rilascio."
   },
   "aperti": [
@@ -29,6 +29,13 @@
     }
   ],
   "chiusi": [
+    {
+      "gen": "gen-6.02",
+      "chiude": [],
+      "prova": "extratest.mjs",
+      "cosa": "«Le aggiunte» — CHIESTO DA VALERIO la notte del 2 settembre: «nella cassa devo poter aggiungere articoli al prodotto che sto vendendo esempio patate e salsiccia la pizza piu' broccoletti, usa i migliori sistemi di cassa». Metro preso da Square (modifier sets riusabili), Toast (modifier groups con scarico e ticket indentato) e Tilby: l'aggiunta e' un ARTICOLO DEL CATALOGO riusato su una FAMIGLIA, non un campo della voce. (1) s.aggiunte: [{id 'ag-…', nome, prezzo>=0, attivo, gruppi[], distinta[{prodottoId,qty,uomId}]}], abbinata PER GRUPPO con chiaveGruppo (come le postazioni) — selettori puri aggiunteDi(stato, gruppo)/suffissoAgg(agg)/nomeBase(r) accanto a chiaveGruppo. (2) LA CELLA NON CAMBIA: la voce liscia resta UN tocco (il 90% delle pizze del sabato). Le aggiunte si mettono dal NOME della riga nel conto (bottone 'Aggiunte per X', 44px, sottolineato) o dal foglio della voce se ha varianti; nel foglio chip a spunta multipla ('Metti X'/'Leva X', aria-pressed) e i tasti che chiudono ricalcolano etichetta e prezzo ('Cosi' com'e' · € 8,00' identico a prima quando non c'e' niente di spuntato — protegge cassatest §2b e cassa2test §5). (3) metti(): se si arriva da una riga, cambia(rigaDa,-1) + aggiungi() — UNA unita' si sposta, le altre restano. (4) La riga porta nome composto, prezzo unitario gia' sommato, distinta voce+aggiunte e snapshot agg:[{id,nome,prezzo}] (solo se presente, come varianteId): calcoloScarico/applicaVendita/applicaStorno NON sono stati toccati. (5) Cucina: {qty}× nomeBase(r) e sotto '+ nome' in blu rientrato; striscia 'Fatte' invariata sul nome composto. (6) CSV: colonna 'Aggiunte' IN CODA (le dieci di prima non si spostano). (7) Editor: Scheda «Aggiunte» nel Listino dopo le Postazioni + FormAggiunta (gemello di FormPostazione per i gruppi, di FormVoceListino per la distinta), id uid('ag') FUORI da muta. Rossi prima: 14; verdi dopo: 44; sabotaggi contati: snapshot tolto dalle righe 0->4, id delle aggiunte fuori dalla chiave 0->14, distinta non concatenata 0->3, gruppi confrontati a stringa invece che con chiaveGruppo 0->10, collezione tolta da normalizza 0->1.",
+      "_nota": "RIMANDATI, e detti in roadmap: «senza cipolla» (il modello lo regge con un'aggiunta a zero euro, ma in cucina uscirebbe «+ senza cipolla» — serve una parola diversa e una congiunzione diversa) e l'abbinamento a UNA SOLA VOCE (oggi e' per gruppo; sarebbe un campo facoltativo in piu' sullo stesso oggetto, zero migrazione). Il workflow della gara e' morto due volte sul limite di sessione: sono arrivati due progetti su tre e nessun giudice — la sintesi l'ho fatta io scegliendo il disegno che tiene la cella a un tocco (l'altro proponeva una pillola «+ aggiunte» sulla cella: un tocco in meno, ma richiedeva di avvolgere la cella in un div e affollava una griglia a due colonne su 390px)."
+    },
     {
       "gen": "gen-6.01",
       "chiude": [],

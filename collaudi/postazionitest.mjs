@@ -111,7 +111,16 @@ const laSedia = (p) => p.evaluate(() => localStorage.getItem("scp:comande:v1"));
 /* ═══ 1. LA FONTE ═══ */
 console.log("\n— 1. la fonte —");
 const src = readFileSync("../app/app.jsx", "utf8");
-ok(/const VERSIONE = "gen-6\.01"/.test(src), "VERSIONE dichiara gen-6.01");
+/* 02/09: qui la versione era inchiodata a «gen-6.01». Era giusta il giorno
+   del rilascio e SBAGLIATA da quello dopo: al primo rilascio successivo
+   (gen-6.02, le aggiunte) e' diventata rossa da sola senza che niente fosse
+   rotto — lo stesso rosso che cassa2test aveva gia' insegnato il 1/9, e che
+   memoria.json aveva gia' scritto come regola. Quello che questo banco deve
+   difendere e' che le postazioni ai profili non tornino indietro: la
+   versione non puo' essere PIU' VECCHIA di quella che le ha portate. */
+const ver = (src.match(/const VERSIONE = "gen-(\d+)\.(\d+)"/) || []).slice(1).map(Number);
+ok(ver.length === 2 && (ver[0] > 6 || (ver[0] === 6 && ver[1] >= 1)),
+  `VERSIONE e' gen-${ver.join(".")}: non piu' vecchia di gen-6.01, che ha portato le postazioni ai profili`);
 ok(/postazioniIds/.test(src), "il sorgente conosce «postazioniIds»");
 /* il campo va salvato dal form dei profili, e MAI per l'admin (come
    magazziniIds: l'admin non porta campi che non gli servono) */

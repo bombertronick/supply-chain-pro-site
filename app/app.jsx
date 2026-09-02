@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.01";
+const VERSIONE = "gen-6.02";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -622,7 +622,7 @@ function calcoloScarico(stato, righeCarrello, sedeId) {
   for (const rc of righeCarrello) {
     for (const ing of rc.distinta || []) {
       const ip = trova(stato.prodotti, ing.prodottoId);
-      if (!ip) { out.problemi.push("Un prodotto della distinta non è più a catalogo: la voce di listino va rivista."); continue; }
+      if (!ip) { out.problemi.push("Un prodotto della distinta non è più a catalogo: la voce di listino o l'aggiunta va rivista."); continue; }
       const a = (mag.articoli || []).find((x) => x.prodottoId === ing.prodottoId);
       if (!a) { out.problemi.push(`«${ip.nome}» non è nel magazzino di cassa «${mag.nome}»: non lo scalo.`); continue; }
       const serve = (+ing.qty || 0) * rc.qty;
@@ -805,6 +805,30 @@ const gruppoDi = (v) => ((v?.gruppo || "").trim()) || "Altro";
 /* la chiave con cui i gruppi si confrontano: il listino e' testo libero e
    «Pizze» e «pizze » sono la stessa pizzeria (riusa senzaAccenti) */
 const chiaveGruppo = (g) => senzaAccenti((g || "").trim());
+/* LE AGGIUNTE (gen-6.02): «la pizza piu' broccoletti, patate e salsiccia».
+   Sono un CATALOGO riusabile (s.aggiunte), non un campo della voce: i
+   broccoletti valgono per TUTTE le pizze, e riscriverli su venti voci e' il
+   lavoro che nessuno fa. L'abbinamento e' PER GRUPPO — la stessa chiave con
+   cui le postazioni smistano le comande — quindi «pizze» e «Pizze» sono la
+   stessa pizzeria. Differenza dalla VARIANTE, in una riga: la variante e'
+   «che formato» (una sola, cambia solo il prezzo, vive dentro la voce);
+   l'aggiunta e' «cosa ci metti sopra» (quante vuoi, ha prezzo suo e una sua
+   distinta di magazzino, vive nel catalogo). Le due convivono sulla stessa
+   riga: «Panino + Maxi + Salsiccia». */
+const aggiunteDi = (stato, gruppo) => {
+  const g = chiaveGruppo(gruppo);
+  return (stato.aggiunte || [])
+    .filter((a) => a.attivo !== false && (a.gruppi || []).some((x) => chiaveGruppo(x) === g))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+};
+/* il suffisso che compone il nome della riga: lo scriviamo NOI, sempre con
+   lo stesso separatore della variante, cosi' un telefono gen-6.01 che non
+   sa cosa sia un'aggiunta stampa comunque «Margherita + Broccoletti» */
+const suffissoAgg = (agg) => ((agg || []).length ? " + " + agg.map((a) => a.nome).join(" + ") : "");
+/* e il nome BASE si ricava togliendo esattamente quel suffisso: se non
+   combacia (riga di un telefono vecchio, voce ribattezzata) resta il nome
+   intero — mai un buco al posto del piatto */
+const nomeBase = (r) => { const x = suffissoAgg(r.agg); return x && r.nome.endsWith(x) ? r.nome.slice(0, -x.length) : r.nome; };
 /* la finestra della vista comande e' per ORA, non per giorno di calendario:
    giornoDi taglierebbe a mezzanotte la coda di una pizzeria in servizio */
 const ORE_COMANDE = 12;
@@ -1685,6 +1709,7 @@ const GUIDA_SEZIONE = {
   ],
   cassa: [
     { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
+    { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "Per mettere qualcosa sopra un piatto tocchi il NOME della sua riga nel conto (o il foglio della voce, se ha varianti), spunti quello che ci va e confermi: il tasto ti dice già nome e prezzo finali. Vale per UNA: se hai battuto due margherite e ne vuoi una coi broccoletti, resta «1× Margherita» e nasce «1× Margherita + Broccoletti». Il prezzo si somma e il magazzino scala anche l'aggiunta." },
     { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini di oggi: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
     { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
     { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
@@ -1692,7 +1717,7 @@ const GUIDA_SEZIONE = {
   listino: [
     { titolo: "Le voci di vendita", testo: "Una voce di listino non è un prodotto di magazzino: una «Margherita» scala farina, mozzarella e pomodoro. Nome, gruppo e prezzo sono quelli che il banco vede in Cassa." },
     { titolo: "La distinta", testo: "Per ogni voce dici cosa esce dal magazzino a ogni vendita, e in che unità. Una voce senza distinta si vende comunque: semplicemente non scala niente." },
-    { titolo: "Varianti e IVA", testo: "Le varianti aggiungono o tolgono qualcosa al prezzo («Maxi +1,50»). L'aliquota è solo informativa, per i totali di giornata: lo scontrino fiscale resta al registratore telematico." },
+    { titolo: "Varianti, aggiunte e IVA", testo: "Le varianti sono il FORMATO: una sola per riga, cambia solo il prezzo («Maxi +1,50»). Le aggiunte sono quello che ci metti SOPRA: quante ne vuoi, ognuna col suo prezzo e i suoi ingredienti che escono dal magazzino, e valgono per interi gruppi del listino (tutte le Pizze). Si creano nella scheda «Aggiunte» qui sopra. L'aliquota è quella della voce, aggiunte comprese, ed è solo informativa: lo scontrino fiscale resta al registratore telematico." },
   ],
   /* Le nove qui sotto non c'erano. Nove schermate su quattordici aprivano il
      « ? » su una scheda sola, e la Plancia — che è una voce della barra, non
@@ -4969,7 +4994,7 @@ const SEZIONI_ALTRO = [
   { id: "catalogo", nome: "Catalogo", icona: Package, col: "#8A63F4",
     sotto: "Prodotti, unità, categorie, fornitori, prezzi e conversioni" },
   { id: "listino", nome: "Listino", icona: Tag, col: "#DB8A2E",
-    sotto: "Le voci della Cassa: prezzi di vendita, varianti e cosa scalano dal magazzino" },
+    sotto: "Le voci della Cassa: prezzi di vendita, varianti, aggiunte e cosa scalano dal magazzino" },
   { id: "analisi", nome: "Analisi", icona: BarChart3, col: "#3D7DEA",
     sotto: "Consumi, valore della merce, soglie consigliate dai dati veri" },
   { id: "storico", nome: "Storico", icona: History, col: "#D96AC0",
@@ -5097,13 +5122,13 @@ const AZIONI = [
     p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
   { n: "Battere una vendita", d: "cassa", ic: Store,
     c: "Cassa",
-    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos"] },
+    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos", "aggiunte", "extra", "broccoletti"] },
   { n: "Le comande in cucina", d: "comande", ic: CheckCheck,
     c: "Comande",
     p: ["comande", "comanda", "cucina", "postazione", "postazioni", "friggitoria", "pizzeria", "schermo", "fatto", "uscita", "ordine del cliente"] },
   { n: "Listino di cassa: prezzi di vendita", d: "listino", ic: Tag,
     c: "Gestione → Listino",
-    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota"] },
+    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota", "aggiunte", "aggiunta", "extra", "ingrediente in più", "broccoletti", "salsiccia"] },
   { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
     c: "Gestione → Analisi",
     p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
@@ -12278,6 +12303,8 @@ function VistaListino({ stato, muta, mostraToast }) {
   const [del, setDel] = useState(null);
   const [post, setPost] = useState(null);     // la postazione in modifica (gen-5.98)
   const [delPost, setDelPost] = useState(null);
+  const [agg, setAgg] = useState(null);       // l'aggiunta in modifica (gen-6.02)
+  const [delAgg, setDelAgg] = useState(null);
   const voci = stato.listino || [];
   /* stesso ripiego della Cassa («Altro», via gruppoDi): prima qui si leggeva
      «Senza gruppo» e di la' «Altro» — due nomi per lo stesso vuoto, e le
@@ -12317,6 +12344,39 @@ function VistaListino({ stato, muta, mostraToast }) {
           </div>
         ))}
       </Scheda>
+      {/* LE AGGIUNTE (gen-6.02) stanno qui accanto alle postazioni, per la
+          stessa ragione: abbinano i GRUPPI di questo listino, e chi ridisegna
+          l'uno vede l'altra. Toglierne una non tocca le vendite gia' battute:
+          la riga porta nome e prezzo di quando e' stata fatta. */}
+      <Scheda className="p-3.5 mb-3">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="font-extrabold" style={{ color: T.ink }}>Aggiunte</span>
+          <span className="flex-1" />
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setAgg({})}>Nuova aggiunta</Bottone>
+        </div>
+        <p className="text-xs mb-1" style={{ color: T.tenue }}>
+          Quello che il cliente chiede in più sul piatto: broccoletti, salsiccia, bufala. Ogni aggiunta ha il suo
+          prezzo, la sua distinta di magazzino e i gruppi del listino su cui si può mettere («tutte le Pizze»).
+          In Cassa si toccano dal nome della riga nel conto, o dal foglio della voce se ha varianti.
+          Sono un'altra cosa dalle varianti: la variante è il formato (una sola), le aggiunte si sommano.
+        </p>
+        {(stato.aggiunte || []).map((ag) => (
+          <div key={ag.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
+            <span className="flex-1 min-w-0">
+              <b style={{ color: T.ink }}>{ag.nome}</b>
+              <span className="text-xs block truncate" style={{ color: T.dim }}>
+                {fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
+                {(ag.distinta || []).length > 0
+                  ? ` · scala ${ag.distinta.length} prodott${ag.distinta.length === 1 ? "o" : "i"}`
+                  : " · non scala niente"}
+              </span>
+            </span>
+            {ag.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
+            <button onClick={() => setAgg({ item: ag })} aria-label={`Modifica l'aggiunta ${ag.nome}`}
+              className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+          </div>
+        ))}
+      </Scheda>
       {voci.length === 0
         ? <Scheda className="p-8"><Vuoto icona={Tag} titolo="Il listino è vuoto"
             testo="Le voci che crei qui compaiono nella Cassa di chi ha l'interruttore «Può battere in cassa»." /></Scheda>
@@ -12333,6 +12393,9 @@ function VistaListino({ stato, muta, mostraToast }) {
                       <b style={{ color: T.ink }}>{fmtEuro(v.prezzo || 0)}</b>
                       {v.aliquota != null && <span>IVA {v.aliquota}%</span>}
                       {(v.varianti || []).length > 0 && <span>{v.varianti.length} variant{v.varianti.length === 1 ? "e" : "i"}</span>}
+                      {aggiunteDi(stato, gruppoDi(v)).length > 0 && (
+                        <span>{aggiunteDi(stato, gruppoDi(v)).length} aggiunt{aggiunteDi(stato, gruppoDi(v)).length === 1 ? "a" : "e"}</span>
+                      )}
                       {(v.distinta || []).length > 0
                         ? <span>scala {v.distinta.length} prodott{v.distinta.length === 1 ? "o" : "i"}</span>
                         : <span style={{ color: T.ambra }}>non scala niente</span>}
@@ -12356,6 +12419,14 @@ function VistaListino({ stato, muta, mostraToast }) {
         {post && <FormPostazione stato={stato} item={post.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setPost(null)}
           onElimina={() => { const po = post.item; setPost(null); setDelPost(po); }} />}
       </Foglio>
+      <Foglio aperto={!!agg} titolo={agg?.item ? "Modifica aggiunta" : "Nuova aggiunta"} onChiudi={() => setAgg(null)}>
+        {agg && <FormAggiunta stato={stato} item={agg.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setAgg(null)}
+          onElimina={() => { const a = agg.item; setAgg(null); setDelAgg(a); }} />}
+      </Foglio>
+      <Conferma aperto={!!delAgg} titolo={`Togliere l'aggiunta «${delAgg?.nome}»?`}
+        testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
+        onNo={() => setDelAgg(null)}
+        onSi={() => { muta((s) => { s.aggiunte = (s.aggiunte || []).filter((x) => x.id !== delAgg.id); }, `Aggiunta «${delAgg.nome}» rimossa`); setDelAgg(null); }} />
       <Conferma aperto={!!del} titolo={`Togliere «${del?.nome}» dal listino?`}
         testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
         onNo={() => setDel(null)}
@@ -12423,6 +12494,109 @@ function FormPostazione({ stato, item, muta, mostraToast, onChiudi, onElimina })
       </div>
       {item && onElimina && (
         <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli questa postazione</Bottone>
+      )}
+      <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+    </div>
+  );
+}
+
+/* ── L'AGGIUNTA (gen-6.02): nome, prezzo suo, i gruppi a spunta come la
+   postazione e una distinta come la voce. Tre pezzi gia' collaudati messi
+   insieme: chi sa creare una voce di listino sa gia' creare un'aggiunta. */
+function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
+  const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
+  const [gruppi, setGruppi] = useState(item?.gruppi || []);
+  const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
+  const disponibili = [...new Set([...(stato.listino || []).map(gruppoDi), ...gruppi])]
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const giraGruppo = (g) => setGruppi((gs) => (gs.includes(g) ? gs.filter((x) => x !== g) : [...gs, g]));
+  const toccaDis = (i, campo, v) => setDistinta((xs) => xs.map((x, j) => {
+    if (j !== i) return x;
+    if (campo === "prodottoId") return { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || "" };
+    return { ...x, [campo]: v };
+  }));
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("L'aggiunta ha bisogno di un nome", "errore");
+    const nP = num(prezzo);
+    if (nP == null || nP < 0) return mostraToast("Il prezzo dell'aggiunta è in euro, zero compreso (una cortesia è legittima)", "errore");
+    if (!gruppi.length) return mostraToast("Abbina almeno un gruppo: un'aggiunta senza gruppi non si può mettere su niente", "errore");
+    const dOk = [];
+    for (const d of distinta) {
+      if (!d.prodottoId && d.qty.trim() === "") continue;
+      const q = num(d.qty);
+      if (!d.prodottoId || q == null || q <= 0 || !d.uomId)
+        return mostraToast("Ogni riga della distinta richiede prodotto, quantità e unità", "errore");
+      dOk.push({ prodottoId: d.prodottoId, qty: q, uomId: d.uomId });
+    }
+    /* l'id nasce QUI FUORI come per le postazioni e le voci: un uid() dentro
+       la closure diventerebbe un'aggiunta nuova a ogni replay della coda */
+    const dati = { id: item?.id || uid("ag"), nome: nome.trim(), prezzo: nP, attivo, gruppi, distinta: dOk };
+    muta((s) => {
+      const lista = s.aggiunte || [];
+      s.aggiunte = lista.some((x) => x.id === dati.id)
+        ? lista.map((x) => (x.id === dati.id ? dati : x))
+        : [...lista, dati];
+    }, `Aggiunta «${dati.nome}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <Campo label="Nome dell'aggiunta" valore={nome} onCambia={setNome} placeholder="Es. Broccoletti" autoFocus />
+      <Campo label="Prezzo dell'aggiunta (€)" valore={prezzo} onCambia={setPrezzo} placeholder="1,50" inputMode="decimal"
+        suggerimento="Si somma al prezzo della voce. Zero è legittimo: una cortesia della casa." />
+      <button onClick={() => setAttivo((x) => !x)} aria-pressed={attivo}
+        className="rounded-2xl px-3.5 py-3 text-left text-sm font-bold inline-flex items-center gap-2"
+        style={attivo ? { background: "#E8F6F0", color: T.verde } : { background: "#F0F3FB", color: T.dim }}>
+        {attivo ? <Check size={16} /> : <X size={16} />}
+        {attivo ? "In vendita: le casse la propongono" : "Finita: le casse non la propongono"}
+      </button>
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>I gruppi su cui si può mettere</span>
+        {disponibili.length === 0
+          ? <p className="text-xs" style={{ color: T.tenue }}>Il listino non ha ancora gruppi: scrivili sulle voci, poi torna qui.</p>
+          : <div className="flex gap-2 flex-wrap">
+              {disponibili.map((g) => { const giu = gruppi.includes(g); return (
+                <button key={g} onClick={() => giraGruppo(g)}
+                  aria-label={giu ? `Stacca il gruppo ${g}` : `Abbina il gruppo ${g}`}
+                  className="rounded-2xl px-3 py-2 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={13} />}{g}
+                </button>
+              ); })}
+            </div>}
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+          «I broccoletti vanno su tutte le pizze» si scrive qui: un'aggiunta, un gruppo intero.
+        </p>
+      </div>
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Distinta <span className="font-normal" style={{ color: T.tenue }}>· cosa esce dal magazzino a ogni aggiunta</span></span>
+        <div className="flex flex-col gap-2">
+          {distinta.map((d, i) => {
+            const prod = trova(stato.prodotti, d.prodottoId);
+            return (
+              <div key={i} className="flex gap-2 items-center flex-wrap">
+                <div className="flex-1 min-w-40"><Selettore valore={d.prodottoId} onCambia={(v) => toccaDis(i, "prodottoId", v)}
+                  opzioni={[...stato.prodotti].sort((a, b) => a.nome.localeCompare(b.nome, "it"))} placeholder="Prodotto…" /></div>
+                <input value={d.qty} onChange={(e) => toccaDis(i, "qty", e.target.value)} placeholder="Qtà" inputMode="decimal"
+                  aria-label={`Quantità dell'ingrediente ${i + 1}`}
+                  className="w-20 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+                <div className="w-28">{prod
+                  ? <Selettore valore={d.uomId} onCambia={(v) => toccaDis(i, "uomId", v)}
+                      opzioni={unitaProdotto(stato, prod).map((u) => ({ id: u.id, nome: u.simbolo }))} placeholder="UdM" />
+                  : <span className="text-xs" style={{ color: T.tenue }}>—</span>}</div>
+                <button onClick={() => setDistinta((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli ingrediente ${prod?.nome || i + 1}`}
+                  className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+              </div>
+            );
+          })}
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setDistinta((xs) => [...xs, { prodottoId: "", qty: "", uomId: "" }])}>Aggiungi ingrediente</Bottone>
+        </div>
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>Un'aggiunta senza distinta si vende comunque: si somma al prezzo e non scala niente.</p>
+      </div>
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli questa aggiunta</Bottone>
       )}
       <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
     </div>
@@ -12599,9 +12773,18 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
                     {intestaCarta(c)}
                     <div className="flex flex-col gap-1 mb-2">
                       {c.mieRighe.map((r, i) => (
-                        <div key={i} className="flex items-center gap-2 flex-wrap">
-                          <span className="text-base font-extrabold" style={{ color: T.ink }}>{r.qty}× {r.nome}</span>
-                          {r.orfana && <Chip colore={T.ambra}>senza postazione</Chip>}
+                        <div key={i}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base font-extrabold" style={{ color: T.ink }}>{r.qty}× {nomeBase(r)}</span>
+                            {r.orfana && <Chip colore={T.ambra}>senza postazione</Chip>}
+                          </div>
+                          {/* le aggiunte SOTTO il piatto, rientrate e in blu:
+                              il pizzaiolo legge «Margherita» e poi cosa ci va
+                              sopra, invece di un nome lungo che si tronca a
+                              meta' (gen-6.02) */}
+                          {(r.agg || []).map((a, j) => (
+                            <span key={j} className="block text-base font-extrabold pl-5" style={{ color: T.blu }}>+ {a.nome}</span>
+                          ))}
                         </div>
                       ))}
                     </div>
@@ -12651,7 +12834,9 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
   const [sedeId, setSedeId] = useState(profilo.sedeId || sediOp[0]?.id || "");
   const [carrello, setCarrello] = useState([]);
-  const [scelta, setScelta] = useState(null);   // voce con varianti in attesa di scelta
+  const [scelta, setScelta] = useState(null);   // la voce nel foglio di scelta
+  const [aggSel, setAggSel] = useState([]);     // le aggiunte spuntate nel foglio (gen-6.02)
+  const [rigaDa, setRigaDa] = useState(null);   // la riga del conto da cui si e' aperto il foglio
   const [incasso, setIncasso] = useState(false);
   const [metodo, setMetodo] = useState("contanti");
   const [stornoDi, setStornoDi] = useState(null); // la vendita da stornare (gen-5.97)
@@ -12690,30 +12875,58 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
   const venditeOggi = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === oggi);
 
-  const aggiungi = (voce, variante) => {
-    const chiave = voce.id + "|" + (variante?.id || "");
+  const aggiungi = (voce, variante, agg = []) => {
+    /* le aggiunte si ordinano per nome (il testo che si legge) e la chiave
+       usa i loro id ORDINATI: broccoletti+salsiccia e salsiccia+broccoletti
+       sono la stessa pizza, e devono fondersi in una riga da 2 (gen-6.02) */
+    const aggOrd = [...agg].sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    const chiave = voce.id + "|" + (variante?.id || "")
+      + (aggOrd.length ? "|" + aggOrd.map((a) => a.id).sort().join("+") : "");
     /* il prezzo si congela QUI: se domani il listino cambia, il conto gia'
        aperto non si muove da solo sotto le dita di chi batte */
-    const prezzo = Math.max(0, (+voce.prezzo || 0) + (variante ? +variante.delta || 0 : 0));
+    const prezzo = Math.max(0, (+voce.prezzo || 0) + (variante ? +variante.delta || 0 : 0)
+      + aggOrd.reduce((a, x) => a + (+x.prezzo || 0), 0));
     setCarrello((c) => {
       const gia = c.find((r) => r.chiave === chiave);
       if (gia) return c.map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + 1 } : r));
       return [...c, { chiave, voceId: voce.id, varianteId: variante?.id,
-        nome: voce.nome + (variante ? " + " + variante.nome : ""), prezzo, qty: 1,
+        nome: voce.nome + (variante ? " + " + variante.nome : "") + suffissoAgg(aggOrd), prezzo, qty: 1,
+        /* lo snapshot delle aggiunte: nome e prezzo di OGGI, come per la
+           voce — domani il catalogo puo' cambiare, la riga battuta no */
+        ...(aggOrd.length ? { agg: aggOrd.map((a) => ({ id: a.id, nome: a.nome, prezzo: +a.prezzo || 0 })) } : {}),
         /* l'aliquota si congela come il prezzo: serve allo scorporo del
            report anche se domani la voce cambia o sparisce (gen-5.97) */
         aliquota: voce.aliquota,
         /* e il GRUPPO si congela per le comande (gen-5.98): la postazione
            smista per nome, e la voce domani puo' cambiare o sparire */
         gruppo: gruppoDi(voce),
-        distinta: (voce.distinta || []).map((d) => ({ ...d })) }];
+        /* la distinta della riga e' quella della voce PIU' quelle delle
+           aggiunte: calcoloScarico somma per prodotto e non deve sapere
+           niente di tutto questo (gen-6.02) */
+        distinta: [...(voce.distinta || []), ...aggOrd.flatMap((a) => a.distinta || [])].map((d) => ({ ...d })) }];
     });
-    setScelta(null);
+    setScelta(null); setAggSel([]); setRigaDa(null);
     setSvuotato(null); // un conto nuovo che parte: il vecchio svuotato non torna piu'
   };
+  /* il foglio si apre da due porte: la cella (voce con varianti) e il NOME
+     della riga gia' nel conto (voce con aggiunte). Nel secondo caso si
+     riparte dalle aggiunte che quella riga ha gia'. */
+  const apriScelta = (voce, ids = [], da = null) => { setScelta(voce); setAggSel(ids); setRigaDa(da); };
+  const chiudiScelta = () => { setScelta(null); setAggSel([]); setRigaDa(null); };
   const cambia = (chiave, delta) => setCarrello((c) => c
     .map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + delta } : r))
     .filter((r) => r.qty > 0));
+  /* il tasto che chiude il foglio: se si e' arrivati da una riga del conto
+     si SPOSTA una unita' (meno uno di la', piu' uno nella riga composta) —
+     due margherite di cui una coi broccoletti sono due righe, non due conti
+     diversi. Se la chiave nuova coincide con la vecchia, -1 +1 non cambia
+     niente. (gen-6.02) */
+  const metti = (variante) => {
+    if (!scelta) return;
+    const scelte = aggiunteDi(stato, gruppoDi(scelta)).filter((a) => aggSel.includes(a.id));
+    if (rigaDa) cambia(rigaDa, -1);
+    aggiungi(scelta, variante, scelte);
+  };
   const totale = +carrello.reduce((a, r) => a + r.prezzo * r.qty, 0).toFixed(2);
   const sc = incasso ? calcoloScarico(stato, carrello, sedeId) : null;
 
@@ -12736,9 +12949,12 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
          QUI FUORI come l'id; con due casse in parallelo puo' uscire doppio —
          dentro il limite dichiarato di una cassa va bene, e va detto (gen-5.98) */
       n: (giornata?.nVendite || 0) + 1,
-      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota, gruppo }) =>
+      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota, gruppo, agg }) =>
         ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo,
-          ...(aliquota != null ? { aliquota } : {}), gruppo })),
+          ...(aliquota != null ? { aliquota } : {}), gruppo,
+          /* «agg» solo se c'e', come varianteId: una riga liscia pesa oggi
+             quanto pesava ieri sul canale (gen-6.02) */
+          ...(agg?.length ? { agg } : {}) })),
       totale, metodo, scarico: scarico.righe,
       ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
     };
@@ -12832,9 +13048,21 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         <Scheda className="p-3.5 mt-1">
           <div className="font-extrabold mb-2" style={{ color: T.ink }}>Il conto</div>
           <div className="flex flex-col gap-2">
-            {carrello.map((r) => (
+            {carrello.map((r) => {
+              /* la porta delle aggiunte per le voci senza varianti: si tocca
+                 il NOME della riga. La cella resta a UN tocco — al sabato il
+                 90% delle pizze esce liscia, e un foglio a ogni tocco
+                 renderebbe la Cassa piu' lenta di prima (gen-6.02). */
+              const voceR = trova(voci, r.voceId);
+              const aggR = voceR ? aggiunteDi(stato, r.gruppo) : [];
+              return (
               <div key={r.chiave} className="flex items-center gap-2">
-                <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{r.nome}</span>
+                {aggR.length > 0
+                  ? <button onClick={() => apriScelta(voceR, (r.agg || []).map((a) => a.id), r.chiave)}
+                      aria-label={`Aggiunte per ${r.nome}`}
+                      className="flex-1 min-w-0 text-sm font-semibold truncate text-left underline decoration-dotted underline-offset-4"
+                      style={{ color: T.ink, textDecorationColor: T.blu, minHeight: 44 }}>{r.nome}</button>
+                  : <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{r.nome}</span>}
                 <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(r.prezzo)}</span>
                 {/* 44 punti: al banco si batte col pollice, di fretta — un
                     piu' da 30 punti manca una volta su tre (gen-6.00) */}
@@ -12846,7 +13074,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                   className="rounded-full shrink-0 grid place-items-center"
                   style={{ background: "#EAF0FE", color: T.blu, width: 44, height: 44 }}><Plus size={16} /></button>
               </div>
-            ))}
+              ); })}
           </div>
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
             <button onClick={() => { setSvuotato(carrello); setCarrello([]); }} aria-label="Svuota il conto"
@@ -12870,24 +13098,58 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
           </div>
         </Scheda>
       )}
-      <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={() => setScelta(null)}>
-        {scelta && (
+      <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={chiudiScelta}>
+        {scelta && (() => {
+          /* un foglio solo per le due cose: il FORMATO (varianti, esclusive:
+             sono i tasti che chiudono) e le AGGIUNTE (a spunta, quante ne
+             vuoi: cambiano quello che i tasti dicono). Senza nessuna
+             aggiunta spuntata i tasti sono parola per parola quelli di
+             gen-6.01. (gen-6.02) */
+          const aggV = aggiunteDi(stato, gruppoDi(scelta));
+          const scelte = aggV.filter((a) => aggSel.includes(a.id));
+          const somma = scelte.reduce((x, a) => x + (+a.prezzo || 0), 0);
+          const p0 = +scelta.prezzo || 0;
+          const nomiAgg = scelte.map((a) => a.nome).join(" + ");
+          const etichetta = (va) => (va ? va.nome + (scelte.length ? " + " + nomiAgg : "")
+            : (scelte.length ? "Con " + nomiAgg : "Così com'è"));
+          return (
           <div className="flex flex-col gap-2">
-            {/* niente aria-label: il testo visibile e' gia' univoco dentro il
-                foglio, e un nome accessibile diverso da quello stampato e' un
-                tranello per chi ascolta (revisione gen-5.96) */}
-            <button onClick={() => aggiungi(scelta, null)}
+            {aggV.length > 0 && (
+              <div className="mb-1">
+                <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>
+                  Cosa ci metti sopra <span className="font-normal" style={{ color: T.tenue }}>· quante ne vuoi</span></span>
+                <div className="flex gap-2 flex-wrap">
+                  {aggV.map((a) => { const giu = aggSel.includes(a.id); return (
+                    <button key={a.id} aria-pressed={giu} aria-label={giu ? `Leva ${a.nome}` : `Metti ${a.nome}`}
+                      onClick={() => setAggSel((xs) => (xs.includes(a.id) ? xs.filter((x) => x !== a.id) : [...xs, a.id]))}
+                      className="rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5"
+                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }) }}>
+                      {giu && <Check size={13} />}{a.nome} · + {fmtEuro(a.prezzo || 0)}
+                    </button>
+                  ); })}
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+                  {rigaDa
+                    ? "Vale per una: le altre restano com'erano."
+                    : "Il prezzo si somma, e il magazzino scala anche quello che aggiungi."}</p>
+              </div>
+            )}
+            {/* niente aria-label sui tasti che chiudono: il testo visibile e'
+                gia' univoco dentro il foglio, e un nome accessibile diverso
+                da quello stampato e' un tranello per chi ascolta
+                (revisione gen-5.96) */}
+            <button onClick={() => metti(null)}
               className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
-              Così com'è · {fmtEuro(Math.max(0, +scelta.prezzo || 0))}
+              {etichetta(null)} · {fmtEuro(Math.max(0, p0 + somma))}
             </button>
             {(scelta.varianti || []).map((va) => (
-              <button key={va.id} onClick={() => aggiungi(scelta, va)}
+              <button key={va.id} onClick={() => metti(va)}
                 className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
-                {va.nome} · {fmtEuro(Math.max(0, (+scelta.prezzo || 0) + (+va.delta || 0)))}
+                {etichetta(va)} · {fmtEuro(Math.max(0, p0 + (+va.delta || 0) + somma))}
               </button>
             ))}
-          </div>
-        )}
+          </div>);
+        })()}
       </Foglio>
       <Foglio aperto={incasso} titolo="Incasso" onChiudi={() => setIncasso(false)}>
         <div className="flex flex-col gap-4">
@@ -13217,10 +13479,15 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
   /* le vendite hanno un tetto di 48 ore nello stato: QUESTO export e la
      tabella delle giornate sono il modo di tenerle per sempre (gen-5.96) */
   const esportaVendite = () => {
-    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino"]];
+    /* «Aggiunte» va IN CODA, mai in mezzo: chi apre in Excel il file di ieri
+       e quello di oggi deve ritrovare le prime dieci colonne allo stesso
+       posto (filtri e formule non si spostano). «Voce» resta il nome
+       composto, che si legge da solo. (gen-6.02) */
+    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino", "Aggiunte"]];
     (stato.vendite || []).forEach((v) => v.righe.forEach((r) => {
       righe.push([dataIt(v.t), trova(stato.sedi, v.sedeId)?.nome, v.chi, r.nome,
-        numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id]);
+        numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id,
+        (r.agg || []).map((a) => a.nome).join(" + ")]);
     }));
     righe.push([]);
     righe.push(["Giornata", "Sede", "", "", "Vendite", "", "Totale", "Contanti", "Carta", "Altro"]);
@@ -14129,7 +14396,7 @@ export default function App() {
   };
 
   const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
-    listino: [], vendite: [], giornate: [], postazioni: [], ...s });
+    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [], ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {
