@@ -357,8 +357,17 @@ await prova("§11", async () => {
   const t = await testoDi(D.p);
   ok(/In mano: Salsiccia/.test(t),
     "preso in mano, si legge COSA si tiene: con la mano piena nessuno stato resta invisibile");
+  /* IL PUNTO DI TUTTO IL DISEGNO: la mano si deve leggere da CHIUSA. Con la
+     fascia aperta il testo lo scrive un'altra riga, quindi guardarlo li' non
+     prova niente — il sabotaggio F7 (pastiglia sempre muta) e' passato liscio
+     proprio da qui. */
+  await D.p.getByRole("button", { name: "Chiudi gli ingredienti", exact: true }).click();
+  await D.p.waitForTimeout(450);
+  ok((await aperta(D.p).count()) === 0, "la × chiude la fascia senza lasciare la mano");
+  ok((await D.p.getByRole("button", { name: "In mano: Salsiccia", exact: true }).count()) === 1,
+    "e da CHIUSA la pastiglia dice ancora cosa si tiene: chiudere toglie spazio, non informazione");
   await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
-  await D.p.waitForTimeout(600);
+  await D.p.waitForTimeout(650);
   /* il nome INTERO della riga sta nel nome accessibile del bottone «Aumenta»:
      a schermo il conto lo mostra spezzato — «Margherita» sopra e «+ Salsiccia»
      in una sotto-riga — che e' il disegno voluto di gen-6.03. Cercarlo nel
@@ -372,7 +381,7 @@ console.log("\n— 12. «Incassa» sopra la fascia in TUTTI E DUE gli stati —"
 const E = await apri(baseC, [PRC], "OpCassa", "2222");
 await prova("§12", async () => {
   await vaiA(E.p, "Cassa");
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 9; i++) {
     await E.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
     await E.p.waitForTimeout(200);
   }
@@ -398,6 +407,19 @@ await prova("§12", async () => {
   await E.p.waitForTimeout(500);
   ok((await aperta(E.p).count()) === 1, "aperta la fascia col nome della riga");
   await misura("a fascia APERTA", true);
+  const spAperto = await altezzaDi(E.p.locator('[data-spaziatore="1"]'));
+  await E.p.getByRole("button", { name: "Chiudi gli ingredienti", exact: true }).click();
+  await E.p.waitForTimeout(450);
+  const spChiuso = await altezzaDi(E.p.locator('[data-spaziatore="1"]'));
+  /* LO SPAZIATORE VA MISURATO, non dedotto da «Incassa sta sopra»: con lo
+     spaziatore troppo ALTO «Incassa» sta sopra lo stesso e si spreca schermo
+     (sabotaggio F4); con quello troppo BASSO sta sopra finche' il conto e'
+     corto (sabotaggio F5). Tutti e due erano passati lisci. */
+  ok(spChiuso > 0 && spAperto > 0 && spChiuso < spAperto - 20,
+    `lo spaziatore segue l'altezza vera: ${Math.round(spChiuso)} px chiuso contro ${Math.round(spAperto)} aperto`);
+  const hChiusa = await altezzaDi(chiusa(E.p));
+  ok(hChiusa > 0 && Math.abs(spChiuso - hChiusa) < 32,
+    `e da chiuso è alto quanto la pastiglia, non di più — spaziatore ${Math.round(spChiuso)}, pastiglia ${Math.round(hChiusa)}`);
 });
 
 console.log("\n— 13. si incassa, e la barra torna chiusa —");
