@@ -64,7 +64,7 @@ for (const a of [moz, fun, sal, sug]) a.qty = 10;
 FM.cassaMagId = linea.id;
 const ing = (art, qty) => ({ prodottoId: art.prodottoId, qty, uomId: art.uomId });
 base.listino = [
-  /* 1) LA SOLA che ha la composizione: il conteggio deve dire «1 di 5» */
+  /* 1) LA SOLA che ha la composizione: il conteggio deve dire «1 di 6» */
   { id: "li-bos", nome: "Boscaiola", gruppo: "Pizze", prezzo: 9, aliquota: 10, attivo: true,
     dentro: "mozzarella, funghi, salsiccia",
     varianti: [], distinta: [ing(moz, 1), ing(fun, 1), ing(sal, 1)] },
@@ -79,6 +79,13 @@ base.listino = [
         che l'app NON si mette a dire loro cosa fare */
   { id: "li-spr", nome: "Spritz", gruppo: "Bere", prezzo: 5, aliquota: 10, attivo: true, varianti: [], distinta: [] },
   { id: "li-acq", nome: "Acqua", gruppo: "Bere", prezzo: 1, attivo: true, varianti: [], distinta: [] },
+  /* 6) LA VOCE CON LA COMPOSIZIONE FINTA: il campo c'e' ma dentro ci sono
+        solo spazi. Una cosa cosi' non arriva dal foglio della voce (che
+        pulisce e cancella la chiave), ma puo' arrivare da un vecchio stato.
+        Deve contare come NON scritta: un campo di spazi non ha mai detto a
+        nessuno cosa c'e' nella pizza. */
+  { id: "li-vec", nome: "Vecchia", gruppo: "Pizze", prezzo: 7, aliquota: 10, attivo: true,
+    dentro: "   ", varianti: [], distinta: [] },
 ];
 base.aggiunte = [];
 base.postazioni = [];
@@ -129,7 +136,7 @@ const vaiAlListino = async (p) => {
    lui quella voce non c'e'. */
 const nomiAVideo = async (p) => {
   const t = await testoDi(p);
-  return ["Boscaiola", "Margherita", "Capricciosa", "Spritz", "Acqua"].filter((n) => t.includes(n));
+  return ["Boscaiola", "Margherita", "Capricciosa", "Spritz", "Acqua", "Vecchia"].filter((n) => t.includes(n));
 };
 
 /* ═══ 1. LA FONTE ═══ */
@@ -152,12 +159,14 @@ const A = await apri(base, [PR.admin], "Admin", "1234");
 await prova("§2", async () => {
   await vaiAlListino(A.p);
   const t = await testoDi(A.p);
-  ok(/scritta su 1 voce di 5/i.test(t),
-    "il Listino dice a quante voci su quante è scritta la composizione: «scritta su 1 voce di 5»");
+  ok(/scritta su 1 voce di 6/i.test(t),
+    "il Listino dice a quante voci su quante è scritta la composizione: «scritta su 1 voce di 6»");
+  ok(/scritta su 1 voce di 6/i.test(t),
+    "e la «Vecchia», che ha il campo pieno di soli spazi, NON conta come scritta");
   /* IL PUNTO DI TUTTO IL RILASCIO: la Capricciosa non ha distinta, quindi in
      gen-6.03 non era marcata in nessun modo — e non era contata da nessuna
      parte. Adesso entra nel conto delle cinque. */
-  ok(/di 5/i.test(t),
+  ok(/di 6/i.test(t),
     "e conta TUTTE le voci, anche la Capricciosa che non ha distinta: è lei che gen-6.03 si perdeva");
 });
 
@@ -165,14 +174,21 @@ await prova("§2", async () => {
 console.log("\n— 3. «mostra solo quelle senza» —");
 await prova("§3", async () => {
   const prima = await nomiAVideo(A.p);
-  ok(prima.length === 5, `a filtro spento si vedono tutte e cinque le voci — ${prima.length}`);
+  ok(prima.length === 6, `a filtro spento si vedono tutte e sei le voci — ${prima.length}`);
   await tocca(A.p, "Mostra solo quelle senza", 600);
   const dopo = await nomiAVideo(A.p);
   ok(!dopo.includes("Boscaiola"),
     "acceso il filtro, la Boscaiola sparisce: la sua composizione è già scritta");
   ok(dopo.includes("Capricciosa") && dopo.includes("Margherita"),
     "e restano quelle da fare, la Capricciosa compresa");
-  ok(dopo.length === 4, `restano quattro voci su cinque — ${dopo.length}`);
+  ok(dopo.length === 5, `restano cinque voci su sei — ${dopo.length}`);
+  /* IL CONTO NON SI LASCIA FILTRARE. Prima questo si guardava solo a filtro
+     spento, e a filtro spento le voci viste SONO tutte le voci: il controllo
+     non poteva accorgersi di un conto calcolato sulle viste. Il sabotaggio
+     numero 3 e' passato liscio proprio da qui. */
+  const tFiltrato = await testoDi(A.p);
+  ok(/scritta su 1 voce di 6/i.test(tFiltrato),
+    "e il conto continua a dire «1 di 6» mentre il filtro è ACCESO: il filtro è un paio di occhiali, non una modifica");
 });
 
 /* ═══ 4. IL FILTRO NON MENTE ═══ */
@@ -180,12 +196,12 @@ console.log("\n— 4. il filtro si spegne, e torna tutto —");
 await prova("§4", async () => {
   await tocca(A.p, "Mostra tutte", 600);
   const tornate = await nomiAVideo(A.p);
-  ok(tornate.length === 5, `spento il filtro tornano tutte e cinque — ${tornate.length}`);
+  ok(tornate.length === 6, `spento il filtro tornano tutte e sei — ${tornate.length}`);
   ok(tornate.includes("Boscaiola"), "Boscaiola compresa");
   /* e il conteggio non e' cambiato per il fatto di aver filtrato: il filtro
      e' un paio di occhiali, non una modifica */
   const t = await testoDi(A.p);
-  ok(/scritta su 1 voce di 5/i.test(t), "e il conteggio è rimasto quello: filtrare non cambia i dati");
+  ok(/scritta su 1 voce di 6/i.test(t), "e il conteggio è rimasto quello: filtrare non cambia i dati");
 });
 
 /* ═══ 5. IL CONTEGGIO SI AGGIORNA ═══ */
@@ -197,8 +213,8 @@ await prova("§5", async () => {
   await A.p.waitForTimeout(250);
   await tocca(A.p, "Salva", 1200);
   const t = await testoDi(A.p);
-  ok(/scritta su 2 voci di 5/i.test(t),
-    "scritta la composizione della Capricciosa, il conteggio sale da solo: «scritta su 2 voci di 5»");
+  ok(/scritta su 2 voci di 6/i.test(t),
+    "scritta la composizione della Capricciosa, il conteggio sale da solo: «scritta su 2 voci di 6»");
   const st = await stato(A.p);
   const cap = (st.listino || []).find((v) => v.id === "li-cap");
   ok((cap?.dentro || "").includes("carciofi"), "e la composizione è finita davvero nella voce");
