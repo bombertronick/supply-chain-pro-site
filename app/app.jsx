@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.02";
+const VERSIONE = "gen-6.03";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -829,6 +829,29 @@ const suffissoAgg = (agg) => ((agg || []).length ? " + " + agg.map((a) => a.nome
    combacia (riga di un telefono vecchio, voce ribattezzata) resta il nome
    intero — mai un buco al posto del piatto */
 const nomeBase = (r) => { const x = suffissoAgg(r.agg); return x && r.nome.endsWith(x) ? r.nome.slice(0, -x.length) : r.nome; };
+/* L'ORDINE DEI SUFFISSI, deciso qui una volta per tutte (gen-6.03).
+   nomeBase toglie dalla coda ESATTAMENTE suffissoAgg. Quindi qualunque
+   suffisso futuro di SOTTRAZIONE («Boscaiola senza Funghi») va messo PRIMA
+   di quello delle aggiunte:  voce + variante + suffissoVia + suffissoAgg.
+   Cosi' quello che resta in mano a un telefono fermo a gen-6.01 e' una
+   frase intera e non un moncone. Scritto adesso, mentre si sa perche'. */
+/* tutte le aggiunte accese, senza gruppo: sono i chip della fascia quando
+   nessuna riga e' viva e l'ingrediente aspetta il piatto che nasce dopo.
+   Ordine alfabetico QUI (e' un selettore puro); al banco la vista lo
+   riordina per battute, come gia' fa coi gruppi. */
+const aggiunteTutte = (stato) => (stato.aggiunte || [])
+  .filter((a) => a.attivo !== false)
+  .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+/* «Boscaiola» e' un nome che vale per mozzarella+funghi+salsiccia: al banco
+   si legge il NOME, questa riga dice di cosa e' fatto (gen-6.03, parole di
+   Valerio). Sta sul LISTINO, non sulla riga battuta: sulla riga costerebbe
+   45 byte per riga per 48 ore, sul listino si paga una volta.
+   NON si ricava dalla distinta: la distinta e' fatta di farina, lievito,
+   sale e «Mozzarella fiordilatte secchio 3 kg» — leggerla al cliente come
+   «cosa c'e' nella boscaiola» sarebbe una mezza verita', e questa app non
+   le stampa. Campo vuoto = non si mostra niente: un vuoto e' onesto. */
+const dentroDi = (stato, voceId) =>
+  ((trova(stato.listino || [], voceId) || {}).dentro || "").trim();
 /* la finestra della vista comande e' per ORA, non per giorno di calendario:
    giornoDi taglierebbe a mezzanotte la coda di una pizzeria in servizio */
 const ORE_COMANDE = 12;
@@ -1709,7 +1732,7 @@ const GUIDA_SEZIONE = {
   ],
   cassa: [
     { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
-    { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "Per mettere qualcosa sopra un piatto tocchi il NOME della sua riga nel conto (o il foglio della voce, se ha varianti), spunti quello che ci va e confermi: il tasto ti dice già nome e prezzo finali. Vale per UNA: se hai battuto due margherite e ne vuoi una coi broccoletti, resta «1× Margherita» e nasce «1× Margherita + Broccoletti». Il prezzo si somma e il magazzino scala anche l'aggiunta." },
+    { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "In basso c'è la fascia degli ingredienti, e l'ordine non conta. Se hai già battuto il piatto, la fascia dice «Su: Margherita» e il tocco sull'ingrediente ci va sopra. Se non hai battuto niente, l'ingrediente resta IN MANO e lo prende il primo piatto che tocchi. Per cambiare bersaglio tocca il nome di un'altra riga («Lavora su…»), per liberarlo «Stacca». Vale per UNA: da due margherite ne resta una liscia e nasce «Margherita + Broccoletti». Si disfa dove hai sbagliato: lo stesso ingrediente per toglierlo, la × accanto alla riga, «Lascia» per svuotare la mano." },
     { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini di oggi: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
     { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
     { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
@@ -1717,7 +1740,8 @@ const GUIDA_SEZIONE = {
   listino: [
     { titolo: "Le voci di vendita", testo: "Una voce di listino non è un prodotto di magazzino: una «Margherita» scala farina, mozzarella e pomodoro. Nome, gruppo e prezzo sono quelli che il banco vede in Cassa." },
     { titolo: "La distinta", testo: "Per ogni voce dici cosa esce dal magazzino a ogni vendita, e in che unità. Una voce senza distinta si vende comunque: semplicemente non scala niente." },
-    { titolo: "Varianti, aggiunte e IVA", testo: "Le varianti sono il FORMATO: una sola per riga, cambia solo il prezzo («Maxi +1,50»). Le aggiunte sono quello che ci metti SOPRA: quante ne vuoi, ognuna col suo prezzo e i suoi ingredienti che escono dal magazzino, e valgono per interi gruppi del listino (tutte le Pizze). Si creano nella scheda «Aggiunte» qui sopra. L'aliquota è quella della voce, aggiunte comprese, ed è solo informativa: lo scontrino fiscale resta al registratore telematico." },
+    { titolo: "Varianti, aggiunte e IVA", testo: "Le varianti sono il FORMATO: una sola per riga, cambia solo il prezzo («Maxi +1,50»), e in Cassa si legge il suo nome sulla cella. Le aggiunte sono quello che ci metti SOPRA: quante ne vuoi, ognuna col suo prezzo e i suoi ingredienti che escono dal magazzino, e valgono per interi gruppi del listino (tutte le Pizze). Si creano nella scheda «Aggiunte» qui sopra. L'aliquota è quella della voce, aggiunte comprese, ed è solo informativa: lo scontrino fiscale resta al registratore telematico." },
+    { titolo: "«Cosa c'è dentro»: il nome corto e la sua composizione", testo: "«Boscaiola» è un nome che vale per mozzarella, funghi e salsiccia. Nel campo «Cosa c'è dentro» scrivi quegli ingredienti come li dici al cliente: in Cassa si legge il NOME grande e sotto, in piccolo, la composizione — così rispondi a «cosa c'è nella boscaiola?» senza toccare niente. In cucina compare fra il piatto e le aggiunte, e ogni schermo può nasconderla. «Prendi dalla distinta» te li copia dal magazzino, poi li accorci a mano: la distinta parla di farina e di secchi da tre chili, il cliente no. Non scala niente: lo scarico resta la Distinta." },
   ],
   /* Le nove qui sotto non c'erano. Nove schermate su quattordici aprivano il
      « ? » su una scheda sola, e la Plancia — che è una voce della barra, non
@@ -4994,7 +5018,7 @@ const SEZIONI_ALTRO = [
   { id: "catalogo", nome: "Catalogo", icona: Package, col: "#8A63F4",
     sotto: "Prodotti, unità, categorie, fornitori, prezzi e conversioni" },
   { id: "listino", nome: "Listino", icona: Tag, col: "#DB8A2E",
-    sotto: "Le voci della Cassa: prezzi di vendita, varianti, aggiunte e cosa scalano dal magazzino" },
+    sotto: "Le voci della Cassa: prezzi, varianti, aggiunte, cosa c'è dentro e cosa scalano dal magazzino" },
   { id: "analisi", nome: "Analisi", icona: BarChart3, col: "#3D7DEA",
     sotto: "Consumi, valore della merce, soglie consigliate dai dati veri" },
   { id: "storico", nome: "Storico", icona: History, col: "#D96AC0",
@@ -5122,13 +5146,13 @@ const AZIONI = [
     p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
   { n: "Battere una vendita", d: "cassa", ic: Store,
     c: "Cassa",
-    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos", "aggiunte", "extra", "broccoletti"] },
+    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos", "aggiunte", "extra", "broccoletti", "ingredienti", "in mano"] },
   { n: "Le comande in cucina", d: "comande", ic: CheckCheck,
     c: "Comande",
     p: ["comande", "comanda", "cucina", "postazione", "postazioni", "friggitoria", "pizzeria", "schermo", "fatto", "uscita", "ordine del cliente"] },
   { n: "Listino di cassa: prezzi di vendita", d: "listino", ic: Tag,
     c: "Gestione → Listino",
-    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota", "aggiunte", "aggiunta", "extra", "ingrediente in più", "broccoletti", "salsiccia"] },
+    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota", "aggiunte", "aggiunta", "extra", "ingrediente in più", "broccoletti", "salsiccia", "cosa c'è dentro", "composizione", "ingredienti", "boscaiola"] },
   { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
     c: "Gestione → Analisi",
     p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
@@ -12182,6 +12206,16 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi, onElimina }
   const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
   const [varianti, setVarianti] = useState((item?.varianti || []).map((v) => ({ ...v, delta: String(v.delta) })));
   const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
+  /* «Boscaiola» e' un nome che vale per mozzarella+funghi+salsiccia: qui si
+     scrive quello che sta dietro al nome corto (gen-6.03). E' un'etichetta
+     che un umano scrive per un umano, non una chiave: testo libero.
+     dentroId e' il legame coi prodotti del magazzino, e vale solo se e'
+     ESATTO: lo scrive «Prendi dalla distinta» e decade al primo carattere
+     battuto a mano. O e' esatto, o non c'e' — un legame stantio sarebbe
+     peggio di nessun legame. In gen-6.03 nessuno lo legge: nasce oggi,
+     mentre l'admin ha il tasto sotto il dito, per il «senza» di domani. */
+  const [dentro, setDentro] = useState(item?.dentro || "");
+  const [dentroId, setDentroId] = useState(item?.dentroId || []);
 
   const toccaVar = (i, campo, v) => setVarianti((xs) => xs.map((x, j) => (j === i ? { ...x, [campo]: v } : x)));
   const toccaDis = (i, campo, v) => setDistinta((xs) => xs.map((x, j) => {
@@ -12215,21 +12249,45 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi, onElimina }
       dOk.push({ prodottoId: d.prodottoId, qty: q, uomId: d.uomId });
     }
     const dati = { nome: nome.trim(), gruppo: gruppo.trim(), prezzo: nP,
-      aliquota: nA, attivo, varianti: vOk, distinta: dOk };
+      aliquota: nA, attivo, varianti: vOk, distinta: dOk,
+      ...(dentro.trim() ? { dentro: dentro.trim() } : {}),
+      ...(dentro.trim() && dentroId.length ? { dentroId } : {}) };
     /* l'id nasce QUI FUORI, come per le vendite: un uid() dentro la closure
        cambierebbe a ogni replay della coda, e la modifica successiva —
        che ha in mano l'id del primo render — cadrebbe nel vuoto in silenzio
        (trovato dalla revisione di gen-5.96) */
     const nuovoId = item ? null : uid("li");
     muta((s) => {
-      if (item) Object.assign(trova(s.listino || [], item.id) || {}, dati);
-      else s.listino = [...(s.listino || []), { id: nuovoId, ...dati }];
+      if (item) {
+        const t = trova(s.listino || [], item.id) || {};
+        Object.assign(t, dati);
+        /* Object.assign NON cancella: senza queste due righe, svuotato il
+           campo il vecchio testo resterebbe a schermo per sempre e nessuno
+           capirebbe perche' */
+        if (!dati.dentro) delete t.dentro;
+        if (!dati.dentroId) delete t.dentroId;
+      } else s.listino = [...(s.listino || []), { id: nuovoId, ...dati }];
     }, `Voce di listino «${nome.trim()}» ${item ? "aggiornata" : "creata"}`);
     onChiudi();
   };
 
   return (<div className="flex flex-col gap-4">
     <Campo label="Nome in cassa" valore={nome} onCambia={setNome} placeholder="Es. Margherita" autoFocus />
+    <div>
+      <Campo label="Cosa c'è dentro · facoltativo" valore={dentro}
+        onCambia={(v) => { setDentro(v); setDentroId([]); }}
+        placeholder="Es. mozzarella, funghi, salsiccia"
+        suggerimento="I nomi che stanno dietro al nome corto: in Cassa e in cucina si legge «Boscaiola», e sotto in piccolo questa riga. Non scala niente dal magazzino: quello è la Distinta qui sotto." />
+      <div className="mt-1.5">
+        <Bottone variante="tonale" piccolo icona={Copy} onClick={() => {
+          const nomi = (distinta || []).map((d) => trova(stato.prodotti, d.prodottoId)?.nome).filter(Boolean);
+          if (!nomi.length) return mostraToast("La distinta è vuota: non c'è niente da prendere", "avviso");
+          setDentro(nomi.map((n) => n.toLowerCase()).join(", "));
+          setDentroId((distinta || []).filter((d) => trova(stato.prodotti, d.prodottoId)).map((d) => d.prodottoId));
+          mostraToast("Presi dalla distinta: sono nomi di magazzino, accorciali a mano");
+        }}>Prendi dalla distinta</Bottone>
+      </div>
+    </div>
     <div className="grid grid-cols-2 gap-3">
       <Campo label="Gruppo" valore={gruppo} onCambia={setGruppo} placeholder="Es. Pizze" />
       <Campo label="Prezzo di vendita (€)" valore={prezzo} onCambia={setPrezzo} inputMode="decimal" placeholder="Es. 8,50"
@@ -12264,6 +12322,8 @@ function FormVoceListino({ stato, item, muta, mostraToast, onChiudi, onElimina }
           </div>
         ))}
         <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setVarianti((xs) => [...xs, { nome: "", delta: "" }])}>Aggiungi variante</Bottone>
+        <p className="text-xs" style={{ color: T.tenue }}>
+          Il nome della variante si attacca a quello della voce: scrivi «Maxi», non «Pizza maxi».</p>
       </div>
     </div>
     <div>
@@ -12399,7 +12459,16 @@ function VistaListino({ stato, muta, mostraToast }) {
                       {(v.distinta || []).length > 0
                         ? <span>scala {v.distinta.length} prodott{v.distinta.length === 1 ? "o" : "i"}</span>
                         : <span style={{ color: T.ambra }}>non scala niente</span>}
+                      {/* tutto il valore del nome corto dipende da una
+                          quindicina di pizze da descrivere a mano: si deve
+                          vedere quali mancano senza aprirle una per una */}
+                      {!(v.dentro || "").trim() && (v.distinta || []).length > 0 && (
+                        <span style={{ color: T.ambra }}>composizione da scrivere</span>
+                      )}
                     </span>
+                    {!!(v.dentro || "").trim() && (
+                      <span className="text-xs block truncate mt-0.5" style={{ color: T.tenue }}>dentro: {v.dentro}</span>
+                    )}
                   </span>
                   {v.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
                   {/* il cestino non sta piu' sulla riga: si toglie da dentro
@@ -12632,6 +12701,16 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
   });
   const sedute = scelta === null ? (profilo.postazioniIds || []) : scelta;
   const [congedate, setCongedate] = useState(() => new Set());
+  /* «cosa c'e' dentro» in cucina e' una scelta del SINGOLO SCHERMO, gemella
+     della sedia: il pizzaiolo che sa a memoria la spegne una volta, il
+     ragazzo nuovo del sabato la trova accesa. Zero byte sul canale. */
+  const [mostraDentro, setMostraDentro] = useState(() => {
+    try { return localStorage.getItem("scp:comande:dentro:v1") !== "0"; } catch { return true; }
+  });
+  const giraDentro = () => setMostraDentro((x) => {
+    try { localStorage.setItem("scp:comande:dentro:v1", x ? "0" : "1"); } catch {}
+    return !x;
+  });
   const siediti = (id) => {
     const dopo = sedute.includes(id) ? sedute.filter((x) => x !== id) : [...sedute, id];
     try { localStorage.setItem("scp:comande:v1", JSON.stringify(dopo)); } catch {}
@@ -12737,6 +12816,10 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
                 className="text-xs font-bold mt-2 rounded-full px-3.5"
                 style={{ color: T.blu, background: "#EAF0FE", minHeight: 36 }}>Torna alle mie postazioni</button>
             )}
+            <button onClick={giraDentro}
+              className="text-xs font-bold mt-2 ml-2 rounded-full px-3.5"
+              style={{ color: T.tenue, background: "#F0F3FB", minHeight: 36 }}>
+              {mostraDentro ? "Nascondi cosa c'è dentro" : "Mostra cosa c'è dentro"}</button>
           </Scheda>
           {mie.size === 0
             ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Scegli la tua postazione"
@@ -12778,6 +12861,16 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
                             <span className="text-base font-extrabold" style={{ color: T.ink }}>{r.qty}× {nomeBase(r)}</span>
                             {r.orfana && <Chip colore={T.ambra}>senza postazione</Chip>}
                           </div>
+                          {/* COSA DEVO FARE / COM'E' FATTO / COSA CAMBIA:
+                              il nome grande, la composizione in grigio, e le
+                              aggiunte in blu — che restano la riga piu' forte
+                              perche' sono quelle su cui si sbaglia. Se la
+                              voce non e' piu' a listino la riga grigia non
+                              c'e': mai una composizione inventata sotto un
+                              piatto vero (gen-6.03). */}
+                          {mostraDentro && !!dentroDi(stato, r.voceId) && (
+                            <span className="block text-xs pl-5" style={{ color: T.tenue }}>{dentroDi(stato, r.voceId)}</span>
+                          )}
                           {/* le aggiunte SOTTO il piatto, rientrate e in blu:
                               il pizzaiolo legge «Margherita» e poi cosa ci va
                               sopra, invece di un nome lungo che si tronca a
@@ -12846,6 +12939,16 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
   const [ultime, setUltime] = useState(false);    // il Foglio delle ultime vendite (gen-6.00)
   const [svuotato, setSvuotato] = useState(null); // l'ultimo conto svuotato, per il ripristino
   const [ricevuti, setRicevuti] = useState("");   // contanti in mano: SOLO per il resto, mai registrato
+  /* L'ORDINE NON CONTA (gen-6.03, parole di Valerio: «devo poterlo fare in
+     qualsiasi momento… deve essere interdipendente»). Due stati soli, ed
+     entrambi LOCALI come il carrello — zero byte sul canale:
+     · viva = la chiave della riga che riceve il prossimo ingrediente;
+     · mano = gli ingredienti presi in mano, in attesa del piatto.
+     L'INVARIANTE che li tiene insieme senza farne due modi da indovinare:
+     mano piena ⇒ nessuna riga viva. Non c'e' mai un istante in cui il
+     cassiere debba chiedersi se il chip appoggia o prende. */
+  const [viva, setViva] = useState(null);
+  const [mano, setMano] = useState([]);
   /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
      meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
   const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
@@ -12870,15 +12973,43 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
      risponde al tocco DOVE il tocco e' caduto (gen-6.00) */
   const nelConto = {};
   for (const r of carrello) nelConto[r.voceId] = (nelConto[r.voceId] || 0) + r.qty;
+  /* le battute delle AGGIUNTE, gemelle di quelle dei gruppi: la fascia e'
+     una riga sola e su 390px se ne vedono due e mezzo — chi ci entra lo
+     decide il sabato, non l'alfabeto. Sort client, zero scritture. */
+  const battuteAgg = {};
+  for (const v of stato.vendite || [])
+    for (const r of v.righe || [])
+      for (const a of r.agg || []) battuteAgg[a.id] = (battuteAgg[a.id] || 0) + Math.abs(+r.qty || 0);
+  const perBanco = (l) => [...l].sort((a, b) =>
+    (battuteAgg[b.id] || 0) - (battuteAgg[a.id] || 0) || a.nome.localeCompare(b.nome, "it"));
+  /* una volta per gruppo, non una per riga del conto: su un Android da
+     banco un filter+sort per riga si sente */
+  const aggPer = {}; for (const g of gruppi) aggPer[g] = aggiunteDi(stato, g);
+  const aggiunteDelGruppo = (g) => aggPer[g] || aggiunteDi(stato, g);
+  /* una riga e' BERSAGLIABILE solo se il suo gruppo ha aggiunte: un'Acqua
+     non ruba mai il bersaglio e il suo nome non diventa un bottone
+     («niente porte che non aprono niente», gen-5.99) */
+  const bersagliabile = (r) => aggiunteDelGruppo(r.gruppo).length > 0;
+  /* la riga viva NON si fida della chiave salvata: un «meno» puo' averla
+     portata a zero. Si deriva, e si ripara da sola. */
+  const rigaViva = carrello.find((r) => r.chiave === viva) || null;
+  const nomiDi = (ids) => (stato.aggiunte || []).filter((a) => ids.includes(a.id)).map((a) => a.nome).join(", ");
   const magCassa = magCassaDi(stato, sedeId);
   const oggi = giornoDi(Date.now());
   const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
   const venditeOggi = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === oggi);
 
-  const aggiungi = (voce, variante, agg = []) => {
+  const aggiungi = (voce, variante, extra = [], usaMano = true) => {
+    /* il piatto prende quello che si tiene in mano, e lo fa QUI dentro:
+       cosi' il percorso della pizza liscia — il 90% delle battute del
+       sabato — non cambia di una riga al punto di chiamata (gen-6.03) */
+    const ammesse   = aggiunteDelGruppo(gruppoDi(voce));
+    const daMano    = usaMano ? ammesse.filter((a) => mano.includes(a.id)) : [];
+    const rifiutate = usaMano ? mano.filter((id) => !ammesse.some((a) => a.id === id)) : [];
     /* le aggiunte si ordinano per nome (il testo che si legge) e la chiave
        usa i loro id ORDINATI: broccoletti+salsiccia e salsiccia+broccoletti
        sono la stessa pizza, e devono fondersi in una riga da 2 (gen-6.02) */
+    const agg = [...new Map([...extra, ...daMano].map((a) => [a.id, a])).values()];
     const aggOrd = [...agg].sort((a, b) => a.nome.localeCompare(b.nome, "it"));
     const chiave = voce.id + "|" + (variante?.id || "")
       + (aggOrd.length ? "|" + aggOrd.map((a) => a.id).sort().join("+") : "");
@@ -12890,7 +13021,12 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
       const gia = c.find((r) => r.chiave === chiave);
       if (gia) return c.map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + 1 } : r));
       return [...c, { chiave, voceId: voce.id, varianteId: variante?.id,
-        nome: voce.nome + (variante ? " + " + variante.nome : "") + suffissoAgg(aggOrd), prezzo, qty: 1,
+        /* LA GIUNZIONE (gen-6.03): il formato si attacca con uno SPAZIO,
+           quello che ci metti sopra con un « + ». Una regola sola per chi
+           legge: prima del primo « + » c'e' il piatto, dopo ogni « + » c'e'
+           quello che ci hai messo sopra. Prima si scriveva «Panino + Maxi»,
+           che in cucina si leggeva come un panino con dentro un maxi. */
+        nome: voce.nome + (variante ? " " + variante.nome : "") + suffissoAgg(aggOrd), prezzo, qty: 1,
         /* lo snapshot delle aggiunte: nome e prezzo di OGGI, come per la
            voce — domani il catalogo puo' cambiare, la riga battuta no */
         ...(aggOrd.length ? { agg: aggOrd.map((a) => ({ id: a.id, nome: a.nome, prezzo: +a.prezzo || 0 })) } : {}),
@@ -12907,6 +13043,18 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     });
     setScelta(null); setAggSel([]); setRigaDa(null);
     setSvuotato(null); // un conto nuovo che parte: il vecchio svuotato non torna piu'
+    /* L'INVARIANTE: se qualcosa resta in mano, NESSUNA riga e' viva. E le
+       righe non bersagliabili (un'Acqua) non rubano mai il bersaglio. */
+    const restaInMano = usaMano ? rifiutate : mano;
+    if (restaInMano.length) {
+      if (usaMano) setMano(restaInMano);
+      setViva(null);
+      if (rifiutate.length)
+        mostraToast(`${nomiDi(rifiutate)} non va su «${voce.nome}»: resta in mano`, "errore");
+    } else {
+      if (usaMano) setMano([]);
+      if (ammesse.length) setViva(chiave);
+    }
   };
   /* il foglio si apre da due porte: la cella (voce con varianti) e il NOME
      della riga gia' nel conto (voce con aggiunte). Nel secondo caso si
@@ -12926,6 +13074,45 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     const scelte = aggiunteDi(stato, gruppoDi(scelta)).filter((a) => aggSel.includes(a.id));
     if (rigaDa) cambia(rigaDa, -1);
     aggiungi(scelta, variante, scelte);
+  };
+  /* LE DUE STRADE DI VALERIO FINISCONO QUI DENTRO. Sposta UNA unita', come
+     metti(): «tre margherite, una coi broccoletti» sono due righe, non due
+     conti. Con la mano piena non c'e' riga viva (invariante), quindi il
+     chip prende in mano invece di appoggiare. */
+  const giraAgg = (agId, su = null) => {
+    const riga = su || (mano.length ? null : rigaViva);
+    if (!riga) { setMano((xs) => (xs.includes(agId) ? xs.filter((x) => x !== agId) : [...xs, agId])); return; }
+    const voce = trova(voci, riga.voceId);
+    if (!voce) return;                       // voce sparita: non si ricompone al buio
+    const ids = (riga.agg || []).map((a) => a.id);
+    const dopo = ids.includes(agId) ? ids.filter((x) => x !== agId) : [...ids, agId];
+    const variante = (voce.varianti || []).find((v) => v.id === riga.varianteId) || null;
+    /* formato sparito dal listino a meta' servizio: si RIAPRE il foglio
+       invece di ricomporre senza formato e far scendere il prezzo in
+       silenzio */
+    if (riga.varianteId && !variante) return apriScelta(voce, dopo, riga.chiave);
+    const scelte = aggiunteDelGruppo(riga.gruppo).filter((a) => dopo.includes(a.id));
+    cambia(riga.chiave, -1);
+    aggiungi(voce, variante, scelte, false);   // usaMano:false — la × non appoggia la mano di nascosto
+  };
+  /* la × della sotto-riga: toglie un ingrediente da una riga QUALSIASI,
+     senza doverla prima rendere viva e senza toccare quello che si ha in
+     mano */
+  const levaDaRiga = (r, agId) => giraAgg(agId, r);
+  /* il tocco sul NOME della riga: un significato solo, sempre lo stesso —
+     «da adesso lavoro qui». Se si tiene qualcosa in mano, il piatto lo
+     prende, esattamente come farebbe la cella. */
+  const lavoraSu = (r) => {
+    if (!mano.length) { setViva(r.chiave); return; }
+    const voce = trova(voci, r.voceId);
+    if (!voce) { setViva(r.chiave); return; }
+    const ammesse = aggiunteDelGruppo(r.gruppo);
+    const dopo = [...new Set([...(r.agg || []).map((a) => a.id),
+      ...ammesse.filter((a) => mano.includes(a.id)).map((a) => a.id)])];
+    const variante = (voce.varianti || []).find((v) => v.id === r.varianteId) || null;
+    if (r.varianteId && !variante) return apriScelta(voce, dopo, r.chiave);
+    cambia(r.chiave, -1);
+    aggiungi(voce, variante, ammesse.filter((a) => dopo.includes(a.id)), true);
   };
   const totale = +carrello.reduce((a, r) => a + r.prezzo * r.qty, 0).toFixed(2);
   const sc = incasso ? calcoloScarico(stato, carrello, sedeId) : null;
@@ -12961,6 +13148,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
     setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
+    setViva(null); setMano([]);
   };
 
   const storna = async () => {
@@ -12994,7 +13182,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
-        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); }} opzioni={sediOp} /></div>
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); }} opzioni={sediOp} /></div>
       )}
       {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
           registro. Le ultime vendite — coi loro storni — stanno dietro il
@@ -13023,7 +13211,12 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
               {voci.filter((v) => gruppoDi(v) === g)
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
                 <button key={v.id} aria-label={`Aggiungi ${v.nome}`}
-                  onClick={() => ((v.varianti || []).length ? setScelta(v) : aggiungi(v, null))}
+                  onClick={() => ((v.varianti || []).length
+                    /* con qualcosa in mano il foglio si apre gia' spuntato:
+                       «prendo la salsiccia, poi il panino Maxi» e' un giro
+                       solo (gen-6.03) */
+                    ? apriScelta(v, aggiunteDelGruppo(gruppoDi(v)).filter((a) => mano.includes(a.id)).map((a) => a.id))
+                    : aggiungi(v, null))}
                   className="relative rounded-2xl px-3 py-3.5 text-left"
                   data-nel-conto={nelConto[v.id] || 0}
                   style={{ background: "#fff", border: `1.5px solid ${nelConto[v.id] ? T.blu : T.bordo}` }}>
@@ -13035,9 +13228,25 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                   )}
                   <span className="font-extrabold block text-sm" style={{ color: T.ink }}>{v.nome}</span>
                   <span className="text-sm font-bold" style={{ color: T.blu }}>{fmtEuro(v.prezzo || 0)}</span>
+                  {/* LA CELLA E' LA CARTA (gen-6.03, parole di Valerio):
+                      «la cassa deve poter vedere il nome che contiene quegli
+                      ingredienti ma anche vedere da cosa e' composto». A ZERO
+                      tocchi: il cassiere risponde a «cosa c'e' nella
+                      boscaiola?» senza girarsi verso il muro. Compare SOLO
+                      se qualcuno l'ha scritta: chi non compila non paga un
+                      pixel, e non si inventa niente dalla distinta. */}
+                  {!!(v.dentro || "").trim() && (
+                    <span className="block text-[10px] leading-tight mt-0.5" style={{ color: T.tenue,
+                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {v.dentro}</span>
+                  )}
+                  {/* e i NOMI dei formati al posto della parola muta
+                      «varianti»: «sennò ci sta molta ridondanza nel nome» */}
                   {(v.varianti || []).length > 0 && (
-                    <span className="ml-1.5 align-middle rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
-                      style={{ background: "#EAF0FE", color: T.blu }}>varianti</span>
+                    <span className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
+                      style={{ background: "#EAF0FE", color: T.blu }}>
+                      {v.varianti.slice(0, 2).map((x) => x.nome).join(" · ")}
+                      {v.varianti.length > 2 ? ` +${v.varianti.length - 2}` : ""}</span>
                   )}
                 </button>
               ))}
@@ -13054,15 +13263,23 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                  90% delle pizze esce liscia, e un foglio a ogni tocco
                  renderebbe la Cassa piu' lenta di prima (gen-6.02). */
               const voceR = trova(voci, r.voceId);
-              const aggR = voceR ? aggiunteDi(stato, r.gruppo) : [];
+              const puoi = voceR ? bersagliabile(r) : false;
+              const eViva = viva === r.chiave;
               return (
-              <div key={r.chiave} className="flex items-center gap-2">
-                {aggR.length > 0
-                  ? <button onClick={() => apriScelta(voceR, (r.agg || []).map((a) => a.id), r.chiave)}
-                      aria-label={`Aggiunte per ${r.nome}`}
+              <div key={r.chiave} {...(eViva ? { "data-viva": "1" } : {})} className="rounded-xl"
+                style={eViva ? { boxShadow: `inset 3px 0 0 ${T.blu}`, background: "#F7FAFF", paddingLeft: 8 } : undefined}>
+              <div className="flex items-center gap-2">
+                {puoi
+                  ? <button onClick={() => lavoraSu(r)}
+                      /* il nome ACCESSIBILE porta la riga INTERA, non solo
+                         il nome corto: due righe possono avere lo stesso
+                         piatto («Margherita» e «Margherita + Broccoletti») e
+                         due bottoni con lo stesso nome sono un tranello per
+                         chi ascolta. E' la stessa regola dei tasti + e −. */
+                      aria-label={`Lavora su ${r.nome}`}
                       className="flex-1 min-w-0 text-sm font-semibold truncate text-left underline decoration-dotted underline-offset-4"
-                      style={{ color: T.ink, textDecorationColor: T.blu, minHeight: 44 }}>{r.nome}</button>
-                  : <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{r.nome}</span>}
+                      style={{ color: T.ink, textDecorationColor: T.blu, minHeight: 44 }}>{nomeBase(r)}</button>
+                  : <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{nomeBase(r)}</span>}
                 <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(r.prezzo)}</span>
                 {/* 44 punti: al banco si batte col pollice, di fretta — un
                     piu' da 30 punti manca una volta su tre (gen-6.00) */}
@@ -13074,10 +13291,33 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
                   className="rounded-full shrink-0 grid place-items-center"
                   style={{ background: "#EAF0FE", color: T.blu, width: 44, height: 44 }}><Plus size={16} /></button>
               </div>
+              {/* ogni aggiunta e' una SOTTO-RIGA con la sua ×: si toglie da
+                  una riga qualsiasi senza prima doverla rendere viva, e
+                  senza toccare quello che si ha in mano (gen-6.03) */}
+              {(r.agg || []).map((a) => (
+                <div key={a.id} className="flex items-center gap-2 pl-4">
+                  <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: T.blu }}>+ {a.nome}</span>
+                  <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(a.prezzo || 0)}</span>
+                  <button onClick={() => levaDaRiga(r, a.id)} aria-label={`Riga: leva ${a.nome} da ${r.nome}`}
+                    className="rounded-full shrink-0 grid place-items-center"
+                    style={{ background: "#FCE9EE", color: T.rosso, width: 44, height: 44 }}><X size={15} /></button>
+                </div>
+              ))}
+              {/* il FORMATO ha la sua pillola: e' l'unica porta al foglio, e
+                  dice sempre la stessa cosa. Prima il nome della riga faceva
+                  due mestieri a seconda di uno stato invisibile. */}
+              {(voceR?.varianti || []).length > 0 && (
+                <button onClick={() => apriScelta(voceR, (r.agg || []).map((a) => a.id), r.chiave)}
+                  aria-label={`Cambia formato di ${r.nome}`}
+                  className="ml-4 rounded-full px-3 text-xs font-bold inline-flex items-center"
+                  style={{ minHeight: 44, background: "#EAF0FE", color: T.blu }}>
+                  Formato: {(voceR.varianti.find((x) => x.id === r.varianteId) || {}).nome || "Così com'è"}</button>
+              )}
+              </div>
               ); })}
           </div>
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
-            <button onClick={() => { setSvuotato(carrello); setCarrello([]); }} aria-label="Svuota il conto"
+            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); }} aria-label="Svuota il conto"
               className="text-xs font-bold rounded-full px-4 shrink-0"
               style={{ color: T.tenue, background: "#F0F3FB", minHeight: 44 }}>Svuota</button>
             <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>
@@ -13094,10 +13334,74 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
             <span className="flex-1 text-sm" style={{ color: T.dim }}>
               Conto svuotato: {svuotato.length === 1 ? "1 riga" : `${svuotato.length} righe`}.</span>
             <Bottone variante="tonale" piccolo icona={RotateCcw}
-              onClick={() => { setCarrello(svuotato); setSvuotato(null); }}>Ripristina il conto</Bottone>
+              onClick={() => { setCarrello(svuotato); setSvuotato(null); setViva(null); }}>Ripristina il conto</Bottone>
           </div>
         </Scheda>
       )}
+      {/* LO SPAZIATORE: la fascia e' alta ~96 e sta a 86 dal fondo; il
+          paddingBottom del guscio (7rem = 112) non basta a far scorrere
+          «Incassa» sopra di lei. Misurato, non a occhio: il collaudo §12
+          confronta i boundingBox. Compare alla stessa condizione della
+          fascia — chi non ha aggiunte non paga un pixel. */}
+      {aggiunteTutte(stato).length > 0 && (
+        <div aria-hidden="true" style={{ height: "calc(6.5rem + env(safe-area-inset-bottom))" }} />
+      )}
+      {/* ═══ LA FASCIA DEGLI INGREDIENTI (gen-6.03) ═══
+          Parole di Valerio: «devo poterlo fare in qualsiasi momento, non
+          devo prima selezionare l'aggiunta e poi la pizza, deve essere
+          interdipendente». Qui l'ordine non conta: con una riga VIVA il
+          chip appoggia, senza riga viva il chip va IN MANO e lo prende il
+          primo piatto compatibile. UNA sola fascia, mai una per gruppo:
+          la stessa aggiunta puo' valere per due gruppi e comparirebbe due
+          volte con lo stesso nome. Sta in basso, nello slot gia' usato
+          dalla barra comandi dei Magazzini, sopra la barra di navigazione:
+          il bersaglio e i chip devono stare sotto lo stesso pollice. */}
+      {aggiunteTutte(stato).length > 0 && (() => {
+        const inMano = mano.length > 0;
+        const rv = inMano ? null : rigaViva;
+        const chips = perBanco(rv ? aggiunteDelGruppo(rv.gruppo) : aggiunteTutte(stato));
+        return (
+          <div data-fascia="1" className="fixed z-30"
+            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            <div className="rounded-2xl p-2" style={{ background: inMano ? "#FFF6E8" : "#fff",
+              border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 12px 30px -14px rgba(20,30,60,.45)" }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-extrabold truncate" style={{ color: inMano ? "#7A4A00" : T.ink }}>
+                    {inMano ? `In mano: ${nomiDi(mano)}` : rv ? `Su: ${nomeBase(rv)}` : "Nessuna riga scelta"}</span>
+                  <span className="block text-[11px] truncate" style={{ color: T.tenue }}>
+                    {inMano ? "la prende il prossimo piatto"
+                      : rv ? (dentroDi(stato, rv.voceId) || "tocca un ingrediente: ci va sopra")
+                      : "l'ingrediente che tocchi resta in mano per il prossimo piatto"}</span>
+                </span>
+                {(inMano || rv) && (
+                  <button onClick={() => (inMano ? setMano([]) : setViva(null))}
+                    aria-label={inMano ? "Svuota la mano" : `Stacca da ${nomeBase(rv)}`}
+                    className="rounded-full px-3 text-xs font-bold shrink-0 inline-flex items-center gap-1"
+                    style={{ minHeight: 44, background: inMano ? "#fff" : "#F0F3FB", color: inMano ? "#7A4A00" : T.tenue }}>
+                    <X size={14} />{inMano ? "Lascia" : "Stacca"}</button>
+                )}
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {chips.map((a) => {
+                  const giu = rv ? (rv.agg || []).some((x) => x.id === a.id) : mano.includes(a.id);
+                  return (
+                    <button key={a.id} aria-pressed={giu} onClick={() => giraAgg(a.id)}
+                      aria-label={rv
+                        ? (giu ? `Leva ${a.nome} da ${nomeBase(rv)}` : `Metti ${a.nome} su ${nomeBase(rv)}`)
+                        : (giu ? `Lascia ${a.nome}` : `Prendi in mano ${a.nome}`)}
+                      className="rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5 shrink-0"
+                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }) }}>
+                      {giu && <Check size={13} />}{a.nome}
+                      <span className="text-[11px] font-semibold" style={{ opacity: .8 }}>+ {fmtEuro(a.prezzo || 0)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={chiudiScelta}>
         {scelta && (() => {
           /* un foglio solo per le due cose: il FORMATO (varianti, esclusive:

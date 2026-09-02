@@ -179,17 +179,16 @@ await prova("§3", async () => {
   await tocca(C.p, "Aggiungi Margherita", 350);
   ok(/Totale € 13,00/.test(await testoDi(C.p)),
     "due tocchi sulla cella = due Margherite, nessun foglio di mezzo: € 13,00");
-  await tocca(C.p, "Aggiunte per Margherita", 600);
-  const tf = (await foglio(C.p).innerText()).replace(/\s+/g, " ");
+  /* 02/09, gen-6.03: qui si apriva un Foglio dal nome della riga e ci
+     volevano quattro tocchi. Adesso l'ingrediente si tocca nella fascia,
+     e l'ordine non conta piu' (parole di Valerio). Il banco prova la
+     stessa INTENZIONE — due margherite, una coi broccoletti — col gesto
+     nuovo: il collaudo di gen-6.03 (gen603test.mjs) prova il resto. */
+  const tf = await testoDi(C.p);
   ok(/Broccoletti/.test(tf) && /Salsiccia/.test(tf),
-    "il nome della riga apre il foglio delle aggiunte del gruppo «Pizze» (anche con «pizze» minuscolo nel catalogo)");
+    "la fascia porta le aggiunte del gruppo «Pizze» (anche con «pizze» minuscolo nel catalogo)");
   ok(!/Bufala/.test(tf), "e la Bufala spenta non si propone: finita è finita");
-  ok(/Vale per una/.test(tf),
-    "il foglio dice che vale per UNA: le altre del mucchio restano com'erano");
-  await tocca(C.p, "Metti Broccoletti", 300);
-  ok(/Con Broccoletti · € 8,00/.test((await foglio(C.p).innerText()).replace(/\s+/g, " ")),
-    "spuntando i broccoletti il tasto dice già tutto: «Con Broccoletti · € 8,00»");
-  await tocca(C.p, "Con Broccoletti · € 8,00", 500);
+  await tocca(C.p, "Metti Broccoletti su Margherita", 500);
   const t3 = await testoDi(C.p);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 1
     && (await C.p.getByRole("button", { name: "Aumenta Margherita + Broccoletti", exact: true }).count()) === 1,
@@ -197,9 +196,8 @@ await prova("§3", async () => {
   ok(/Totale € 14,50/.test(t3), "e il totale è € 14,50: 6,50 + 8,00");
   /* la seconda passa nella riga composta: stessa pizza + stesse aggiunte =
      una riga sola con qty 2, non due righe gemelle */
-  await tocca(C.p, "Aggiunte per Margherita", 600);
-  await tocca(C.p, "Metti Broccoletti", 300);
-  await tocca(C.p, "Con Broccoletti · € 8,00", 500);
+  await tocca(C.p, "Lavora su Margherita", 400);
+  await tocca(C.p, "Metti Broccoletti su Margherita", 500);
   const t3b = await testoDi(C.p);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 0,
     "la riga liscia sparisce quando l'ultima unità se ne va");
@@ -220,8 +218,11 @@ await prova("§4", async () => {
   ok(/Con Salsiccia · € 10,00/.test(tf2) && /Maxi \+ Salsiccia · € 11,50/.test(tf2),
     "spuntata la salsiccia, TUTTI i tasti si aggiornano: «Maxi + Salsiccia · € 11,50»");
   await tocca(C.p, "Maxi + Salsiccia · € 11,50", 500);
-  ok(/Panino \+ Maxi \+ Salsiccia/.test(await testoDi(C.p)),
-    "nel conto la riga dice tutto: «Panino + Maxi + Salsiccia»");
+  /* 02/09, gen-6.03: la giunzione del formato e' uno SPAZIO — prima del
+     primo «+» c'e' il piatto, dopo ogni «+» quello che ci hai messo sopra */
+  const tPan = await testoDi(C.p);
+  ok(/Panino Maxi/.test(tPan) && /\+ Salsiccia/.test(tPan),
+    "nel conto la riga dice tutto: «Panino Maxi» e sotto «+ Salsiccia»");
 });
 
 /* ═══ 5. L'INCASSO: la riga congelata e il magazzino che scala ═══ */
@@ -239,7 +240,7 @@ await prova("§5", async () => {
     "gruppo e IVA restano quelli della VOCE: la comanda va alla Pizzeria, l'aggiunta segue l'aliquota della pizza");
   ok(rM?.agg?.length === 1 && rM.agg[0].id === "ag-bro" && rM.agg[0].nome === "Broccoletti" && rM.agg[0].prezzo === 1.5,
     "e lo snapshot dell'aggiunta viaggia con la riga: {id, nome, prezzo}");
-  const rP = (v?.righe || []).find((r) => r.nome === "Panino + Maxi + Salsiccia");
+  const rP = (v?.righe || []).find((r) => r.nome === "Panino Maxi + Salsiccia");
   ok(rP?.prezzo === 11.5 && rP?.varianteId === "va-maxi" && rP?.agg?.[0]?.nome === "Salsiccia",
     "la riga con variante E aggiunta porta tutti e due: € 11,50, va-maxi, Salsiccia");
   ok(v?.totale === 27.5, "totale dello scontrino € 27,50 (16,00 + 11,50)");
@@ -296,7 +297,11 @@ await prova("§8", async () => {
   await vaiA(Z.p, "Cassa");
   await tocca(Z.p, "Aggiungi Spritz", 400);
   ok(/Totale € 5,00/.test(await testoDi(Z.p)), "lo Spritz (gruppo «Bere», nessuna aggiunta) entra con un tocco solo");
-  ok((await Z.p.getByRole("button", { name: "Aggiunte per Spritz", exact: true }).count()) === 0,
+  /* 02/09: l'etichetta vecchia («Aggiunte per Spritz») in gen-6.03 non
+     esiste piu' e questo controllo sarebbe rimasto verde PER CASO — cioe'
+     avrebbe smesso di provare la cosa per cui esiste. Adesso cerca
+     l'etichetta nuova. */
+  ok((await Z.p.getByRole("button", { name: /^Lavora su Spritz/ }).count()) === 0,
     "e la sua riga NON diventa un bottone: niente porte che non aprono niente");
   await tocca(Z.p, "Aggiungi Acqua", 400);
   ok(/Totale € 6,00/.test(await testoDi(Z.p)), "l'Acqua senza gruppo entra anche lei con un tocco: € 6,00");

@@ -79,7 +79,12 @@ const conteggi = await p.evaluate(() => {
     una:1, uno:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
     nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
   const num = (t) => parole[(t || "").toLowerCase()] ?? null;
-  const testo = document.querySelector(".apertura").textContent;
+  /* 02/09: gli schemi cercano frasi con gli spazi dentro («non ne resta
+     nessuno») e l'HTML va a capo dove capita: un a-capo fra «ne» e «resta»
+     ha fatto diventare rossa questa pagina per una riscrittura del tutto
+     legittima. E' la stessa famiglia della trappola del maiuscolo CSS: si
+     confronta il testo NORMALIZZATO, non quello impaginato. */
+  const testo = document.querySelector(".apertura").textContent.replace(/\s+/g, " ");
   /* Il controllo e' sul NUMERO, non su come e' scritta la frase: la frase
      d'apertura si riscrive a ogni generazione ed e' giusto che si riscriva.
      La prima versione di questi due schemi era incollata a una frase precisa

@@ -76,7 +76,15 @@ await p.waitForTimeout(1500);
 await p.getByText("Gigi", { exact: false }).first().click();
 await p.waitForTimeout(400);
 await digita("9999");
-await p.waitForTimeout(1500);
+/* 02/09: sotto il carico del censimento completo (94 file, uno dietro
+   l'altro) questa attesa a 1500 ms non bastava e il banco diventava rosso
+   da solo — lanciato da solo passava. E' la stessa lezione di pin2test in
+   gen-6.00: un'attesa a tempo fisso misura la macchina, non l'app. Adesso
+   si aspetta la BARRA, con un tetto generoso, e se non arriva il rosso dice
+   che non e' arrivata. */
+await p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+await p.getByText(/Plancia|Conteggi|Magazzini|Richieste/i).first()
+  .waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
 const dentro = await p.getByText(/Plancia|Conteggi|Magazzini|Richieste/i).count();
 ok(dentro > 0, "Gigi entra col PIN nuovo 9999");
 await p.screenshot({ path: "pin-1-esito.png", fullPage: true });

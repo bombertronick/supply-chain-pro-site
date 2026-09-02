@@ -149,7 +149,7 @@ console.log("\n— 2b. la variante: prezzo congelato con il delta —");
 await prova("§2b", async () => {
   await OK1.p.getByRole("button", { name: "Aggiungi Panino" }).click(); await OK1.p.waitForTimeout(500);
   await OK1.p.getByRole("button", { name: /Maxi/ }).first().click(); await OK1.p.waitForTimeout(400);
-  ok(/Panino \+ Maxi/.test(await testoDi(OK1.p)), "nel carrello si legge «Panino + Maxi»");
+  ok(/Panino Maxi/.test(await testoDi(OK1.p)), "nel carrello si legge «Panino + Maxi»");
   await incassa(OK1.p, "Carta");
   const st = await stato(OK1.p);
   const v = (st.vendite || [])[0];
