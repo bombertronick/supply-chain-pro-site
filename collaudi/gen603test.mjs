@@ -132,6 +132,19 @@ const incassa = async (p) => {
   await p.getByRole("button", { name: "Registra l'incasso", exact: true }).click(); await p.waitForTimeout(1400);
 };
 const viva = (p) => p.locator('[data-viva="1"]');
+/* GEN-6.04 HA CAMBIATO IL CONTRATTO, e questo banco descriveva l'app di ieri.
+   Valerio: «gli ingredienti non devono essere visibili in cassa se non quando
+   richiesto». La fascia adesso parte CHIUSA, quindi toccare un chip senza
+   averla aperta e' come cercare un tasto dietro uno sportello chiuso: gli
+   otto Timeout erano quello, non una regressione della Cassa.
+   Il gesto che aggiungo e' quello che fa un cassiere vero: apre gli
+   ingredienti, poi tocca. Quello che questo banco prova — le due strade,
+   l'invariante, il disfare — resta identico: cambia il modo di arrivarci. */
+const apriFascia = async (p) => {
+  if (await p.locator('[data-fascia="1"]').count()) return;
+  const pastiglia = p.locator('[data-fascia-chiusa="1"] button').first();
+  if (await pastiglia.count()) { await pastiglia.click(); await p.waitForTimeout(420); }
+};
 
 /* ═══ 1. LA FONTE ═══ */
 console.log("\n— 1. la fonte —");
@@ -178,6 +191,7 @@ await prova("§3", async () => {
   await tocca(C.p, "Aggiungi Margherita", 350);
   ok(/Su: Margherita/.test(await testoDi(C.p)),
     "la fascia dice a parole dove cade il prossimo tocco: «Su: Margherita»");
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 450);
   const t = await testoDi(C.p);
   ok(/Totale € 8,00/.test(t), "due tocchi in tutto: € 8,00");
@@ -192,8 +206,16 @@ await prova("§3", async () => {
 console.log("\n— 4. prima l'ingrediente, poi il piatto —");
 await prova("§4", async () => {
   await tocca(C.p, "Svuota il conto", 400);
+  /* gen-6.04: a conto vuoto e a fascia CHIUSA la pastiglia dice
+     «Ingredienti»; «Nessuna riga scelta» resta la frase della fascia aperta.
+     Si guardano tutte e due, perche' e' proprio questo che gen-6.04 promette:
+     chiudere toglie spazio, non informazione. */
+  ok(/Ingredienti/.test(await testoDi(C.p)),
+    "a conto vuoto la pastiglia chiusa lo dice a modo suo: «Ingredienti»");
+  await apriFascia(C.p);
   ok(/Nessuna riga scelta/.test(await testoDi(C.p)),
-    "a conto vuoto la fascia lo dice: «Nessuna riga scelta»");
+    "e aperta lo dice per esteso: «Nessuna riga scelta»");
+  await apriFascia(C.p);
   await tocca(C.p, "Prendi in mano Broccoletti", 350);
   const t1 = await testoDi(C.p);
   ok(/In mano: Broccoletti/.test(t1), "il chip va IN MANO e la fascia lo scrive");
@@ -206,6 +228,7 @@ await prova("§4", async () => {
   ok(!/In mano:/.test(t2), "e la mano si è svuotata da sola");
   /* la mano che non ci va: resta in mano e lo dice */
   await tocca(C.p, "Svuota il conto", 400);
+  await apriFascia(C.p);
   await tocca(C.p, "Prendi in mano Broccoletti", 350);
   await tocca(C.p, "Aggiungi Spritz", 500);
   const t3 = await testoDi(C.p);
@@ -230,15 +253,18 @@ await prova("§5", async () => {
   await tocca(C.p, "Lavora su Margherita", 400);
   ok(/Su: Margherita/.test(await testoDi(C.p)), "il gesto neutro sposta il bersaglio senza toccare le quantità");
   ok(/Margherita/.test(await viva(C.p).innerText()), "ed è la Margherita a essere marcata");
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 450);
   ok(/Totale € 23,00/.test(await testoDi(C.p)),
     "l'ingrediente è finito sulla Margherita: 8,00 + 5,00 + 9,00 + 1,00 = € 23,00 (era 21,50)");
+  await apriFascia(C.p);
   await tocca(C.p, "Stacca da Margherita", 400);
   ok((await viva(C.p).count()) === 0 && /Nessuna riga scelta/.test(await testoDi(C.p)),
     "«Stacca» libera il bersaglio: da qui l'ingrediente torna a prendersi in mano");
   await tocca(C.p, "Svuota il conto", 400);
   /* vale per una */
   for (let i = 0; i < 3; i++) await tocca(C.p, "Aggiungi Margherita", 250);
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 450);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 1
     && (await C.p.getByRole("button", { name: "Aumenta Margherita + Broccoletti", exact: true }).count()) === 1,
@@ -248,14 +274,18 @@ await prova("§5", async () => {
 /* ═══ 6. DISFARE, DOVE È CADUTO L'ERRORE ═══ */
 console.log("\n— 6. disfare —");
 await prova("§6", async () => {
+  await apriFascia(C.p);
   await tocca(C.p, "Leva Broccoletti da Margherita", 450);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita + Broccoletti", exact: true }).count()) === 0,
     "lo stesso chip disfa: le tre Margherite tornano una riga sola");
   /* la × della sotto-riga, su una riga NON viva, con la mano piena */
   await tocca(C.p, "Aggiungi Boscaiola", 300);
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia su Boscaiola", 450);
   await tocca(C.p, "Lavora su Margherita", 400);
+  await apriFascia(C.p);
   await tocca(C.p, "Stacca da Margherita", 350);
+  await apriFascia(C.p);
   await tocca(C.p, "Prendi in mano Broccoletti", 350);
   await tocca(C.p, "Riga: leva Salsiccia da Boscaiola + Salsiccia", 500);
   const t = await testoDi(C.p);
@@ -281,6 +311,7 @@ await prova("§7", async () => {
   await tocca(C.p, "Aggiungi Boscaiola", 400);
   ok(/mozzarella, funghi, salsiccia/.test(await testoDi(C.p)),
     "e la fascia la ripete accanto al bersaglio: «su cosa lavoro» e «di cosa è fatto» in uno sguardo");
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia su Boscaiola", 450);
   const riga = viva(C.p);
   const tr = (await riga.innerText()).replace(/\s+/g, " ");
@@ -301,6 +332,7 @@ await prova("§8", async () => {
   ok(/Maxi/i.test(tp), "la cella del Panino stampa il NOME del formato: «Maxi»");
   ok(!/variant/i.test(tp), "e non più la parola muta «varianti»");
   await tocca(C.p, "Aggiungi Panino", 500);
+  await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia", 300);
   await tocca(C.p, "Maxi + Salsiccia · € 11,50", 500);
   const t = await testoDi(C.p);
@@ -435,6 +467,7 @@ await prova("§12", async () => {
     if (v === "Aggiungi Panino") { await M.p.getByRole("button", { name: "Così com'è · € 8,00", exact: true }).click(); await M.p.waitForTimeout(350); }
   }
   await M.p.getByRole("button", { name: "Aggiungi Boscaiola", exact: true }).click(); await M.p.waitForTimeout(300);
+  await apriFascia(M.p);
   await M.p.getByRole("button", { name: "Metti Salsiccia su Boscaiola", exact: true }).click(); await M.p.waitForTimeout(450);
   for (const n of ["Metti Broccoletti su Boscaiola", "Lavora su Boscaiola + Salsiccia", "Riga: leva Salsiccia da Boscaiola + Salsiccia"]) {
     const box = await M.p.getByRole("button", { name: n, exact: true }).first().boundingBox();
