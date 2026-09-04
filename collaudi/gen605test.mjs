@@ -312,9 +312,63 @@ await prova("§7", async () => {
   ok(!coda || coda.length === 0, `e la coda si e' svuotata — ${coda ? coda.length : 0}`);
 });
 
+/* ═══ 7b. E SE SI RICARICA PRIMA CHE LA CODA SI SVUOTI ═══
+   IL SECONDO BUCO CHE S6 HA SCOPERTO. §7 non bastava: li' a salvare la
+   situazione e' nuoveInCoda(), che decide di NON riscrivere. Il controllo
+   dentro il replay — quello che S6 spegne — conta in un momento diverso e
+   piu' cattivo: la scrittura e' arrivata, la risposta si e' persa, e il
+   telefono si RICARICA prima di essersene accorto. Al riavvio la coda
+   ritorna dal disco e la rete ha gia' quella vendita: senza il controllo,
+   il replay la riapplica sopra e per qualche secondo il cassiere vede DUE
+   scontrini e il magazzino sceso di due. Poi si corregge da solo, ma nel
+   frattempo lui ha letto un totale sbagliato — e magari ci ha dato il
+   resto. */
+console.log("\n— 7b. la risposta persa, e il telefono si ricarica —");
+const D = await apri("D", "2222");
+await prova("§7b", async () => {
+  await entra(D.p, "OpCassa", "2222");
+  await vaiA(D.p, "Cassa");
+  await D.p.waitForTimeout(700);
+  await D.p.evaluate(() => window.__perdiRisposta(true));
+  await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await D.p.waitForTimeout(300);
+  await incassa(D.p);
+  await D.p.waitForTimeout(1200);
+  const inRete = await salvato(D.p);
+  ok((inRete?.vendite || []).length === 1, `la vendita e' in rete — ${(inRete?.vendite || []).length}`);
+  const inCoda = await codaSalvata(D.p);
+  ok(Array.isArray(inCoda) && inCoda.length === 1,
+    `ma il telefono non lo sa e la tiene in coda — ${Array.isArray(inCoda) ? inCoda.length : String(inCoda)}`);
+  /* il ricaricamento nel momento peggiore */
+  await D.p.reload();
+  await D.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await D.p.waitForTimeout(1200);
+  await D.p.getByText("OpCassa", { exact: true }).first().click().catch(() => {});
+  await D.p.waitForTimeout(400);
+  for (const d of "2222") { await D.p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {}); await D.p.waitForTimeout(130); }
+  await D.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await D.p.waitForTimeout(1200);
+  await vaiA(D.p, "Cassa");
+  await D.p.waitForTimeout(900);
+  /* SUBITO, prima che la coda si svuoti: il totale di oggi deve dire UNA
+     pizza, non due. E' la cifra che il cassiere legge per dare il resto. */
+  const t = await testoDi(D.p);
+  ok(!/13,00/.test(t),
+    `subito dopo il riavvio il totale NON e' raddoppiato — a schermo: ${(t.match(/€ ?\d+,\d\d/g) || []).slice(0, 4).join(" ") || "nessun importo"}`);
+  await D.p.evaluate(() => window.__perdiRisposta(false));
+  await D.p.waitForTimeout(13000);
+  const fine = await salvato(D.p);
+  ok((fine?.vendite || []).length === 1,
+    `e alla fine in rete ce n'e' UNA sola — ${(fine?.vendite || []).length}`);
+  const art = (fine?.magazzini || []).find((m) => m.id === linea.id)?.articoli
+    ?.find((a) => a.prodottoId === moz.prodottoId);
+  ok(art && Math.abs(art.qty - 49) < 0.001,
+    `e il magazzino e' sceso una volta sola: mozzarella a ${art ? art.qty : "?"} (era 50)`);
+});
+
 ok(errs.length === 0, `zero errori JavaScript in tutto il giro${errs.length ? " — " + errs[0] : ""}`);
 
-await A.ctx.close(); await B.ctx.close(); await C.ctx.close();
+await A.ctx.close(); await B.ctx.close(); await C.ctx.close(); await D.ctx.close();
 await b.close();
 console.log(`\ngen605test: ${ko} controlli KO`);
 process.exit(ko ? 1 : 0);
