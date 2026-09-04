@@ -171,7 +171,14 @@ await prova("§2", async () => {
      va in blocco o il sistema sospende la scheda */
   await A.p.reload();
   await A.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
-  await A.p.waitForTimeout(1500);
+  await A.p.waitForTimeout(1200);
+  /* DOPO IL RICARICAMENTO SI RIENTRA COL PIN, ed e' giusto cosi': l'app
+     riparte dalla schermata dei profili. La coda e' gia' stata ritrovata —
+     il controllo qui sopra lo prova — ma la spia col numero la vede solo
+     chi e' dentro. Il collaudo deve rifare il gesto che fa il cassiere. */
+  for (const d of "2222") { await A.p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {}); await A.p.waitForTimeout(130); }
+  await A.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await A.p.waitForTimeout(1200);
   const dopo = await codaSalvata(A.p);
   ok(Array.isArray(dopo) && dopo.length >= 1,
     "dopo il ricaricamento la vendita è ancora in coda: non è sparita in silenzio");
