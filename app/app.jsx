@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.04";
+const VERSIONE = "gen-6.05";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -885,6 +885,21 @@ function applicaComanda(s, d) {
   }
   v.fatte = f;
 }
+/* ── IL REGISTRO DELLE MUTAZIONI SALVABILI (gen-6.05) ──
+   La coda di muta() contiene FUNZIONI, e una funzione non si salva su
+   disco. Finche' e' cosi', tutto quello che e' in attesa di invio vive
+   SOLO nella memoria della pagina: un ricaricamento, un blocco, o il
+   sistema che sospende la scheda, e sparisce senza un avviso. In servizio
+   normale la finestra e' di un secondo; quando la rete cade, e la coda
+   accumula tutto il periodo di buio, e' una serata di incassi.
+   Queste tre sono le uniche che portano SOLDI E ORDINI, e sono gia' pure
+   su dati semplici — il codice sopra lo dice a voce alta, e il call-site
+   della vendita porta gia' il commento «TUTTO calcolato fuori da muta, id
+   compreso». Quindi si accodano come DATI e sopravvivono al riavvio.
+   Tutto il resto resta closure: e' configurazione, si rifa' a mano, e
+   fingere di salvarla sarebbe peggio che dire che non si salva. */
+const ESECUTORI = { vendita: applicaVendita, storno: applicaStorno, spunta: applicaComanda };
+const CHIAVE_CODA = "scp:coda:v1";
 
 const numCsv = (n) => String(n ?? "").replace(".", ",");
 const dataIt = (t) => new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -4149,10 +4164,10 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
     if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
-    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} />;
     /* le Comande NON stanno nella lista chiusa: guardare lo schermo e
        spuntare quello che esce e' mestiere, come contare (gen-5.98) */
-    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} />;
     if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
@@ -12727,7 +12742,7 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
    Le stornate NON spariscono sotto le mani del cuoco: card barrata col
    motivo finche' qualcuno tocca «Vista» — presa d'atto locale, zero
    scritture. */
-function VistaComande({ stato, profilo, muta, mostraToast }) {
+function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
   const postazioni = stato.postazioni || [];
   /* IL PROFILO PROPONE, IL DISPOSITIVO COMANDA (gen-6.01). La sedia resta
      del DISPOSITIVO — il tablet di cucina e' un oggetto fisico attaccato
@@ -12817,7 +12832,7 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
     /* dati TUTTI da fuori, come per vendita e storno: la closure resta pura */
     const dati = { venditaId: c.v.id, gruppi: c.gruppiMiei, t: Date.now(), chi: profilo.nome,
       ...(togli ? { togli: true } : {}) };
-    muta((s) => applicaComanda(s, dati));
+    mutaDato("spunta", dati);
   };
 
   const intestaCarta = (c) => (
@@ -12968,7 +12983,7 @@ function VistaComande({ stato, profilo, muta, mostraToast }) {
    aggiorna lo stato non smonta la vista, quindi il conto sopravvive ai
    refresh; cambiando schermata si azzera, ed e' sano cosi' (un conto
    fantasma che riappare dopo un'ora e' peggio). */
-function VistaCassa({ stato, profilo, muta, mostraToast }) {
+function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
   const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
   const [sedeId, setSedeId] = useState(profilo.sedeId || sediOp[0]?.id || "");
   const [carrello, setCarrello] = useState([]);
@@ -13211,7 +13226,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
       totale, metodo, scarico: scarico.righe,
       ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
     };
-    muta((s) => applicaVendita(s, vendita), `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
+    mutaDato("vendita", vendita, `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
     setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
     /* chiude anche la fascia: il conto dopo riparte pulito come il primo
@@ -13237,7 +13252,7 @@ function VistaCassa({ stato, profilo, muta, mostraToast }) {
     }
     const dati = { stornoId: uid("vn"), origId: stornoDi.id, t: Date.now(),
       motivo: motivo.trim(), chi: profilo.nome, autorizzataDa };
-    muta((s) => applicaStorno(s, dati), `Storno di ${fmtEuro(stornoDi.totale)}: ${dati.motivo}`);
+    mutaDato("storno", dati, `Storno di ${fmtEuro(stornoDi.totale)}: ${dati.motivo}`);
     mostraToast(`Stornato ${fmtEuro(stornoDi.totale)}`);
     setStornoDi(null); setMotivo(""); setPinA("");
   };
@@ -14827,7 +14842,13 @@ export default function App() {
       /* la fotografia di prima serve solo se questa mutazione finisce nello
          storico: le altre non hanno niente da ripristinare */
       const pri = m.descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
-      try { m.fn(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
+      /* una voce SALVATA non ha una funzione: ha un tipo e dei dati, e si
+         rigioca dal registro. Un tipo sconosciuto (arrivato da una versione
+         piu' nuova rimasta in coda) si SALTA invece di far cadere il giro:
+         meglio una riga non applicata che una serata persa. */
+      const esegui = m.fn || (m.tipo && ESECUTORI[m.tipo] ? (x) => ESECUTORI[m.tipo](x, m.dati) : null);
+      if (!esegui) { console.warn("Mutazione salvata di tipo sconosciuto, saltata:", m.tipo); continue; }
+      try { esegui(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
       if (m.descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       if (m.logId) { gia.add(m.logId); b.applicate = [m.logId, ...(b.applicate || [])].slice(0, MAX_APPLICATE); }
     }
@@ -14872,6 +14893,7 @@ export default function App() {
          buttare via il lavoro credendolo gia' salvato. */
       if (remoto && !nuoveInCoda(base)) {
         codaRef.current = codaRef.current.slice(inviate);
+        specchiaCoda();
         baseRef.current = base; statoRef.current = base; setStato(base);
         riproveRef.current = 0; conflittiRef.current = 0;
         diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimoErrore: null,
@@ -14902,6 +14924,7 @@ export default function App() {
       }
       conflittiRef.current = 0;
       codaRef.current = codaRef.current.slice(inviate);
+      specchiaCoda();                          // salvate: lo specchio si accorcia con la coda
       baseRef.current = nuovo;
       const vista = codaRef.current.length ? applicaCoda(nuovo) : nuovo;
       statoRef.current = vista; setStato(vista);
@@ -14964,6 +14987,46 @@ export default function App() {
     return true;
   };
 
+  /* ── LA CODA CHE SOPRAVVIVE AL RIAVVIO (gen-6.05) ──
+     Si specchia sul TELEFONO, non nello stato: zero byte sul canale. E si
+     salva solo quello che e' serializzabile — le voci con un tipo. Le
+     closure non ci provano nemmeno: fingere di salvarle sarebbe peggio che
+     dire che non si salvano. Ogni scrittura su disco e' avvolta in un
+     try/catch, perche' in navigazione privata localStorage puo' rifiutare,
+     e un salvataggio impossibile non deve impedire la vendita. */
+  const specchiaCoda = () => {
+    try {
+      const salvabili = codaRef.current.filter((m) => m.tipo);
+      if (salvabili.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(salvabili));
+      else localStorage.removeItem(CHIAVE_CODA);
+    } catch {}
+  };
+  /* le tre mutazioni che portano soldi e ordini. Stessa forma di muta(), ma
+     la voce e' un DATO: {tipo, dati} invece di una funzione. */
+  const mutaDato = (tipo, dati, descr) => {
+    if (!statoRef.current) return true;
+    if (!ESECUTORI[tipo]) { console.warn("mutaDato: tipo sconosciuto", tipo); return false; }
+    const m = { tipo, dati, descr, chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l") };
+    if (modalitaRef.current === "locale") {
+      const b = clona(statoRef.current);
+      const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
+      try { ESECUTORI[tipo](b, dati); } catch {}
+      if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      b.ordini = sfoltisciOrdini(b.ordini);
+      b.vendite = sfoltisciVendite(b.vendite);
+      b.giornate = sfoltisciGiornate(b.giornate);
+      b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
+      setStato(b);
+      return true;
+    }
+    codaRef.current.push(m);
+    specchiaCoda();
+    setStato(applicaCoda(baseRef.current || statoRef.current));
+    setSync("salvataggio");
+    pianifica(0);
+    return true;
+  };
+
   /* avvio: carica o inizializza */
   useEffect(() => {
     (async () => {
@@ -14984,10 +15047,26 @@ export default function App() {
         baseRef.current = s; setStato(s); setSync("locale");
         return;
       }
+      /* IL RITROVAMENTO (gen-6.05). Quello che era rimasto in coda quando la
+         pagina e' morta torna PRIMA di leggere la rete, cosi' la vista che
+         il cassiere vede al riavvio contiene gia' le sue vendite e lui non
+         crede di doverle ribattere. Il dedup per logId dentro applicaCoda le
+         salta se erano gia' arrivate: ritrovarle non le conta due volte. */
+      try {
+        const grezza = localStorage.getItem(CHIAVE_CODA);
+        const rimaste = grezza ? JSON.parse(grezza) : null;
+        if (Array.isArray(rimaste) && rimaste.length) {
+          codaRef.current = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
+          if (codaRef.current.length) setSync("salvataggio");
+        }
+      } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       const letto = await leggiRemoto();
       if (letto) {
         const s = normalizza(letto);
-        baseRef.current = s; setStato(s); setSync("ok");
+        baseRef.current = s;
+        setStato(codaRef.current.length ? applicaCoda(s) : s);
+        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        if (codaRef.current.length) pianifica(0);
       } else {
         const seed = normalizza(await creaSeed());
         /* dichiara di partire dal nulla: se nel frattempo un altro telefono
