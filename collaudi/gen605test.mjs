@@ -176,15 +176,20 @@ await prova("§2", async () => {
   ok(Array.isArray(dopo) && dopo.length >= 1,
     "dopo il ricaricamento la vendita è ancora in coda: non è sparita in silenzio");
   const t = await testoDi(A.p);
-  ok(/non salvat|in attesa|da inviare|salvataggio/i.test(t),
-    "e a schermo c'è scritto che qualcosa non è ancora salvato");
+  /* «Riconnessione…» era vero ma non diceva la cosa che serve al cassiere:
+     QUANTE vendite sono rimaste indietro. Adesso la spia porta il numero —
+     ed e' una promessa mantenibile solo perche' la coda sopravvive. */
+  const spia = (t.match(/(\d+) da salvare/i) || [])[0];
+  ok(!!spia, `a schermo c'è scritto QUANTE ne mancano, non solo che qualcosa non va — ${spia || "niente"}`);
 });
 
 /* ═══ 3. LA RETE TORNA, E NON SI CONTA DUE VOLTE ═══ */
 console.log("\n— 3. la rete torna: si salva una volta sola —");
 await prova("§3", async () => {
   await A.p.evaluate(() => window.__uccidiRete(false));
-  await A.p.waitForTimeout(4000);
+  /* il rinvio cresce fino a 8 secondi: un'attesa corta darebbe un rosso
+     che non e' un difetto, e il rumore fa smettere di guardare i rossi */
+  await A.p.waitForTimeout(12000);
   const st = await salvato(A.p);
   const vendite = (st?.vendite || []).length;
   ok(vendite === 1, `la vendita ritrovata è finita in rete UNA volta sola — ${vendite}`);
@@ -239,7 +244,7 @@ await prova("§5", async () => {
 console.log("\n— 6. il canale non è cresciuto —");
 await prova("§6", async () => {
   await B.p.evaluate(() => window.__uccidiRete(false));
-  await B.p.waitForTimeout(4500);
+  await B.p.waitForTimeout(13000);
   const st = await salvato(B.p);
   ok(!("coda" in (st || {})), "la coda non è entrata nello stato che viaggia in rete");
   const chiavi = Object.keys(st || {});
