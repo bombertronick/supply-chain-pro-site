@@ -216,6 +216,10 @@ await prova("§3", async () => {
 /* ═══ 4. IL RESTO DELLA CASSA NON SI È MOSSO (verde anche su gen-6.04) ═══ */
 console.log("\n— 4. il resto della Cassa è fermo —");
 await prova("§4", async () => {
+  /* dopo il rientro col PIN l'app riparte dalla Home, non dalla Cassa: senza
+     questo passo il controllo cerca i tasti del banco su un'altra schermata */
+  await vaiA(A.p, "Cassa");
+  await A.p.waitForTimeout(700);
   await A.p.getByRole("button", { name: "Aggiungi Acqua", exact: true }).click();
   await A.p.waitForTimeout(300);
   await incassa(A.p);
