@@ -4009,7 +4009,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   );
 }
 
-function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }) {
+function Struttura({ stato, profilo, muta, mutaDato, sync, esci, mostraToast, ripristina }) {
   const [vista, setVista] = useState("home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
@@ -15198,7 +15198,7 @@ export default function App() {
       {!profilo ? (
         <SchermataLogin stato={stato} sync={sync} muta={muta} onEntra={entra} auth={auth} />
       ) : (
-        <Struttura stato={stato} profilo={profilo} muta={muta} sync={sync}
+        <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync}
           esci={esci} mostraToast={mostraToast} ripristina={ripristina} />
       )}
 
