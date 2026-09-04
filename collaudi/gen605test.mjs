@@ -92,11 +92,18 @@ const apri = async (nome, pin) => {
        gia' allineata. Sta su localStorage come lo stato che vuole misurare. */
     window.__reteMorta = () => { try { return localStorage.getItem("prova:rete-morta") === "1"; } catch { return false; } };
     window.__uccidiRete = (x) => { try { localStorage.setItem("prova:rete-morta", x ? "1" : "0"); } catch {} };
+    window.__retePersaRisposta = () => { try { return localStorage.getItem("prova:risposta-persa") === "1"; } catch { return false; } };
+    window.__perdiRisposta = (x) => { try { localStorage.setItem("prova:risposta-persa", x ? "1" : "0"); } catch {} };
     window.storage = {
       async get(k) { const v = localStorage.getItem("db:" + k); return v == null ? null : { value: v }; },
       async set(k, v) {
         if (window.__reteMorta()) throw new Error("rete morta (finta)");
-        localStorage.setItem("db:" + k, v); return true;
+        /* LA RETE BUGIARDA: la scrittura ARRIVA, la risposta si perde. E' il
+           caso in cui serve il controllo anti-doppione — senza, la vendita
+           gia' salvata verrebbe riapplicata sopra se stessa. */
+        localStorage.setItem("db:" + k, v);
+        if (window.__retePersaRisposta()) throw new Error("risposta persa (finta)");
+        return true;
       },
       async delete(k) { localStorage.removeItem("db:" + k); return true; },
     };
@@ -267,9 +274,47 @@ await prova("§6", async () => {
     `nessuna chiave nuova di primo livello — ${chiavi.filter((k) => /coda|pendenti|inAttesa/i.test(k)).join(",") || "nessuna"}`);
   ok((st?.vendite || []).length === 3, "e le tre vendite dell'altro telefono sono tutte in rete");
 });
+/* ═══ 7. LA SCRITTURA ARRIVATA, LA RISPOSTA PERSA ═══
+   IL BUCO CHE HA SCOPERTO IL SABOTAGGIO S6. Disattivare il controllo
+   anti-doppione non faceva rosso nessuno dei 23 controlli, e non perche' il
+   codice reggesse: perche' il banco non provava MAI il caso in cui quel
+   controllo serve. La rete morta non basta — li' la vendita non arriva, e
+   riapplicarla e' giusto. Il caso che costa soldi e' l'altro: la scrittura
+   ARRIVA e si perde la risposta. L'app crede di aver fallito, riprova, e
+   senza il controllo la vendita si conta DUE VOLTE — due scontrini nel
+   registro e due mozzarelle scalate per una pizza sola. */
+console.log("\n— 7. la scrittura arriva ma la risposta si perde —");
+const C = await apri("C", "2222");
+await prova("§7", async () => {
+  await entra(C.p, "OpCassa", "2222");
+  await vaiA(C.p, "Cassa");
+  await C.p.waitForTimeout(700);
+  await C.p.evaluate(() => window.__perdiRisposta(true));
+  await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await C.p.waitForTimeout(300);
+  await incassa(C.p);
+  await C.p.waitForTimeout(3000);
+  const dopo = await salvato(C.p);
+  ok((dopo?.vendite || []).length === 1,
+    `la vendita e' arrivata in rete, anche se l'app non l'ha saputo — ${(dopo?.vendite || []).length}`);
+  /* adesso la rete smette di mentire: l'app rilegge, si accorge che c'e'
+     gia', e deve svuotare la coda SENZA riscrivere */
+  await C.p.evaluate(() => window.__perdiRisposta(false));
+  await C.p.waitForTimeout(13000);
+  const fine = await salvato(C.p);
+  ok((fine?.vendite || []).length === 1,
+    `e resta UNA sola: il controllo del nome l'ha riconosciuta invece di riapplicarla — ${(fine?.vendite || []).length}`);
+  const art = (fine?.magazzini || []).find((m) => m.id === linea.id)?.articoli
+    ?.find((a) => a.prodottoId === moz.prodottoId);
+  ok(art && Math.abs(art.qty - 49) < 0.001,
+    `e il magazzino e' sceso UNA volta sola: mozzarella a ${art ? art.qty : "?"} (era 50)`);
+  const coda = await codaSalvata(C.p);
+  ok(!coda || coda.length === 0, `e la coda si e' svuotata — ${coda ? coda.length : 0}`);
+});
+
 ok(errs.length === 0, `zero errori JavaScript in tutto il giro${errs.length ? " — " + errs[0] : ""}`);
 
-await A.ctx.close(); await B.ctx.close();
+await A.ctx.close(); await B.ctx.close(); await C.ctx.close();
 await b.close();
 console.log(`\ngen605test: ${ko} controlli KO`);
 process.exit(ko ? 1 : 0);
