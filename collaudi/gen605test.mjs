@@ -86,11 +86,16 @@ const apri = async (nome, pin) => {
   await ctx.addInitScript(([j]) => {
     try { localStorage.setItem("scp:tour:v1", "1"); } catch {}
     if (!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1", j);
-    window.__reteMorta = window.__reteMorta || false;
+    /* LA RETE MORTA DEVE SOPRAVVIVERE AL RICARICAMENTO, se no il collaudo
+       non prova quello che dice di provare: al reload la finta rete tornava
+       viva, la coda si svuotava subito e il controllo guardava una pagina
+       gia' allineata. Sta su localStorage come lo stato che vuole misurare. */
+    window.__reteMorta = () => { try { return localStorage.getItem("prova:rete-morta") === "1"; } catch { return false; } };
+    window.__uccidiRete = (x) => { try { localStorage.setItem("prova:rete-morta", x ? "1" : "0"); } catch {} };
     window.storage = {
       async get(k) { const v = localStorage.getItem("db:" + k); return v == null ? null : { value: v }; },
       async set(k, v) {
-        if (window.__reteMorta) throw new Error("rete morta (finta)");
+        if (window.__reteMorta()) throw new Error("rete morta (finta)");
         localStorage.setItem("db:" + k, v); return true;
       },
       async delete(k) { localStorage.removeItem("db:" + k); return true; },
@@ -152,7 +157,7 @@ await prova("§2", async () => {
   await vaiA(A.p, "Cassa");
   await A.p.waitForTimeout(700);
   /* la rete muore PRIMA di battere */
-  await A.p.evaluate(() => { window.__reteMorta = true; });
+  await A.p.evaluate(() => window.__uccidiRete(true));
   await A.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await A.p.waitForTimeout(300);
   await incassa(A.p);
@@ -178,7 +183,7 @@ await prova("§2", async () => {
 /* ═══ 3. LA RETE TORNA, E NON SI CONTA DUE VOLTE ═══ */
 console.log("\n— 3. la rete torna: si salva una volta sola —");
 await prova("§3", async () => {
-  await A.p.evaluate(() => { window.__reteMorta = false; });
+  await A.p.evaluate(() => window.__uccidiRete(false));
   await A.p.waitForTimeout(4000);
   const st = await salvato(A.p);
   const vendite = (st?.vendite || []).length;
@@ -211,7 +216,7 @@ await prova("§5", async () => {
   await entra(B.p, "OpCassa", "2222");
   await vaiA(B.p, "Cassa");
   await B.p.waitForTimeout(700);
-  await B.p.evaluate(() => { window.__reteMorta = true; });
+  await B.p.evaluate(() => window.__uccidiRete(true));
   for (let i = 0; i < 3; i++) {
     await B.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
     await B.p.waitForTimeout(250);
@@ -233,7 +238,7 @@ await prova("§5", async () => {
 /* ═══ 6. NIENTE BYTE NUOVI SUL CANALE (verde anche su gen-6.04) ═══ */
 console.log("\n— 6. il canale non è cresciuto —");
 await prova("§6", async () => {
-  await B.p.evaluate(() => { window.__reteMorta = false; });
+  await B.p.evaluate(() => window.__uccidiRete(false));
   await B.p.waitForTimeout(4500);
   const st = await salvato(B.p);
   ok(!("coda" in (st || {})), "la coda non è entrata nello stato che viaggia in rete");
