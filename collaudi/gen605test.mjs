@@ -336,23 +336,42 @@ await prova("§7", async () => {
    scontrini e il magazzino sceso di due. Poi si corregge da solo, ma nel
    frattempo lui ha letto un totale sbagliato — e magari ci ha dato il
    resto. */
-console.log("\n— 7b. la risposta persa, e il telefono si ricarica —");
+console.log("\n— 7b. coda piena E rete piena insieme: il momento del replay —");
 const D = await apri("D", "2222");
 await prova("§7b", async () => {
   await entra(D.p, "OpCassa", "2222");
   await vaiA(D.p, "Cassa");
   await D.p.waitForTimeout(700);
-  await D.p.evaluate(() => window.__scriviUnaSola(true));
+  /* una vendita normale, che arriva in rete come si deve */
   await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await D.p.waitForTimeout(300);
   await incassa(D.p);
   await D.p.waitForTimeout(2500);
-  const inRete = await salvato(D.p);
-  ok((inRete?.vendite || []).length === 1, `la vendita e' in rete — ${(inRete?.vendite || []).length}`);
-  const inCoda = await codaSalvata(D.p);
-  ok(Array.isArray(inCoda) && inCoda.length === 1,
-    `ma il telefono non lo sa e la tiene in coda — ${Array.isArray(inCoda) ? inCoda.length : String(inCoda)}`);
-  /* il ricaricamento nel momento peggiore */
+  const rete = await salvato(D.p);
+  ok((rete?.vendite || []).length === 1, `la vendita e' in rete — ${(rete?.vendite || []).length}`);
+
+  /* ORA COSTRUISCO A MANO LO STATO CHE NON SI RIESCE A PRENDERE DI CORSA.
+     La coda si svuota da sola appena l'app rilegge la rete — nuoveInCoda si
+     accorge che c'e' gia' e la butta senza riscrivere — quindi «coda piena e
+     rete piena» dura mezzo secondo e non lo si becca a caso. E' pero' uno
+     stato REALE: la scrittura arriva, la risposta si perde, e il telefono si
+     ricarica prima del rinvio. Rimetto in coda la stessa vendita, col suo
+     nome (logId) gia' presente fra le applicate, e ricarico. Se il replay
+     non guardasse il nome, la riapplicherebbe sopra e il cassiere leggerebbe
+     il doppio. */
+  const rimesso = await D.p.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem("db:scp:stato:v1"));
+    const v = st.vendite[0];
+    const logId = (st.applicate || [])[0];
+    if (!v || !logId) return null;
+    localStorage.setItem("scp:coda:v1", JSON.stringify([
+      { tipo: "vendita", dati: v, descr: "Vendita in cassa (rimessa a mano dal collaudo)",
+        chi: "OpCassa", t: Date.now(), logId },
+    ]));
+    return { logId, totale: v.totale };
+  });
+  ok(!!rimesso, `la vendita e' tornata in coda col suo nome — ${rimesso ? rimesso.logId : "non costruita"}`);
+
   await D.p.reload();
   await D.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
   await D.p.waitForTimeout(1200);
@@ -360,19 +379,18 @@ await prova("§7b", async () => {
   await D.p.waitForTimeout(400);
   for (const d of "2222") { await D.p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {}); await D.p.waitForTimeout(130); }
   await D.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
-  await D.p.waitForTimeout(1200);
+  await D.p.waitForTimeout(1500);
   await vaiA(D.p, "Cassa");
   await D.p.waitForTimeout(900);
-  /* SUBITO, prima che la coda si svuoti: il totale di oggi deve dire UNA
-     pizza, non due. E' la cifra che il cassiere legge per dare il resto. */
+  /* LA CIFRA CHE IL CASSIERE LEGGE PER DARE IL RESTO: una pizza da 6,50,
+     non due. E' qui che il controllo del replay guadagna lo stipendio. */
   const t = await testoDi(D.p);
   ok(!/13,00/.test(t),
-    `subito dopo il riavvio il totale NON e' raddoppiato — a schermo: ${(t.match(/€ ?\d+,\d\d/g) || []).slice(0, 4).join(" ") || "nessun importo"}`);
-  await D.p.evaluate(() => window.__scriviUnaSola(false));
-  await D.p.waitForTimeout(13000);
+    `subito dopo il riavvio il totale di oggi NON e' raddoppiato — a schermo: ${(t.match(/€ ?\d+,\d\d/g) || []).slice(0, 4).join(" ") || "nessun importo"}`);
+  await D.p.waitForTimeout(6000);
   const fine = await salvato(D.p);
   ok((fine?.vendite || []).length === 1,
-    `e alla fine in rete ce n'e' UNA sola — ${(fine?.vendite || []).length}`);
+    `e in rete ce n'e' ancora UNA sola — ${(fine?.vendite || []).length}`);
   const art = (fine?.magazzini || []).find((m) => m.id === linea.id)?.articoli
     ?.find((a) => a.prodottoId === moz.prodottoId);
   ok(art && Math.abs(art.qty - 49) < 0.001,
