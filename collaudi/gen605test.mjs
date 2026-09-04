@@ -176,9 +176,13 @@ await prova("§2", async () => {
      riparte dalla schermata dei profili. La coda e' gia' stata ritrovata —
      il controllo qui sopra lo prova — ma la spia col numero la vede solo
      chi e' dentro. Il collaudo deve rifare il gesto che fa il cassiere. */
+  /* il rientro e' NOME POI PIN, come al primo accesso: col solo PIN si resta
+     fermi sulla schermata dei profili, e ogni controllo dopo misura quella */
+  await A.p.getByText("OpCassa", { exact: true }).first().click().catch(() => {});
+  await A.p.waitForTimeout(400);
   for (const d of "2222") { await A.p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {}); await A.p.waitForTimeout(130); }
   await A.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
-  await A.p.waitForTimeout(1200);
+  await A.p.waitForTimeout(1500);
   const dopo = await codaSalvata(A.p);
   ok(Array.isArray(dopo) && dopo.length >= 1,
     "dopo il ricaricamento la vendita è ancora in coda: non è sparita in silenzio");
@@ -187,7 +191,7 @@ await prova("§2", async () => {
      QUANTE vendite sono rimaste indietro. Adesso la spia porta il numero —
      ed e' una promessa mantenibile solo perche' la coda sopravvive. */
   const spia = (t.match(/(\d+) da salvare/i) || [])[0];
-  ok(!!spia, `a schermo c'è scritto QUANTE ne mancano, non solo che qualcosa non va — ${spia || "niente"}`);
+  ok(!!spia, `a schermo c'è scritto QUANTE ne mancano, non solo che qualcosa non va — ${spia || "NIENTE. A schermo c'era: " + t.slice(0, 150)}`);
 });
 
 /* ═══ 3. LA RETE TORNA, E NON SI CONTA DUE VOLTE ═══ */
