@@ -94,6 +94,8 @@ const apri = async (nome, pin) => {
     window.__uccidiRete = (x) => { try { localStorage.setItem("prova:rete-morta", x ? "1" : "0"); } catch {} };
     window.__retePersaRisposta = () => { try { return localStorage.getItem("prova:risposta-persa") === "1"; } catch { return false; } };
     window.__perdiRisposta = (x) => { try { localStorage.setItem("prova:risposta-persa", x ? "1" : "0"); } catch {} };
+    window.__unaEPoiBasta = () => { try { return localStorage.getItem("prova:una-e-basta") === "1"; } catch { return false; } };
+    window.__scriviUnaSola = (x) => { try { localStorage.setItem("prova:una-e-basta", x ? "1" : "0"); if (!x) localStorage.removeItem("prova:gia-scritto"); } catch {} };
     window.storage = {
       async get(k) { const v = localStorage.getItem("db:" + k); return v == null ? null : { value: v }; },
       async set(k, v) {
@@ -101,6 +103,17 @@ const apri = async (nome, pin) => {
         /* LA RETE BUGIARDA: la scrittura ARRIVA, la risposta si perde. E' il
            caso in cui serve il controllo anti-doppione — senza, la vendita
            gia' salvata verrebbe riapplicata sopra se stessa. */
+        /* MODO «UNA E POI BASTA»: la prima scrittura ARRIVA e perde la
+           risposta, tutte le successive falliscono senza scrivere. Serve a
+           tenere ferma la coda mentre la rete ha gia' il dato — l'unico
+           modo per arrivare al ricaricamento con coda piena E rete piena,
+           che e' il caso in cui il controllo del replay conta davvero. */
+        if (window.__unaEPoiBasta()) {
+          if (localStorage.getItem("prova:gia-scritto") === "1") throw new Error("rete morta dopo la prima (finta)");
+          localStorage.setItem("db:" + k, v);
+          localStorage.setItem("prova:gia-scritto", "1");
+          throw new Error("risposta persa (finta)");
+        }
         localStorage.setItem("db:" + k, v);
         if (window.__retePersaRisposta()) throw new Error("risposta persa (finta)");
         return true;
@@ -329,11 +342,11 @@ await prova("§7b", async () => {
   await entra(D.p, "OpCassa", "2222");
   await vaiA(D.p, "Cassa");
   await D.p.waitForTimeout(700);
-  await D.p.evaluate(() => window.__perdiRisposta(true));
+  await D.p.evaluate(() => window.__scriviUnaSola(true));
   await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await D.p.waitForTimeout(300);
   await incassa(D.p);
-  await D.p.waitForTimeout(1200);
+  await D.p.waitForTimeout(2500);
   const inRete = await salvato(D.p);
   ok((inRete?.vendite || []).length === 1, `la vendita e' in rete — ${(inRete?.vendite || []).length}`);
   const inCoda = await codaSalvata(D.p);
@@ -355,7 +368,7 @@ await prova("§7b", async () => {
   const t = await testoDi(D.p);
   ok(!/13,00/.test(t),
     `subito dopo il riavvio il totale NON e' raddoppiato — a schermo: ${(t.match(/€ ?\d+,\d\d/g) || []).slice(0, 4).join(" ") || "nessun importo"}`);
-  await D.p.evaluate(() => window.__perdiRisposta(false));
+  await D.p.evaluate(() => window.__scriviUnaSola(false));
   await D.p.waitForTimeout(13000);
   const fine = await salvato(D.p);
   ok((fine?.vendite || []).length === 1,
