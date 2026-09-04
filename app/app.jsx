@@ -1677,7 +1677,12 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
 }
 
 /* ─────────── STRUTTURA · NAVIGAZIONE ─────────── */
-function SincroChip({ sync }) {
+/* QUANTE NE MANCANO, non solo «c'e' qualcosa che non va» (gen-6.05).
+   «Riconnessione…» e' vero ma non dice la cosa che serve al cassiere: che
+   ha delle VENDITE non ancora salvate, e quante. Con la coda che adesso
+   sopravvive al riavvio, quel numero e' una promessa mantenibile — prima
+   sarebbe stata una bugia, perche' al ricaricamento sparivano davvero. */
+function SincroChip({ sync, daSalvare = 0 }) {
   const cfg = {
     ok: [Cloud, T.verde, "Sincronizzato"],
     salvataggio: [RefreshCw, T.blu, "Salvataggio…"],
@@ -1685,7 +1690,11 @@ function SincroChip({ sync }) {
     locale: [CloudOff, T.tenue, "Solo locale"],
     init: [RefreshCw, T.tenue, "…"],
   }[sync] || [Cloud, T.tenue, ""];
-  const [I, col, testo] = cfg;
+  const [I, col, testo0] = cfg;
+  const testo = daSalvare > 0
+    ? `${daSalvare} da salvare`
+    : testo0;
+  const col2 = daSalvare > 0 ? T.ambra : col;
   /* ── LA SPIA SI VEDE ANCHE SUL TELEFONO (gen-5.91) ──
      Qui c'era «hidden sm:inline-flex»: la pastiglia spariva sotto i 640px,
      cioe' su OGNI telefono — proprio i dispositivi su cui si conta in
@@ -1696,12 +1705,12 @@ function SincroChip({ sync }) {
      quando c'e' qualcosa da sapere, e in quel caso la si vede eccome. */
   const daSapere = sync !== "ok" && sync !== "init";
   return (
-    <span className={(daSapere ? "inline-flex" : "hidden sm:inline-flex")
+    <span className={(daSapere || daSalvare > 0 ? "inline-flex" : "hidden sm:inline-flex")
       + " items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"}
-      style={{ color: col, background: `${col}16` }}>
+      style={{ color: col2, background: `${col2}16` }}>
       <I size={13} className={sync === "salvataggio" ? "sc-gira" : ""} />
       {testo}
-      {sync === "ok" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: col, animation: "scPulsa 2s ease-in-out infinite" }} />}
+      {sync === "ok" && daSalvare === 0 && <span className="w-1.5 h-1.5 rounded-full" style={{ background: col2, animation: "scPulsa 2s ease-in-out infinite" }} />}
     </span>
   );
 }
@@ -4009,7 +4018,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   );
 }
 
-function Struttura({ stato, profilo, muta, mutaDato, sync, esci, mostraToast, ripristina }) {
+function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, mostraToast, ripristina }) {
   const [vista, setVista] = useState("home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
@@ -4231,7 +4240,7 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, esci, mostraToast, ri
           <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>Magazzino, cassa e comande</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <SincroChip sync={sync} />
+          <SincroChip sync={sync} daSalvare={daSalvare} />
           <button onClick={() => setCerca(true)} aria-label="Cerca un prodotto o una funzione"
             className="rounded-full flex items-center justify-center shrink-0"
             style={{ width: 36, height: 36, background: "#EAF0FE", color: T.blu }}>
@@ -14774,6 +14783,11 @@ export default function App() {
   const [stato, setStato] = useState(null);
   const [profiloId, setProfiloId] = useState(null);
   const [sync, setSync] = useState("init"); // ok | salvataggio | offline | locale
+  /* QUANTE VENDITE SONO ANCORA DA SALVARE (gen-6.05). Vive accanto a sync
+     perche' e' la stessa informazione da due angoli: sync dice COME va il
+     canale, questo dice COSA e' rimasto indietro. Si aggiorna dove la coda
+     cambia, cioe' dentro specchiaCoda: un posto solo, e non si dimentica. */
+  const [daSalvare, setDaSalvare] = useState(0);
   const [toast, setToast] = useState(null);
   const statoRef = useRef(null);
   useEffect(() => { statoRef.current = stato; }, [stato]);
@@ -14995,8 +15009,9 @@ export default function App() {
      try/catch, perche' in navigazione privata localStorage puo' rifiutare,
      e un salvataggio impossibile non deve impedire la vendita. */
   const specchiaCoda = () => {
+    const salvabili = codaRef.current.filter((m) => m.tipo);
+    setDaSalvare(salvabili.length);
     try {
-      const salvabili = codaRef.current.filter((m) => m.tipo);
       if (salvabili.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(salvabili));
       else localStorage.removeItem(CHIAVE_CODA);
     } catch {}
@@ -15057,7 +15072,7 @@ export default function App() {
         const rimaste = grezza ? JSON.parse(grezza) : null;
         if (Array.isArray(rimaste) && rimaste.length) {
           codaRef.current = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
-          if (codaRef.current.length) setSync("salvataggio");
+          if (codaRef.current.length) { setSync("salvataggio"); setDaSalvare(codaRef.current.length); }
         }
       } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       const letto = await leggiRemoto();
@@ -15198,7 +15213,7 @@ export default function App() {
       {!profilo ? (
         <SchermataLogin stato={stato} sync={sync} muta={muta} onEntra={entra} auth={auth} />
       ) : (
-        <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync}
+        <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync} daSalvare={daSalvare}
           esci={esci} mostraToast={mostraToast} ripristina={ripristina} />
       )}
 
