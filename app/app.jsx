@@ -591,7 +591,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.05";
+const VERSIONE = "gen-6.06";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -1351,7 +1351,7 @@ function Spiega({ id, titolo = "Come funziona", colore = T.blu, sfondo = "#EFF4F
 }
 
 /* ─────────── ACCESSO · PROFILI + PIN ─────────── */
-function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
+function SchermataLogin({ stato, sync, daSalvare = 0, muta, onEntra, auth }) {
   const [vista, setVista] = useState("profili"); // profili | codice | richiesta | attesa
   const [sel, setSel] = useState(null);
   const [pin, setPin] = useState("");
@@ -1483,6 +1483,35 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
 
       {vista === "profili" && !sel && (
         <div className="sc-fade w-full max-w-md flex flex-col gap-3 pb-10">
+          {/* ── QUELLO CHE ASPETTA, DETTO PRIMA DI ENTRARE (gen-6.06) ──
+              Se il telefono si e' spento con delle vendite ancora da mandare,
+              chi lo riprende in mano deve saperlo SUBITO — non dopo il login,
+              e non solo dalla pastiglia in alto che qui nemmeno esiste (la
+              barra vive dentro Struttura, che prima dell'accesso non c'e').
+              Senza questa riga il ritrovamento funziona ma resta invisibile
+              finche' qualcuno non entra, e un telefono lasciato sul bancone
+              sembra a posto mentre tiene fermi dei soldi.
+              Dice anche COSA fare, perche' l'informazione da sola non basta:
+              partono da sole appena qualcuno entra. */}
+          {daSalvare > 0 && (
+            <Scheda className="p-4" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55` }}>
+              {/* il marcatore sta QUI e non su Scheda: Scheda non inoltra gli
+                  attributi che non conosce, quindi li' sarebbe sparito dal
+                  documento — e un collaudo che cerca un marcatore assente non
+                  distingue «il cartello non c'e'» da «il cartello non e'
+                  marcato». Trovato dal banco, non da me. */}
+              <div className="flex items-start gap-3" data-da-salvare={daSalvare}>
+                <CloudOff size={18} style={{ color: T.ambra }} className="mt-0.5 shrink-0" />
+                <div className="text-sm" style={{ color: T.ink }}>
+                  <b>{daSalvare === 1 ? "1 vendita da salvare" : `${daSalvare} vendite da salvare`}</b>
+                  {" "}su questo telefono: erano in attesa quando l'app si è chiusa.
+                  <span className="block text-xs mt-0.5" style={{ color: T.dim }}>
+                    Non si perdono e non si contano due volte: partono da sole appena entri.
+                  </span>
+                </div>
+              </div>
+            </Scheda>
+          )}
           {stato.avvisoDemo && !(stato.codici || []).length && (
             <Scheda className="p-4" style={{ background: "#F1EDFE", border: "1px solid #DCD2FA" }}>
               <div className="flex items-start gap-3">
@@ -14833,8 +14862,20 @@ export default function App() {
     setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), 2800);
   };
 
+  /* Le liste che mancano diventano vuote invece di restare «non esiste».
+     Le prime dodici c'erano gia'; le sei di STRUTTURA le ho aggiunte in
+     gen-6.06 dopo che il banco ha trovato l'errore vero: quando l'accesso
+     riesce ma i dati NON arrivano (la sessione nasce, poi la rete cade fra una
+     chiamata e l'altra), lo stato si costruisce coi soli profili — e la prima
+     schermata che fa «stato.magazzini.filter(...)» muore con un errore
+     JavaScript, cioe' pagina bianca invece di «non ho i dati».
+     Il difetto c'era da prima di gen-6.06: l'ha scoperto una sezione di
+     collaudo scritta per chiudere un buco del banco, non un cambiamento del
+     codice. «...s» viene dopo, quindi i dati veri non vengono mai toccati:
+     questa riga puo' solo evitare un crollo, mai nascondere un dato. */
   const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
-    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [], ...s });
+    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [],
+    magazzini: [], prodotti: [], sedi: [], unita: [], categorie: [], fornitori: [], profili: [], ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {
@@ -15045,6 +15086,32 @@ export default function App() {
   /* avvio: carica o inizializza */
   useEffect(() => {
     (async () => {
+      /* ── IL RITROVAMENTO (gen-6.05), RIPARATO (gen-6.06) ──
+         A gen-6.05 questo blocco stava DOPO il bivio qui sotto, cioe' solo nel
+         ramo classico. Il ramo sicuro fa «return» prima di arrivarci, ed
+         entra() non lo rileggeva: in produzione — che gira in modo sicuro — la
+         coda si scriveva sul telefono e non si rileggeva PIU'. Il difetto che
+         avevo annunciato chiuso era chiuso a meta', e trentadue controlli verdi
+         non l'hanno visto perche' il banco fingeva una rete senza login.
+         Adesso sta PRIMA del bivio, ed e' il posto giusto anche per ragione:
+         leggere il proprio disco non dipende dalla rete, quindi non ha nessun
+         motivo di vivere dentro un ramo che parla di rete.
+         Qui si ripesca e si accende la spia, e basta. In modo sicuro lo stato
+         vero non c'e' ancora (prima del login c'e' solo l'elenco dei nomi):
+         rigiocare una vendita su quello non vorrebbe dire niente, e scrivere e'
+         impossibile perche' senza token le RPC rifiutano — tre tentativi
+         falliti direbbero «offline» sulla schermata dei nomi, dove nessuno ha
+         ancora sbagliato niente. La coda si rigioca dentro entra(). */
+      let ritrovate = 0;
+      try {
+        const grezza = localStorage.getItem(CHIAVE_CODA);
+        const rimaste = grezza ? JSON.parse(grezza) : null;
+        if (Array.isArray(rimaste) && rimaste.length) {
+          codaRef.current = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
+          ritrovate = codaRef.current.length;
+          if (ritrovate) { setSync("salvataggio"); setDaSalvare(ritrovate); }
+        }
+      } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       if (auth) {
         /* modalità sicura: prima del login si mostra SOLO l'elenco
            dei nomi (niente dati, niente PIN). Lo stato completo si
@@ -15052,29 +15119,28 @@ export default function App() {
         try {
           const lista = await auth.loginList();
           const pre = normalizza({ profili: Array.isArray(lista) ? lista : [], __prelogin: true });
-          baseRef.current = null; statoRef.current = pre; setStato(pre); setSync("ok");
+          baseRef.current = null; statoRef.current = pre; setStato(pre);
+          /* la spia vince sul verde: con delle vendite in attesa non si scrive
+             «tutto a posto» nemmeno sulla schermata dei nomi */
+          setSync(ritrovate ? "salvataggio" : "ok");
         } catch { setSync("offline"); }
         return;
       }
       if (!haStorage()) {
+        /* SENZA ARCHIVIAZIONE CONDIVISA LA CODA NON PUO' PARTIRE MAI, e tenerla
+           in mano vorrebbe dire mostrare per sempre «N da salvare» a chi non ha
+           nessun posto dove salvare: una promessa che nessuno puo' mantenere.
+           Qui il ritrovamento si annulla, e la coda resta sul disco per il
+           giorno in cui quel telefono ritrova la rete vera.
+           (Prima di gen-6.06 questo caso non esisteva perche' il ritrovamento
+           stava piu' in basso; spostandolo sopra il bivio l'ho creato io, e me
+           l'ha fatto vedere il ramo, non un collaudo.) */
+        codaRef.current = []; setDaSalvare(0);
         modalitaRef.current = "locale";
         const s = normalizza(await creaSeed());
         baseRef.current = s; setStato(s); setSync("locale");
         return;
       }
-      /* IL RITROVAMENTO (gen-6.05). Quello che era rimasto in coda quando la
-         pagina e' morta torna PRIMA di leggere la rete, cosi' la vista che
-         il cassiere vede al riavvio contiene gia' le sue vendite e lui non
-         crede di doverle ribattere. Il dedup per logId dentro applicaCoda le
-         salta se erano gia' arrivate: ritrovarle non le conta due volte. */
-      try {
-        const grezza = localStorage.getItem(CHIAVE_CODA);
-        const rimaste = grezza ? JSON.parse(grezza) : null;
-        if (Array.isArray(rimaste) && rimaste.length) {
-          codaRef.current = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
-          if (codaRef.current.length) { setSync("salvataggio"); setDaSalvare(codaRef.current.length); }
-        }
-      } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       const letto = await leggiRemoto();
       if (letto) {
         const s = normalizza(letto);
@@ -15148,7 +15214,22 @@ export default function App() {
       try {
         const letto = await leggiRemoto();
         const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [] });
-        baseRef.current = s; statoRef.current = s; setStato(s); setSync("ok");
+        baseRef.current = s;
+        /* ── LA CODA RITROVATA SI RIGIOCA QUI (gen-6.06) ──
+           In modo sicuro questo e' il PRIMO momento in cui esiste uno stato
+           vero su cui applicarla. Da qui in poi il cassiere che riapre vede
+           gia' le sue vendite nel conto della giornata e non le ribatte, e
+           l'invio riparte da solo. Il dedup per logId dentro applicaCoda le
+           salta se erano gia' arrivate: ritrovarle non le conta due volte.
+           Solo se la lettura e' RIUSCITA: applicare una vendita al guscio dei
+           soli nomi darebbe una vista falsa, e farebbe partire una scrittura
+           costruita sul niente. Se la rete non ha risposto, la coda resta dov'e'
+           — sul disco e in memoria — e la spia continua a dirlo. */
+        const conCoda = !!letto && codaRef.current.length > 0;
+        const vista = conCoda ? applicaCoda(s) : s;
+        statoRef.current = vista; setStato(vista);
+        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        if (conCoda) pianifica(0);
       } catch {}
     }
     setProfiloId(pid);
@@ -15211,7 +15292,7 @@ export default function App() {
         style={{ width: 380, height: 380, bottom: -140, left: -120, background: "radial-gradient(circle,#D96AC024,transparent 65%)", filter: "blur(10px)", animation: "scBlob 18s ease-in-out infinite reverse" }} />
 
       {!profilo ? (
-        <SchermataLogin stato={stato} sync={sync} muta={muta} onEntra={entra} auth={auth} />
+        <SchermataLogin stato={stato} sync={sync} daSalvare={daSalvare} muta={muta} onEntra={entra} auth={auth} />
       ) : (
         <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync} daSalvare={daSalvare}
           esci={esci} mostraToast={mostraToast} ripristina={ripristina} />
