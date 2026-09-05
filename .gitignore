@@ -29,3 +29,4 @@ collaudi/*-lib-src.jsx
 # «node_modules/» sopra prende le CARTELLE, non i collegamenti, e il 4 agosto
 # uno di questi e' finito dentro un commit.
 collaudi/node_modules
+.gara/
