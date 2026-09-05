@@ -1,5 +1,16 @@
 /* gen-6.07 «Di solito ne escono» — la media dei consumi nel conteggio di fine giornata.
 
+   PERCHE' QUESTO FILE NON SI CHIAMA «...test.mjs». E' un collaudo scritto PRIMA
+   del codice — cioe' una SPECIFICA — e finche' il codice non esiste e' rosso
+   per costruzione. Col nome «gen607test.mjs» il censimento lo raccoglieva e
+   sputava una rossa che non e' un difetto dell'app ma la mia lista della spesa:
+   e un rosso che non e' un difetto e' la cosa peggiore in un rapporto
+   automatico, perche' insegna a ignorare i rossi (la stessa ragione per cui
+   esistono le «SALTATE»). Il lanciatore prende solo i file che finiscono in
+   «test.mjs», quindi questo resta fuori finche' non lo rinomino — e lo
+   rinominero' quando il codice sara' scritto e i rossi registrati per bene.
+   Nel frattempo si fa girare a mano: node gen607.specifica.mjs
+
    LE PAROLE DI VALERIO (4 settembre): «a fine giornata quando l'operatore fa il
    controllo per l'ordine che deve essere inviato al laboratorio il sistema
    calcola la media di prodotto utilizzato in base a quanto manca dalle soglie
