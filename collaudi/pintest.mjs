@@ -3,8 +3,18 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { vaiA } from "./navtest.mjs";
 import crypto from "crypto";
+import { apriServer } from "./servi.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
+/* SERVITO SU HTTP, NON APERTO DA DISCO (5 settembre 2026). Questo collaudo
+   fa vivere lo stato attraverso un ricaricamento (o fra due pagine) usando
+   localStorage, e su file:// Chromium tratta l'origine come OPACA: ogni pagina
+   puo' ricevere un'archiviazione SUA. Nel censimento di gen-6.06 pin2test e'
+   uscita rossa esattamente per questo — il secondo telefono guardava un altro
+   magazzino — e da sola passava tre volte su tre. Un'origine vera toglie di
+   mezzo la domanda. Vedi servi.mjs. */
+const srv = await apriServer();
+const URL = srv.url;
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
 let ko = 0;
 const ok = (c, m) => { console.log((c ? "  ok  " : "  KO  ") + m); if (!c) ko++; };
@@ -36,7 +46,7 @@ await p.addInitScript((s) => {
 const leggiDb = () => p.evaluate(() => JSON.parse(localStorage.getItem("db:scp:stato:v1")));
 const digita = async (pin) => { for (const d of pin) await p.getByRole("button", { name: d, exact: true }).first().click(); };
 
-await p.goto("file://" + path.resolve("index.html"));
+await p.goto(URL);
 await p.waitForTimeout(1500);
 
 /* 1. entro come Admin */
@@ -71,7 +81,7 @@ ok(gigi?.pinHash === hash("9999"),
 ok(dopo.profili.length === 2, "non è stato creato un profilo doppione (sono " + dopo.profili.length + ")");
 
 /* 4. la prova del nove: Gigi riesce a entrare con 9999? */
-await p.goto("file://" + path.resolve("index.html"));
+await p.goto(URL);
 await p.waitForTimeout(1500);
 await p.getByText("Gigi", { exact: false }).first().click();
 await p.waitForTimeout(400);
@@ -91,5 +101,6 @@ await p.screenshot({ path: "pin-1-esito.png", fullPage: true });
 
 ok(errs.length === 0, "nessun errore JS" + (errs.length ? " → " + errs[0] : ""));
 await b.close();
+await srv.chiudi();
 console.log(ko ? `\n${ko} controlli falliti` : "\ntutti i controlli passati");
 process.exit(ko ? 1 : 0);

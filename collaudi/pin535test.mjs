@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { apriServer } from "./servi.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·"+p,"utf8").digest("hex");
 let ko = 0; const ok = (c,m) => { console.log((c?"  ok  ":"  KO  ")+m); if(!c) ko++; };
@@ -12,7 +13,15 @@ seed.profili = [
   {...seed.profili[1], id:"pr-gigi", nome:"Gigi", ruolo:"laboratorio",
    sedeId:seed.sedi.find(s=>s.tipo==="laboratorio")?.id, pinHash:hash("1111")},
 ];
-const URL = "file://" + path.resolve("index.html");
+/* SERVITO SU HTTP, NON APERTO DA DISCO (5 settembre 2026). Questo collaudo
+   fa vivere lo stato attraverso un ricaricamento (o fra due pagine) usando
+   localStorage, e su file:// Chromium tratta l'origine come OPACA: ogni pagina
+   puo' ricevere un'archiviazione SUA. Nel censimento di gen-6.06 pin2test e'
+   uscita rossa esattamente per questo — il secondo telefono guardava un altro
+   magazzino — e da sola passava tre volte su tre. Un'origine vera toglie di
+   mezzo la domanda. Vedi servi.mjs. */
+const srv = await apriServer();
+const URL = srv.url;
 const b = await chromium.launch({executablePath:exe,args:["--no-sandbox"]});
 const ctx = await b.newContext({viewport:{width:1280,height:950}});
 /* 31/08/2026 — lo script di init gira anche sull'about:blank che Playwright
@@ -89,5 +98,6 @@ await p.screenshot({path:"pin535-dentro.png"});
 
 ok(errs.length===0, "nessun errore JS" + (errs.length?" → "+errs[0]:""));
 await b.close();
+await srv.chiudi();
 console.log(ko ? `\n${ko} controlli falliti` : "\ntutti i controlli passati");
 process.exit(ko?1:0);
