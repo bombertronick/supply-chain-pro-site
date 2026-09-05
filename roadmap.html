@@ -187,9 +187,19 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata il 5 settembre</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 5 settembre, sera</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Venticinque lavori online.</b> L'ultimo <b>non me l'hai chiesto tu:
+  <p class="apertura"><b>Ventisei lavori online.</b> L'ultimo è la <b>riparazione di una cosa
+  che ti avevo detto fatta e non lo era</b>. Stamattina ti ho annunciato che le vendite in
+  attesa tornano da sole alla riaccensione. Tornavano — ma solo su una delle due strade con cui
+  l'app può avviarsi, e <b>la tua app usa l'altra</b>: quella col login vero che passa dal
+  server. In cucina, quindi, la coda si scriveva sul telefono e <b>non veniva più riletta</b>.
+  Il difetto che avevo dichiarato chiuso era chiuso a metà, e non me ne sono accorto perché i
+  miei trentadue controlli verdi provavano la strada sbagliata. L'hanno trovato sei lettori
+  indipendenti che avevo messo a studiare il codice <b>per un altro lavoro</b>. Adesso è
+  riparato davvero, con il primo collaudo che finge il login vero, e sulla schermata dei nomi
+  compare un cartello: <b>«1 vendita da salvare su questo telefono»</b> — così chi lo riprende
+  in mano lo sa prima ancora di entrare. Prima, sempre oggi: <b>non me l'avevi chiesto tu:
   l'ho trovato io mentre misuravo se l'app regge i cento scontrini in quattro ore</b>, ed era
   la cosa più grave che ci fosse. Quando batti una vendita, quella vendita entra in una fila
   d'attesa prima di partire verso il database. Quella fila viveva <b>solo nella memoria della
@@ -218,7 +228,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.05</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.06</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -227,9 +237,22 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Un rilascio, e non l'avevi chiesto tu: gen-6.05 «La coda che non si perde».</b>
+      <dd><b>Due rilasci, e il secondo ripara il primo.</b> <b>gen-6.06 «Il ritrovamento arriva
+      davvero»</b>: quello che ti ho annunciato stamattina funzionava solo su una delle due
+      strade di avvio dell'app, e la tua usa l'altra. Te lo dico chiaro perché è il genere di
+      cosa che non va nascosta in un commento: <b>ho dichiarato chiuso un difetto che era chiuso
+      a metà</b>. Il codice del ritrovamento adesso sta <b>prima</b> del bivio fra le due strade
+      — leggere il proprio telefono non dipende dalla rete, non aveva ragione di stare dentro un
+      ramo che parla di rete — e il momento del login rigioca quello che era rimasto. Nello
+      stesso giro, due difetti più vecchi trovati dal collaudo nuovo: se l'accesso riesce ma i
+      dati non arrivano l'app andava in <b>pagina bianca</b> invece di dire «non ho i dati»
+      (riparato), e senza una guardia che ho aggiunto avrebbe potuto <b>scrivere in rete uno
+      stato vuoto sopra i dati veri, azzerando i magazzini di tutti</b> — quest'ultima non è mai
+      successa, l'ho scoperta rompendo il codice apposta per vedere se il collaudo se ne
+      accorgeva. Prima, stamattina: <b>gen-6.05 «La coda che non si perde»</b>, e non l'avevi
+      chiesto tu.
       Stavo misurando il traffico per capire se l'app regge i cento scontrini in quattro ore, e
       leggendo il codice della fila d'attesa ho trovato che <b>quello che è in attesa di partire
       vive solo nella memoria della pagina</b>. Un ricaricamento e sparisce. Non è un rischio
@@ -247,7 +270,14 @@
       sei rossi contati uno per uno, e <b>il settimo muto</b> — invece di far finta di niente ho
       fatto due esperimenti in più e ho dimostrato che quella guardia è ridondante con
       un'altra, cioè che il codice regge anche togliendone una. Il banco mi ha mentito due
-      volte e sta scritto nei commit. Prima, il 2 settembre: <b>gen-6.02 «Le aggiunte»,
+      volte e sta scritto nei commit. <b>E me ne ha mentita una terza, in un modo nuovo</b>:
+      lo stesso collaudo mi ha dato dieci risultati diversi sullo stesso identico codice, e per
+      mezza giornata ho cercato un difetto che non c'era. La causa era il modo in cui i miei
+      collaudi aprono l'app — come un file sul disco — che può dare a ogni pagina una memoria
+      separata: quindi «scrivo, riavvio, non c'è più» misurava la pagina sbagliata, non il
+      riavvio. Adesso quel collaudo si serve l'app da un piccolo server, come un sito vero, e i
+      giri sono identici. Gli altri collaudi vanno rifatti allo stesso modo, ed è in lista.
+      Prima, il 2 settembre: <b>gen-6.02 «Le aggiunte»,
       gen-6.03 «L'ingrediente in mano e il nome
       corto», gen-6.04 «La barra che si apre quando serve».</b> Il primo ha portato le aggiunte a
       catalogo: le crei in Gestione → Listino, scheda «Aggiunte», ognuna col suo prezzo, i suoi
@@ -361,6 +391,58 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 5 settembre, sera · <b>gen-6.06</b> · il ritrovamento arriva davvero</h4>
+        <p><b>Questa è la riparazione di una cosa che ti ho detto fatta e non lo era.</b>
+        Stamattina ti ho scritto che le vendite rimaste in attesa tornano da sole alla
+        riaccensione. Non era vero fino in fondo, e voglio che sia scritto qui e non solo in un
+        commento che non leggerai mai.</p>
+        <p><b>Cosa non andava.</b> L'app si avvia in due modi. Uno «classico», e uno
+        <b>sicuro</b>, con il login vero che passa dal server — e <b>la tua gira in modo
+        sicuro</b>: l'ho verificato sul database, ci sono 327 accessi registrati, 107 negli
+        ultimi sette giorni. Il codice che va a riprendere le vendite dal telefono l'avevo
+        messo nel ramo classico. Il ramo sicuro esce prima di arrivarci. Risultato: la coda
+        <b>si scriveva</b> sul telefono e <b>non veniva più riletta</b>. Metà del lavoro.</p>
+        <p><b>Come l'ho scoperto, che è la parte che dovrebbe preoccuparti più del difetto.</b>
+        Non l'ho trovato io e non l'hanno trovato i miei trentadue controlli verdi. L'hanno
+        trovato <b>sei lettori indipendenti</b> che avevo messo a studiare il codice per un
+        altro lavoro. I miei controlli erano verdi perché il banco di prova costruiva una rete
+        finta <b>senza il login vero</b>: trentadue verdi su una strada che al banco non ci
+        passa nessuno. Un collaudo che non riproduce la strada vera non prova niente, e i verdi
+        danno fiducia — che è peggio del silenzio.</p>
+        <p><b>Cosa ho fatto.</b> Il ritrovamento adesso sta <b>prima</b> del bivio fra i due
+        modi: leggere il proprio telefono non dipende dalla rete, quindi non aveva nessuna
+        ragione di vivere dentro un ramo che parla di rete. Il momento del login rigioca quello
+        che era rimasto, e fa partire l'invio. E sulla schermata dei nomi — dove la pastiglia in
+        alto non esiste, perché la barra nasce solo dopo l'accesso — adesso c'è un cartello in
+        ambra: <b>«1 vendita da salvare su questo telefono»</b>, con scritto anche cosa
+        succederà: <i>partono da sole appena entri</i>. Chi riprende il telefono dal bancone lo
+        sa prima di fare qualsiasi cosa.</p>
+        <p><b>Due difetti più vecchi, trovati dal collaudo nuovo.</b> Il primo: se il server
+        accetta il PIN ma poi <b>i dati non arrivano</b> (la sessione nasce, la rete cade un
+        istante dopo), l'app andava in <b>pagina bianca</b> invece di dire «non ho i dati» —
+        succedeva da prima di oggi. Riparato. Il secondo l'ho scoperto rompendo il codice
+        apposta: senza una guardia che ho aggiunto, in quella stessa situazione l'app avrebbe
+        potuto <b>scrivere in rete uno stato vuoto sopra i dati veri, azzerando i magazzini di
+        tutta l'azienda</b>. Non è mai successo e adesso non può: ma il collaudo che lo prova
+        non esisteva, e questa è la ragione per cui rompo il codice apposta a ogni rilascio.</p>
+        <p><b>E il banco mi ha mentito una terza volta, in un modo nuovo.</b> Lo stesso
+        collaudo mi ha dato <b>dieci risultati diversi sullo stesso identico codice</b> — 11
+        rossi, poi 5, poi 11, poi 5, poi 3, poi zero — e per mezza giornata ho cercato un
+        difetto nell'app che non c'era. La causa: i miei collaudi aprono l'app come un file sul
+        disco, e in quel modo il browser può dare <b>a ogni pagina una memoria separata</b>.
+        Quindi «scrivo la vendita, riavvio, non c'è più» non misurava il riavvio: misurava che
+        la seconda pagina guardava un altro telefono. Un collaudo che deve provare cosa
+        sopravvive a un riavvio non può girare su qualcosa senza identità stabile. Adesso
+        quello nuovo si serve l'app da un piccolo server locale, come un sito vero, e i giri
+        sono identici. <b>Gli altri collaudi vanno rifatti allo stesso modo</b> — a partire da
+        quello di stamattina — ed è in lista.</p>
+        <p><b>Come è stato provato.</b> 12 controlli rossi registrati sulla versione di
+        stamattina, <b>42 verdi</b> dopo. Sei sabotaggi, tutti rossi, contati uno per uno: 12,
+        1, 6, 4, 5, 4. Il sesto la prima volta è rimasto <b>muto</b>, e stavolta non era
+        ridondanza come a gen-6.05: era un buco vero — nessun controllo provava il caso «il
+        login riesce ma i dati no». L'ho chiuso, ed è proprio quella sezione nuova ad aver
+        trovato la pagina bianca.</p>
+
         <h4>Il 5 settembre · <b>gen-6.05</b> · la coda che non si perde</h4>
         <p><b>Questo non me l'hai chiesto tu.</b> Stavo misurando quanto traffico fa l'app per
         rispondere alla tua domanda sui cento scontrini in quattro ore, e leggendo il pezzo di

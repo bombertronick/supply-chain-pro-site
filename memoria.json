@@ -2,9 +2,9 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.05",
-  "len": 898292,
-  "md5": "50ec3939ab08b42519985ecd9418697f",
+  "gen": "gen-6.06",
+  "len": 903857,
+  "md5": "a3661ad7f2b700beb48f1809d04b5be6",
   "quando": "2026-09-05",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
@@ -29,6 +29,14 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.06",
+   "quando": "5 settembre",
+   "chiude": [],
+   "prova": "gen606test.mjs",
+   "cosa": "«Il ritrovamento arriva davvero» — RIPARAZIONE DI UN MIO DIFETTO ANNUNCIATO CHIUSO E CHIUSO A META. gen-6.05 doveva scrivere la coda sul telefono E ritrovarla alla riaccensione: la prima cosa funziona in produzione, la seconda no. Il ritrovamento stava DOPO il bivio dell avvio, cioe solo nel ramo classico; il ramo con window.auth fa return prima di arrivarci, ed entra() leggeva la rete ma non rileggeva scp:coda:v1. LA PRODUZIONE GIRA IN MODO SICURO — verificato sul database, non dedotto: esistono app_login / app_sess_valida / app_bootstrap e app_sessione ha 327 righe (107 negli ultimi 7 giorni, l ultima il 4/9 alle 21:41). Quindi in produzione la coda si scriveva e non si rileggeva piu. TROVATO DA SEI LETTORI indipendenti messi a studiare il codice per un ALTRO lavoro: non da me, e non dai miei 32 verdi. LA RIPARAZIONE: (1) il ritrovamento sale SOPRA il bivio — leggere il proprio disco non dipende dalla rete e non aveva motivo di vivere dentro un ramo che parla di rete; (2) al montaggio in modo sicuro si ripesca e si accende la spia ma NON si pianifica nessuna scrittura (senza token le RPC rifiutano, e tre tentativi falliti direbbero «offline» sulla schermata dei nomi); (3) entra() rigioca la coda sullo stato appena letto e fa partire l invio, SOLO se la lettura e riuscita; (4) cartello in ambra sulla schermata dei nomi, «1 vendita da salvare su questo telefono», perche li la pastiglia non esiste — la barra vive dentro Struttura, che prima dell accesso non c e — e dice anche cosa succedera; (5) in modo LOCALE il ritrovamento si annulla: senza archiviazione condivisa quella coda non puo partire mai, e mostrare «N da salvare» a chi non ha dove salvare e una promessa che nessuno puo mantenere (caso creato da me spostando il blocco piu in alto, visto leggendo il ramo e non da un rosso). DUE DIFETTI PREESISTENTI TROVATI DAL BANCO NUOVO: normalizza dava un valore di scorta a dodici collezioni ma non a magazzini/prodotti/sedi/unita/categorie/fornitori/profili, quindi quando l accesso riesce ma i DATI non arrivano la prima schermata che fa stato.magazzini.filter(...) muore con un errore JavaScript — pagina bianca invece di «non ho i dati»: riparato, e «...s» resta in coda cosi la riga puo solo evitare un crollo, mai coprire un dato. Annotati come lavori a parte: ripristina() scarta la coda non salvata senza avvisare, e una sessione scaduta diventa «offline per sempre» con la coda che cresce e nessuno che dica di rifare il login. PROVE: 12 rossi registrati su gen-6.05 col banco affidabile, 42 verdi dopo. SABOTAGGI: 6, tutti rossi, contati — 12, 1, 6, 4, 5, 4. S6 la prima volta fu MUTO, e stavolta NON era ridondanza: era un buco, nessun controllo provava «il login riesce ma i dati no». Aggiunta la sezione 8, che ha trovato l errore di normalizza e adesso rende S6 rosso mostrando la cosa peggiore: senza quella guardia l app scrive un guscio sopra i dati veri e i magazzini vanno a ZERO per tutta la rete. PRODUZIONE: len 903857, md5 a3661ad7f2b700beb48f1809d04b5be6, backup:pre-gen606.",
+   "_nota": "IL BANCO MI HA MENTITO IN UN MODO NUOVO, e questa e la lezione che vale piu della riparazione. Su file:// gen606test ha dato 11, 5, 11, 5, 3, 0, 0, 12, 0, 10 rossi sullo STESSO codice, e per mezza giornata ho preso quei rossi per difetti dell app. Causa: su file:// Chromium tratta l origine come OPACA e ogni pagina puo ricevere un archiviazione SUA — quindi «scrivo la coda, ricarico, non c e piu» non misurava il ritrovamento, misurava che la seconda pagina guardava un altro disco. Un banco che deve provare cosa sopravvive a un riavvio non puo girare su un origine senza identita. Adesso gen606test si serve la pagina su http://127.0.0.1 e il riavvio e una pagina nuova nello stesso contesto, con una guardia che grida «BANCO GUASTO» se il disco si azzera da solo. TUTTI GLI ALTRI COLLAUDI APRONO ANCORA file://: quelli che non toccano localStorage non se ne accorgono, quelli che ci contano — in testa gen605test — sono esposti allo stesso inganno e vanno rifatti. Corretti nello stesso giro anche un VERDE FALSO (cercavo «6,50», che e pure il prezzo stampato sulla cella del listino: era verde comunque, proprio nel controllo piu importante del file) e due controlli che leggevano la scheda «Oggi» stando sulla Home."
+  },
   {
    "gen": "gen-6.05",
    "quando": "5 settembre",
@@ -345,6 +353,16 @@
   "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
  ],
  "sbagliato": [
+  {
+   "quando": "2026-09-05",
+   "dicevo": "(per mezza giornata, guardando gen606test) «Questi rossi sono difetti dell app.»",
+   "invece": "Erano il banco. Su file:// Chromium puo dare a ogni pagina un archiviazione separata, quindi un collaudo che scrive su localStorage, ricarica e rilegge misura la partizione sbagliata: 11, 5, 11, 5, 3, 0, 0, 12, 0, 10 rossi sullo stesso identico codice. Prima di credere a un rosso su qualcosa che deve sopravvivere a un riavvio, va guardato SU QUALE ORIGINE gira il banco."
+  },
+  {
+   "quando": "2026-09-05",
+   "dicevo": "(rilascio gen-6.05, stamattina) «La coda che non si perde e online: le vendite in attesa si scrivono sul telefono e tornano da sole alla riaccensione.»",
+   "invece": "Tornavano solo nel ramo di avvio senza login sicuro, e la produzione usa quello CON il login sicuro: in produzione la coda si scriveva e non si rileggeva piu. Ho annunciato chiuso un difetto che era chiuso a meta, e i 32 controlli verdi non me l hanno impedito perche il banco fingeva una rete senza login — cioe provavano il ramo che la produzione non usa. Riparato in gen-6.06, con il primo collaudo dell app che finge il login sicuro."
+  },
   {
    "quando": "2026-09-05",
    "dicevo": "(memoria.json, dal 31 agosto al 4 settembre) Il blocco «online» dice len e md5 di quello che gira in produzione, verificati dal cancello del rilascio.",
