@@ -122,6 +122,27 @@ const soloColl = mem.chiusi.filter((g) => g.soloCollaudi);
 ok(soloColl.every((g) => g._soloCollaudi_perche),
   `e i ${soloColl.length} lavori di soli collaudi dicono perche' non fanno versione`);
 
+/* IL NUMERO CHE NESSUNO GUARDAVA. Fino a gen-6.04 «online.len» e «online.md5»
+   sono rimasti fermi a gen-6.02 mentre «online.gen» saliva a ogni rilascio:
+   tre generazioni con la stessa impronta, e nessuno se n'e' accorto perche'
+   nessun controllo li leggeva. Da qua non piu': la nota del lavoro spedito
+   scrive «PRODUZIONE: len N, md5 HEX» col numero uscito dal cancello del
+   rilascio, e quei due devono essere gli stessi del blocco «online». Il
+   collaudo non puo' interrogare la produzione (in CI non c'e' la chiave),
+   ma puo' pretendere che le due copie scritte a mano non litighino: se una
+   invecchia, l'altra la denuncia. */
+const nota = ultimoSpedito?.cosa || "";
+const impronta = nota.match(/PRODUZIONE:\s*len\s*(\d+),\s*md5\s*([0-9a-f]{32})/);
+ok(!!impronta,
+  impronta ? `la nota di ${ultimoSpedito?.gen} scrive l'impronta della produzione`
+           : `la nota di ${ultimoSpedito?.gen} non scrive «PRODUZIONE: len N, md5 HEX»`);
+if (impronta) {
+  ok(mem.online.len === +impronta[1],
+    `e la lunghezza combacia: online ${mem.online.len}, nota ${impronta[1]}`);
+  ok(mem.online.md5 === impronta[2],
+    `e l'impronta combacia: online ${mem.online.md5}, nota ${impronta[2]}`);
+}
+
 /* ═══ 6. QUELLO CHE HO SBAGLIATO RESTA SCRITTO ═══
    Se sparisce la riga, sparisce anche il motivo per cui non lo rifaccio. */
 console.log("\n— 6. le cose che ho detto sbagliate restano scritte —");

@@ -187,10 +187,22 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata il 2 settembre</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 5 settembre</p>
   <h1>Scegli l'ordine dei lavori</h1>
-  <p class="apertura"><b>Ventiquattro lavori online.</b> L'ultimo è la tua segnalazione di
-  oggi: <b>gli ingredienti non stanno più aperti quando non servono</b>. Quella fascia in basso
+  <p class="apertura"><b>Venticinque lavori online.</b> L'ultimo <b>non me l'hai chiesto tu:
+  l'ho trovato io mentre misuravo se l'app regge i cento scontrini in quattro ore</b>, ed era
+  la cosa più grave che ci fosse. Quando batti una vendita, quella vendita entra in una fila
+  d'attesa prima di partire verso il database. Quella fila viveva <b>solo nella memoria della
+  pagina</b>: bastava che il telefono si ricaricasse, si bloccasse, o che il sistema mettesse
+  a dormire la scheda in tasca, e <b>le vendite in attesa sparivano senza dire niente a
+  nessuno</b>. Con la rete buona la finestra è di un secondo; con la rete che balla la fila
+  si allunga e quella finestra diventa una serata di incassi. Da <b>gen-6.05</b> la fila si
+  scrive sul telefono e <b>torna da sola alla riaccensione</b>, prima ancora che l'app legga
+  la rete: il cassiere riapre e le sue vendite ci sono già. E il pallino in alto adesso dice
+  il numero — <b>«3 da salvare»</b> in ambra — invece del generico «Riconnessione…». Nessuna
+  vendita viene contata due volte: se erano già arrivate, ritrovarle non le raddoppia.
+  Prima, la tua segnalazione del 2 settembre: <b>gli ingredienti non stanno più aperti
+  quando non servono</b>. Quella fascia in basso
   costava <b>209 pixel su 844 — un quarto dello schermo</b>, misurati, a conto vuoto. Adesso
   parte chiusa ogni volta ed è una pastiglia alta un dito che dice a parole dov'è il tocco:
   «Ingredienti», oppure «In mano: Salsiccia» in ambra quando ne tieni uno. La apre il tocco sul
@@ -206,7 +218,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.04</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.05</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -215,9 +227,28 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> e <b>gli ingredienti che si aprono solo quando servono</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Tre rilasci: gen-6.02 «Le aggiunte», gen-6.03 «L'ingrediente in mano e il nome
+      <dd><b>Un rilascio, e non l'avevi chiesto tu: gen-6.05 «La coda che non si perde».</b>
+      Stavo misurando il traffico per capire se l'app regge i cento scontrini in quattro ore, e
+      leggendo il codice della fila d'attesa ho trovato che <b>quello che è in attesa di partire
+      vive solo nella memoria della pagina</b>. Un ricaricamento e sparisce. Non è un rischio
+      teorico: il telefono in tasca che si blocca, la scheda che il sistema mette a dormire, il
+      dito sul tasto sbagliato — succede, e non lascia traccia. Adesso le tre cose che portano
+      <b>soldi e ordini</b> (la vendita, lo storno, la spunta in cucina) si scrivono sul
+      telefono appena entrano in fila, e alla riaccensione <b>tornano prima ancora che l'app
+      legga la rete</b>: il cassiere riapre e le vede già lì, quindi non le ribatte. Se erano
+      già arrivate nel frattempo, il riconoscimento per numero d'ordine le salta: <b>non si
+      contano due volte</b>. Il pallino in alto adesso dice <b>quante</b> ne mancano, in ambra,
+      e si vede anche sul telefono stretto. <b>Quello che NON si salva, e te lo dico chiaro</b>:
+      un conteggio, una richiesta, una modifica al listino restano volatili come prima — sono
+      lavoro che si rifà guardando lo scaffale, mentre una vendita persa è un incasso che non
+      torna. Collaudo scritto prima del codice: <b>15 rossi → 32 verdi</b>. Sabotaggi: sette,
+      sei rossi contati uno per uno, e <b>il settimo muto</b> — invece di far finta di niente ho
+      fatto due esperimenti in più e ho dimostrato che quella guardia è ridondante con
+      un'altra, cioè che il codice regge anche togliendone una. Il banco mi ha mentito due
+      volte e sta scritto nei commit. Prima, il 2 settembre: <b>gen-6.02 «Le aggiunte»,
+      gen-6.03 «L'ingrediente in mano e il nome
       corto», gen-6.04 «La barra che si apre quando serve».</b> Il primo ha portato le aggiunte a
       catalogo: le crei in Gestione → Listino, scheda «Aggiunte», ognuna col suo prezzo, i suoi
       ingredienti che escono dal magazzino e i gruppi su cui vale. Il secondo ha tolto l'ordine
@@ -233,7 +264,8 @@
       sabotaggi contati per tutti e tre; nei sabotaggi dell'ultimo sono venuti fuori <b>tre
       controlli che non potevano diventare rossi</b>, ed erano difetti del mio banco, non del
       codice: chiusi. Censimento dopo gen-6.03: <b>88 collaudi verdi, 1661 controlli veri, zero
-      rosse</b>.</dd>
+      rosse</b>. <b>Quello dopo gen-6.04 è morto a metà</b> (11 collaudi su 88, il banco si è
+      fermato da solo): non l'ho contato come passato, ed è in coda adesso.</dd>
       <dt>Aspetto te</dt>
       <dd><b>Un giro di ricarica su tutti i telefoni, PRIMA di accendere cassa e comande</b>:
       un telefono rimasto indietro batte vendite senza il gruppo (finiscono fra le «senza
@@ -329,6 +361,60 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 5 settembre · <b>gen-6.05</b> · la coda che non si perde</h4>
+        <p><b>Questo non me l'hai chiesto tu.</b> Stavo misurando quanto traffico fa l'app per
+        rispondere alla tua domanda sui cento scontrini in quattro ore, e leggendo il pezzo di
+        codice che tiene la fila delle cose da salvare ho trovato una cosa che non va. Te la
+        racconto senza addolcirla, perché era la più grave che ci fosse.</p>
+        <p><b>Cosa succedeva.</b> Quando batti «Incassa», la vendita non parte subito verso il
+        database: entra in una <b>fila d'attesa</b> e parte al primo giro utile. È giusto così —
+        è quello che ti permette di battere anche con la rete che balla. Il guaio è che quella
+        fila viveva <b>solo nella memoria della pagina aperta</b>. Non su disco: in memoria. Se
+        il telefono si ricaricava, o si bloccava, o il sistema metteva a dormire la scheda per
+        risparmiare batteria — cosa che i telefoni fanno da soli, in tasca, senza chiedere
+        permesso — <b>quello che era in fila spariva</b>. Senza un avviso, senza una riga nel
+        registro, senza niente. La cassa ripartiva pulita e il totale della giornata era più
+        basso, e nessuno poteva sapere di quanto.</p>
+        <p>Con la rete buona la finestra è di circa un secondo, e la probabilità è bassa. Il
+        punto è che <b>la probabilità non è zero e il danno è denaro</b>, e soprattutto che la
+        finestra si allarga esattamente quando le cose vanno male: se la rete cade per venti
+        minuti, la fila accumula venti minuti di incassi, e in quei venti minuti un
+        ricaricamento li porta via tutti.</p>
+        <p><b>Cosa ho fatto.</b> Le tre azioni che portano <b>soldi e ordini</b> — la vendita,
+        lo storno, la spunta della cucina — adesso entrano in fila come <b>dati</b>, non come
+        istruzioni, e i dati si scrivono. Appena entrano, la fila si copia sul telefono. Alla
+        riaccensione torna <b>prima ancora che l'app legga la rete</b>: è la parte che conta
+        per chi sta al banco, perché il cassiere riapre e vede già le sue vendite nel conto
+        della giornata, quindi non pensa di doverle ribattere. E se nel frattempo erano
+        arrivate davvero, ognuna porta un numero d'ordine che le fa riconoscere: <b>ritrovarle
+        non le conta due volte</b>.</p>
+        <p><b>E lo sai, adesso.</b> Il pallino in alto diceva «Riconnessione…», che era vero ma
+        non diceva la cosa che serve: adesso dice <b>«3 da salvare»</b>, in ambra, e si vede
+        anche sul telefono stretto dove prima spariva.</p>
+        <p><b>Quello che NON si salva, detto chiaro.</b> Un conteggio, una richiesta al
+        laboratorio, una modifica al listino restano volatili come prima. Non è una svista: è
+        una scelta. Quelle sono cose che si rifanno guardando lo scaffale, mentre una vendita
+        persa è un incasso che non torna più. Salvare tutto avrebbe voluto dire riscrivere il
+        motore intero; salvare le tre che contano è costato poche righe e le ho collaudate
+        fino in fondo. Se un giorno servisse allargarlo, il posto dove aggiungere una riga
+        esiste già.</p>
+        <p><b>Un secondo limite, che conosco.</b> La fila salvata è del <b>dispositivo</b>, non
+        della persona: se il telefono cambia cassiere prima che la rete torni, il cassiere
+        nuovo vede il numero in ambra del turno prima. Le vendite però restano intestate a chi
+        le ha battute davvero — il nome viaggia dentro la voce. Ho preferito così: quei soldi
+        vanno salvati comunque, chiunque sia davanti allo schermo.</p>
+        <p><b>Come l'ho provato.</b> Collaudo scritto prima del codice: <b>15 controlli rossi</b>
+        registrati sull'app com'era, poi <b>32 verdi</b> dopo. Poi sette sabotaggi — rompo il
+        codice apposta, uno per volta, e conto quanti controlli se ne accorgono: 8, 5, 1, 9,
+        12, 1. Il settimo <b>non ha fatto rumore</b>, e invece di lasciar correre ho fatto due
+        esperimenti in più: spegnendo quella guardia da sola, zero rossi; spegnendo l'altra da
+        sola, zero rossi; spegnendole <b>tutte e due</b>, sei rossi. Cioè sono ridondanti di
+        proposito, e una ridondanza non si può sabotare a metà — non era un buco del banco.
+        <b>E il banco mi ha mentito due volte</b>, e sta scritto nei commit invece che nascosto:
+        una modalità di prova che moriva al ricaricamento e mi faceva misurare il caso
+        sbagliato, e una modifica che è morta con un errore mentre io leggevo solo il log del
+        collaudo — ho committato un messaggio che descriveva una riparazione che non esisteva,
+        e ho committato subito dopo la smentita.</p>
         <h4>Il 2 settembre · <b>gen-6.04</b> · la barra si apre quando serve</h4>
         <p>Un tuo messaggio: «gli ingredienti da aggiungere ad una categoria non deve essere
         visibile in cassa se non quando richiesto, attualmente rimane una barra aperta con gli
