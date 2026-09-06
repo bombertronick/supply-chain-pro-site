@@ -163,9 +163,24 @@ for (const f of ["giraAgg", "levaDaRiga", "lavoraSu", "bersagliabile"])
 const motore = src.slice(src.indexOf("const calcoloScarico"), src.indexOf("const gruppoDi"));
 ok(!/\bdentro\b|\bmano\b|\bviva\b|composizione/.test(motore),
   "il motore (calcoloScarico → applicaVendita → applicaStorno) non nomina niente di gen-6.03: non è stato toccato");
+/* RIALLINEATO il 6 settembre, e va detto perche' invece che fatto e basta.
+   Il controllo diceva «resta a undici colonne» e guardava la FINE della riga
+   («…"Scontrino", "Aggiunte"]]»). Il suo intento pero' non era il numero
+   undici: era che la COMPOSIZIONE di gen-6.03 non finisse nel CSV — la
+   composizione e' una cosa di oggi, la vendita e' una foto di ieri. gen-6.08
+   aggiunge «Cliente» e «Modo» IN CODA, che e' un'altra funzione e rispetta la
+   regola vera (le colonne vecchie non si spostano mai). Quindi si prova
+   l'intento, non la lunghezza: la composizione non c'e', e «Aggiunte» sta
+   ancora all'undicesimo posto con le nuove dopo di lei. Cosi' il controllo
+   sa ancora fallire — se qualcuno infilasse una colonna in mezzo, o
+   esportasse la composizione, diventerebbe rosso. */
 const testaCsv = src.split("\n").find((r) => /"Prezzo unitario"/.test(r) && /"Scontrino"/.test(r)) || "";
-ok(/"Scontrino", "Aggiunte"\]\]/.test(testaCsv),
-  "il CSV vendite resta a undici colonne: la composizione è di oggi, la vendita è di ieri");
+const colonne = (testaCsv.match(/"[^"]+"/g) || []).map((c) => c.slice(1, -1));
+ok(!colonne.some((c) => /dentro|composizione/i.test(c)),
+  "il CSV vendite non esporta la composizione: è di oggi, la vendita è una foto di ieri");
+ok(colonne[10] === "Aggiunte" && colonne.slice(0, 11).join("|") ===
+  'Data|Sede|Operatore|Voce|Quantità|Prezzo unitario|Totale riga|Metodo|Stato|Scontrino|Aggiunte',
+  `le prime undici colonne non si sono mosse: chi apre in Excel il file di ieri le ritrova al loro posto (ora sono ${colonne.length})`);
 const importi = (src.match(/^import \{([\s\S]*?)\} from "lucide-react";/m) || [])[1] || "";
 const iconeNuove = ["Info", "Eye", "List", "Layers", "CircleSlash", "Ban"].filter((i) => new RegExp("\\b" + i + "\\b").test(importi));
 ok(iconeNuove.length === 0, "nessuna icona nuova nell'import: solo le 50 di sempre" + (iconeNuove.length ? " — " + iconeNuove.join(",") : ""));
