@@ -291,7 +291,7 @@ await prova("§6", async () => {
 console.log("\n— 7. lo storno —");
 await prova("§7", async () => {
   await tocca(C.p, "Ultime vendite", 600);
-  await C.p.getByRole("button", { name: /^Storna la vendita delle/ }).first().click();
+  await C.p.getByRole("button", { name: /^Storna la vendita\b.*delle/ }).first().click();
   await C.p.waitForTimeout(600);
   await C.p.locator("input:visible").first().fill("prova delle aggiunte"); await C.p.waitForTimeout(200);
   await C.p.locator("input:visible").nth(1).fill("1234"); await C.p.waitForTimeout(200);

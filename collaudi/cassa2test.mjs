@@ -9,7 +9,9 @@
    · la card «Oggi» si comprime a UNA riga di chip; le ultime vendite — e i
      cerchietti rossi dello storno — vanno dietro un Foglio aperto dal tasto
      «Ultime vendite»; la riga del Foglio SI TOCCA per stornare e tiene
-     l'aria-label di sempre («Storna la vendita delle HH:MM»);
+     l'aria-label di sempre — da gen-6.07 col numero dello scontrino in mezzo
+     («Storna la vendita #47 delle HH:MM»), perche' due scontrini dello stesso
+     minuto avevano lo stesso nome e si stornava quello sbagliato;
    · i GRUPPI della griglia si ordinano per battute (conteggio client dalle
      vendite presenti nello stato — che per costruzione sono le ultime 48
      ore, sfoltisciVendite le tiene lì), «Altro» SEMPRE ultimo anche se
@@ -180,7 +182,7 @@ await prova("§3", async () => {
   ok(/2× Spritz/.test(tf), "il Foglio elenca la vendita appena battuta");
   /* la riga si tocca per stornare e TIENE l'aria-label di cassatest §8:
      quel banco andrà riallineato al Foglio, non riscritto */
-  await G.p.getByRole("button", { name: /^Storna la vendita delle/ }).first().click();
+  await G.p.getByRole("button", { name: /^Storna la vendita\b.*delle/ }).first().click();
   await G.p.waitForTimeout(600);
   ok(/Motivo dello storno/.test(await testoDi(G.p)),
     "toccare la riga apre lo storno di sempre (motivo obbligatorio)");
