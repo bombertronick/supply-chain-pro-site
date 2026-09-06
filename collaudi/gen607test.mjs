@@ -454,8 +454,14 @@ await prova("§6", async () => {
   await login(G.p);
   await G.p.waitForTimeout(4000);
   const rete = await salvato(G.p);
-  ok((rete.vendite || []).length === 0,
-    `una vendita di tre giorni fa NON viene applicata al buio (${(rete.vendite || []).length} in rete)`);
+  /* NON si guarda «la riga non c'e' in rete»: sarebbe VERDE PER CASO, perche'
+     una vendita di tre giorni fa viene potata dalle 48 ore comunque, applicata
+     o no — e infatti quel controllo e' restato verde anche col codice rotto.
+     Si guarda il TIMBRO: applicaCoda scrive il logId in «applicate» solo per
+     le voci che ha davvero gestito. Se il nome non c'e', quella vendita non e'
+     mai entrata in coda, che e' esattamente quello che si pretende. */
+  ok(!(rete.applicate || []).includes("l-vecchia"),
+    `il nome della vendita vecchia non risulta fra quelle applicate (${(rete.applicate || []).includes("l-vecchia") ? "C'E': e' stata rigiocata" : "non c'e'"})`);
   const g = (rete.giornate || []).find((x) => x.id === giornoDiT(VECCHIA.t) + "|" + FM.id);
   ok(g && Math.abs(g.totale - 120) < 0.001,
     `e la giornata di allora resta com'era: ${g ? g.totale : "(sparita)"} € (deve restare 120)`);

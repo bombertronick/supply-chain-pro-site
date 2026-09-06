@@ -172,6 +172,24 @@ async function scriviRemoto(stato) {
   try {
     const r = await window.storage.set(CHIAVE, JSON.stringify(stato), true);
     if (!r) return false;
+    /* ── UNA RISPOSTA CHE PORTA UN ERRORE NON E' UN SALVATAGGIO (gen-6.07) ──
+       Il server rifiuta in DUE modi e nessuno dei due e' un valore falso:
+       app_kv_set.sql:41 RITORNA json_build_object('error','auth') quando la
+       sessione e' scaduta, e le righe 61-64 SOLLEVANO 40001 sul conflitto fra
+       due casse — il rifiuto quotidiano, non quello raro. In mezzo c'e' il
+       caricatore, che non sta nel repository e non si puo' leggere: puo'
+       consegnare il json nudo, incartarlo come fa supabase-js
+       ({data:{...},error:null}) o passare il corpo di PostgREST ({code,...}).
+       Il controllo qui sopra guarda solo il falsy, e un oggetto e' truthy:
+       questa funzione tornava TRUE. Chi chiama credeva salvato, tagliava la
+       coda e specchiaCoda cancellava scp:coda:v1 dal telefono — le vendite
+       sparivano da tutte e due le parti, in silenzio.
+       MISURATO dal banco su tutte e tre le forme: «SPARITA, il telefono
+       l'ha cancellata». Non era teoria.
+       Tre nomi perche' le forme sono tre, e nessuna di quelle del SUCCESSO ne
+       porta uno: {ok:true} (la forma vera, app_kv_set.sql:70), true secco e
+       l'eco {key,value,shared} passano tutte e tre — provate una per una. */
+    if (typeof r === "object" && (r.error || r.data?.error || r.code)) return false;
     try { await window.storage.set(CHIAVE_REV, String(stato.rev || 0), true); } catch {}
     return true;
   } catch { return false; }
@@ -591,7 +609,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.06";
+const VERSIONE = "gen-6.07";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -661,6 +679,19 @@ function sfoltisciGiornate(lista) {
    e' il precedente dichiarato di applicaProduzione. La giornata si aggiorna
    QUI DENTRO, cosi' l'exactly-once del logId copre vendita e totale insieme. */
 function applicaVendita(s, v) {
+  /* ── LO STESSO SCONTRINO UNA VOLTA SOLA (gen-6.07) ──
+     Il paracadute contro i doppioni era uno solo: il logId in s.applicate, con
+     MAX_APPLICATE = 300. Il commento accanto al tetto promette «un turno
+     intero di lavoro di tutta la rete»: a cento scontrini con due casse sono
+     duecento vendite piu' storni e spunte, e il tetto si consuma in una
+     serata. Da li' in poi il nome e' scaduto, e una vendita ARRIVATA di cui si
+     era persa la risposta, riprovata piu' tardi, veniva applicata di nuovo.
+     MISURATO dal banco prima della riparazione: due righe in rete, giornata a
+     13 € invece di 6,50, magazzino sceso di due.
+     Questa guardia non dipende da nessun tetto: guarda il DATO.
+     Torna false quando non fa niente, e il chiamante lo usa per non scrivere
+     una riga di storico per un lavoro mai avvenuto. */
+  if ((s.vendite || []).some((x) => x && x.id === v.id)) return false;
   /* la riga nuova NON passa dal filtro d'eta': una vendita rimasta in coda
      piu' di 48 ore va applicata E vista — la fara' scadere lo sfoltimento
      successivo, non la nascita (revisione gen-5.96) */
@@ -684,6 +715,7 @@ function applicaVendita(s, v) {
   g.nVendite += 1;
   g.metodi[v.metodo] = +((g.metodi[v.metodo] || 0) + v.totale).toFixed(2);
   s.giornate = sfoltisciGiornate(s.giornate);
+  return true;
 }
 /* Lo storno (gen-5.97): MAI una gomma — una riga contraria che ripristina le
    giacenze dallo snapshot e lascia l'originale marcata. La guardia sullo
@@ -900,6 +932,8 @@ function applicaComanda(s, d) {
    fingere di salvarla sarebbe peggio che dire che non si salva. */
 const ESECUTORI = { vendita: applicaVendita, storno: applicaStorno, spunta: applicaComanda };
 const CHIAVE_CODA = "scp:coda:v1";
+/* dove finisce quello che e' troppo vecchio per rigiocarsi da solo (gen-6.07) */
+const CHIAVE_FERMA = "scp:coda-ferma:v1";
 
 const numCsv = (n) => String(n ?? "").replace(".", ",");
 const dataIt = (t) => new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -1801,7 +1835,7 @@ const GUIDA_SEZIONE = {
   cassa: [
     { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
     { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "In basso c'è la fascia degli ingredienti, e l'ordine non conta. Se hai già battuto il piatto, la fascia dice «Su: Margherita» e il tocco sull'ingrediente ci va sopra. Se non hai battuto niente, l'ingrediente resta IN MANO e lo prende il primo piatto che tocchi. Per cambiare bersaglio tocca il nome di un'altra riga («Lavora su…»), per liberarlo «Stacca». Vale per UNA: da due margherite ne resta una liscia e nasce «Margherita + Broccoletti». Si disfa dove hai sbagliato: lo stesso ingrediente per toglierlo, la × accanto alla riga, «Lascia» per svuotare la mano." },
-    { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini di oggi: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
+    { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini delle ultime 48 ore — quello di ieri sera compreso, col giorno scritto accanto all'ora: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
     { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
     { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
   ],
@@ -13109,6 +13143,38 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
   const oggi = giornoDi(Date.now());
   const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
   const venditeOggi = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === oggi);
+  /* ── QUARANTOTTO ORE, NON «OGGI» (gen-6.07) ──
+     Il Foglio filtrava per giorno di calendario mentre lo sfoltimento tiene 48
+     ORE, e il commento accanto a ORE_VENDITE dice che lo storno realistico e'
+     «lo scontrino di ieri sera»: alle 00:30 di sabato quello delle 23:50 di
+     venerdi' era gia' irraggiungibile. Il dato c'era, la porta no.
+     Lista A PARTE: venditeOggi resta al giorno di calendario perche' la scheda
+     «Oggi» deve contare oggi. Sono due domande diverse — quanto ho incassato,
+     e cosa posso ancora correggere.
+     QUARANTA DI OGGI PIU' VENTI PIU' VECCHIE, non sessanta a caso: in un
+     sabato da ottanta scontrini le piu' vecchie uscirebbero dall'elenco
+     proprio quando servono. */
+  const venditeRecenti = (stato.vendite || [])
+    .filter((v) => v.sedeId === sedeId && v.t >= Date.now() - ORE_VENDITE * 3600000)
+    .sort((a, b) => b.t - a.t);
+  const daMostrare = [
+    ...venditeRecenti.filter((v) => giornoDi(v.t) === oggi).slice(0, 40),
+    ...venditeRecenti.filter((v) => giornoDi(v.t) !== oggi).slice(0, 20),
+  ].sort((a, b) => b.t - a.t);
+  /* ── DUE SCONTRINI POSSONO AVERE LO STESSO NUMERO ──
+     Il progressivo si calcola sullo stato VISTO, quindi due casse in parallelo
+     producono lo stesso «#1» (ammesso nel commento accanto a dove nasce). Se
+     capita nello stesso minuto, due righe diventano indistinguibili: per chi
+     legge, per chi ascolta, e per il dito che sta per stornare — e si storna
+     quello sbagliato. Il codino dell'id si aggiunge SOLO alle righe che
+     collidono davvero: nel caso normale non si vede niente, e quando serve
+     c'e' qualcosa che le separa di sicuro. */
+  const quandoDi = (v) => (giornoDi(v.t) !== oggi
+    ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " "
+    : "") + new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const targaDi = (v) => (v.n != null ? `#${v.n}` : String(v.id || "").slice(-4));
+  const quanteUguali = new Map();
+  for (const v of daMostrare) { const k = targaDi(v) + "|" + quandoDi(v); quanteUguali.set(k, (quanteUguali.get(k) || 0) + 1); }
 
   const aggiungi = (voce, variante, extra = [], usaMano = true) => {
     /* il piatto prende quello che si tiene in mano, e lo fa QUI dentro:
@@ -13309,7 +13375,15 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           registro. Le ultime vendite — coi loro storni — stanno dietro il
           Foglio «Ultime vendite», e i metodi dentro il report (gen-6.00,
           dalle foto 09-10 della revisione della veste). */}
-      {(giornata || venditeOggi.length > 0) && (
+      {/* LA PORTA PRIMA DELLA FINESTRA (gen-6.07). Questo cancello e' l'UNICA
+          strada verso «Ultime vendite» e quindi verso lo storno: a mezzanotte
+          e mezza, senza vendite di oggi, non c'era. Allargare la lista dentro
+          il Foglio senza aprire qui non si sarebbe visto — il banco lo ha
+          misurato: «il bottone non c'e'», e tutto il resto della sezione
+          cadeva dietro. Il Chip e il conteggio restano su «giornata», quindi a
+          porte aperte la riga dice onestamente «Oggi € 0,00 · 0 vendite»: si
+          allarga il cancello, non il numero. */}
+      {(giornata || venditeOggi.length > 0 || venditeRecenti.length > 0) && (
         <Scheda className="p-3.5 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-extrabold" style={{ color: T.ink }}>Oggi</span>
@@ -13660,18 +13734,34 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
       <Foglio aperto={ultime} titolo="Le ultime vendite" onChiudi={() => setUltime(false)}>
         {ultime && (
           <div className="flex flex-col gap-1">
-            {venditeOggi.length === 0 && (
-              <p className="text-sm" style={{ color: T.dim }}>Oggi non è ancora passato nessuno.</p>
+            {daMostrare.length === 0 && (
+              <p className="text-sm" style={{ color: T.dim }}>Nelle ultime 48 ore non è passato nessuno.</p>
             )}
-            {venditeOggi.length > 0 && (
+            {daMostrare.length > 0 && (
               <p className="text-xs mb-1" style={{ color: T.tenue }}>
-                Una vendita si storna toccando la sua riga.</p>
+                Le ultime 48 ore. Una vendita si storna toccando la sua riga.</p>
             )}
-            {venditeOggi.slice(0, 60).map((v) => {
+            {daMostrare.map((v) => {
+              /* IL GIORNO DA UNA FONTE SOLA: giornoDi(v.t), mai v.giorno — la
+                 riga contraria di uno storno porta il giorno della vendita
+                 originale, e leggerlo qui direbbe «di ieri» a una riga nata
+                 oggi. E il giorno si SCRIVE quando non e' oggi: senza, due
+                 scontrini delle 23:50 di due sere diverse sono la stessa riga
+                 per chi legge e lo stesso nome per chi ascolta — e per il
+                 collaudo, che su due bersagli identici non sa quale toccare.
+                 Niente ambra sulla data: in quest'app l'ambra vuol dire «sta
+                 finendo», e qui non sta finendo niente. */
               const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+              const diAltroGiorno = giornoDi(v.t) !== oggi;
+              const quando = diAltroGiorno
+                ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " " + ora
+                : ora;
+              const targa = targaDi(v)
+                + (quanteUguali.get(targaDi(v) + "|" + quando) > 1 ? ` ·${String(v.id || "").slice(-4)}` : "");
               const dentro = (
                 <>
-                  <span className="font-bold shrink-0" style={{ color: T.tenue }}>{ora}</span>
+                  <span className="font-bold shrink-0" style={{ color: T.tenue }}>{quando}</span>
+                  <span className="shrink-0 text-xs" style={{ color: T.tenue }}>{targa}</span>
                   <span className="flex-1 min-w-0 truncate text-left">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
                   {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
                   {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
@@ -13682,7 +13772,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
               );
               return v.stato === "registrata" ? (
                 <button key={v.id} onClick={() => { setUltime(false); setStornoDi(v); setMotivo(""); setPinA(""); }}
-                  aria-label={`Storna la vendita delle ${ora}`}
+                  aria-label={`Storna la vendita ${targa} delle ${quando}`}
                   className="flex items-center gap-2 text-xs rounded-xl px-2"
                   style={{ color: T.dim, minHeight: 44, border: `1px solid ${T.bordo}`, background: "#fff" }}>
                   {dentro}<RotateCcw size={13} className="shrink-0" style={{ color: T.rosso }} /></button>
@@ -13691,9 +13781,9 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
                   style={{ color: T.dim, minHeight: 44 }}>{dentro}</div>
               );
             })}
-            {venditeOggi.length > 60 && (
+            {venditeRecenti.length > daMostrare.length && (
               <p className="text-xs mt-1" style={{ color: T.tenue }}>
-                … e altre {venditeOggi.length - 60} di oggi: il CSV in Sistema le tiene tutte.</p>
+                … e altre {venditeRecenti.length - daMostrare.length}: il CSV in Sistema le tiene tutte.</p>
             )}
           </div>
         )}
@@ -14817,6 +14907,8 @@ export default function App() {
      canale, questo dice COSA e' rimasto indietro. Si aggiorna dove la coda
      cambia, cioe' dentro specchiaCoda: un posto solo, e non si dimentica. */
   const [daSalvare, setDaSalvare] = useState(0);
+  /* le voci troppo vecchie ritrovate all'avvio: si dicono una volta, all'ingresso */
+  const fermeRef = useRef([]);
   const [toast, setToast] = useState(null);
   const statoRef = useRef(null);
   useEffect(() => { statoRef.current = stato; }, [stato]);
@@ -14903,8 +14995,19 @@ export default function App() {
          meglio una riga non applicata che una serata persa. */
       const esegui = m.fn || (m.tipo && ESECUTORI[m.tipo] ? (x) => ESECUTORI[m.tipo](x, m.dati) : null);
       if (!esegui) { console.warn("Mutazione salvata di tipo sconosciuto, saltata:", m.tipo); continue; }
-      try { esegui(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
-      if (m.descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      /* L'ESECUTORE RIFERISCE (gen-6.07). La voce di storico si scrive QUI,
+         fuori dall'esecutore: un «return» dentro applicaVendita non la
+         fermava, e voceLog usa lo stesso m.logId, quindi le due righe hanno la
+         stessa chiave e sfoltisci non le distingue. Senza questa riga la
+         guardia contro il doppione spostava il difetto invece di chiuderlo:
+         niente vendita doppia, ma «Vendita in cassa: € 6,50» scritto due volte
+         nello storico, che e' una bugia su carta. Il timbro del logId qui
+         sotto resta INCONDIZIONATO: la mutazione e' stata gestita comunque.
+         Il caso dell'eccezione resta com'era, per non cambiare piu' del
+         necessario. */
+      let esito;
+      try { esito = esegui(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
+      if (m.descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       if (m.logId) { gia.add(m.logId); b.applicate = [m.logId, ...(b.applicate || [])].slice(0, MAX_APPLICATE); }
     }
     /* la finestra degli ordini si applica qui, dove passa ogni scrittura:
@@ -14990,7 +15093,15 @@ export default function App() {
       if (codaRef.current.length) pianifica(80); else setSync("ok");
     } catch (e) {
       inSyncRef.current = 0;
-      if (e?.conflitto) {
+      /* IL CONFLITTO NON PUO' DURARE PER SEMPRE (gen-6.07). Il ramo qui sotto
+         esce PRIMA del contatore delle riprove e prima dell'offline, e
+         conflittiRef si azzera solo su un successo: un rifiuto permanente che
+         venga classificato «conflitto» — la sessione scaduta mentre un altro
+         telefono salva, per esempio — lasciava il semaforo su «salvataggio»
+         per tutta la serata, cioe' la parola rassicurante mentre non partiva
+         niente. Dopo sei di fila si passa dall'altra parte, dove c'e' l'avviso
+         vero. La coda non si tocca in nessuno dei due rami. */
+      if (e?.conflitto && conflittiRef.current < 6) {
         /* La coda NON si svuota: le stesse modifiche si riapplicano sulla
            base aggiornata, quindi si sommano a quelle dell'altro invece di
            cancellarle. L'attesa è corta e casuale, se no due telefoni che
@@ -15107,9 +15218,36 @@ export default function App() {
         const grezza = localStorage.getItem(CHIAVE_CODA);
         const rimaste = grezza ? JSON.parse(grezza) : null;
         if (Array.isArray(rimaste) && rimaste.length) {
-          codaRef.current = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
-          ritrovate = codaRef.current.length;
+          const buone = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
+          /* ── LO STECCATO D'ETA' (gen-6.07) ──
+             Oltre le 48 ore il telefono ha perso TUTTI E DUE i testimoni: il
+             logId e' uscito da s.applicate (tetto 300) e la riga e' uscita da
+             s.vendite (sfoltisciVendite). Rigiocare al buio una vendita cosi'
+             vecchia non e' «recuperare un incasso»: e' scommettere. E il banco
+             ha misurato cosa succede quando la scommessa e' sbagliata — la
+             riga viene subito potata perche' vecchia, ma la GIORNATA di
+             allora resta gonfiata per novanta giorni, senza nessuna riga che
+             spieghi perche'. Un incasso di venerdi' rifatto lunedi' di
+             nascosto e' peggio di un incasso mancante che si vede.
+             Quindi si mettono da parte, restano sul telefono, e all'ingresso
+             l'app scrive nello storico quante sono e quanto valgono: chi ha il
+             quaderno decide se ribatterle. */
+          const limite = Date.now() - ORE_VENDITE * 3600000;
+          const fresche = buone.filter((m) => !(m.t && m.t < limite));
+          const ferme = buone.filter((m) => m.t && m.t < limite);
+          if (ferme.length) {
+            try {
+              const gia = JSON.parse(localStorage.getItem(CHIAVE_FERMA) || "[]");
+              localStorage.setItem(CHIAVE_FERMA, JSON.stringify([...(Array.isArray(gia) ? gia : []), ...ferme].slice(-50)));
+            } catch {}
+            fermeRef.current = ferme;
+          }
+          codaRef.current = fresche;
+          ritrovate = fresche.length;
           if (ritrovate) { setSync("salvataggio"); setDaSalvare(ritrovate); }
+          if (ferme.length || fresche.length !== rimaste.length) {
+            try { if (fresche.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(fresche)); else localStorage.removeItem(CHIAVE_CODA); } catch {}
+          }
         }
       } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       if (auth) {
@@ -15230,6 +15368,14 @@ export default function App() {
         statoRef.current = vista; setStato(vista);
         setSync(codaRef.current.length ? "salvataggio" : "ok");
         if (conCoda) pianifica(0);
+        /* QUELLO CHE SI E' FERMATO SI DICE (gen-6.07). Una volta sola, appena
+           c'e' uno stato vero su cui scriverlo, e con dentro il totale: senza
+           la cifra la riga non serve a decidere se ribattere. */
+        if (fermeRef.current.length && letto) {
+          const q = fermeRef.current; fermeRef.current = [];
+          const somma = q.reduce((x, m) => x + (Number(m?.dati?.totale) || 0), 0);
+          muta(() => {}, `${q.length === 1 ? "Una vendita ferma" : q.length + " vendite ferme"} da piu' di ${ORE_VENDITE} ore su questo telefono (${fmtEuro(somma)}): NON sono state rispedite, vanno controllate a mano`);
+        }
       } catch {}
     }
     setProfiloId(pid);
