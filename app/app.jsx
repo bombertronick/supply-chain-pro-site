@@ -609,10 +609,20 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.07";
+const VERSIONE = "gen-6.08";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
+/* ── LA RUBRICA (gen-6.08) ──
+   Trecento e non mille. Un cliente pesa ~110 caratteri e lo stato INTERO
+   viaggia a ogni salvataggio: mille clienti sarebbero 110KB su uno stato che
+   oggi ne misura 286 — il 38% in piu' addosso al problema del traffico che
+   e' gia' il collo di bottiglia numero uno. Trecento sono ~33KB, e sono la
+   rubrica VIVA di una pizzeria: si potano i piu' vecchi per data d'ultimo
+   ordine, quindi chi ordina ogni settimana non esce mai. Chi e' uscito non
+   e' perduto: il suo nome resta scritto sugli scontrini del CSV, e alla
+   prossima telefonata si ribatte il numero. */
+const MAX_CLIENTI = 300;
 const giornoDi = (t) => { const d = new Date(t);
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 /* il magazzino da cui esce quello che si vende: quello designato sulla sede,
@@ -659,6 +669,26 @@ function sfoltisciVendite(lista) {
   return (lista || []).filter((v) => v && v.t >= limite)
     .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
 }
+/* IL NUMERO E' LA CHIAVE, MA SI SCRIVE IN CINQUE MODI (gen-6.08).
+   «340 111 0002», «3401110002», «+39 340 1110002», «0039 3401110002» sono lo
+   stesso cliente, e chi sta al banco li batte come gli vengono. Senza questa
+   riduzione la rubrica si riempirebbe di gemelli e la ricerca per telefono —
+   che e' il gesto vero, «pronto, sono il numero…» — non troverebbe niente.
+   Lo zero iniziale dei fissi NON si toglie: 06 e' parte del numero, e togliere
+   uno zero da «06 1234567» lo confonderebbe con un cellulare. */
+const telNorm = (t) => {
+  let d = String(t || "").replace(/\D/g, "");
+  if (d.startsWith("0039")) d = d.slice(4);
+  if (d.length > 10 && d.startsWith("39")) d = d.slice(2);
+  return d;
+};
+/* si potano i piu' vecchi PER ULTIMO ORDINE, non per data d'iscrizione: chi
+   ordina ogni venerdi' da due anni deve restare, chi ha ordinato una volta a
+   marzo puo' uscire */
+function sfoltisciClienti(lista) {
+  return (lista || []).filter(Boolean)
+    .sort((a, b) => (b.ultimo || b.t || 0) - (a.ultimo || a.t || 0)).slice(0, MAX_CLIENTI);
+}
 /* filtro puro come sfoltisciOrdini: il tetto e' PER SEDE, se no con due sedi
    i novanta giorni diventerebbero quarantacinque */
 function sfoltisciGiornate(lista) {
@@ -692,10 +722,36 @@ function applicaVendita(s, v) {
      Torna false quando non fa niente, e il chiamante lo usa per non scrivere
      una riga di storico per un lavoro mai avvenuto. */
   if ((s.vendite || []).some((x) => x && x.id === v.id)) return false;
+  /* ── IL TELEFONO NON ENTRA NELLA VENDITA (gen-6.08) ──
+     `cliReg` viaggia nel dato della mutazione — quindi anche nella coda sul
+     telefono di chi ha battuto, che e' lo stesso telefono su cui il numero
+     e' stato appena scritto — ma si STACCA qui e finisce solo in rubrica.
+     Dentro s.vendite resta `cli`, che porta id, nome, modo e fascia: quattro
+     campi, nessun dato personale. La ragione non e' pudore: s.vendite e' la
+     collezione che esce nel CSV e che viaggia intera a ogni salvataggio verso
+     tutti i telefoni della rete, comprese le postazioni di cucina. Il
+     telefono lo legge chi apre la rubrica, dove sta una volta sola.
+     Lo storno NON tocca la rubrica: un ordine sbagliato non cancella un
+     cliente, e il contatore che scende di uno non serve a nessuno. */
+  const { cliReg, ...vend } = v;
+  if (cliReg && telNorm(cliReg.tel)) {
+    const chiave = telNorm(cliReg.tel);
+    const gia = (s.clienti || []).find((c) => telNorm(c.tel) === chiave);
+    if (gia) {
+      if (cliReg.nome) gia.nome = cliReg.nome;
+      if (cliReg.via) gia.via = cliReg.via;
+      gia.ultimo = v.t;
+      gia.n = (gia.n || 0) + 1;
+    } else {
+      s.clienti = [{ id: cliReg.id, nome: cliReg.nome || "", tel: cliReg.tel,
+        ...(cliReg.via ? { via: cliReg.via } : {}), t: v.t, ultimo: v.t, n: 1 }, ...(s.clienti || [])];
+    }
+    s.clienti = sfoltisciClienti(s.clienti);
+  }
   /* la riga nuova NON passa dal filtro d'eta': una vendita rimasta in coda
      piu' di 48 ore va applicata E vista — la fara' scadere lo sfoltimento
      successivo, non la nascita (revisione gen-5.96) */
-  s.vendite = [{ ...v, stato: "registrata" }, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
+  s.vendite = [{ ...vend, stato: "registrata" }, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
   for (const r of v.scarico || []) {
     const mm = trova(s.magazzini, r.magId);
     const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
@@ -1835,6 +1891,7 @@ const GUIDA_SEZIONE = {
   cassa: [
     { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
     { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "In basso c'è la fascia degli ingredienti, e l'ordine non conta. Se hai già battuto il piatto, la fascia dice «Su: Margherita» e il tocco sull'ingrediente ci va sopra. Se non hai battuto niente, l'ingrediente resta IN MANO e lo prende il primo piatto che tocchi. Per cambiare bersaglio tocca il nome di un'altra riga («Lavora su…»), per liberarlo «Stacca». Vale per UNA: da due margherite ne resta una liscia e nasce «Margherita + Broccoletti». Si disfa dove hai sbagliato: lo stesso ingrediente per toglierlo, la × accanto alla riga, «Lascia» per svuotare la mano." },
+    { titolo: "Il cliente: asporto, consegna, e per che ora", testo: "In cima alla Cassa c'è una pastiglia che dice «Banco»: al bancone non la tocchi mai e batti come sempre. Quando suona il telefono la apri e scegli «Asporto» o «Consegna». Il numero è la chiave: battine anche solo le ultime cifre e se il cliente ha già ordinato compare lì sotto — un tocco e nome, telefono e via si riempiono da soli. Il nome è obbligatorio (in cucina è quello che si legge sul sacchetto) e per la consegna lo è anche la via, con «Vedi sulla mappa» che te la apre PRIMA di prometterla. «Per le» è l'ora richiesta: i tastini «fra 15′» la scrivono da soli. La rubrica tiene i 300 clienti che hanno ordinato più di recente, e telefono e indirizzo NON escono mai nel CSV." },
     { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini delle ultime 48 ore — quello di ieri sera compreso, col giorno scritto accanto all'ora: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
     { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
     { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
@@ -12907,7 +12964,18 @@ function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
     mutaDato("spunta", dati);
   };
 
+  /* ── IL CARTELLINO (gen-6.08, chiesto da Valerio il 4 settembre) ──
+     Chi impacchetta ha bisogno di sapere DI CHI e' il sacchetto: fino a ieri
+     la comanda diceva solo «#7 · 20:31», e con quattro sacchetti sul banco
+     quel numero non basta a nessuno. Nome, ora richiesta, e se va consegnato.
+     Il TELEFONO si legge dalla RUBRICA, non dalla vendita: nella vendita non
+     c'e' apposta (gen-6.08, applicaVendita), e cosi' quel numero non finisce
+     ne' nel CSV ne' negli scontrini che viaggiano in rete. Se il cliente e'
+     uscito dalla rubrica per il tetto, il nome resta e il numero no — ed e'
+     giusto: chi e' uscito e' chi non ordina da mesi. */
+  const cliDi = (v) => (v.cli?.id ? (stato.clienti || []).find((c) => c.id === v.cli.id) : null);
   const intestaCarta = (c) => (
+    <>
     <div className="flex items-center gap-2 text-xs mb-1.5" style={{ color: T.dim }}>
       {c.v.n != null && <b className="text-sm" style={{ color: T.ink }}>#{c.v.n}</b>}
       <span className="font-bold" style={{ color: T.tenue }}>{oraDi(c.v.t)}</span>
@@ -12915,6 +12983,21 @@ function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
       <span className="flex-1" />
       <span className="truncate">{c.v.chi}</span>
     </div>
+    {c.v.cli && (
+      <div className="flex items-center gap-2 flex-wrap mb-1.5 rounded-xl px-2.5 py-1.5"
+        style={{ background: "#FFF6E8", border: "1.5px solid #F0C98A" }}>
+        <b className="text-sm" style={{ color: "#7A4A00" }}>{c.v.cli.nome || "Senza nome"}</b>
+        <Chip colore={c.v.cli.modo === "consegna" ? T.rosso : T.ambra}>
+          {c.v.cli.modo === "consegna" ? "Consegna" : "Asporto"}</Chip>
+        {c.v.cli.fascia && <Chip colore={T.blu} pieno>{c.v.cli.fascia}</Chip>}
+        <span className="flex-1" />
+        {cliDi(c.v)?.tel && <span className="text-xs font-bold" style={{ color: "#7A4A00" }}>{cliDi(c.v).tel}</span>}
+        {c.v.cli.modo === "consegna" && cliDi(c.v)?.via && (
+          <span className="w-full text-xs truncate" style={{ color: "#7A4A00" }}>{cliDi(c.v).via}</span>
+        )}
+      </div>
+    )}
+    </>
   );
 
   return (
@@ -13094,6 +13177,29 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
      si leggeva, e nasconderla e basta avrebbe reso invisibile uno stato —
      peggio della barra sempre aperta. */
   const [fasciaSu, setFasciaSu] = useState(false);
+  /* ── IL CLIENTE (gen-6.08, parole di Valerio del 1º e del 4 settembre) ──
+     Tutto LOCALE come il carrello: finche' non si incassa, chi sta al banco
+     sta scrivendo su un foglietto suo — zero byte sul canale, e la cassa
+     accanto non vede il cliente di questa.
+     PARTE SU «banco», ed e' la scelta che decide se questa novita' pesa o no:
+     al bancone il 90% degli scontrini non ha nome, non ha telefono e non ha
+     ora, e deve restare esattamente com'era — un tocco sulla cella, Incassa.
+     La lezione di gen-6.04 vale identica: chiuso non vuol dire muto. La
+     pastiglia resta li' e dice a parole a chi sta andando l'ordine
+     («Consegna · Mario · 20:30»), perche' l'unico posto dove si legge quello
+     stato e' il foglio, e nasconderlo del tutto sarebbe peggio di tenerlo
+     aperto. `cli.id` nasce SOLO quando il cliente e' gia' in rubrica: per uno
+     nuovo lo genera registra(), fuori da muta come l'id della vendita. */
+  const [modo, setModo] = useState("banco");
+  const [cliId, setCliId] = useState(null);
+  const [cliNome, setCliNome] = useState("");
+  const [cliTel, setCliTel] = useState("");
+  const [cliVia, setCliVia] = useState("");
+  const [cliFascia, setCliFascia] = useState("");
+  const [cliSu, setCliSu] = useState(false);
+  const azzeraCliente = () => {
+    setModo("banco"); setCliId(null); setCliNome(""); setCliTel(""); setCliVia(""); setCliFascia("");
+  };
   /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
      meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
   const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
@@ -13302,6 +13408,36 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
   const totale = +carrello.reduce((a, r) => a + r.prezzo * r.qty, 0).toFixed(2);
   const sc = incasso ? calcoloScarico(stato, carrello, sedeId) : null;
 
+  /* CHI CERCA PER TELEFONO STA GIA' PARLANDO AL TELEFONO (gen-6.08).
+     Il gesto vero non e' «apri la rubrica e scorri»: e' «pronto, sono il
+     340…» mentre si scrive. Bastano tre cifre, e si confronta il numero
+     RIDOTTO — chi ha in rubrica «+39 340 111 0001» lo trova battendo «0001».
+     Cinque righe e non di piu': una lista lunga sotto il pollice, in piedi,
+     col telefono all'orecchio, non si legge. */
+  const cercati = (() => {
+    const q = telNorm(cliTel);
+    if (q.length < 3) return [];
+    return (stato.clienti || []).filter((c) => telNorm(c.tel).includes(q))
+      .sort((a, b) => (b.ultimo || 0) - (a.ultimo || 0)).slice(0, 5);
+  })();
+  const prendiCliente = (c) => {
+    setCliId(c.id); setCliNome(c.nome || ""); setCliTel(c.tel || "");
+    if (c.via) setCliVia(c.via);
+  };
+  /* la mappa NON e' una verifica automatica: e' l'occhio di chi risponde al
+     telefono messo sull'indirizzo prima di prometterlo. Un link, non una API
+     — nessuna chiave da tenere, nessuna chiamata che parte, e funziona anche
+     se domani cambiano le condizioni di chiunque. */
+  const apriMappa = () => {
+    if (!cliVia.trim()) return;
+    const sede = trova(stato.sedi, sedeId);
+    const q = encodeURIComponent(cliVia.trim() + (sede?.nome ? ", " + sede.nome : ""));
+    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, "_blank", "noopener");
+  };
+  const MODI = { banco: "Banco", asporto: "Asporto", consegna: "Consegna" };
+  const targhettaCliente = [MODI[modo], modo !== "banco" && cliNome.trim(), cliFascia.trim()]
+    .filter(Boolean).join(" · ");
+
   const registra = () => {
     /* un tasto nascosto non e' un permesso negato (regola di gen-5.95) */
     if (!puoCassa(profilo))
@@ -13311,6 +13447,23 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
        mondi: senza sede operatore lo si spiega (revisione gen-5.96) */
     if (!sedeId)
       return mostraToast("La vendita ha bisogno di una sede operatore: creala da Gestione → Sedi", "errore");
+    /* ── DUE SOLI OBBLIGHI, E NESSUNO AL BANCO (gen-6.08) ──
+       Il nome per asporto e consegna: senza, in cucina il sacchetto non ha
+       padrone e la comanda dice solo «#7». La via per la consegna: promettere
+       una consegna a un indirizzo che non c'e' e' peggio di un no detto
+       subito, ed e' per questo che c'e' il tasto che la apre sulle mappe
+       PRIMA. Il telefono NON blocca niente: al banco si dice sempre no al
+       numero, e fermare un incasso per questo sarebbe fermare la cassa. Ma
+       senza numero il cliente non entra in rubrica — non c'e' una chiave per
+       ritrovarlo — e il foglio lo dice, invece di lasciarlo credere. */
+    if (modo !== "banco" && !cliNome.trim()) {
+      setIncasso(false); setCliSu(true);
+      return mostraToast(`Per un ordine da ${MODI[modo].toLowerCase()} serve il nome: senza, in cucina il sacchetto non ha padrone`, "errore");
+    }
+    if (modo === "consegna" && !cliVia.trim()) {
+      setIncasso(false); setCliSu(true);
+      return mostraToast("Per una consegna serve la via: controllala sulla mappa prima di prometterla", "errore");
+    }
     const t = Date.now();
     const scarico = calcoloScarico(stato, carrello, sedeId);
     /* TUTTO calcolato fuori da muta, id compreso: la closure viene rieseguita
@@ -13329,10 +13482,32 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           ...(agg?.length ? { agg } : {}) })),
       totale, metodo, scarico: scarico.righe,
       ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
+      /* «cli» solo se serve davvero: una vendita al banco pesa oggi quanto
+         pesava ieri sul canale, come per «agg» e «varianteId» (gen-6.08).
+         Quattro campi e basta — id, nome, modo, fascia: il nome e' una FOTO,
+         cosi' lo scontrino resta leggibile anche se il cliente esce dalla
+         rubrica per il tetto. Telefono e via viaggiano a parte in «cliReg» e
+         applicaVendita li stacca prima di scrivere la vendita. */
+      ...(modo !== "banco" ? { cli: {
+        ...(cliId ? { id: cliId } : {}), nome: cliNome.trim(), modo,
+        ...(cliFascia.trim() ? { fascia: cliFascia.trim() } : {}),
+      } } : {}),
+      ...(modo !== "banco" && telNorm(cliTel) ? { cliReg: {
+        /* l'id nasce QUI FUORI, come quello della vendita: un uid() dentro la
+           closure darebbe un cliente nuovo a ogni riallineamento della coda */
+        id: cliId || uid("cl"), nome: cliNome.trim(), tel: cliTel.trim(), via: cliVia.trim(),
+      } } : {}),
     };
+    /* la vendita porta gia' l'id del cliente nuovo: cosi' la riga e la
+       rubrica si legano anche quando il salvataggio parte fra un'ora */
+    if (vendita.cliReg && !vendita.cli.id) vendita.cli.id = vendita.cliReg.id;
     mutaDato("vendita", vendita, `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
     mostraToast(`Incassato ${fmtEuro(totale)}`);
     setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
+    /* il cliente si azzera con il conto: il prossimo che arriva al banco non
+       deve ereditare il nome e l'indirizzo di quello prima — sarebbe una
+       pizza consegnata a casa di un altro */
+    azzeraCliente();
     /* chiude anche la fascia: il conto dopo riparte pulito come il primo
        della serata, senza ereditare la barra aperta di quello prima */
     setViva(null); setMano([]); setFasciaSu(false);
@@ -13369,7 +13544,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
-        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); }} opzioni={sediOp} /></div>
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); azzeraCliente(); }} opzioni={sediOp} /></div>
       )}
       {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
           registro. Le ultime vendite — coi loro storni — stanno dietro il
@@ -13396,6 +13571,22 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           </div>
         </Scheda>
       )}
+      {/* LA PASTIGLIA DEL CLIENTE (gen-6.08). Una riga sola, sempre nello
+          stesso posto, sopra la griglia: e' la prima cosa che si tocca quando
+          suona il telefono, e non si tocca mai quando il cliente e' davanti.
+          Ambra quando l'ordine ha un padrone — in quest'app l'ambra vuol dire
+          «attenzione, c'e' qualcosa di aperto», e un ordine da consegnare che
+          sta per essere incassato e' esattamente quello. */}
+      <button onClick={() => setCliSu(true)}
+        aria-label={`Chi è, e come lo vuole: ${targhettaCliente}`}
+        className="w-full flex items-center gap-2 rounded-full px-3.5 mb-3 text-sm font-bold"
+        style={{ minHeight: 48, background: modo === "banco" ? "#F0F3FB" : "#FFF6E8",
+          color: modo === "banco" ? T.dim : "#7A4A00",
+          border: `1.5px solid ${modo === "banco" ? T.bordo : "#F0C98A"}` }}>
+        {modo === "consegna" ? <Truck size={16} /> : modo === "asporto" ? <Package size={16} /> : <Store size={16} />}
+        <span className="flex-1 text-left truncate">{targhettaCliente}</span>
+        <ChevronRight size={16} />
+      </button>
       {voci.length === 0
         ? <Scheda className="p-8"><Vuoto icona={Store} titolo="Il listino è vuoto"
             testo="Le voci della Cassa le prepara un Admin da Gestione → Listino." /></Scheda>
@@ -13686,6 +13877,80 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
             ))}
           </div>);
         })()}
+      </Foglio>
+      {/* ── CHI È, E COME LO VUOLE (gen-6.08) ──
+          Un foglio solo per tutte e tre le domande, nell'ordine in cui le fa
+          chi risponde al telefono: come lo vuole, chi è, per quando. Le voci
+          compaiono a mano a mano che servono — al banco non si vede niente,
+          per l'asporto nome e telefono, per la consegna anche la via. */}
+      <Foglio aperto={cliSu} titolo="Chi è, e come lo vuole" onChiudi={() => setCliSu(false)}>
+        <div className="flex flex-col gap-4">
+          <Segmenti valore={modo} onCambia={(v) => { setModo(v); if (v === "banco") azzeraCliente(); }} opzioni={[
+            { id: "banco", nome: "Banco" }, { id: "asporto", nome: "Asporto" }, { id: "consegna", nome: "Consegna" },
+          ]} />
+          {modo === "banco"
+            ? <p className="text-sm" style={{ color: T.dim }}>
+                Al banco non serve niente: batti e incassi come sempre. Scegli «Asporto» o «Consegna»
+                quando l'ordine è di qualcuno che verrà a prenderlo o che aspetta a casa.</p>
+            : <>
+              <div>
+                <Campo label="Telefono" valore={cliTel} onCambia={(v) => { setCliTel(v); setCliId(null); }}
+                  inputMode="tel" placeholder="Bastano le ultime cifre per cercarlo"
+                  suggerimento={telNorm(cliTel)
+                    ? "È la chiave con cui lo ritrovi la prossima volta."
+                    : "Senza numero l'ordine si fa lo stesso, ma il cliente non entra in rubrica: la prossima volta va riscritto tutto."} />
+                {/* i CANDIDATI, non una rubrica da scorrere: compaiono mentre
+                    si scrive e spariscono appena se ne tocca uno */}
+                {cercati.length > 0 && !cliId && (
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    {cercati.map((c) => (
+                      <button key={c.id} onClick={() => prendiCliente(c)}
+                        aria-label={`Prendi ${c.nome || "senza nome"}, ${c.n || 1} ordini`}
+                        className="w-full text-left rounded-2xl px-3 py-2.5"
+                        style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+                        <span className="block text-sm font-extrabold truncate" style={{ color: T.ink }}>{c.nome || "Senza nome"}</span>
+                        <span className="block text-xs truncate" style={{ color: T.tenue }}>
+                          {c.tel}{c.via ? " · " + c.via : ""} · {c.n || 1} {(c.n || 1) === 1 ? "ordine" : "ordini"}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Campo label="Nome" valore={cliNome} onCambia={setCliNome}
+                placeholder="Come lo chiami quando è pronto"
+                suggerimento="Obbligatorio: è quello che si legge in cucina sul cartellino." />
+              {modo === "consegna" && (
+                <div>
+                  <Campo label="Via e numero" valore={cliVia} onCambia={setCliVia}
+                    placeholder="Via, numero civico, scala" />
+                  {cliVia.trim() && (
+                    <div className="mt-2">
+                      <Bottone variante="tonale" piccolo icona={Search} onClick={apriMappa}>Vedi sulla mappa</Bottone>
+                      <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+                        Si apre in una pagina a parte: guardala PRIMA di promettere la consegna.</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div>
+                <Campo label="Per le" valore={cliFascia} onCambia={setCliFascia}
+                  placeholder="20:30" maxLength={5}
+                  suggerimento="L'ora in cui lo vuole. Si legge in cucina accanto al nome." />
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  {[15, 30, 45, 60].map((m) => (
+                    <button key={m} onClick={() => {
+                      const d = new Date(Date.now() + m * 60000);
+                      setCliFascia(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
+                    }}
+                      aria-label={`Fra ${m} minuti`}
+                      className="rounded-full px-3 text-xs font-bold"
+                      style={{ minHeight: 40, background: "#EAF0FE", color: T.blu }}>fra {m}′</button>
+                  ))}
+                </div>
+              </div>
+            </>}
+          <Bottone icona={Check} onClick={() => setCliSu(false)}>Va bene</Bottone>
+        </div>
       </Foglio>
       <Foglio aperto={incasso} titolo="Incasso" onChiudi={() => setIncasso(false)}>
         <div className="flex flex-col gap-4">
@@ -14035,11 +14300,18 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
        e quello di oggi deve ritrovare le prime dieci colonne allo stesso
        posto (filtri e formule non si spostano). «Voce» resta il nome
        composto, che si legge da solo. (gen-6.02) */
-    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino", "Aggiunte"]];
+    /* «Cliente» e «Modo» arrivano DOPO «Aggiunte», per la stessa ragione per
+       cui «Aggiunte» arrivo' dopo «Scontrino»: le colonne vecchie non si
+       spostano mai. E portano il NOME e il modo, mai il telefono ne'
+       l'indirizzo: questo file esce dall'app e finisce in una cartella
+       condivisa, in una mail, in un foglio aperto da chiunque — la rubrica
+       resta dentro l'app (gen-6.08). */
+    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino", "Aggiunte", "Cliente", "Modo"]];
     (stato.vendite || []).forEach((v) => v.righe.forEach((r) => {
       righe.push([dataIt(v.t), trova(stato.sedi, v.sedeId)?.nome, v.chi, r.nome,
         numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id,
-        (r.agg || []).map((a) => a.nome).join(" + ")]);
+        (r.agg || []).map((a) => a.nome).join(" + "),
+        v.cli?.nome || "", v.cli?.modo || "banco"]);
     }));
     righe.push([]);
     righe.push(["Giornata", "Sede", "", "", "Vendite", "", "Totale", "Contanti", "Carta", "Altro"]);
@@ -14966,7 +15238,7 @@ export default function App() {
      codice. «...s» viene dopo, quindi i dati veri non vengono mai toccati:
      questa riga puo' solo evitare un crollo, mai nascondere un dato. */
   const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
-    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [],
+    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [], clienti: [],
     magazzini: [], prodotti: [], sedi: [], unita: [], categorie: [], fornitori: [], profili: [], ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
@@ -15020,6 +15292,10 @@ export default function App() {
        vendita successiva — trovato dalla revisione, non da me */
     b.vendite = sfoltisciVendite(b.vendite);
     b.giornate = sfoltisciGiornate(b.giornate);
+    /* la rubrica si pota qui come le vendite, e per la stessa ragione: se lo
+       facesse solo applicaVendita, trecento clienti di troppo viaggerebbero in
+       rete finche' qualcuno non batte l'ordine successivo (gen-6.08) */
+    b.clienti = sfoltisciClienti(b.clienti);
     return b;
   };
 
@@ -15142,6 +15418,7 @@ export default function App() {
       b.ordini = sfoltisciOrdini(b.ordini);
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
+      b.clienti = sfoltisciClienti(b.clienti);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;
@@ -15182,6 +15459,7 @@ export default function App() {
       b.ordini = sfoltisciOrdini(b.ordini);
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
+      b.clienti = sfoltisciClienti(b.clienti);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;
