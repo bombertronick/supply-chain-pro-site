@@ -1,4 +1,4 @@
-/* gen-6.07 «Di solito ne escono» — la media dei consumi nel conteggio di fine giornata.
+/* gen-6.08 «Di solito ne escono» — la media dei consumi nel conteggio di fine giornata.
 
    PERCHE' QUESTO FILE NON SI CHIAMA «...test.mjs». E' un collaudo scritto PRIMA
    del codice — cioe' una SPECIFICA — e finche' il codice non esiste e' rosso
@@ -9,7 +9,7 @@
    esistono le «SALTATE»). Il lanciatore prende solo i file che finiscono in
    «test.mjs», quindi questo resta fuori finche' non lo rinomino — e lo
    rinominero' quando il codice sara' scritto e i rossi registrati per bene.
-   Nel frattempo si fa girare a mano: node gen607.specifica.mjs
+   Nel frattempo si fa girare a mano: node gen608.specifica.mjs
 
    LE PAROLE DI VALERIO (4 settembre): «a fine giornata quando l'operatore fa il
    controllo per l'ordine che deve essere inviato al laboratorio il sistema
