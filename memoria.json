@@ -2,10 +2,10 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.06",
-  "len": 903857,
-  "md5": "a3661ad7f2b700beb48f1809d04b5be6",
-  "quando": "2026-09-05",
+  "gen": "gen-6.07",
+  "len": 914198,
+  "md5": "eb2a3f6a47c6004386bac964a85cdbbf",
+  "quando": "2026-09-06",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
  "aperti": [
@@ -29,6 +29,14 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.07",
+   "quando": "6 settembre",
+   "chiude": [],
+   "prova": "gen607test.mjs",
+   "cosa": "«I soldi non si contano due volte» — TRE GUARDIE, e nessuna e come l avevo scritta. Cinque accusatori indipendenti l hanno demolita PRIMA che toccassi il codice, con una controprova incrociata su ogni accusa; il verdetto le ha riscritte tutte e tre e ne ha aggiunta una. G1 UNA RISPOSTA CHE PORTA UN ERRORE NON E UN SALVATAGGIO: il server rifiuta in DUE modi e nessuno e un valore falso — app_kv_set.sql:41 RITORNA {error:auth} sulla sessione scaduta, :61-64 SOLLEVANO 40001 sul conflitto fra due casse, che e il rifiuto QUOTIDIANO e la mia ricetta non lo copriva; in mezzo c e un caricatore non leggibile che puo consegnare il json nudo, incartarlo come supabase-js ({data:{...},error:null}) o passare il corpo PostgREST ({code,...}), quindi tre nomi e non uno. MISURATO PRIMA: su tutte e tre le forme il banco diceva «SPARITA — il telefono l ha cancellata». SCARTATA l idea piu lodata dell istruttoria (riscrivere la spia e rileggerla): con due casse puntano allo stesso numero, quindi confermerebbe anche un rifiuto — l ha smontata la controprova. G2 LO STESSO SCONTRINO UNA VOLTA SOLA: la guardia sull id da sola era cieca proprio nel caso che la giustificava, perche s.vendite dura 48 ore e 300 righe globali; tre pezzi — la guardia torna false, la voce di storico si scrive solo se l esecutore ha fatto qualcosa (se no niente vendita doppia ma «Vendita in cassa» scritto due volte, cioe il difetto spostato), e lo STECCATO D ETA sulla coda ritrovata. LA SCOPERTA NON PREVISTA, misurata: una vendita di tre giorni fa rigiocata gonfiava la GIORNATA di allora (120 -> 138 euro) e poi la riga spariva potata dalle 48 ore — il totale restava sbagliato per novanta giorni senza una riga che lo spiegasse. Adesso quelle si parcheggiano su scp:coda-ferma:v1, restano sul telefono, e all ingresso l app scrive nello storico quante sono e quanto valgono. G3 LA PORTA PRIMA DELLA FINESTRA: il bottone «Ultime vendite» e l UNICA strada verso lo storno e vive dentro il riquadro «Oggi», che a mezzanotte e mezza non c e — allargare la lista senza aprire il cancello non si sarebbe visto, e il banco lo ha detto con quattro parole, «il bottone non c e». Piu: il giorno da una fonte sola (giornoDi(v.t), non v.giorno che sulla riga contraria di uno storno mentirebbe), niente ambra sulla data (in quest app ambra vuol dire «sta finendo»), 40 di oggi + 20 piu vecchie invece di 60 a caso, la guida dentro l app riallineata. E UNA COSA TROVATA COSTRUENDO: due scontrini possono avere lo stesso numero (il progressivo si calcola sullo stato visto, con due casse si ripete) e nello stesso minuto diventano indistinguibili — si storna quello sbagliato; il codino dell id compare SOLO sulle righe che collidono davvero. PIU il tetto ai conflitti consecutivi: il ramo del conflitto esce prima del contatore delle riprove e conflittiRef si azzera solo su un successo, quindi un rifiuto permanente classificato conflitto lasciava il semaforo su «salvataggio» per tutta la serata; dopo sei di fila si passa dall altra parte. PROVE: 21 rossi registrati sulla versione online prima di scrivere il codice, 38 verdi dopo. Undici sabotaggi, UNDICI ROSSI, nessuno muto: 5, 4, 4, 1, 1, 1, 7, 4, 1, 1, 1. PRODUZIONE: len 914198, md5 eb2a3f6a47c6004386bac964a85cdbbf, backup:pre-gen607.",
+   "_nota": "S5 dava un rosso dove me ne aspettavo tre. NON era un buco del banco: era un sabotaggio parziale mio — spegnevo la rimozione dalla coda ma non il parcheggio, quindi la vendita veniva rigiocata E messa da parte insieme. Ma indagandolo ho trovato un VERDE PER CASO e l ho tolto: «la vendita vecchia non e in rete» resta verde comunque, perche una riga di tre giorni fa viene potata dalle 48 ore che sia stata applicata o no. Sostituito col timbro in «applicate», che sa fallire: adesso quel sabotaggio fa due rossi e il primo dice «C E: e stata rigiocata». LEZIONE: un sabotaggio che da meno rossi del previsto va aperto, ma la prima ipotesi da verificare e che sia il sabotaggio a essere impreciso, non il banco a essere cieco. RIALLINEATI, rossi annunciati e non regressioni: cassa2test:183 ed extratest:294 cercavano /^Storna la vendita delle/ e col numero in mezzo non combaciava piu."
+  },
   {
    "gen": "gen-6.06",
    "quando": "5 settembre",
@@ -353,6 +361,16 @@
   "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
  ],
  "sbagliato": [
+  {
+   "quando": "2026-09-06",
+   "dicevo": "(per tutta la sessione del 5-6 settembre) Sto lavorando a quello che serve a Valerio.",
+   "invece": "Valerio me lo ha dovuto chiedere: «hai completato le richieste che ti ho fatto?». No. Degli ordini cliente chiesti il 1 e il 4 settembre — nome e telefono, take away o consegna, via verificabile su mappe, fascia oraria, piu ordini insieme, ordini rapidi dal cliente registrato, cartellino in postazione, ingrediente finito, la cassa che vede solo la cassa — NON c era niente: verificato col grep, «clienti» 0 occorrenze, «esaurito» 0, «domicilio» 0, «asporto» 0, e «telefono» 52 volte ma sempre nel senso di dispositivo. Avevo speso tre rilasci di fila (6.05, 6.06, 6.07) su difetti trovati da me, due dei quali MIEI. Erano difetti veri e sui soldi, ma la decisione di inseguirli uno dopo l altro per un intera sessione l ho presa da solo senza metterla in mano a lui. La cosa da non rifare non e riparare i difetti: e non dire che si sta cambiando strada."
+  },
+  {
+   "quando": "2026-09-06",
+   "dicevo": "(commit 7d4494f) Un messaggio di commit lungo che descrive il banco di gen-6.07, i 21 rossi registrati e la rinumerazione della specifica.",
+   "invece": "Dentro quel commit c era UNA riga: il rinomino di un file. `git add A B C` con C inesistente esce in errore e non aggiunge nemmeno A e B, e io avevo messo 2>/dev/null in coda e letto solo l hash come conferma. Un hash conferma che un commit e avvenuto, non che dentro ci sia quello che il messaggio dice. Regola adottata: dopo ogni commit, `git show --name-status`, e mai zittire gli errori di un comando che deve riuscire."
+  },
   {
    "quando": "2026-09-05",
    "dicevo": "(per mezza giornata, guardando gen606test) «Questi rossi sono difetti dell app.»",
