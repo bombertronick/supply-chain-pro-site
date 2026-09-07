@@ -32,6 +32,31 @@ const BANDIERINA = ".censimento-in-corso";
 const arg = process.argv.slice(2);
 const censimento = arg.includes("--censimento");
 const tutti = arg.includes("--tutte") || censimento;
+/* ── LA RIPRESA (7 settembre) ──
+   Il 7 settembre il container si e' riavviato TRE volte, e ogni volta il
+   censimento e' ripartito da zero: la terza si e' fermato a 5 file su 99
+   dopo aver girato per ore, e me ne sono accorto solo perche' il diario era
+   vecchio di quattordici ore. Il rimedio non e' sperare che non risucceda:
+   e' rendere la ripartenza a buon mercato. corri.mjs stampa il risultato di
+   ogni file APPENA finisce, quindi un diario di un giro morto dice gia' cosa
+   e' stato provato; con --riprendi <diario> si rilegge quel diario e si
+   girano solo i file che mancano. Costo di un riavvio: il file in volo, non
+   l'intero censimento.
+   Si legge il diario e non una lista mia, perche' il diario e' quello che
+   verra' letto anche per fare i conti alla fine: una fonte sola. */
+const iRiprendi = arg.indexOf("--riprendi");
+const diarioVecchio = iRiprendi >= 0 ? arg[iRiprendi + 1] : null;
+const gia = new Set();
+if (diarioVecchio && existsSync(diarioVecchio)) {
+  /* «ROSSA» e' MAIUSCOLA nel rapporto. Il 6 settembre ho annunciato «zero
+     rosse» a Valerio per aver cercato «rosso» minuscolo: erano tre. Qui si
+     prendono tutte e quattro le parole, e il collaudo di questa riga e' che
+     il conto della ripresa torni con quello del rapporto. */
+  for (const r of readFileSync(diarioVecchio, "utf8").split("\n")) {
+    const m = r.match(/^(verde|ROSSA|muto|SALTA) +([a-z0-9-]+test\.mjs)/);
+    if (m) gia.add(m[2]);
+  }
+}
 /* navtest.mjs finisce nel filtro per via del nome ma non e' un collaudo: e' la
    libreria che tutti gli altri importano per navigare. Girava, non provava
    niente (giustamente) e mi risultava MUTA a ogni censimento — un falso
@@ -58,9 +83,11 @@ const DATI_RICHIESTI = {
   "ripristinotest.mjs": "topologia-vera.json",
 };
 
-const lista = tutti
+const lista = (tutti
   ? readdirSync(".").filter((f) => /test\.mjs$/.test(f) && !NON_COLLAUDI.has(f)).sort()
-  : arg.filter((a) => !a.startsWith("--"));
+  : arg.filter((a, i) => !a.startsWith("--") && arg[i - 1] !== "--riprendi")
+).filter((f) => !gia.has(f));
+if (diarioVecchio) console.log(`ripresa da «${diarioVecchio}»: ${gia.size} gia' fatti, ne restano ${lista.length}`);
 
 if (tutti) { try { writeFileSync(BANDIERINA, String(process.pid)); } catch {} }
 const giu = () => { try { if (existsSync(BANDIERINA)) unlinkSync(BANDIERINA); } catch {} };
