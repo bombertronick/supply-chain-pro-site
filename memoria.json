@@ -2,10 +2,10 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.07",
-  "len": 914198,
-  "md5": "eb2a3f6a47c6004386bac964a85cdbbf",
-  "quando": "2026-09-06",
+  "gen": "gen-6.08",
+  "len": 931829,
+  "md5": "b8fbbf5342a2ae9fcfe5a3be08c79de1",
+  "quando": "2026-09-07",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
  "aperti": [
@@ -29,6 +29,14 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.08",
+   "quando": "7 settembre",
+   "chiude": [],
+   "prova": "clientetest.mjs",
+   "cosa": "«Il cliente e il suo ordine» — LA PRIMA COSA DELLA LISTA DI VALERIO, dopo che me l ha dovuta chiedere lui. Chiesta il 1 e il 4 settembre, verificata assente a grep prima di cominciare. QUANDO SUONA IL TELEFONO: la pastiglia in cima alla Cassa parte su «Banco» e al bancone non si tocca mai — la pizza liscia resta un tocco, che e il vincolo su cui non cedo mai. Aperta: Banco/Asporto/Consegna, e i campi compaiono a mano a mano che servono. IL NUMERO E LA CHIAVE: telNorm riduce «340 111 0002», «3401110002», «+39 340 1110002» e «0039 3401110002» a una chiave sola (lo zero dei fissi NON si toglie: 06 e parte del numero); si cerca da 3 cifre battute, al massimo 5 candidati i piu recenti prima, e un tocco riempie nome, telefono e via — l ordine rapido. DUE SOLI OBBLIGHI E NESSUNO AL BANCO: il nome per asporto e consegna (senza, in cucina il sacchetto non ha padrone) e la via per la consegna, con «Vedi sulla mappa» che apre le mappe PRIMA di promettere — un link, non una API: nessuna chiave da tenere, niente che parte. Il telefono NON blocca: fermare un incasso per un numero vorrebbe dire fermare la cassa; ma senza numero il cliente non entra in rubrica e il foglio lo DICE invece di lasciarlo credere. IL TELEFONO NON ENTRA NELLA VENDITA: cliReg viaggia nel dato della mutazione e applicaVendita lo STACCA (const {cliReg, ...vend} = v) — dentro s.vendite resta «cli» con id, nome, modo e fascia, quattro campi. Non e pudore: s.vendite esce nel CSV e viaggia INTERA a ogni salvataggio verso tutti i telefoni, comprese le postazioni di cucina. In cucina il numero si legge dalla RUBRICA. IL CARTELLINO: nome, asporto o consegna, ora richiesta e telefono sulla comanda — fino a ieri diceva solo «#7», e con quattro sacchetti sul banco quel numero non basta a nessuno. TETTO 300, potati per ULTIMO ORDINE non per iscrizione: chi ordina ogni venerdi da due anni non esce mai. Mille clienti sarebbero 110KB su uno stato di 286, il 38 per cento in piu addosso al problema che e gia il collo di bottiglia numero uno. CSV: «Cliente» e «Modo» IN CODA, mai il telefono ne l indirizzo. PROVE: 15 rossi registrati sulla gen-6.07 online prima di scrivere il codice, 42 verdi dopo, zero errori di pagina. Undici sabotaggi: 9 rossi (7,5,2,3,1,4,1,1,2) e DUE MUTI, indagati e chiusi. Undici sabotaggi: 9 rossi (7,5,2,3,1,4,1,1,2) e DUE MUTI, indagati e chiusi. PRODUZIONE: len 931829, md5 b8fbbf5342a2ae9fcfe5a3be08c79de1, backup:pre-gen608.",
+   "_nota": "I DUE MUTI. S6 (via il tetto della rubrica) e S8 (via «clienti» da normalizza) non hanno fatto rumore. Prima ipotesi verificata, come insegna gen-6.07: non «il banco e cieco» ma «il sabotaggio e a meta». Tutte e due le guardie hanno DUE livelli — il tetto sta in applicaVendita E nei tre punti di sfoltimento di muta/applicaCoda; il valore di partenza sta in normalizza E c e il «|| []» difensivo dentro applicaVendita. Spegnendoli TUTTI E DUE: S6b 1 rosso, S8b 2 rossi. La ridondanza e vera e voluta, e una ridondanza non si puo sabotare a meta. DUE DIFETTI DEL BANCO TROVATI PRIMA DI LANCIARLO: la seconda parte della sezione 6 apriva il foglio in «banco», dove il campo del telefono non esiste; e la 7 cercava la via nel testo della pagina invece che nel valore dell input — quello che sta dentro un input non compare in innerText, quindi era un controllo che guardava nel posto sbagliato, verde per caso. IL CONTAINER SI E RIAVVIATO DUE VOLTE a meta sabotaggi e la prima volta ha portato via tutti i conteggi: il giro e stato riscritto per fare la copia integra PRIMA, ripristinare all INIZIO di ogni giro e non solo alla fine, scrivere ogni risultato su disco appena arriva, e verificare l impronta in fondo."
+  },
   {
    "gen": "gen-6.07",
    "quando": "6 settembre",

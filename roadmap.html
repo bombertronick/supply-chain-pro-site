@@ -120,6 +120,10 @@
   .tappa { display:flex; align-items:flex-start; gap:.85rem; width:100%;
     background:var(--carta); border:1.5px solid var(--riga); border-radius:1rem;
     padding:.95rem 1rem; box-shadow:var(--ombra); color:inherit; }
+  .tappa.fatta { border-color:color-mix(in srgb,var(--verde) 40%,transparent); background:var(--v-verde); }
+  .tappa.fatta .num { background:var(--verde); color:#fff; border-color:var(--verde); }
+  .pillo-ok { font-size:.6rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    background:var(--verde); color:#fff; border-radius:99px; padding:.1rem .4rem; vertical-align:.15em; }
   .tappa .num { background:var(--v-ambra); color:var(--ambra);
     border-color:color-mix(in srgb,var(--ambra) 35%,transparent); }
   .tappa .titolo { font-size:.98rem; font-weight:800; letter-spacing:-.008em; margin:0 0 .2rem;
@@ -205,7 +209,7 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata il 6 settembre</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 7 settembre</p>
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>DEVO COMINCIARE DA QUI, perché me l'hai dovuto chiedere tu.</b>
   Delle cose che mi hai chiesto il 1º e il 4 settembre — registrare il cliente col nome e il
@@ -258,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.07</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.08</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -267,9 +271,30 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>gen-6.07 «I soldi non si contano due volte».</b> Tre riparazioni, e nessuna delle
+      <dd><b>gen-6.08 «Il cliente e il suo ordine».</b> È <b>la prima cosa della tua lista</b>,
+      dopo che me l'hai dovuta chiedere tu. Quando suona il telefono tocchi la pastiglia in cima
+      alla Cassa e dici «Asporto» o «Consegna»; batti anche solo le ultime quattro cifre del
+      numero e se quel cliente ha già ordinato <b>nome, telefono e via si riempiono da soli</b> —
+      l'ordine rapido è un tocco. Il numero è la chiave, e «340 111 0002», «+39 340 1110002» e
+      «0039 3401110002» sono la <b>stessa persona</b>, non tre gemelli in rubrica. Due soli
+      obblighi, e nessuno al banco: il <b>nome</b> per asporto e consegna (senza, in cucina il
+      sacchetto non ha padrone) e la <b>via</b> per la consegna, con «Vedi sulla mappa» che te la
+      apre <i>prima</i> di prometterla. Il telefono non blocca mai un incasso — fermare la cassa
+      per un numero sarebbe peggio — ma senza numero il cliente non entra in rubrica, e il foglio
+      te lo dice invece di lasciartelo credere. «Per le» è l'ora richiesta, coi tastini «fra 15′».
+      In cucina arriva il <b>cartellino</b>: nome, se va consegnato, per che ora, e il telefono.
+      <b>Al bancone non cambia niente</b>: la pastiglia parte su «Banco», non la tocchi mai, e la
+      pizza liscia resta un tocco. <b>Telefono e indirizzo NON entrano negli scontrini né nel
+      CSV</b>: stanno in rubrica e basta, perché gli scontrini viaggiano interi a ogni salvataggio
+      verso tutti i telefoni — compresi quelli di cucina — e il CSV esce dall'app. La rubrica
+      tiene <b>300 clienti</b>, potati per data d'ultimo ordine: chi ordina ogni venerdì non esce
+      mai. <b>15 controlli rossi</b> registrati sulla versione online prima di scrivere il codice,
+      <b>42 verdi</b> dopo, zero errori di pagina. Undici sabotaggi: nove rossi e <b>due muti</b>,
+      che invece di ignorare ho aperto — erano guardie ridondanti spente a metà, e spegnendo
+      entrambi i livelli sono diventate rosse. Prima: <b>gen-6.07 «I soldi non si contano due
+      volte».</b> Tre riparazioni, e nessuna delle
       tre come l'avevo pensata: ho messo <b>cinque revisori indipendenti a demolirle prima</b>
       che scrivessi una riga, con una controprova incrociata su ogni obiezione, e le hanno
       riscritte tutte e tre. <b>Uno</b>: quando il server rifiuta — sessione scaduta, oppure due
@@ -409,14 +434,15 @@
   <section>
     <p class="eti" style="color:var(--ambra)">In costruzione · la tua lista</p>
     <h2>Quello che mi hai chiesto tu, e che non è ancora online</h2>
-    <p class="guida">Questo riquadro non c'era, ed è la ragione per cui mi hai dovuto chiedere
+    <p class="guida"><b>Le prime due sono online da oggi</b> (gen-6.08): il cliente col suo
+    ordine e il cartellino in cucina. Questo riquadro non c'era, ed è la ragione per cui mi hai dovuto chiedere
     se avevo fatto le tue cose. Sono le richieste del 1º, del 4 e del 6 settembre: le ho cercate
     nel codice una per una prima di scriverle qui, quindi «non c'è» vuol dire non c'è davvero.
     <b>Non sono da scegliere: le costruisco in quest'ordine</b>, che è quello in cui una
     dipende dall'altra. Se l'ordine non ti torna, dimmelo e lo cambio.</p>
     <div class="schede">
-      <div class="tappa"><span class="num" aria-hidden="true">1</span><span class="corpo"><span class="titolo" style="display:block">Il cliente e il suo ordine</span><p class="desc">Nome e telefono al momento dell'ordine; <b>take away o consegna</b>; la <b>via</b>, obbligatoria per la consegna, con un tasto che la apre sulle mappe per verificarla prima di prometterla; la <b>fascia oraria</b>. Il cliente si ritrova <b>cercandolo per telefono</b>, e se è già registrato l'ordine parte in due tocchi. I dati del cliente restano dove devono: <b>non entrano nella vendita né nel CSV</b>.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-dati">dati nuovi</span><span class="tag t-mis">grande</span></span></span></div>
-      <div class="tappa"><span class="num" aria-hidden="true">2</span><span class="corpo"><span class="titolo" style="display:block">Il cartellino in postazione</span><p class="desc">In cucina la comanda deve dire <b>a chi va</b>: nome, fascia oraria, numero d'ordine e telefono. Oggi la comanda porta solo i piatti — chi impacchetta non sa di chi sia il sacchetto.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
+      <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Il cliente e il suo ordine <span class="pillo-ok">online</span></span><p class="desc">Nome e telefono al momento dell'ordine; <b>take away o consegna</b>; la <b>via</b>, obbligatoria per la consegna, con un tasto che la apre sulle mappe per verificarla prima di prometterla; la <b>fascia oraria</b>. Il cliente si ritrova <b>cercandolo per telefono</b>, e se è già registrato l'ordine parte in due tocchi. I dati del cliente restano dove devono: <b>non entrano nella vendita né nel CSV</b>.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-dati">dati nuovi</span><span class="tag t-mis">grande</span></span></span></div>
+      <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Il cartellino in postazione <span class="pillo-ok">online</span></span><p class="desc">In cucina la comanda deve dire <b>a chi va</b>: nome, fascia oraria, numero d'ordine e telefono. Oggi la comanda porta solo i piatti — chi impacchetta non sa di chi sia il sacchetto.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">3</span><span class="corpo"><span class="titolo" style="display:block">Più ordini aperti insieme, e modificabili</span><p class="desc">Oggi la Cassa tiene <b>un conto solo</b>: finché non incassi, non puoi cominciarne un altro. Servono più ordini aperti in parallelo, ognuno col suo cliente, che vanno in cucina subito e <b>restano modificabili finché sono aperti</b>. Questo è il pezzo grosso, e ha un prerequisito vero: il <b>pavimento del traffico</b> qui sotto — senza, due casse in ora di punta si pestano.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">grande</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">4</span><span class="corpo"><span class="titolo" style="display:block">L'ingrediente finito avvisa, non blocca</span><p class="desc">Quando un ingrediente è a zero la Cassa deve <b>dirlo</b> a chi batte — non impedirgli di battere. Chi sta al banco sa cose che il magazzino non sa.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">5</span><span class="corpo"><span class="titolo" style="display:block">Le aggiunte divise per categoria</span><p class="desc">Chiesto il 6 settembre: mentre la cassa prepara l'ordine le aggiunte devono essere <b>ordinate per categoria</b>, così si trovano al volo invece di scorrere una fila unica. Dentro la categoria tengo in cima <b>le più usate</b>, come già fa la griglia dei gruppi — se le preferisci in ordine alfabetico dimmelo.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
@@ -460,6 +486,63 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 7 settembre · <b>gen-6.08</b> · il cliente e il suo ordine</h4>
+        <p><b>È la prima cosa della tua lista</b>, e ci sono arrivato solo dopo che me l'hai
+        dovuta chiedere tu. Le richieste erano del 1º e del 4 settembre; prima di cominciare le
+        ho cercate nel codice una per una, non a memoria, per essere sicuro di cosa mancava
+        davvero.</p>
+        <p><b>Quando suona il telefono.</b> In cima alla Cassa c'è una pastiglia che dice
+        «Banco». Al bancone non la tocchi mai — e questo è il punto di tutta la costruzione: il
+        90% degli scontrini del sabato non ha nome, non ha telefono e non ha ora, e deve restare
+        <b>esattamente com'era</b>, un tocco sulla cella e Incassa. Quando invece squilla il
+        telefono la apri: Asporto o Consegna, e i campi compaiono a mano a mano che servono.</p>
+        <p><b>Il numero è la chiave.</b> Battine anche solo le ultime quattro cifre: se quel
+        cliente ha già ordinato compare lì sotto con quanti ordini ha fatto, e un tocco riempie
+        nome, telefono e via. È l'ordine rapido che avevi chiesto, e il gesto è quello vero —
+        non «apri la rubrica e scorri», ma «pronto, sono il 340…» mentre scrivi. Dentro l'app il
+        numero si riduce a una chiave sola, quindi «340 111 0002», «+39 340 1110002» e «0039
+        3401110002» sono <b>la stessa persona</b>: senza quella riduzione la rubrica si
+        riempirebbe di gemelli e la ricerca non troverebbe niente. Lo zero dei fissi invece non
+        si tocca: 06 è parte del numero.</p>
+        <p><b>Due soli obblighi, e nessuno al banco.</b> Il <b>nome</b> per asporto e consegna:
+        senza, in cucina il sacchetto non ha padrone e la comanda dice solo «#7». La <b>via</b>
+        per la consegna, con il tasto «Vedi sulla mappa» che la apre <i>prima</i> di prometterla
+        — promettere una consegna a un indirizzo che non esiste è peggio di un no detto subito.
+        Il <b>telefono non blocca niente</b>: al banco si dice sempre no al numero, e fermare un
+        incasso per quello vorrebbe dire fermare la cassa. Ma senza numero il cliente non entra
+        in rubrica, perché non c'è una chiave per ritrovarlo, e il foglio te lo dice invece di
+        lasciartelo credere.</p>
+        <p><b>Il cartellino in cucina.</b> Fino a ieri la comanda diceva «#7 · 20:31», e con
+        quattro sacchetti sul banco quel numero non basta a nessuno. Adesso porta il nome, se va
+        consegnato, l'ora richiesta e il telefono. <b>Il telefono si legge dalla rubrica, non
+        dalla vendita</b> — nella vendita non c'è apposta.</p>
+        <p><b>Dove NON arriva il telefono, e perché.</b> Nello scontrino restano quattro campi:
+        id, nome, modo, ora. Numero e indirizzo viaggiano a parte e vengono staccati prima di
+        scrivere la vendita. Non è pudore: gli scontrini viaggiano <b>interi a ogni
+        salvataggio</b> verso tutti i telefoni della rete, compresi i tablet di cucina, e finiscono
+        nel CSV che esce dall'app e va a finire in una cartella condivisa o in una mail. La
+        rubrica invece sta dentro l'app, in un posto solo.</p>
+        <p><b>Trecento clienti, non mille.</b> Un cliente pesa un centinaio di caratteri e lo
+        stato intero viaggia a ogni salvataggio: mille sarebbero il 38% in più addosso al
+        problema del traffico, che è già il collo di bottiglia numero uno. Si potano i più vecchi
+        <b>per data d'ultimo ordine</b>, quindi chi ordina ogni venerdì da due anni non esce mai.</p>
+        <p><b>Come è stato provato.</b> <b>15 controlli rossi</b> registrati sulla versione
+        online prima di scrivere una riga, <b>42 verdi</b> dopo, zero errori di pagina. Poi
+        undici sabotaggi — rompo una guardia per volta e conto chi se ne accorge: 7, 5, 2, 3, 1,
+        4, 1, 1, 2 rossi… e <b>due muti</b>. Un sabotaggio che non fa rumore vuol dire che quella
+        guardia non è provata da nessuno, quindi invece di ignorarlo l'ho aperto: tutte e due
+        quelle guardie hanno <i>due</i> livelli, e ne avevo spento uno solo. Spegnendo entrambi
+        sono diventate rosse. La ridondanza era vera e voluta, e una ridondanza non si può
+        sabotare a metà. <b>Due difetti del mio banco</b> li ho trovati prima ancora di lanciarlo:
+        uno cercava un campo dove quel campo non esiste, l'altro leggeva la via nel testo della
+        pagina invece che dentro la casella — cioè guardava nel posto sbagliato ed era verde per
+        caso.</p>
+        <p><b>Il container si è riavviato due volte a metà lavoro</b>, e la prima volta ha portato
+        via tutti i conteggi dei sabotaggi. Li ho rifatti da capo, e ho riscritto il giro perché
+        la prossima volta non succeda: copia integra prima di toccare, ripristino all'inizio di
+        ogni giro e non solo alla fine, ogni risultato scritto su disco appena arriva, e
+        l'impronta verificata in fondo.</p>
+
         <h4>Il 6 settembre · <b>gen-6.07</b> · i soldi non si contano due volte</h4>
         <p><b>Prima di tutto: questo non me l'hai chiesto tu, ed è l'ultimo così.</b> Me l'hai
         fatto notare e avevi ragione — la tua lista degli ordini cliente è ferma dal 1º
