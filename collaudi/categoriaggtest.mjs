@@ -225,10 +225,13 @@ console.log("\n— 5. la categoria si scrive nell'editor dell'aggiunta —");
 const A = await apri(base, [PR.admin], "Admin", "1234");
 await prova("§5", async () => {
   await vaiA(A.p, "Gestione");
-  await A.p.getByText("Listino", { exact: true }).first().click(); await A.p.waitForTimeout(900);
-  await A.p.getByRole("button", { name: /Aggiunte/ }).first().click(); await A.p.waitForTimeout(600);
+  await A.p.getByText("Listino", { exact: true }).first().click(); await A.p.waitForTimeout(1200);
+  /* CORREZIONE del primo giro: cercavo un bottone «Aggiunte», ma «Aggiunte» e'
+     il TITOLO di una scheda sempre aperta dentro il Listino, non una linguetta.
+     Il rosso era mio, non dell'app — e il modo di scoprirlo e' stato andare a
+     leggere il markup invece di aggiustare il selettore a tentativi. */
   ok(/Verdure/.test(await testoDi(A.p)), "nell'elenco delle aggiunte si legge la categoria");
-  await A.p.getByRole("button", { name: /Modifica l'aggiunta Carciofi|Carciofi/ }).first().click();
+  await A.p.getByRole("button", { name: "Modifica l'aggiunta Carciofi" }).first().click();
   await A.p.waitForTimeout(700);
   const campo = A.p.getByLabel("Categoria", { exact: false });
   ok((await campo.count()) > 0, "il foglio dell'aggiunta ha il campo «Categoria»");

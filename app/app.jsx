@@ -12587,12 +12587,17 @@ function VistaListino({ stato, muta, mostraToast }) {
           In Cassa si toccano dal nome della riga nel conto, o dal foglio della voce se ha varianti.
           Sono un'altra cosa dalle varianti: la variante è il formato (una sola), le aggiunte si sommano.
         </p>
-        {(stato.aggiunte || []).map((ag) => (
+        {/* ordinate per CATEGORIA e poi per nome, come si vedono in Cassa: chi
+            le scrive qui deve ritrovare lo stesso ordine che trovera' al banco,
+            o le due liste diventano due mondi (gen-6.09) */}
+        {[...(stato.aggiunte || [])].sort((a, b) =>
+          ((a.categoria || "").trim() || "\uffff").localeCompare((b.categoria || "").trim() || "\uffff", "it")
+          || a.nome.localeCompare(b.nome, "it")).map((ag) => (
           <div key={ag.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
             <span className="flex-1 min-w-0">
               <b style={{ color: T.ink }}>{ag.nome}</b>
               <span className="text-xs block truncate" style={{ color: T.dim }}>
-                {fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
+                {ag.categoria ? `${ag.categoria} · ` : ""}{fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
                 {(ag.distinta || []).length > 0
                   ? ` · scala ${ag.distinta.length} prodott${ag.distinta.length === 1 ? "o" : "i"}`
                   : " · non scala niente"}
