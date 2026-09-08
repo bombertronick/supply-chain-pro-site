@@ -32,7 +32,7 @@
      cassa che si ferma perche' un servizio di mappe e' giu' e' peggio di una
      cassa senza mappe.
 
-   CONTRO gen-6.10 DEVONO ESSERE ROSSI: §1 §2 §3 §4 §5 §6, e la PRIMA META' di
+   CONTRO gen-6.10 DEVONO ESSERE ROSSI: §1 §2 §2b §3 §4 §5 §6 §6b, e la PRIMA META' di
    §7 (col servizio su si propone). La seconda meta' di §7 — col servizio giu'
    non si propone niente, resta il vecchio tasto, si batte lo stesso — e' un
    contro-controllo verde prima e dopo: difende la scelta che una cassa non si
@@ -150,6 +150,16 @@ const apri = async (st0, profilo, nome, pin) => {
    getByRole("button", {name:/Esci/i}).last() e ha preso «Esci dal profilo»:
    il collaudo si e' disconnesso da solo e le tre sezioni dopo sono cadute
    una sull'altra per traboccamento. Un nome non e' un indirizzo. */
+/* Entrare in Cassa da DENTRO la Cassa: la barra li' non dice piu' «Cassa»,
+   dice «Battere». vaiA() cerca la vecchia voce e non la trova — e' successo
+   due volte in questo file, ed e' il prezzo di aver cambiato la barra: il
+   banco deve saperlo invece di inciampare a ogni sezione. */
+const vaiInCassa = async (p) => {
+  const voci = await barra(p);
+  if (voci.some((x) => /battere/i.test(x))) await voceBarra(p, /Battere/i).first().click();
+  else await vaiA(p, "Cassa");
+  await p.waitForTimeout(700);
+};
 const voceBarra = (p, re) => p.locator('nav[aria-label="Navigazione principale"]').getByRole("button", { name: re });
 const barra = (p) => p.evaluate(() => [...document.querySelectorAll('nav[aria-label="Navigazione principale"] button, nav[aria-label="Navigazione principale"] a')]
   .map((x) => x.textContent.trim()).filter(Boolean));
@@ -161,7 +171,7 @@ const A = await apri(base, PR.opCassa, "OpCassa", "2222");
 
 console.log("\n— 1. dentro la Cassa la barra e' quella della Cassa —");
 await prova("§1", async () => {
-  await vaiA(A.p, "Cassa"); await A.p.waitForTimeout(800);
+  await vaiInCassa(A.p);
   const voci = await barra(A.p);
   const ha = (n) => voci.some((v) => v.toLowerCase().includes(n));
   ok(ha("battere"), `c'e' «Battere» — barra: ${JSON.stringify(voci)}`);
@@ -186,9 +196,20 @@ await prova("§2", async () => {
   ok(!voci.some((v) => /battere/i.test(v)), "e «Battere» non c'e' piu': la stanza e' cambiata");
 });
 
+console.log("\n— 2b. rientrare in Cassa vuol dire ricominciare a BATTERE —");
+await prova("§2b", async () => {
+  await vaiInCassa(A.p);
+  await voceBarra(A.p, /Clienti/i).first().click(); await A.p.waitForTimeout(600);
+  await voceBarra(A.p, /Esci/i).first().click(); await A.p.waitForTimeout(800);
+  await vaiInCassa(A.p);
+  const t = await testoDi(A.p);
+  ok(/Margherita/.test(t),
+    "si rientra sulla griglia, non sulla stanza di prima: chi riapre la Cassa vuole battere");
+});
+
 console.log("\n— 3. «Clienti»: la rubrica ha una stanza sua, e apre l'ordine —");
 await prova("§3", async () => {
-  await vaiA(A.p, "Cassa"); await A.p.waitForTimeout(700);
+  await vaiInCassa(A.p);
   await voceBarra(A.p, /Clienti/i).first().click(); await A.p.waitForTimeout(700);
   let t = await testoDi(A.p);
   ok(/Rossi Uno/.test(t) && /Bianchi Due/.test(t), "si vedono i clienti in rubrica");
@@ -247,10 +268,21 @@ await prova("§6", async () => {
     `la verifica sta tutta qui: mappa presente e NESSUNA pagina aperta (mappe ${quante}, pagine ${aperti})`);
 });
 
+console.log("\n— 6b. se l'indirizzo cambia, la spunta verde se ne va —");
+await prova("§6b", async () => {
+  /* una spunta «verificato» che sopravvive alla riscrittura sarebbe peggio di
+     nessuna spunta: direbbe verde su un indirizzo che nessuno ha controllato. */
+  const via = A.p.getByRole("textbox", { name: /Via e numero/i }).first();
+  await via.fill("via che nessuno ha controllato"); await A.p.waitForTimeout(400);
+  const t = await testoDi(A.p);
+  ok(!/verificat/i.test(t), "riscrivendo la via la spunta «Verificato» sparisce");
+  ok(await A.p.locator("[data-minimappa]").count() === 0, "e con lei sparisce la mini mappa");
+});
+
 console.log("\n— 7. se il servizio non risponde, la cassa non si ferma —");
 const B = await apri(base, PR.opCassa, "OpCassa", "2222");
 await prova("§7", async () => {
-  await vaiA(B.p, "Cassa"); await B.p.waitForTimeout(700);
+  await vaiInCassa(B.p);
   await B.p.getByRole("button", { name: /Banco|Asporto|Consegna/ }).first().click(); await B.p.waitForTimeout(500);
   await B.p.getByRole("button", { name: "Consegna", exact: true }).first().click(); await B.p.waitForTimeout(400);
   await B.p.getByRole("textbox", { name: /Nome/i }).first().fill("Cliente Prova");
@@ -282,7 +314,7 @@ await prova("§7", async () => {
 console.log("\n— 8. contro-controllo: la pizza liscia al banco resta un tocco —");
 const C = await apri(base, PR.opCassa, "OpCassa", "2222");
 await prova("§8", async () => {
-  await vaiA(C.p, "Cassa"); await C.p.waitForTimeout(700);
+  await vaiInCassa(C.p);
   await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await C.p.waitForTimeout(500);
   const t = await testoDi(C.p);
@@ -303,7 +335,11 @@ await prova("§9", async () => {
 
 console.log("\n— 10. contro-controllo: telefono, via e coordinate NON entrano nella vendita —");
 await prova("§10", async () => {
-  await vaiA(C.p, "Cassa"); await C.p.waitForTimeout(500);
+  /* la pagina C e' GIA' dentro la Cassa dopo §8, e li' dentro la barra non
+     dice piu' «Cassa»: dice Battere. Cercare la vecchia voce da dentro la
+     stanza nuova era un mio errore, non un difetto — e' il prezzo di aver
+     cambiato la barra, e il banco deve saperlo. */
+  await vaiInCassa(C.p);
   await C.p.getByRole("button", { name: /Incassa/i }).first().click(); await C.p.waitForTimeout(500);
   await C.p.getByRole("button", { name: /Registra/i }).first().click(); await C.p.waitForTimeout(1800);
   const st = await salvato(C.p);
