@@ -206,6 +206,23 @@ await prova("§8", async () => {
   const val = await C.p.getByLabel("Per le", { exact: false }).first().inputValue();
   ok(val === ora, `toccando «${ora}» il campo diventa «${ora}» — vale «${val}»`);
   ok(/^\d{2}:\d{2}$/.test(ora || ""), `e l'ora è scritta come un'ora (${ora})`);
+  /* CHIUSO IL 7 SETTEMBRE, dal sabotaggio S7 rimasto MUTO. Toccare il primo
+     orario e vedere il campo combaciare e' vero qualunque sia quell'orario:
+     con le fasce che partono da mezzanotte il controllo restava verde mentre
+     al banco proponeva le 00:15 alle otto di sera. Adesso si prova la cosa
+     che conta davvero — che il primo orario sia NEL FUTURO — e il sabotaggio
+     ha un modo di farsi sentire. */
+  const primaOra = await C.p.evaluate(() => {
+    const e = document.querySelector('[data-fasce="1"] [data-ora]');
+    if (!e) return null;
+    const [h, m] = e.getAttribute("data-ora").split(":").map(Number);
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    /* dopo mezzanotte una fascia della sera e' «ieri»: si guarda anche domani */
+    const dom = new Date(d.getTime() + 86400000);
+    return Math.min(Math.abs(d - Date.now()), Math.abs(dom - Date.now())) / 60000;
+  });
+  ok(primaOra != null && primaOra <= 20,
+    `il primo orario proposto è DA ADESSO, non da mezzanotte (dista ${Math.round(primaOra ?? -1)} minuti)`);
 });
 
 /* ═══ 9. CONTRO-CONTROLLO: la pizza liscia resta un tocco ═══ */
@@ -236,6 +253,22 @@ await prova("§5", async () => {
   const campo = A.p.getByLabel("Categoria", { exact: false });
   ok((await campo.count()) > 0, "il foglio dell'aggiunta ha il campo «Categoria»");
   ok((await campo.first().inputValue()) === "Verdure", "e porta dentro quella che c'era");
+  /* CHIUSO IL 7 SETTEMBRE, dal sabotaggio S4 rimasto MUTO. Il controllo qui
+     sopra LEGGE una categoria che il seed aveva gia' scritto: se il
+     salvataggio la buttasse via, restava verde lo stesso. Adesso se ne
+     scrive una NUOVA, si salva, e si va a guardarla nello stato — che e'
+     l'unico posto dove la verita' non si puo' fingere. */
+  await campo.first().fill("Sottaceti");
+  await A.p.waitForTimeout(250);
+  await A.p.getByRole("button", { name: /^Salva/ }).first().click();
+  await A.p.waitForTimeout(1200);
+  const salvata = await A.p.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem("db:scp:stato:v1"));
+    return (st.aggiunte || []).find((a) => a.id === "ag-car")?.categoria;
+  });
+  ok(salvata === "Sottaceti",
+    `la categoria scritta finisce DAVVERO nello stato — vale «${salvata}»`);
+  ok(/Sottaceti/.test(await testoDi(A.p)), "e si rilegge subito nell'elenco");
 });
 await A.ctx.close();
 
