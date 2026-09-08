@@ -2,9 +2,9 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.09",
-  "len": 941519,
-  "md5": "6c713e40181b680f800ad51d60ddc797",
+  "gen": "gen-6.10",
+  "len": 945393,
+  "md5": "e4011433219a4fd14d0635db2a1c35fa",
   "quando": "2026-09-08",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
@@ -29,6 +29,13 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.10",
+   "quando": "8 settembre, sera",
+   "chiude": [],
+   "prova": "potaturatest.mjs",
+   "cosa": "«Le fondamenta» — la potatura delle richieste e il ripristino che non passa sopra a una vendita non salvata. NON chiesta da Valerio: nata da una misura sulla produzione fatta rispondendo a «migliora l app apportando modifiche strutturali dove necessario». IL NUMERO, misurato e non stimato: scp:stato:v1 = 321.140 caratteri, spediti INTERI a ogni salvataggio verso ogni telefono acceso; 147 richieste su 155 CHIUSE e piu vecchie di 21 giorni = 63.306 caratteri, il 19,7% di tutto. Nessuna schermata le legge: lo Storico tiene le chiuse 7 giorni (r.stato in-attesa || (r.tEvasione || r.t) >= now - 7*86400000), la card evase7 una settimana, il grafico dell Analisi 14 giorni. Le richieste erano l UNICA collezione senza potatura — ordini, vendite, giornate, clienti e movimenti ce l avevano tutte. sfoltisciRichieste e sfoltisciOrdini copiato con dentro le sue QUATTRO LEZIONI, quattro trappole gia pagate una volta: (a) in-attesa non si tocca mai, lavoro e non archivio; (b) una riga senza data si tiene; (c) la finestra si conta da dataRichiesta = tEvasione || t, non dalla nascita; (d) il tetto (120) toglie le piu VECCHIE PER DATA, non le ultime dell array. Agganciata nei TRE punti dove passa OGNI scrittura — applicaCoda, ramo locale di muta, ramo locale di mutaDato — e non nei punti che creano le richieste: e la regola gia scritta per le altre quattro. 21 GIORNI E NON 7 perche il lettore piu esigente guarda 14 giorni e conta per data di NASCITA mentre la potatura ragiona per data di CHIUSURA: le due date non coincidono, quindi la finestra dev essere piu larga di quella del lettore piu largo, con margine. COSA NON SI POTA, e va detto: i movimenti sono il 44% dello stato ma ZERO righe sono piu vecchie di 56 giorni, e SETT_USCITE = 56 e esattamente la finestra che serve a soglieConsigliate. Tagliarli avrebbe fatto scendere il numero rompendo in silenzio i consigli di riordino. IL SECONDO PEZZO (voce 27 della lista): ripristina() aveva codaRef.current = [m] — un ASSEGNAZIONE, non un aggiunta: tutto quello che era in fila (vendite, storni, spunte) spariva senza una parola. Adesso rifiuta di partire finche inFila > 0 e lo dice col numero; e importa() chiude il foglio solo se il ripristino e partito davvero, se no il testo incollato andava buttato. PROVE: 19 rossi registrati sulla gen-6.09 online prima del codice -> 23 verdi. Dieci sabotaggi, DIECI ROSSI, ZERO MUTI — ma il primo giro ne aveva uno muto (S8, niente tetto) e aprirlo ha trovato DUE buchi veri del banco: §1 accettava come tetto un numero da un miliardo (un tetto che non puo mordere non e un tetto) e §7 costruiva il seme come tetto+5 righe, quindi con quel numero MORIVA invece di diventare rosso — e il contatore dei sabotaggi leggeva solo i KO nel testo, quindi un collaudo morto usciva come «0 rossi». Chiusi tutti e tre. Suite completa su gen-6.10: 95 verdi, 1912 controlli veri, 0 mute, 0 rosse, 7 saltate (mancano i file di dati veri, che nel repository pubblico non ci vanno). PRODUZIONE: len 945393, md5 e4011433219a4fd14d0635db2a1c35fa."
+  },
   {
    "gen": "gen-6.09",
    "quando": "8 settembre",
