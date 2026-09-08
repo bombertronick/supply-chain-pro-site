@@ -647,7 +647,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.10";
+const VERSIONE = "gen-6.11";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -778,11 +778,13 @@ function applicaVendita(s, v) {
     if (gia) {
       if (cliReg.nome) gia.nome = cliReg.nome;
       if (cliReg.via) gia.via = cliReg.via;
+      if (cliReg.geo) gia.geo = cliReg.geo;
       gia.ultimo = v.t;
       gia.n = (gia.n || 0) + 1;
     } else {
       s.clienti = [{ id: cliReg.id, nome: cliReg.nome || "", tel: cliReg.tel,
-        ...(cliReg.via ? { via: cliReg.via } : {}), t: v.t, ultimo: v.t, n: 1 }, ...(s.clienti || [])];
+        ...(cliReg.via ? { via: cliReg.via } : {}),
+        ...(cliReg.geo ? { geo: cliReg.geo } : {}), t: v.t, ultimo: v.t, n: 1 }, ...(s.clienti || [])];
     }
     s.clienti = sfoltisciClienti(s.clienti);
   }
@@ -4195,8 +4197,18 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
      Si legge SOLO negli inizializzatori di useState (la key del contenuto
      rimonta la vista a ogni cambio), mai in un effect. */
   const [salto, setSalto] = useState(null);
-  const naviga = (v, dati) => { setSalto(dati || null); setVista(v); };
-  const vaiDallaLente = (v) => { setSalto(null); setVista(v); setGiro((g) => g + 1); };
+  /* ── LA POSTAZIONE CASSA (gen-6.11, parole di Valerio dell'8 settembre:
+       «ricorda di dare un'interfaccia cassa senza mescolarla ai magazzini») ──
+     Chi ha l'interruttore «cassa» si trovava sotto il pollice Conteggi ·
+     Magazzini · Ordini mentre batteva scontrini: la Cassa era una voce dentro
+     l'app del magazziniere. Adesso e' una STANZA — dentro, la barra e' la sua.
+     Entrarci vuol dire cominciare a BATTERE: se la stanza restasse quella di
+     prima, chi riapre la Cassa per fare uno scontrino si troverebbe davanti
+     la rubrica. Il reset sta dentro naviga() e non in un effect, cosi' vale
+     per la barra, per la lente e per qualunque altra porta si aggiunga. */
+  const [sezCassa, setSezCassa] = useState("battere");
+  const naviga = (v, dati) => { setSalto(dati || null); if (v === "cassa") setSezCassa("battere"); setVista(v); };
+  const vaiDallaLente = (v) => { setSalto(null); if (v === "cassa") setSezCassa("battere"); setVista(v); setGiro((g) => g + 1); };
   const nRic = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId && r.stato === "in-attesa").length;
   /* il conto delle righe da ordinare accende il badge solo per chi il
      ciclo d'acquisto ce l'ha: per gli altri e' un invito a una porta chiusa */
@@ -4265,6 +4277,22 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
        porta che una porta su una stanza vuota (gen-5.95) */
     .filter((v) => profilo.ruolo === "admin" || v.id !== "plancia" || puoCorreggere(profilo));
   const voceAttiva = NAV.find((n) => n.id === vista) || NAV[0];
+  /* Dentro la Cassa la barra e' quella della Cassa. «Esci» riporta a Home e
+     quindi alla barra di prima: non si toglie niente a nessuno, si cambia
+     stanza, e la porta di ritorno e' sempre lo stesso tasto nello stesso
+     posto. Quattro voci e non cinque: piu' larghe, e a 360px non si tronca
+     niente. Le icone sono fra quelle gia' importate — una nuova non rompe
+     l'icona, rompe l'app (il commento del 2 settembre, pagato una volta). */
+  const NAV_QUI = vista === "cassa" ? [
+    { id: "cassa-battere", nome: "Battere", icona: Store, pronta: true,
+      attiva: sezCassa === "battere", azione: () => setSezCassa("battere") },
+    { id: "cassa-clienti", nome: "Clienti", icona: Users, pronta: true,
+      attiva: sezCassa === "clienti", azione: () => setSezCassa("clienti") },
+    { id: "cassa-giornata", nome: "Giornata", icona: BarChart3, pronta: true,
+      attiva: sezCassa === "giornata", azione: () => setSezCassa("giornata") },
+    { id: "cassa-esci", nome: "Esci", icona: ArrowLeft, pronta: true,
+      attiva: false, azione: () => naviga("home") },
+  ] : NAV;
 
   /* primo accesso: avvia la panoramica una volta sola (per dispositivo) */
   useEffect(() => {
@@ -4331,7 +4359,7 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
     if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
-    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} />;
+    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} sez={sezCassa} vaiSez={setSezCassa} />;
     /* le Comande NON stanno nella lista chiusa: guardare lo schermo e
        spuntare quello che esce e' mestiere, come contare (gen-5.98) */
     if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} />;
@@ -4350,10 +4378,12 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
   };
 
   const VoceNav = ({ v, mobile }) => {
-    const attiva = vista === v.id;
+    /* una voce puo' portarsi la sua azione e il suo «acceso»: le tre stanze
+       della Cassa non cambiano vista, cambiano stanza dentro la stessa */
+    const attiva = v.attiva != null ? v.attiva : vista === v.id;
     const badge = v.badge || 0;
     return (
-      <button onClick={() => naviga(v.id)} data-tour={`nav-${v.id}`}
+      <button onClick={() => (v.azione ? v.azione() : naviga(v.id))} data-tour={`nav-${v.id}`}
         className={`flex ${mobile ? "flex-col flex-1 min-w-0 py-2 gap-0.5" : "flex-row w-full px-4 py-3 gap-3"} items-center rounded-2xl font-bold text-xs md:text-sm transition-all`}
         style={{
           color: attiva ? T.blu : T.dim,
@@ -4395,7 +4425,8 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
         <div className="rounded-2xl p-2" style={{ background: T.grad }}><Boxes size={18} color="#fff" /></div>
         <div className="min-w-0">
           <div className="font-extrabold leading-tight" style={{ color: T.ink }}>Supply Chain Pro</div>
-          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>Magazzino, cassa e comande</div>
+          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>
+            {vista === "cassa" ? "Postazione cassa" : "Magazzino, cassa e comande"}</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <SincroChip sync={sync} daSalvare={daSalvare} />
@@ -4418,7 +4449,7 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
       <div className="flex flex-1 min-h-0">
         <aside className="hidden md:flex flex-col gap-1 w-56 shrink-0 p-4"
           style={{ borderRight: `1px solid ${T.bordo}` }}>
-          {NAV.map((v) => <VoceNav key={v.id} v={v} />)}
+          {NAV_QUI.map((v) => <VoceNav key={v.id} v={v} />)}
           <div className="mt-auto text-xs leading-relaxed p-2" style={{ color: T.tenue }}>
             Connesso come <b style={{ color: T.dim }}>{profilo.nome}</b><br />
             {RUOLI[profilo.ruolo].nome}{profilo.sedeId ? ` · ${trova(stato.sedi, profilo.sedeId)?.nome}` : ""}
@@ -4434,7 +4465,7 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
       <nav aria-label="Navigazione principale"
         className="md:hidden fixed bottom-3 left-3 right-3 z-40 flex rounded-3xl px-1.5 py-1"
         style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(14px)", border: `1px solid ${T.bordo}`, boxShadow: "0 16px 40px -14px rgba(50,70,140,.35)", bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-        {NAV.map((v) => <VoceNav key={v.id} v={v} mobile />)}
+        {NAV_QUI.map((v) => <VoceNav key={v.id} v={v} mobile />)}
       </nav>
 
       <Foglio aperto={cerca} titolo="Cerca un prodotto o una funzione" onChiudi={() => setCerca(false)} larga>
@@ -13213,7 +13244,46 @@ function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
    aggiorna lo stato non smonta la vista, quindi il conto sopravvive ai
    refresh; cambiando schermata si azzera, ed e' sano cosi' (un conto
    fantasma che riappare dopo un'ora e' peggio). */
-function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
+/* ── LA MINI MAPPA (gen-6.11) ──
+   Mattonelle di OpenStreetMap messe in fila con un po' di aritmetica invece
+   che con una libreria: l'app e' un file solo e le sue importazioni sono
+   fisse — aggiungerne una vorrebbe dire scommettere su cosa ha in produzione
+   il caricatore, e quella scommessa non rompe una mappa, rompe l'app.
+   Serve a UNA cosa sola: far vedere a chi risponde al telefono che
+   l'indirizzo scelto e' dove pensa che sia. Non si trascina e non si
+   ingrandisce, apposta — un dito che scorre una mappa dentro un foglio
+   d'ordine e' un dito che non sta prendendo l'ordine. */
+const MiniMappa = ({ lat, lon, z = 16, larga = 264, alta = 150 }) => {
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  const n = Math.pow(2, z);
+  const latR = (lat * Math.PI) / 180;
+  const px = ((lon + 180) / 360) * n * 256;
+  const py = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n * 256;
+  const x0 = px - larga / 2, y0 = py - alta / 2;
+  const pezzi = [];
+  for (let tx = Math.floor(x0 / 256); tx <= Math.floor((x0 + larga) / 256); tx++)
+    for (let ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + alta) / 256); ty++) {
+      if (ty < 0 || ty >= n) continue;
+      const wx = ((tx % n) + n) % n;
+      pezzi.push({ k: tx + "_" + ty, u: `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`,
+        l: tx * 256 - x0, t: ty * 256 - y0 });
+    }
+  return (
+    <div data-minimappa="1" className="relative overflow-hidden rounded-2xl mt-2"
+      style={{ width: larga, height: alta, maxWidth: "100%", border: `1.5px solid ${T.bordo}`, background: "#E8EEF6" }}>
+      {pezzi.map((q) => (
+        <img key={q.k} src={q.u} alt="" width={256} height={256} loading="lazy"
+          className="absolute select-none pointer-events-none" style={{ left: q.l, top: q.t }} />
+      ))}
+      <span aria-hidden className="absolute rounded-full"
+        style={{ left: larga / 2 - 7, top: alta / 2 - 7, width: 14, height: 14,
+          background: T.rosso, border: "2.5px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
+      <span className="absolute px-1 rounded" style={{ right: 2, bottom: 2, fontSize: 9,
+        background: "rgba(255,255,255,.82)", color: T.tenue }}>© OpenStreetMap</span>
+    </div>
+  );
+};
+function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "battere", vaiSez = () => {} }) {
   const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
   const [sedeId, setSedeId] = useState(profilo.sedeId || sediOp[0]?.id || "");
   const [carrello, setCarrello] = useState([]);
@@ -13286,8 +13356,65 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
   const [cliVia, setCliVia] = useState("");
   const [cliFascia, setCliFascia] = useState("");
   const [cliSu, setCliSu] = useState(false);
+  const [cercaCli, setCercaCli] = useState("");   // la ricerca della stanza «Clienti» (gen-6.11)
+  /* ── L'INDIRIZZO CHE SI CORREGGE DA SOLO (gen-6.11, parole di Valerio
+       dell'8 settembre: «la mini mappa deve servire alla cassa per poter
+       velocizzare l'inserimento della via, se la via non viene verificata si
+       deve correggere da sola») ──
+     Mentre si scrive, l'app chiede a un servizio di indirizzi e propone
+     quelli veri: se ne tocca uno e il campo si RISCRIVE normalizzato, con le
+     coordinate accanto. Le coordinate restano in RUBRICA come il telefono e
+     la via — non entrano nella vendita, che viaggia intera a ogni
+     salvataggio verso tutti i telefoni e finisce nel CSV (la regola di
+     gen-6.08, che vale identica per due numeri quanto per un indirizzo).
+     LA REGOLA CHE VIENE PRIMA DI TUTTE: questo non blocca MAI l'incasso.
+     Se il servizio non risponde non si propone niente, resta il vecchio
+     tasto che apre le mappe, e si batte come sempre. Una cassa che si ferma
+     perche' un servizio di mappe e' giu' e' peggio di una cassa senza mappe.
+     Percio' niente attese, niente «verifica in corso» che blocca «Registra»,
+     e nessuna chiave da tenere: il servizio si sceglie proprio perche' non
+     ne chiede — questo file finisce in un repository pubblico. */
+  const [viaSugg, setViaSugg] = useState([]);
+  const [viaOk, setViaOk] = useState(false);
+  const [cliGeo, setCliGeo] = useState(null);
+  const [viaMuto, setViaMuto] = useState(false);
+  const viaTimer = useRef(null);
+  const viaSeq = useRef(0);
+  useEffect(() => {
+    const q = cliVia.trim();
+    if (modo !== "consegna" || viaOk || q.length < 4) { setViaSugg([]); return; }
+    clearTimeout(viaTimer.current);
+    /* il numero di giro: una risposta lenta di due battute fa non deve
+       riscrivere l'elenco di quello che si sta scrivendo adesso */
+    const mio = ++viaSeq.current;
+    viaTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://photon.komoot.io/api/?limit=4&lang=it&q=${encodeURIComponent(q)}`);
+        const j = await r.json();
+        if (mio !== viaSeq.current) return;
+        const lista = (j.features || []).map((f) => {
+          const pr = f.properties || {};
+          const strada = [pr.street || pr.name, pr.housenumber].filter(Boolean).join(" ");
+          const dove = [pr.postcode, pr.city || pr.county || pr.state].filter(Boolean).join(" ");
+          const c = (f.geometry || {}).coordinates || [];
+          return { testo: [strada, dove].filter(Boolean).join(", "),
+            lat: +c[1], lon: +c[0] };
+        }).filter((x) => x.testo && isFinite(x.lat) && isFinite(x.lon));
+        setViaSugg(lista); setViaMuto(false);
+      } catch {
+        if (mio !== viaSeq.current) return;
+        setViaSugg([]); setViaMuto(true);
+      }
+    }, 500);
+    return () => clearTimeout(viaTimer.current);
+  }, [cliVia, modo, viaOk]);
+  const scriviVia = (v) => { setCliVia(v); setViaOk(false); setCliGeo(null); };
+  const prendiVia = (x) => { setCliVia(x.testo); setCliGeo({ lat: x.lat, lon: x.lon }); setViaOk(true); setViaSugg([]); };
   const azzeraCliente = () => {
     setModo("banco"); setCliId(null); setCliNome(""); setCliTel(""); setCliVia(""); setCliFascia("");
+    /* anche la verifica: un indirizzo verificato che sopravvive al cliente
+       sarebbe una spunta verde sull'indirizzo di quello prima */
+    setViaOk(false); setCliGeo(null); setViaSugg([]); setViaMuto(false);
   };
   /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
      meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
@@ -13546,6 +13673,11 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
   const prendiCliente = (c) => {
     setCliId(c.id); setCliNome(c.nome || ""); setCliTel(c.tel || "");
     if (c.via) setCliVia(c.via);
+    /* chi ha gia' ordinato ha gia' un indirizzo verificato: si riprende come
+       sta, senza chiedere niente a nessuno — e' l'ordine rapido di gen-6.08
+       che diventa rapido anche sulla via */
+    if (c.geo && isFinite(c.geo.lat) && isFinite(c.geo.lon)) { setCliGeo(c.geo); setViaOk(true); }
+    else { setCliGeo(null); setViaOk(false); }
   };
   /* la mappa NON e' una verifica automatica: e' l'occhio di chi risponde al
      telefono messo sull'indirizzo prima di prometterlo. Un link, non una API
@@ -13619,6 +13751,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
         /* l'id nasce QUI FUORI, come quello della vendita: un uid() dentro la
            closure darebbe un cliente nuovo a ogni riallineamento della coda */
         id: cliId || uid("cl"), nome: cliNome.trim(), tel: cliTel.trim(), via: cliVia.trim(),
+        ...(cliGeo && isFinite(cliGeo.lat) && isFinite(cliGeo.lon) ? { geo: cliGeo } : {}),
       } } : {}),
     };
     /* la vendita porta gia' l'id del cliente nuovo: cosi' la riga e la
@@ -13659,8 +13792,56 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
     setStornoDi(null); setMotivo(""); setPinA("");
   };
 
+  /* ── LA RIGA DI UNA VENDITA, UNA SOLA (gen-6.11) ──
+     La usano il Foglio «Ultime vendite» e la stanza «Giornata». Due copie e
+     la prossima modifica ne cambierebbe una — la lezione del chip delle
+     aggiunte, pagata a gen-6.09.
+     IL GIORNO DA UNA FONTE SOLA: giornoDi(v.t), mai v.giorno — la riga
+     contraria di uno storno porta il giorno della vendita originale, e
+     leggerlo qui direbbe «di ieri» a una riga nata oggi. E il giorno si
+     SCRIVE quando non e' oggi: senza, due scontrini delle 23:50 di due sere
+     diverse sono la stessa riga per chi legge e lo stesso nome per chi
+     ascolta — e per il collaudo, che su due bersagli identici non sa quale
+     toccare. Niente ambra sulla data: in quest'app l'ambra vuol dire «sta
+     finendo», e qui non sta finendo niente. */
+  const rigaVendita = (v) => {
+    const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const quando = giornoDi(v.t) !== oggi
+      ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " " + ora
+      : ora;
+    const targa = targaDi(v)
+      + (quanteUguali.get(targaDi(v) + "|" + quando) > 1 ? ` ·${String(v.id || "").slice(-4)}` : "");
+    const dentro = (
+      <>
+        <span className="font-bold shrink-0" style={{ color: T.tenue }}>{quando}</span>
+        <span className="shrink-0 text-xs" style={{ color: T.tenue }}>{targa}</span>
+        <span className="flex-1 min-w-0 truncate text-left">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+        {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
+        {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
+        {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
+        {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
+        <b className="shrink-0" style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
+      </>
+    );
+    return v.stato === "registrata" ? (
+      <button key={v.id} onClick={() => { setUltime(false); setStornoDi(v); setMotivo(""); setPinA(""); }}
+        aria-label={`Storna la vendita ${targa} delle ${quando}`}
+        className="flex items-center gap-2 text-xs rounded-xl px-2"
+        style={{ color: T.dim, minHeight: 44, border: `1px solid ${T.bordo}`, background: "#fff" }}>
+        {dentro}<RotateCcw size={13} className="shrink-0" style={{ color: T.rosso }} /></button>
+    ) : (
+      <div key={v.id} className="flex items-center gap-2 text-xs rounded-xl px-2"
+        style={{ color: T.dim, minHeight: 44 }}>{dentro}</div>
+    );
+  };
+
   return (
     <div>
+      {/* ── LE TRE STANZE DELLA CASSA (gen-6.11) ──
+          I Fogli restano montati FUORI da questo interruttore: lo storno si
+          apre dalla Giornata e dalle Ultime vendite, e se vivesse dentro una
+          sola delle due stanze l'altra avrebbe una porta che non si apre. */}
+      {sez === "battere" && (<>
       <Intesta titolo="Cassa" sotto={!sedeId
         ? "Non c'è una sede operatore: le vendite non si possono battere"
         : magCassa
@@ -13980,6 +14161,96 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           </div>
         );
       })()}
+      </>)}
+
+      {/* ── LA STANZA «CLIENTI» (gen-6.11) ──
+          La rubrica esce dal foglio dell'ordine e diventa una stanza: si
+          cerca per numero o per nome, e toccare un cliente non lo MOSTRA,
+          gli APRE UN ORDINE. E' il gesto vero di chi risponde al telefono —
+          «pronto, sono il 340…» — e finiva dentro un foglio che si apriva
+          solo se stavi gia' battendo. */}
+      {sez === "clienti" && (() => {
+        const q = cercaCli.trim().toLowerCase();
+        const qn = telNorm(cercaCli);
+        const lista = (stato.clienti || []).filter((c) => {
+          if (!q) return true;
+          if (qn.length >= 2 && telNorm(c.tel).includes(qn)) return true;
+          return (c.nome || "").toLowerCase().includes(q);
+        }).sort((a, b) => (b.ultimo || b.t || 0) - (a.ultimo || a.t || 0)).slice(0, 60);
+        return (
+          <div>
+            <Intesta titolo="Clienti" sotto="Cerca per numero o per nome. Toccarne uno apre un ordine per lui." />
+            <div className="mb-3">
+              <Campo label="Cerca un cliente" valore={cercaCli} onCambia={setCercaCli}
+                placeholder="Numero o nome" />
+            </div>
+            {(stato.clienti || []).length === 0 && (
+              <Vuoto icona={Users} titolo="La rubrica è vuota"
+                testo="I clienti entrano in rubrica quando batti un ordine da asporto o da consegna col loro numero." />
+            )}
+            {(stato.clienti || []).length > 0 && lista.length === 0 && (
+              <p className="text-sm" style={{ color: T.dim }}>Nessun cliente con «{cercaCli}».</p>
+            )}
+            <div className="flex flex-col gap-1.5">
+              {lista.map((c) => (
+                <button key={c.id} aria-label={`Apri un ordine per ${c.nome || "cliente senza nome"}`}
+                  onClick={() => { prendiCliente(c); if (modo === "banco") setModo("asporto"); vaiSez("battere"); }}
+                  className="flex items-center gap-2.5 rounded-2xl px-3 text-left"
+                  style={{ minHeight: 56, background: "#fff", border: `1.5px solid ${T.bordo}` }}>
+                  <Avatar nome={c.nome || "?"} colore={T.blu} size={34} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold truncate" style={{ color: T.ink }}>{c.nome || "senza nome"}</span>
+                    <span className="block text-xs truncate" style={{ color: T.tenue }}>
+                      {c.tel || "senza numero"}{c.via ? ` · ${c.via}` : ""}</span>
+                  </span>
+                  {c.n > 0 && <Chip colore={T.tenue}>{c.n === 1 ? "1 ordine" : `${c.n} ordini`}</Chip>}
+                  <ChevronRight size={16} className="shrink-0" style={{ color: T.tenue }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── LA STANZA «GIORNATA» (gen-6.11) ──
+          Il giorno aveva una porta sola, il riquadro «Oggi» in cima alla
+          griglia — e quel riquadro compare solo se qualcosa e' gia' passato.
+          A mezzanotte e mezza, con lo scontrino di ieri sera da stornare, non
+          c'era: e' il rilievo che ha salvato gen-6.07. Adesso la Giornata sta
+          nella barra, quindi c'e' SEMPRE. */}
+      {sez === "giornata" && (
+        <div>
+          <Intesta titolo="Giornata" sotto="Quello che è entrato oggi, e le vendite delle ultime 48 ore" />
+          <Scheda className="p-4 mb-3">
+            <span className="block text-xs font-bold uppercase tracking-wide" style={{ color: T.tenue }}>Incassato oggi</span>
+            <div className="font-extrabold" style={{ color: T.ink, fontSize: 34, lineHeight: 1.1 }}>
+              {fmtEuro(giornata?.totale || 0)}</div>
+            <div className="text-sm mt-0.5" style={{ color: T.dim }}>
+              {giornata?.nVendite || 0} {(giornata?.nVendite || 0) === 1 ? "vendita" : "vendite"}
+              {(giornata?.nStorni || 0) > 0 ? ` · ${giornata.nStorni} ${giornata.nStorni === 1 ? "storno" : "storni"}` : ""}</div>
+            <div className="flex gap-1.5 flex-wrap mt-2.5">
+              <Chip colore={T.verde}>Contanti {fmtEuro(giornata?.metodi?.contanti || 0)}</Chip>
+              <Chip colore={T.blu}>Carta {fmtEuro(giornata?.metodi?.carta || 0)}</Chip>
+              <Chip colore={T.tenue}>Altro {fmtEuro(giornata?.metodi?.altro || 0)}</Chip>
+            </div>
+            <div className="mt-3">
+              <Bottone variante="tonale" piccolo icona={BarChart3} onClick={() => setReport(true)}>Report di giornata</Bottone>
+            </div>
+          </Scheda>
+          <Scheda className="p-3.5">
+            <span className="block font-extrabold mb-1" style={{ color: T.ink }}>Le ultime vendite</span>
+            <p className="text-xs mb-2" style={{ color: T.tenue }}>
+              {daMostrare.length === 0
+                ? "Nelle ultime 48 ore non è passato nessuno."
+                : "Le ultime 48 ore. Uno scontrino si storna toccando la sua riga."}</p>
+            <div className="flex flex-col gap-1">{daMostrare.map((v) => rigaVendita(v))}</div>
+            {venditeRecenti.length > daMostrare.length && (
+              <p className="text-xs mt-1" style={{ color: T.tenue }}>
+                … e altre {venditeRecenti.length - daMostrare.length}: il CSV in Sistema le tiene tutte.</p>
+            )}
+          </Scheda>
+        </div>
+      )}
       <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={chiudiScelta}>
         {scelta && (() => {
           /* un foglio solo per le due cose: il FORMATO (varianti, esclusive:
@@ -14076,13 +14347,40 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
                 suggerimento="Obbligatorio: è quello che si legge in cucina sul cartellino." />
               {modo === "consegna" && (
                 <div>
-                  <Campo label="Via e numero" valore={cliVia} onCambia={setCliVia}
+                  <Campo label="Via e numero" valore={cliVia} onCambia={scriviVia}
                     placeholder="Via, numero civico, scala" />
-                  {cliVia.trim() && (
+                  {/* GLI INDIRIZZI VERI, mentre si scrive. Toccarne uno
+                      riscrive il campo normalizzato: e' la correzione
+                      automatica chiesta l'8 settembre, e non chiede un tasto
+                      in piu' perche' al telefono un tasto in piu' e' un
+                      cliente che aspetta. */}
+                  {viaSugg.length > 0 && !viaOk && (
+                    <div data-viasugg="1" className="flex flex-col gap-1 mt-2">
+                      {viaSugg.map((x, i) => (
+                        <button key={i} onClick={() => prendiVia(x)}
+                          aria-label={`Usa l'indirizzo ${x.testo}`}
+                          className="text-left text-sm rounded-xl px-3 py-2"
+                          style={{ minHeight: 44, background: "#F6F8FE", border: `1px solid ${T.bordo}`, color: T.ink }}>
+                          {x.testo}</button>
+                      ))}
+                    </div>
+                  )}
+                  {viaOk && cliGeo && (
+                    <div className="mt-2">
+                      <Chip colore={T.verde} pieno><Check size={11} /> Indirizzo verificato</Chip>
+                      <MiniMappa lat={cliGeo.lat} lon={cliGeo.lon} />
+                    </div>
+                  )}
+                  {/* IL RIPIEGO, e non e' un dettaglio: col servizio giu' —
+                      o senza rete — questo tasto e' l'unico occhio che resta
+                      sull'indirizzo, e la cassa non si ferma comunque. */}
+                  {cliVia.trim() && !viaOk && (
                     <div className="mt-2">
                       <Bottone variante="tonale" piccolo icona={Search} onClick={apriMappa}>Vedi sulla mappa</Bottone>
                       <span className="block text-xs mt-1" style={{ color: T.tenue }}>
-                        Si apre in una pagina a parte: guardala PRIMA di promettere la consegna.</span>
+                        {viaMuto
+                          ? "Non riesco a controllare l'indirizzo adesso: si incassa lo stesso, e questo tasto lo apre nelle mappe."
+                          : "Scrivi la via e scegli fra quelle proposte. Oppure aprila nelle mappe."}</span>
                     </div>
                   )}
                 </div>
@@ -14197,46 +14495,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
               <p className="text-xs mb-1" style={{ color: T.tenue }}>
                 Le ultime 48 ore. Una vendita si storna toccando la sua riga.</p>
             )}
-            {daMostrare.map((v) => {
-              /* IL GIORNO DA UNA FONTE SOLA: giornoDi(v.t), mai v.giorno — la
-                 riga contraria di uno storno porta il giorno della vendita
-                 originale, e leggerlo qui direbbe «di ieri» a una riga nata
-                 oggi. E il giorno si SCRIVE quando non e' oggi: senza, due
-                 scontrini delle 23:50 di due sere diverse sono la stessa riga
-                 per chi legge e lo stesso nome per chi ascolta — e per il
-                 collaudo, che su due bersagli identici non sa quale toccare.
-                 Niente ambra sulla data: in quest'app l'ambra vuol dire «sta
-                 finendo», e qui non sta finendo niente. */
-              const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-              const diAltroGiorno = giornoDi(v.t) !== oggi;
-              const quando = diAltroGiorno
-                ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " " + ora
-                : ora;
-              const targa = targaDi(v)
-                + (quanteUguali.get(targaDi(v) + "|" + quando) > 1 ? ` ·${String(v.id || "").slice(-4)}` : "");
-              const dentro = (
-                <>
-                  <span className="font-bold shrink-0" style={{ color: T.tenue }}>{quando}</span>
-                  <span className="shrink-0 text-xs" style={{ color: T.tenue }}>{targa}</span>
-                  <span className="flex-1 min-w-0 truncate text-left">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
-                  {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
-                  {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
-                  {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
-                  {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
-                  <b className="shrink-0" style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
-                </>
-              );
-              return v.stato === "registrata" ? (
-                <button key={v.id} onClick={() => { setUltime(false); setStornoDi(v); setMotivo(""); setPinA(""); }}
-                  aria-label={`Storna la vendita ${targa} delle ${quando}`}
-                  className="flex items-center gap-2 text-xs rounded-xl px-2"
-                  style={{ color: T.dim, minHeight: 44, border: `1px solid ${T.bordo}`, background: "#fff" }}>
-                  {dentro}<RotateCcw size={13} className="shrink-0" style={{ color: T.rosso }} /></button>
-              ) : (
-                <div key={v.id} className="flex items-center gap-2 text-xs rounded-xl px-2"
-                  style={{ color: T.dim, minHeight: 44 }}>{dentro}</div>
-              );
-            })}
+            {daMostrare.map((v) => rigaVendita(v))}
             {venditeRecenti.length > daMostrare.length && (
               <p className="text-xs mt-1" style={{ color: T.tenue }}>
                 … e altre {venditeRecenti.length - daMostrare.length}: il CSV in Sistema le tiene tutte.</p>

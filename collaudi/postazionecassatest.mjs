@@ -39,9 +39,9 @@
    ferma per un servizio di mappe.
    VERDI ANCHE PRIMA, apposta, i contro-controlli: §8 (la pizza liscia al
    banco resta un tocco), §9 (chi non ha la cassa non vede niente della
-   cassa), §10 (telefono, via e coordinate NON entrano nella vendita — prima
-   e' verde perche' le coordinate non esistono, dopo dev'essere verde perche'
-   le ho tenute fuori: e' il controllo che difende la scelta).
+   cassa), §10, che ha DUE META': nella vendita non ci sono telefono, via e
+   coordinate, ma in rubrica ci sono. La prima meta' da sola sarebbe verde
+   anche buttando via tutto; la seconda impedisce quel verde.
 
    NIENTE DATI VERI QUI DENTRO: nomi, numeri e indirizzi sono inventati.
    E NIENTE RETE VERA: il servizio degli indirizzi e le mattonelle della mappa
@@ -300,6 +300,8 @@ await prova("§7", async () => {
   ok(n === 0, `col servizio GIU' non si propone niente (${n}) e non si esplode`);
   const t = await testoDi(B.p);
   ok(/Vedi sulla mappa/i.test(t), "e resta il vecchio tasto come ripiego");
+  ok(/non riesco a controllare/i.test(t),
+    "e lo DICE: senza quella riga chi sta in cassa crede che l'indirizzo sia stato controllato");
   ok(errs.length === 0, `nessun errore JavaScript col servizio giu'${errs.length ? " — " + errs[0] : ""}`);
   /* e adesso la cosa che conta davvero: si incassa lo stesso */
   await B.p.getByRole("button", { name: /Va bene|Conferma|Chiudi/i }).last().click().catch(() => {});
@@ -333,21 +335,44 @@ await prova("§9", async () => {
   ok(!/Margherita/.test(t), "e il listino non si vede da nessuna parte");
 });
 
-console.log("\n— 10. contro-controllo: telefono, via e coordinate NON entrano nella vendita —");
+console.log("\n— 10. telefono, via e coordinate: entrano in RUBRICA, non nella vendita —");
+/* SCOPERTO DA UN SABOTAGGIO MUTO. La prima stesura registrava una vendita al
+   BANCO — dove il cliente non esiste proprio — e poi cercava «tel|via|geo»
+   dentro. Era verde per ASSENZA: mettendo apposta le coordinate dentro la
+   vendita, il collaudo non se ne accorgeva, perche' su una vendita da banco
+   quel ramo non ci passa nemmeno.
+   Adesso l'ordine ha un cliente, un numero e un indirizzo VERIFICATO, e il
+   controllo ha due meta' che vanno insieme: nella vendita NON ci sono, in
+   rubrica CI SONO. Senza la seconda meta' basterebbe non salvarli da nessuna
+   parte per essere verdi — cioe' per aver buttato via il lavoro di qualcuno. */
+const E = await apri(base, PR.opCassa, "OpCassa", "2222");
 await prova("§10", async () => {
-  /* la pagina C e' GIA' dentro la Cassa dopo §8, e li' dentro la barra non
-     dice piu' «Cassa»: dice Battere. Cercare la vecchia voce da dentro la
-     stanza nuova era un mio errore, non un difetto — e' il prezzo di aver
-     cambiato la barra, e il banco deve saperlo. */
-  await vaiInCassa(C.p);
-  await C.p.getByRole("button", { name: /Incassa/i }).first().click(); await C.p.waitForTimeout(500);
-  await C.p.getByRole("button", { name: /Registra/i }).first().click(); await C.p.waitForTimeout(1800);
-  const st = await salvato(C.p);
+  await vaiInCassa(E.p);
+  await E.p.getByRole("button", { name: /Banco|Asporto|Consegna/ }).first().click(); await E.p.waitForTimeout(500);
+  await E.p.getByRole("button", { name: "Consegna", exact: true }).first().click(); await E.p.waitForTimeout(400);
+  await E.p.getByRole("textbox", { name: /Nome/i }).first().fill("Cliente Prova");
+  await E.p.getByRole("textbox", { name: /Telefono|Numero/i }).first().fill("3401119999").catch(() => {});
+  const via = E.p.getByRole("textbox", { name: /Via e numero/i }).first();
+  await via.fill("via garibald"); await E.p.waitForTimeout(1200);
+  const sugg = E.p.locator("[data-viasugg] button");
+  ok(await sugg.count() >= 1, "l'indirizzo si e' fatto verificare");
+  await sugg.first().click(); await E.p.waitForTimeout(600);
+  await E.p.getByRole("button", { name: /Va bene|Chiudi|Fatto/i }).last().click().catch(() => {});
+  await E.p.waitForTimeout(500);
+  await E.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click(); await E.p.waitForTimeout(400);
+  await E.p.getByRole("button", { name: /Incassa/i }).first().click(); await E.p.waitForTimeout(500);
+  await E.p.getByRole("button", { name: /Registra/i }).first().click(); await E.p.waitForTimeout(2000);
+  const st = await salvato(E.p);
   const v = (st?.vendite || [])[0];
   ok(!!v, `la vendita e' stata registrata (${(st?.vendite || []).length})`);
   const dentro = JSON.stringify(v || {});
-  ok(!/tel|via|lat|lon|geo/i.test(dentro),
-    "e dentro non c'e' ne' telefono ne' via ne' coordinate: quelli stanno in rubrica");
+  ok(!/"tel"|"via"|"geo"|"lat"|"lon"/.test(dentro),
+    `nella vendita NON ci sono ne' telefono ne' via ne' coordinate — cli: ${JSON.stringify(v?.cli || null)}`);
+  /* la seconda meta', quella che impedisce di essere verdi buttando via tutto */
+  const c = (st?.clienti || []).find((x) => (x.tel || "").includes("1119999"));
+  ok(!!c && !!c.via, `ma in RUBRICA la via c'e' — «${c ? c.via : "nessun cliente"}»`);
+  ok(!!c && !!c.geo && isFinite(c.geo.lat) && isFinite(c.geo.lon),
+    `e ci sono le coordinate verificate — ${c && c.geo ? c.geo.lat + "," + c.geo.lon : "nessuna"}`);
 });
 
 console.log(`\nerrori di pagina: ${errs.length}${errs.length ? " — " + errs[0] : ""}`);
