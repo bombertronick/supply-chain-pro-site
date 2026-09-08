@@ -209,7 +209,7 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata l'8 settembre, sera</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata il 9 settembre</p>
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>DEVO COMINCIARE DA QUI, perché me l'hai dovuto chiedere tu.</b>
   Delle cose che mi hai chiesto il 1º e il 4 settembre — registrare il cliente col nome e il
@@ -262,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.10</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.11</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -271,9 +271,42 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>gen-6.10 «Le fondamenta».</b> Questa non me l'hai chiesta tu e non si vede da
+      <dd><b>Prima di tutto, una cosa sui soldi che devi sapere.</b> Mettendo sotto processo il
+      lavoro sul traffico ho trovato un difetto <b>nel codice che gira adesso</b>, e l'ho
+      verificato riga per riga prima di scrivertelo. <b>Sopra i ~150 scontrini al giorno uno
+      scontrino può essere contato due volte.</b> L'app ha due testimoni per non contare due
+      volte lo stesso scontrino, tutti e due da <b>300 righe</b>; il controllo che decide se
+      ripescare una vendita rimasta su un telefono spento guarda invece <b>l'orologio</b>
+      («meno di 48 ore? la rigioco»). Sopra i 150 scontrini le 300 righe finiscono <i>prima</i>
+      delle 48 ore: si apre una finestra in cui l'orologio dice «fresca» e <b>nessuno dei due
+      testimoni esiste più</b>. In quella finestra la vendita si applica due volte: l'incasso di
+      quel giorno resta gonfiato <b>per novanta giorni</b>, il magazzino scende due volte, e la
+      riga nello storico porta <b>l'orario originale</b>, quindi non salta all'occhio. <b>Tu fai
+      più di 100 ordini nei giorni di punta</b>, e ogni spunta della cucina consuma lo stesso
+      tetto. È il prossimo rilascio, prima di qualunque lavoro sul traffico, e il rimedio non è
+      alzare un tetto: è smettere di decidere sull'orologio e decidere sul testimone.
+      <b>Fatto oggi: gen-6.11 «La postazione Cassa».</b> Le due cose che mi hai chiesto ieri.
+      <b>Uno</b>: dentro la Cassa la barra è <b>la barra della Cassa</b> — Battere · Clienti ·
+      Giornata · Esci — e non più Conteggi · Magazzini · Ordini sotto il pollice di chi batte
+      scontrini. «Clienti» è la rubrica con la sua ricerca, e toccare un cliente <b>gli apre un
+      ordine</b> invece di mostrarlo e basta. «Giornata» è l'incassato, contanti/carta/altro e le
+      vendite da stornare, ed è <b>sempre</b> raggiungibile — a mezzanotte e mezza quella porta
+      prima non c'era. «Esci» ti riporta alla barra di prima: non ti tolgo niente, cambi stanza.
+      <b>Due</b>: la via <b>si corregge da sola</b>. Scrivi «via garibald», l'app ti propone gli
+      indirizzi veri, ne tocchi uno e il campo si riscrive <b>«Via Giuseppe Garibaldi 12, 00100
+      Roma»</b>, con la spunta «Verificato» e <b>una mini mappa lì dentro</b>: nessuna pagina si
+      apre. Un cliente già in rubrica se lo porta dietro, quindi la seconda volta è gratis.
+      <b>E se il servizio delle mappe è giù, la cassa non si ferma</b>: te lo dice, resta il
+      vecchio tasto, e batti come sempre. <b>16 controlli rossi</b> registrati sulla versione
+      online prima di scrivere il codice, tutti verdi dopo. <b>Tredici sabotaggi, tredici
+      rossi, zero muti</b> — ma non al primo giro: uno era muto e aprirlo ha trovato un buco
+      vero del mio banco (il controllo «i dati del cliente non entrano nella vendita» provava una
+      vendita al banco, dove il cliente non esiste proprio: era verde per assenza). <b>Censimento
+      completo: 96 collaudi verdi, 1950 controlli veri, zero rosse, zero mute.</b> E il cancello
+      del rilascio ha fatto il suo lavoro: <b>una tessera su 47 era sbagliata — colpa mia — e
+      l'ho scoperta prima di toccare la produzione</b>, non dopo. Prima: <b>gen-6.10 «Le fondamenta».</b> Questa non me l'hai chiesta tu e non si vede da
       nessuna parte, ma è la più importante delle ultime tre. Ho misurato — non stimato — quanto
       pesa quello che l'app si spedisce da sola: <b>ogni volta che qualcuno salva qualcosa, parte
       lo stato INTERO verso ogni telefono acceso</b>, e pesava <b>321.140 caratteri</b>. Dentro
@@ -484,7 +517,7 @@
       <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Le aggiunte divise per categoria <span class="pillo-ok">online</span></span><p class="desc">Le aggiunte stanno nella loro categoria, e <b>dentro la categoria in ordine alfabetico</b> — come hai chiesto tu. La categoria la scrivi in Gestione → Listino → «Aggiunte»; è testo libero, e l'editor ti ripropone quelle che hai già usato per non farne nascere due scritte in due modi. Chi non ne ha finisce sotto «Altro», in fondo, e non sparisce.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Le fasce orarie in una barra scorribile <span class="pillo-ok">online</span></span><p class="desc">Accanto al campo «Per le» c'è una <b>barra laterale che scorre</b> con le ore vere a quarti d'ora, invece dei quattro tastini «fra 15′». Parte dal primo quarto d'ora <i>dopo adesso</i> e copre le sei ore successive: al telefono il cliente dice un'ora, non un ritardo.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">3</span><span class="corpo"><span class="titolo" style="display:block">Più ordini aperti insieme, e modificabili</span><p class="desc">Le tue parole del 7 settembre. Oggi la Cassa tiene <b>un conto solo</b>: finché non incassi, non puoi cominciarne un altro. Servono <b>più ordini aperti insieme</b>, ognuno col suo cliente, che vanno in cucina subito, più un <b>registro ordini</b> dove si legge <b>chi ha ordinato, a che ora, per che ora e cosa</b>, e dove un ordine si <b>riprende dal punto in cui l'hai chiuso</b> per aggiungere roba che le altre postazioni devono preparare in più. Questo è il pezzo grosso, e ha un prerequisito vero: il <b>pavimento del traffico</b> qui sotto — senza, due casse in ora di punta si pestano. Cinque revisori indipendenti hanno demolito il mio primo disegno (<b>11 controprove su 11</b>): lo sto rifacendo, e te lo dico invece di spedirtelo rotto.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">grande</span></span></span></div>
-      <div class="tappa"><span class="num" aria-hidden="true">4</span><span class="corpo"><span class="titolo" style="display:block">La verifica dell'indirizzo, automatica, senza uscire dalla Cassa</span><p class="desc">Chiesto il 7 settembre. Oggi «Vedi sulla mappa» apre un'altra pagina, e chi sta alla cassa esce dall'ordine. Deve fare tutto il tasto: <b>controlla l'indirizzo da solo</b> e mostra una <b>mini mappa</b> lì dentro, senza aprire niente. Ti dico il vincolo vero: serve un servizio di mappe raggiungibile dall'app, e va scelto — è una decisione che passa da te.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></div>
+      <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">La verifica dell'indirizzo, automatica, senza uscire dalla Cassa <span class="pillo-ok">online</span></span><p class="desc">Online da gen-6.11. Scrivi mezza via e l'app ti propone quelle vere; ne tocchi una e il campo si riscrive normalizzato, con la spunta «Verificato» e la <b>mini mappa</b> lì dentro. <b>Nessuna pagina si apre.</b> Il servizio scelto non chiede chiavi, apposta: il codice sta in un repository pubblico. E se è giù, <b>la cassa non si ferma</b> — te lo dice e batti lo stesso.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">4</span><span class="corpo"><span class="titolo" style="display:block">L'ingrediente finito avvisa, non blocca</span><p class="desc">Quando un ingrediente è a zero la Cassa deve <b>dirlo</b> a chi batte — non impedirgli di battere. Chi sta al banco sa cose che il magazzino non sa.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">6</span><span class="corpo"><span class="titolo" style="display:block">La cassa vede solo la cassa</span><p class="desc">Un profilo che sta al banco non deve vedere le comande — <b>ma deve poterle modificare</b> (tua precisazione del 5 settembre). Sono due cose diverse: vedere lo schermo della cucina, e poter cambiare un ordine già mandato. La seconda arriva col lavoro 3.</p><span class="meta"><span class="tag t-sic">permessi</span><span class="tag t-mis">medio</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">7</span><span class="corpo"><span class="titolo" style="display:block">Il pavimento del traffico, e i cento scontrini in quattro ore</span><p class="desc">Non è una richiesta tua: è la <b>condizione</b> perché il lavoro 3 regga. Oggi ogni salvataggio spedisce lo stato intero e ogni altro telefono lo riscarica: con due casse in ora di punta si pestano. Le vendite vanno su una chiave loro, che si aggiunge invece di riscrivere tutto. Il pezzo delle <b>richieste chiuse</b> è già fatto (gen-6.10): erano 147 righe morte, il 19,7% di tutto quello che viaggiava, e adesso non viaggiano più. Resta la parte grossa: le vendite su una chiave loro.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">grande</span></span></span></div>
@@ -526,6 +559,51 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 9 settembre · <b>gen-6.11</b> · la postazione Cassa e l'indirizzo che si corregge da solo</h4>
+        <p><b>La Cassa è una stanza, non una voce.</b> Chi ha l'interruttore «cassa» si trovava
+        sotto il pollice Conteggi · Magazzini · Ordini mentre batteva scontrini: la Cassa era una
+        voce dentro l'app del magazziniere. Adesso, quando ci sei dentro, la barra è la sua —
+        <b>Battere · Clienti · Giornata · Esci</b> — e «Esci» ti riporta a quella di prima. Non
+        tolgo niente a nessuno: cambi stanza, e la porta di ritorno è sempre lo stesso tasto
+        nello stesso posto.</p>
+        <p><b>«Clienti» apre l'ordine, non lo mostra.</b> La rubrica esce dal foglio dell'ordine
+        e diventa una stanza: cerchi per numero o per nome, tocchi un cliente e <b>l'ordine è già
+        aperto per lui</b>. È il gesto vero di chi risponde al telefono — «pronto, sono il 340…» —
+        e prima finiva dentro un foglio che si apriva solo se stavi già battendo.</p>
+        <p><b>«Giornata» c'è sempre.</b> Il giorno aveva una porta sola: il riquadro «Oggi» in
+        cima alla griglia, che compare solo se qualcosa è già passato. A mezzanotte e mezza, con
+        lo scontrino di ieri sera da stornare, non c'era — è il rilievo che ha salvato gen-6.07.
+        Adesso la Giornata sta nella barra, quindi non può mancare.</p>
+        <p><b>L'indirizzo si corregge da solo.</b> Scrivi «via garibald» e l'app ti propone gli
+        indirizzi veri; ne tocchi uno e il campo si riscrive normalizzato, con le coordinate
+        accanto, la spunta «Verificato» e <b>una mini mappa dentro il foglio</b>. Nessuna pagina
+        si apre. Un cliente già in rubrica si porta dietro il suo indirizzo verificato, quindi la
+        seconda volta non si chiede niente a nessuno.</p>
+        <p><b>La regola che viene prima di tutte, e l'ho provata in due metà</b>: questo <b>non
+        blocca mai l'incasso</b>. Col servizio su si propone; col servizio giù non si propone
+        niente, l'app <b>lo dice</b> invece di lasciarti credere che l'indirizzo sia stato
+        controllato, resta il vecchio tasto che apre le mappe, e si batte come sempre. Una cassa
+        che si ferma perché un servizio di mappe è giù è peggio di una cassa senza mappe.</p>
+        <p><b>Dove restano telefono, via e coordinate.</b> In rubrica, mai nella vendita — la
+        stessa regola di gen-6.08, che vale identica per due numeri quanto per un indirizzo: gli
+        scontrini viaggiano interi verso tutti i telefoni, compresi quelli di cucina, e finiscono
+        nel CSV.</p>
+        <p><b>Come è stato provato, e cosa è andato storto.</b> 16 controlli rossi registrati
+        sulla versione online prima di scrivere il codice, tutti verdi dopo. Poi tredici
+        sabotaggi: <b>tredici rossi, zero muti</b>. Ma il primo giro ne aveva uno <b>muto</b> e
+        uno che non era nemmeno JavaScript valido. Il muto era un buco vero del mio banco: il
+        controllo «i dati del cliente non entrano nella vendita» registrava una vendita <b>al
+        banco</b>, dove il cliente non esiste proprio — era verde per assenza, e mettendo le
+        coordinate dentro la vendita apposta non se ne accorgeva. Adesso quel controllo fa un
+        ordine vero e ha <b>due metà che vanno insieme</b>: nella vendita non ci sono, in rubrica
+        ci sono. Senza la seconda metà sarei stato verde anche buttando via il tuo indirizzo.
+        <b>Censimento completo: 96 verdi, 1950 controlli veri, zero rosse, zero mute.</b></p>
+        <p><b>E il cancello del rilascio ha lavorato.</b> Delle 47 tessere in cui il file viene
+        spedito, <b>una era sbagliata — per un errore mio nel copiarla</b>. Il controllo
+        impronta-per-impronta l'ha trovata <b>prima</b> di toccare la produzione: rifatta,
+        ricontrollata, e solo allora lo scambio. È esattamente per questo che quel passaggio
+        esiste.</p>
+
         <h4>L'8 settembre, sera · <b>gen-6.10</b> · le fondamenta</h4>
         <p><b>Questa non l'hai chiesta tu, e non si vede.</b> Te la racconto lo stesso perché è
         la più importante delle ultime tre, e perché il numero l'ho misurato sulla tua
