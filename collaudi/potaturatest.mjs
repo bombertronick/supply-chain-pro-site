@@ -40,6 +40,12 @@
 import { readFileSync } from "fs";
 import path from "path";
 
+/* Il sorgente da leggere per i controlli di aggancio (§9, §10). Di norma e'
+   quello del repository; con SORGENTE=... si punta a una versione in
+   lavorazione, per provarla PRIMA di installarla — che e' esattamente il
+   momento in cui una prova serve. */
+const SORGENTE = process.env.SORGENTE || path.resolve("../app/app.jsx");
+
 let ko = 0;
 const ok = (c, m) => { console.log((c ? "  ok  " : "  KO  ") + m); if (!c) ko++; };
 const G = 86400000;
@@ -64,8 +70,14 @@ ok(typeof pota === "function",
   `sfoltisciRichieste c'e' ed e' una funzione (trovato: ${pota === null ? "niente" : typeof pota})`);
 ok(POTA.GIORNI_RICHIESTE != null,
   `e la finestra e' un numero dichiarato, non sparso nel codice (GIORNI_RICHIESTE = ${POTA.GIORNI_RICHIESTE})`);
-ok(POTA.MAX_RICHIESTE_CHIUSE != null,
-  `e c'e' anche un tetto, come per gli ordini (MAX_RICHIESTE_CHIUSE = ${POTA.MAX_RICHIESTE_CHIUSE})`);
+/* «diverso da null» non basta: un tetto di un miliardo passerebbe quel
+   controllo e non fermerebbe niente. Un tetto che non puo' mai mordere non e'
+   un tetto — trovato da un sabotaggio MUTO, che senza questo controllo non
+   faceva rumore. Il confine e' largo (fra 20 e 500) perche' il numero giusto
+   e' una scelta, ma un ordine di grandezza sbagliato non lo e'. */
+ok(POTA.MAX_RICHIESTE_CHIUSE != null
+   && POTA.MAX_RICHIESTE_CHIUSE >= 20 && POTA.MAX_RICHIESTE_CHIUSE <= 500,
+  `e c'e' anche un tetto VERO, come per gli ordini (MAX_RICHIESTE_CHIUSE = ${POTA.MAX_RICHIESTE_CHIUSE})`);
 
 console.log("\n— 2. quello che aspetta non si tocca MAI —");
 {
@@ -114,9 +126,12 @@ console.log("\n— 6. una chiusa SENZA data si tiene —");
 console.log("\n— 7. il tetto toglie le PIU' VECCHIE, non le ultime dell'array —");
 {
   const tetto = POTA.MAX_RICHIESTE_CHIUSE;
-  if (typeof pota !== "function" || tetto == null) {
-    ok(false, "non provabile: manca la funzione o il tetto");
-    ok(false, "non provabile: manca la funzione o il tetto");
+  /* il tetto va anche USATO per costruire il seme: con un tetto assurdo il
+     collaudo proverebbe ad allocare un miliardo di righe e morirebbe a meta',
+     e un collaudo che muore non dice «rosso», dice niente. */
+  if (typeof pota !== "function" || !(tetto > 0 && tetto <= 500)) {
+    ok(false, `non provabile: la funzione manca o il tetto non e' un numero sensato (${tetto})`);
+    ok(false, "non provabile: senza un tetto sensato non si puo' vedere COSA toglie");
   } else {
     /* tutte DENTRO la finestra, cosi' a tagliare e' il tetto e non l'eta'.
        L'array e' costruito col piu' RECENTE in fondo apposta: chi sfoltisse
@@ -154,10 +169,15 @@ console.log("\n— 9. e' agganciata in TUTTI i punti dove passa una scrittura �
      Sono tre blocchi gemelli — applicaCoda, il ramo locale di muta, il ramo
      locale di mutaDato — e si riconoscono perche' ognuno pota gia' ordini,
      vendite, giornate e clienti. */
-  const src = readFileSync(path.resolve("../app/app.jsx"), "utf8");
+  const src = readFileSync(SORGENTE, "utf8");
   const blocchi = src.split("\n").reduce((acc, riga, i, righe) => {
     if (/b\.clienti\s*=\s*sfoltisciClienti\(/.test(riga)) {
-      acc.push(righe.slice(Math.max(0, i - 8), i + 3).join("\n"));
+      /* la finestra e' larga (dieci righe sopra, otto sotto) perche' dentro un
+         blocco di potatura ci vanno anche i commenti: con una finestra stretta
+         il collaudo diceva «2 su 3» su un codice che aveva tutte e tre le
+         chiamate al posto giusto — era sbagliato lui, non il codice. I tre
+         blocchi distano centinaia di righe l'uno dall'altro: non si toccano. */
+      acc.push(righe.slice(Math.max(0, i - 10), i + 8).join("\n"));
     }
     return acc;
   }, []);
@@ -170,7 +190,7 @@ console.log("\n— 9. e' agganciata in TUTTI i punti dove passa una scrittura �
 
 console.log("\n— 10. la finestra e' piu' larga di ogni lettore vero —");
 {
-  const src = readFileSync(path.resolve("../app/app.jsx"), "utf8");
+  const src = readFileSync(SORGENTE, "utf8");
   const g = POTA.GIORNI_RICHIESTE;
   /* il lettore piu' esigente e' il grafico dell'Analisi: GIORNI = 14, e conta
      per data di NASCITA mentre la potatura ragiona per data di CHIUSURA */
