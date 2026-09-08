@@ -588,6 +588,44 @@ function sfoltisciOrdini(lista) {
     return tenute.has(o.id);
   });
 }
+/* ── LA POTATURA DELLE RICHIESTE (gen-6.10) ──
+   Erano l'UNICA collezione che cresceva senza fine e senza nessuno che la
+   potasse. Il numero, misurato sulla produzione l'8 settembre e non stimato:
+   lo stato che viaggia INTERO a ogni salvataggio verso ogni telefono acceso
+   pesava 321.140 caratteri, e 147 richieste su 155 erano CHIUSE e piu'
+   vecchie di 21 giorni — 63.306 caratteri, il 19,7% di tutto, che nessuna
+   schermata dell'app legge piu': la lista dello Storico tiene le chiuse per
+   sette giorni, la card «evase7» una settimana, il grafico dell'Analisi
+   quattordici giorni.
+   E' sfoltisciOrdini copiato con dentro le sue quattro lezioni, che sono
+   quattro trappole gia' pagate una volta: (a) quello che ASPETTA non si tocca
+   mai — una richiesta non evasa e' lavoro, non archivio; (b) una riga senza
+   data si tiene, perche' non sapere quanti anni ha non e' un motivo per
+   buttarla; (c) la finestra si conta dall'ULTIMA cosa successa alla riga (una
+   richiesta nata cinquanta giorni fa ed evasa ieri e' roba di ieri); (d) il
+   tetto toglie le piu' VECCHIE PER DATA, non le ultime dell'array — l'ordine
+   di una lista non e' garantito.
+   PERCHE' 21 E NON 7: il lettore piu' esigente guarda 14 giorni e conta per
+   data di NASCITA, mentre qui si ragiona per data di CHIUSURA. Le due date
+   non coincidono, quindi la finestra della potatura dev'essere piu' larga di
+   quella del lettore piu' largo, con margine. */
+const GIORNI_RICHIESTE = 21;
+const MAX_RICHIESTE_CHIUSE = 120;
+const dataRichiesta = (r) => r.tEvasione || r.t || 0;
+function sfoltisciRichieste(lista) {
+  const limite = Date.now() - GIORNI_RICHIESTE * 86400000;
+  const tutte = (lista || []).filter(Boolean);
+  const chiuse = tutte.filter((r) => r.stato !== "in-attesa" && dataRichiesta(r))
+    .sort((a, b) => dataRichiesta(b) - dataRichiesta(a));
+  const tenute = new Set(chiuse.slice(0, MAX_RICHIESTE_CHIUSE).map((r) => r.id));
+  return tutte.filter((r) => {
+    if (r.stato === "in-attesa") return true;
+    const t = dataRichiesta(r);
+    if (!t) return true;
+    if (t < limite) return false;
+    return tenute.has(r.id);
+  });
+}
 /* ─────────── LA CASSA (gen-5.96) ───────────
    La catena chiesta da Valerio il 31 agosto: cliente → cassa → scarico →
    riordino. Le regole, decise nel piano e qui incise:
@@ -609,7 +647,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.09";
+const VERSIONE = "gen-6.10";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -14398,8 +14436,11 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
       const dati = JSON.parse(impTesto);
       if (!Array.isArray(dati?.profili) || !Array.isArray(dati?.sedi) || !Array.isArray(dati?.prodotti))
         return mostraToast("Il testo non è un backup valido di Supply Chain Pro", "errore");
-      setImpAperto(false); setImpTesto("");
-      await ripristina(dati, "importazione manuale");
+      /* si chiude DOPO, e solo se il ripristino e' partito davvero: da gen-6.10
+         puo' dire di no (vendite non ancora salvate), e buttare il testo
+         incollato su un rifiuto vorrebbe dire farlo reincollare a mano */
+      const partito = await ripristina(dati, "importazione manuale");
+      if (partito !== false) { setImpAperto(false); setImpTesto(""); }
     } catch { mostraToast("JSON non valido: controlla il testo incollato", "errore"); }
   };
 
@@ -15449,6 +15490,10 @@ export default function App() {
        facesse solo applicaVendita, trecento clienti di troppo viaggerebbero in
        rete finche' qualcuno non batte l'ordine successivo (gen-6.08) */
     b.clienti = sfoltisciClienti(b.clienti);
+    /* e le richieste, per la terza volta la stessa ragione (gen-6.10): erano
+       l'unica collezione senza potatura, e 147 righe chiuse da settimane
+       viaggiavano in rete a ogni salvataggio verso ogni telefono acceso */
+    b.richieste = sfoltisciRichieste(b.richieste);
     return b;
   };
 
@@ -15572,6 +15617,7 @@ export default function App() {
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
       b.clienti = sfoltisciClienti(b.clienti);
+      b.richieste = sfoltisciRichieste(b.richieste);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;
@@ -15613,6 +15659,7 @@ export default function App() {
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
       b.clienti = sfoltisciClienti(b.clienti);
+      b.richieste = sfoltisciRichieste(b.richieste);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;
@@ -15825,6 +15872,23 @@ export default function App() {
 
   /* ripristino completo (backup / importazione): passa dalla stessa coda */
   const ripristina = async (dati, origine) => {
+    /* ── IL RIPRISTINO NON PASSA SOPRA A UNA VENDITA NON SALVATA (gen-6.10) ──
+       Piu' sotto c'e' «codaRef.current = [m]»: UN'ASSEGNAZIONE, non una
+       aggiunta. Tutto quello che era in fila per partire — vendite, storni,
+       spunte di cucina — spariva li' dentro senza una parola. E' lo stesso
+       modo di perdere soldi in silenzio che gen-6.05 e gen-6.07 hanno chiuso
+       da altre due parti: il telefono che crede di aver salvato e cancella.
+       Qui il rimedio e' un no detto a voce, non un salvataggio in piu': chi
+       ripristina un backup lo fa da fermo, e aspettare che il pallino torni
+       verde costa dieci secondi — mentre una serata di incassi non torna. */
+    const inFila = codaRef.current.filter((m) => m.tipo).length;
+    if (inFila > 0) {
+      mostraToast(inFila === 1
+        ? "Non ripristino: c'è 1 vendita ancora da salvare. Aspetta che il pallino in alto torni verde."
+        : `Non ripristino: ci sono ${inFila} vendite ancora da salvare. Aspetta che il pallino in alto torni verde.`,
+        "errore");
+      return false;
+    }
     const pulito = normalizza(clona(dati));
     const m = {
       fn: (s) => { for (const k of Object.keys(s)) delete s[k]; Object.assign(s, clona(pulito)); },
