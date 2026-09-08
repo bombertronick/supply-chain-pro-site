@@ -609,7 +609,7 @@ function sfoltisciOrdini(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.08";
+const VERSIONE = "gen-6.09";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -12765,6 +12765,13 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
   const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
+  /* la CATEGORIA e' testo libero come il gruppo del listino, e per la stessa
+     ragione: chi sta al banco la scrive come la dice («Verdure», «Salumi»,
+     «Formaggi»), non la sceglie da un elenco che qualcun altro ha deciso.
+     Il prezzo di quella liberta' e' il refuso, e si paga come sul listino:
+     una categoria scritta in due modi diventa due intestazioni. Per attutirlo
+     l'editor propone quelle che gia' esistono (gen-6.09). */
+  const [categoria, setCategoria] = useState(item?.categoria || "");
   const [gruppi, setGruppi] = useState(item?.gruppi || []);
   const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
   const disponibili = [...new Set([...(stato.listino || []).map(gruppoDi), ...gruppi])]
@@ -12790,7 +12797,10 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
     }
     /* l'id nasce QUI FUORI come per le postazioni e le voci: un uid() dentro
        la closure diventerebbe un'aggiunta nuova a ogni replay della coda */
-    const dati = { id: item?.id || uid("ag"), nome: nome.trim(), prezzo: nP, attivo, gruppi, distinta: dOk };
+    const dati = { id: item?.id || uid("ag"), nome: nome.trim(), prezzo: nP, attivo, gruppi, distinta: dOk,
+      /* la chiave si scrive solo se c'e': un'aggiunta senza categoria pesa
+         oggi quanto pesava ieri sul canale (stessa regola di «agg» e «cli») */
+      ...(categoria.trim() ? { categoria: categoria.trim() } : {}) };
     muta((s) => {
       const lista = s.aggiunte || [];
       s.aggiunte = lista.some((x) => x.id === dati.id)
@@ -12804,6 +12814,28 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
       <Campo label="Nome dell'aggiunta" valore={nome} onCambia={setNome} placeholder="Es. Broccoletti" autoFocus />
       <Campo label="Prezzo dell'aggiunta (€)" valore={prezzo} onCambia={setPrezzo} placeholder="1,50" inputMode="decimal"
         suggerimento="Si somma al prezzo della voce. Zero è legittimo: una cortesia della casa." />
+      <div>
+        <Campo label="Categoria" valore={categoria} onCambia={setCategoria} placeholder="Es. Verdure"
+          suggerimento="Raggruppa gli ingredienti nella fascia della Cassa. Si può lasciare vuota: finiscono in fondo, sotto «Altro»." />
+        {/* le categorie GIA' SCRITTE, a portata di tocco: e' l'unica difesa
+            contro il refuso, perche' il campo resta libero. Solo quelle
+            diverse da quella scritta adesso: un tasto che non cambia niente
+            e' un tasto morto (gen-5.99). */}
+        {(() => {
+          const gia = [...new Set((stato.aggiunte || []).map((a) => (a.categoria || "").trim()).filter(Boolean))]
+            .filter((c) => c !== categoria.trim()).sort((a, b) => a.localeCompare(b, "it"));
+          if (!gia.length) return null;
+          return (
+            <div className="flex gap-1.5 mt-2 flex-wrap">
+              {gia.map((c) => (
+                <button key={c} onClick={() => setCategoria(c)} aria-label={`Categoria ${c}`}
+                  className="rounded-full px-3 text-xs font-bold"
+                  style={{ minHeight: 40, background: "#EAF0FE", color: T.blu }}>{c}</button>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
       <button onClick={() => setAttivo((x) => !x)} aria-pressed={attivo}
         className="rounded-2xl px-3.5 py-3 text-left text-sm font-bold inline-flex items-center gap-2"
         style={attivo ? { background: "#E8F6F0", color: T.verde } : { background: "#F0F3FB", color: T.dim }}>
@@ -13177,6 +13209,20 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
      si leggeva, e nasconderla e basta avrebbe reso invisibile uno stato —
      peggio della barra sempre aperta. */
   const [fasciaSu, setFasciaSu] = useState(false);
+  /* l'altezza VERA del blocco degli ingredienti, misurata dopo ogni disegno:
+     con le categorie non e' piu' una costante, e lo spaziatore che tiene
+     «Incassa» sopra la fascia deve seguirla (gen-6.09) */
+  const fasciaRef = useRef(null);
+  const [altezzaFascia, setAltezzaFascia] = useState(0);
+  useEffect(() => {
+    const misura = () => {
+      const h = fasciaRef.current ? Math.round(fasciaRef.current.getBoundingClientRect().height) : 0;
+      setAltezzaFascia((p) => (Math.abs(p - h) > 1 ? h : p));
+    };
+    misura();
+    window.addEventListener("resize", misura);
+    return () => window.removeEventListener("resize", misura);
+  });
   /* ── IL CLIENTE (gen-6.08, parole di Valerio del 1º e del 4 settembre) ──
      Tutto LOCALE come il carrello: finche' non si incassa, chi sta al banco
      sta scrivendo su un foglietto suo — zero byte sul canale, e la cassa
@@ -13233,6 +13279,40 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
       for (const a of r.agg || []) battuteAgg[a.id] = (battuteAgg[a.id] || 0) + Math.abs(+r.qty || 0);
   const perBanco = (l) => [...l].sort((a, b) =>
     (battuteAgg[b.id] || 0) - (battuteAgg[a.id] || 0) || a.nome.localeCompare(b.nome, "it"));
+  /* ── LE AGGIUNTE PER CATEGORIA (gen-6.09, parole di Valerio del 6 e 7
+       settembre: «devono poter essere divisi per categoria così mentre la
+       cassa prepara l'ordine le aggiunte sono ordinate e le può selezionare
+       rapidamente» e «nelle categorie devono essere ordinati in ordine
+       alfabetico») ──
+     DENTRO la categoria si ordina in ALFABETO, non per battute: gliel'ho
+     chiesto e ha risposto cosi'. Ed e' la scelta giusta per il gesto vero —
+     con le categorie il dito non cerca piu' «la piu' probabile», cerca UNA
+     PAROLA che sa gia', e una parola si trova in alfabeto. L'ordine per
+     battute resta dove serve ancora: sui GRUPPI del listino, dove non c'e'
+     nessuna parola da cercare perche' li' si guarda la cella.
+     Le CATEGORIE fra loro restano in alfabeto per la stessa ragione, con una
+     sola eccezione: «Altro» sempre in fondo, come gia' fa il listino coi
+     gruppi senza nome. Chi non ha categoria non sparisce — finisce li'. */
+  const SENZA_CAT = "Altro";
+  const perCategoria = (l) => {
+    const per = new Map();
+    for (const a of l) {
+      const c = (a.categoria || "").trim() || SENZA_CAT;
+      if (!per.has(c)) per.set(c, []);
+      per.get(c).push(a);
+    }
+    return [...per.entries()]
+      .map(([cat, aggs]) => [cat, aggs.sort((x, y) => x.nome.localeCompare(y.nome, "it"))])
+      .sort((a, b) => {
+        if ((a[0] === SENZA_CAT) !== (b[0] === SENZA_CAT)) return a[0] === SENZA_CAT ? 1 : -1;
+        return a[0].localeCompare(b[0], "it");
+      });
+  };
+  /* una categoria sola non e' una divisione: se tutte le aggiunte stanno
+     nello stesso gruppo, l'intestazione ruba una riga e non dice niente —
+     si torna alla fila unica per battute, che e' l'ordine di prima. */
+  const vuoleCategorie = (l) =>
+    new Set(l.map((a) => (a.categoria || "").trim() || SENZA_CAT)).size > 1;
   /* una volta per gruppo, non una per riga del conto: su un Android da
      banco un filter+sort per riga si sente */
   const aggPer = {}; for (const g of gruppi) aggPer[g] = aggiunteDi(stato, g);
@@ -13735,10 +13815,16 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           resta alto da fascia aperta si spreca schermo per niente; se resta
           basso da fascia chiusa «Incassa» finisce sotto la fascia — che e'
           il sabotaggio n.9 di gen-6.03. Per questo il collaudo lo misura in
-          TUTTI E DUE gli stati, non in uno solo. */}
+          TUTTI E DUE gli stati, non in uno solo.
+          gen-6.09: con le categorie l'altezza non e' piu' una costante — una
+          categoria o sei fanno blocchi diversi — quindi lo spaziatore la
+          MISURA invece di indovinarla. I due numeri fissi restano come rete
+          per il primo disegno, prima che la misura arrivi. */}
       {aggiunteTutte(stato).length > 0 && (
         <div aria-hidden="true" data-spaziatore="1"
-          style={{ height: `calc(${fasciaSu ? "6.5rem" : "4rem"} + env(safe-area-inset-bottom))` }} />
+          style={{ height: altezzaFascia
+            ? `calc(${altezzaFascia}px + 1.4rem + env(safe-area-inset-bottom))`
+            : `calc(${fasciaSu ? "6.5rem" : "4rem"} + env(safe-area-inset-bottom))` }} />
       )}
       {/* ═══ LA FASCIA DEGLI INGREDIENTI (gen-6.03) ═══
           Parole di Valerio: «devo poterlo fare in qualsiasi momento, non
@@ -13763,7 +13849,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
              si ha in mano e apre al tocco. Ambra quando la mano e' piena,
              perche' quello e' l'unico stato che, dimenticato, fa sbagliare
              la pizza dopo. */
-          <div data-fascia-chiusa="1" className="fixed z-30"
+          <div ref={fasciaRef} data-fascia-chiusa="1" className="fixed z-30"
             style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
             <button onClick={() => setFasciaSu(true)} aria-label={dove}
               className="w-full rounded-2xl px-3 flex items-center gap-2"
@@ -13778,7 +13864,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
           </div>
         );
         return (
-          <div data-fascia="1" className="fixed z-30"
+          <div ref={fasciaRef} data-fascia="1" className="fixed z-30"
             style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
             <div className="rounded-2xl p-2" style={{ background: inMano ? "#FFF6E8" : "#fff",
               border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 12px 30px -14px rgba(20,30,60,.45)" }}>
@@ -13805,11 +13891,14 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
                   className="rounded-full shrink-0 grid place-items-center"
                   style={{ width: 44, height: 44, background: "#F0F3FB", color: T.tenue }}><X size={15} /></button>
               </div>
-              <div className="flex gap-2 overflow-x-auto">
-                {chips.map((a) => {
+              {(() => {
+                /* IL CHIP, uno solo, usato in tutte e due le forme: se ne
+                   scrivessi due copie, la prossima modifica ne cambierebbe
+                   una sola. */
+                const unChip = (a) => {
                   const giu = rv ? (rv.agg || []).some((x) => x.id === a.id) : mano.includes(a.id);
                   return (
-                    <button key={a.id} aria-pressed={giu} onClick={() => giraAgg(a.id)}
+                    <button key={a.id} data-agg={a.nome} aria-pressed={giu} onClick={() => giraAgg(a.id)}
                       aria-label={rv
                         ? (giu ? `Leva ${a.nome} da ${nomeBase(rv)}` : `Metti ${a.nome} su ${nomeBase(rv)}`)
                         : (giu ? `Lascia ${a.nome}` : `Prendi in mano ${a.nome}`)}
@@ -13819,8 +13908,31 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
                       <span className="text-[11px] font-semibold" style={{ opacity: .8 }}>+ {fmtEuro(a.prezzo || 0)}</span>
                     </button>
                   );
-                })}
-              </div>
+                };
+                /* SENZA categorie vere resta la fila unica di prima, per
+                   battute: due modi diversi solo quando la differenza c'e'. */
+                if (!vuoleCategorie(chips))
+                  return <div className="flex gap-2 overflow-x-auto">{chips.map(unChip)}</div>;
+                /* CON le categorie: una riga per categoria, il nome a
+                   sinistra e i suoi chip che scorrono accanto. In verticale
+                   e non in orizzontale perche' la parola che si cerca e' la
+                   categoria, e un elenco di parole si legge in colonna;
+                   dentro la riga si scorre col dito, come prima.
+                   Il tetto d'altezza serve al caso di dieci categorie: la
+                   fascia non deve mangiare mezzo schermo (la lezione di
+                   gen-6.04, misurata: 209 px su 844 erano troppi). */
+                return (
+                  <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll" style={{ maxHeight: "12.5rem" }}>
+                    {perCategoria(chips).map(([cat, aggs]) => (
+                      <div key={cat} data-cat={cat} className="flex items-center gap-2">
+                        <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wide text-right"
+                          style={{ color: T.tenue, width: "4.6rem" }}>{cat}</span>
+                        <div className="flex gap-2 overflow-x-auto">{aggs.map(unChip)}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         );
@@ -13932,20 +14044,56 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast }) {
                   )}
                 </div>
               )}
+              {/* ── LA BARRA DELLE FASCE (gen-6.09, parole di Valerio del 7
+                     settembre: «le fasce orarie devono essere visibili tramite
+                     una barra laterale scorribile») ──
+                  Quattro tastini «fra 15′» rispondono a UNA domanda sola —
+                  «quanto ci metto» — ma al telefono la domanda e' un'altra:
+                  «per che ora lo vuole», e la risposta e' un'ora precisa che
+                  il cliente dice lui. Una barra di orari veri, a quarti d'ora,
+                  si legge come si legge un orario: si scorre e si tocca.
+                  DA ADESSO, non da mezzanotte: la prima fascia e' il primo
+                  quarto d'ora dopo quello corrente, perche' nessuno prende un
+                  ordine per un'ora gia' passata. E si tiene a portata di
+                  scorrimento tutto il resto del servizio (sei ore).
+                  LATERALE e non sotto: sta accanto al campo, alta quanto una
+                  mano, e non spinge giu' il tasto «Va bene». */}
               <div>
-                <Campo label="Per le" valore={cliFascia} onCambia={setCliFascia}
-                  placeholder="20:30" maxLength={5}
-                  suggerimento="L'ora in cui lo vuole. Si legge in cucina accanto al nome." />
-                <div className="flex gap-1.5 mt-2 flex-wrap">
-                  {[15, 30, 45, 60].map((m) => (
-                    <button key={m} onClick={() => {
-                      const d = new Date(Date.now() + m * 60000);
-                      setCliFascia(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
-                    }}
-                      aria-label={`Fra ${m} minuti`}
-                      className="rounded-full px-3 text-xs font-bold"
-                      style={{ minHeight: 40, background: "#EAF0FE", color: T.blu }}>fra {m}′</button>
-                  ))}
+                <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Per le</span>
+                <div className="flex gap-2 items-start">
+                  <label className="flex-1 min-w-0">
+                    <input type="text" value={cliFascia} placeholder="20:30" inputMode="numeric" maxLength={5}
+                      aria-label="Per le" onChange={(e) => setCliFascia(e.target.value)}
+                      className="w-full rounded-2xl px-4 py-3 text-base font-semibold"
+                      style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}`, color: T.ink }} />
+                    <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+                      L'ora in cui lo vuole. Si legge in cucina accanto al nome.</span>
+                  </label>
+                  <div data-fasce="1" className="sc-scroll rounded-2xl shrink-0"
+                    style={{ width: "5.6rem", maxHeight: "11rem", overflowY: "auto",
+                      background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+                    {(() => {
+                      /* si parte dal quarto d'ora DOPO quello corrente e si
+                         va avanti sei ore: 24 fasce, che e' quanto basta a
+                         coprire un servizio intero senza diventare un
+                         calendario. */
+                      const ora = new Date();
+                      ora.setSeconds(0, 0);
+                      ora.setMinutes(Math.floor(ora.getMinutes() / 15) * 15 + 15);
+                      return Array.from({ length: 24 }, (_, i) => {
+                        const d = new Date(ora.getTime() + i * 15 * 60000);
+                        const hh = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+                        const scelta = cliFascia.trim() === hh;
+                        return (
+                          <button key={hh} data-ora={hh} onClick={() => setCliFascia(hh)}
+                            aria-label={`Per le ${hh}`} aria-pressed={scelta}
+                            className="w-full text-center text-sm font-bold tabular-nums"
+                            style={{ minHeight: 40, background: scelta ? T.blu : "transparent",
+                              color: scelta ? "#fff" : T.dim }}>{hh}</button>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
               </div>
             </>}

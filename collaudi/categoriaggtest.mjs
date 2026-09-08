@@ -14,9 +14,13 @@
    raggruppa), §4 (dentro la categoria si ordina per piu'-usate, non in
    alfabeto), §5 (l'editor non ha il campo), §7 (la barra delle fasce non
    c'e'), §8 (la barra non scorre).
-   VERDI ANCHE PRIMA, apposta: §1 (chi non ha la cassa non vede niente),
-   §6 (un'aggiunta senza categoria non sparisce: finisce in un gruppo suo),
+   VERDI ANCHE PRIMA, apposta: §1 (chi non ha la cassa non vede niente) e
    §9 (la pizza liscia resta un tocco).
+   CORREZIONE al primo giro: avevo scritto che anche §6 sarebbe stata verde
+   prima. NON lo e', e il giro dei rossi me l'ha detto: §6 legge i marcatori
+   «data-agg» che nascono con questa modifica, quindi prima non trova niente.
+   Resta utile — dice che nessuna aggiunta si perde per strada — ma e' un
+   rosso-prima come gli altri, e va contato fra quelli.
 
    NIENTE DATI VERI: nomi inventati. */
 import { chromium } from "playwright";
