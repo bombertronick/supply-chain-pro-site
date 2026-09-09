@@ -2,9 +2,9 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.13",
-  "len": 962978,
-  "md5": "fb250073e10846c723a919c620262f5b",
+  "gen": "gen-6.14",
+  "len": 964731,
+  "md5": "a4cc27660ac7257ed997b80fd9b2e405",
   "quando": "2026-09-09",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
@@ -29,6 +29,13 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.14",
+   "quando": "9 settembre, sera",
+   "chiude": [],
+   "prova": "sfrattotest.mjs",
+   "cosa": "«Lo sfratto ordinato» — TESSERA 0 del disegno della ricevuta (progetti/finestra-cieca.md:54-57), spedita PER PRIMA e DA SOLA come il documento ordina. Difetto VIVO su gen-6.13, non teorico. IL DIFETTO: applicaVendita antepone la riga nuova a s.vendite col suo t VECCHIO e poi taglia per POSIZIONE (.slice(0, MAX_VENDITE)); sfoltisciVendite consegna la lista ordinata per t decrescente, quindi il taglio morde la CODA, cioe' la riga piu' vecchia. Su lista piena, rigiocare una vendita vecchia SFRATTA UNA RIGA PIU' RECENTE — che da quel momento non ha piu' nessun testimone (ne' s.vendite ne', a tetto consumato, s.applicate) e la guardia del doppione torna cieca su di lei. MISURATO dal banco su gen-6.13, con UN SOLO telefono e dentro UN SOLO applicaCoda: coda [V di 36 ore mai spedita, W di 20 ore gia' atterrata con risposta persa], s.vendite piena con W la piu' vecchia, il logId di W scaduto. Il rigioco di V sfratta W, W viene riapplicata: giornata da 200 a 293 € (invece di 225), mozzarella 48 invece di 49, una riga di storico in piu'. LA CURA: si ordina per t PRIMA di tagliare, in tutti e due i punti che rifanno s.vendite (la vendita e la riga contraria dello storno); il filtro d eta esce da quelle due righe — lo rifanno comunque i tre blocchi di potatura a ogni scrittura — e si scartano le righe senza t, che l ordinamento non saprebbe collocare. L unica cosa che cambia e QUALE riga viene sfrattata: sempre la piu vecchia. PROVE: collaudi/sfrattotest.mjs scritto PRIMA (6 rossi su gen-6.13, 20 verdi su gen-6.14). Il banco semina 300 righe non per collaudare un tetto ma per FEDELTA della scena, e lo dichiara nel commento; e pretende che il tetto abbia davvero morso, se no sarebbe verde per assenza di scena. DUE controlli sulla LISTA restano verdi anche col difetto addosso, per un motivo storto (W sfrattata, poi riapplicata, rientra in testa e butta V): sta scritto nel banco, perche' chi legge non li scambi per la misura. Otto sabotaggi, otto rossi, zero muti (S1 riporta lo sfratto storto: 6 rossi; S2 ordina al contrario: 2; S3 toglie l ordinamento allo storno: 2; S5 spegne la guardia sul dato: 6). Cancello d area: 9 banchi, 257 controlli veri, zero rosse. Censimento completo su gen-6.14: in corso mentre scrivo, i numeri arrivano col prossimo aggiornamento. PRODUZIONE: len 964731, md5 a4cc27660ac7257ed997b80fd9b2e405."
+  },
   {
    "gen": "gen-6.13",
    "quando": "9 settembre, sera",

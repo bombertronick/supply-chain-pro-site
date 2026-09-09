@@ -36,10 +36,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.13, `app:jsx:src` len 962978, md5
-  `fb250073e10846c723a919c620262f5b`, meta `{"len":962978,"ver":"gen-6.13"}`.
-  Backup: `backup:pre-gen614` = gen-6.13, `backup:pre-gen613` = gen-6.12,
-  `backup:pre-gen612` = gen-6.11. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.14, `app:jsx:src` len 964731, md5
+  `a4cc27660ac7257ed997b80fd9b2e405`, meta `{"len":964731,"ver":"gen-6.14"}`.
+  Backup: `backup:pre-gen615` = gen-6.14, `backup:pre-gen614` = gen-6.13,
+  `backup:pre-gen613` = gen-6.12. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
@@ -170,14 +170,8 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
 
 ## Prossimo, in ordine
 
-1. **TESSERA 0 — l'invariante dello sfratto. È un difetto VIVO, e va da sola.**
-   `progetti/finestra-cieca.md:54-57`. In `applicaVendita` la riga nuova viene
-   messa in testa a `s.vendite` con il suo `t` vecchio, e il taglio a 300 morde
-   la CODA: rigiocare una vendita vecchia **sfratta una riga più recente**, che
-   da quel momento non ha più nessun testimone e può essere contata due volte —
-   con un client solo. La cura è ordinare per `t` prima di tagliare, in due
-   punti (la vendita e la riga contraria dello storno). Due righe, nessuna
-   dipendenza, e un banco che la dimostri prima.
+1. ~~TESSERA 0 — l'invariante dello sfratto~~: **fatta, online da gen-6.14**
+   (`collaudi/sfrattotest.mjs`, 6 rossi → 20 verdi, otto sabotaggi tutti rossi).
 2. **Il resto del PASSO 1 del pavimento** (`progetti/pavimento-traffico.md`):
    `storna()` rilegge il dato vivo prima di mandare la mutazione; il ramo locale
    di `mutaDato` raccoglie l'esito; `|| []` sulla riga interna dell'export

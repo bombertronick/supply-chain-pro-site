@@ -669,7 +669,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.13";
+const VERSIONE = "gen-6.14";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -810,10 +810,27 @@ function applicaVendita(s, v) {
     }
     s.clienti = sfoltisciClienti(s.clienti);
   }
-  /* la riga nuova NON passa dal filtro d'eta': una vendita rimasta in coda
-     piu' di 48 ore va applicata E vista — la fara' scadere lo sfoltimento
-     successivo, non la nascita (revisione gen-5.96) */
-  s.vendite = [{ ...vend, stato: "registrata" }, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
+  /* ── SI ORDINA PRIMA DI TAGLIARE, E NON E' UN VEZZO (gen-6.14) ──
+     Il taglio a MAX_VENDITE morde per POSIZIONE, cioe' la coda dell'array:
+     con la lista ordinata per t decrescente esce la riga piu' vecchia. Ma la
+     riga nuova viene ANTEPOSTA col suo t vecchio (vedi sotto), quindi finche'
+     l'ordinamento non comprendeva anche lei bastava rigiocare una vendita
+     vecchia per sfrattare una riga PIU' RECENTE — che da quel momento non
+     aveva piu' nessun testimone, e la guardia qui sopra tornava cieca su una
+     vendita che nessun altro ricordava. MISURATO dal banco (sfrattotest, su
+     gen-6.13): coda [V di 36 ore, W di 20 ore gia' arrivata], lista piena con
+     W la piu' vecchia; il rigioco di V sfratta W, W viene riapplicata dentro
+     lo STESSO applicaCoda, e la giornata sale di 68 € con un client solo.
+     La riga nuova continua a NON passare dal filtro d'eta' — una vendita
+     rimasta in coda piu' di 48 ore va applicata E vista (gen-5.96) — e il
+     filtro esce anche dalle righe vecchie: lo rifanno comunque i tre blocchi
+     di potatura a ogni scrittura. L'unica cosa che cambia e' QUALE riga viene
+     sfrattata: sempre la piu' vecchia, mai una piu' recente di quelle che
+     restano. Le righe senza t si scartano: l'ordinamento non saprebbe dove
+     metterle, e una riga senza data non e' comunque leggibile da nessuna
+     schermata. */
+  s.vendite = [{ ...vend, stato: "registrata" }, ...(s.vendite || []).filter((v) => v && typeof v.t === "number")]
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
   for (const r of v.scarico || []) {
     const mm = trova(s.magazzini, r.magId);
     const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
@@ -863,7 +880,14 @@ function applicaStorno(s, d) {
     stato: "storno", origId: orig.id, motivo: d.motivo, autorizzataDa: d.autorizzataDa,
     righe: (orig.righe || []).map((x) => ({ ...x })), totale: -orig.totale, metodo: orig.metodo,
     scarico: [], ...(salti ? { nonRipristinate: salti } : {}) };
-  s.vendite = [contro, ...sfoltisciVendite(s.vendite)].slice(0, MAX_VENDITE);
+  /* stesso ordinamento della vendita (gen-6.14). Qui e' cintura e non
+     bretelle: la riga contraria porta t = d.t = adesso (lo scrive storna
+     prima di mandare la mutazione) e applicaStorno esce se l'originale non e'
+     piu' in lista, quindi non puo' mai essere lei la piu' vecchia. Resta
+     perche' le due righe che rifanno s.vendite devono dire la stessa cosa: la
+     prossima che si aggiunge non deve poter nascere storta. */
+  s.vendite = [contro, ...(s.vendite || []).filter((v) => v && typeof v.t === "number")]
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
   const idG = orig.giorno + "|" + orig.sedeId;
   let g = (s.giornate || []).find((x) => x.id === idG);
   if (!g) {

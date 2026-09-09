@@ -262,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.13</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.14</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -273,7 +273,21 @@
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
       giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Fatto oggi: gen-6.13 «Stimato, non misurato», solo parole.</b> Rileggendo la produzione
+      <dd><b>Fatto oggi: gen-6.14 «Lo sfratto ordinato», ed è ancora sui soldi.</b> Mettendo alla
+      prova il documento che spiega come far ripartire il lavoro a un'altra sessione, ho trovato
+      scritto nero su bianco <b>un difetto ancora nel codice che gira</b>, che nessuno dei rilasci di
+      oggi aveva chiuso. <b>In parole tue</b>: l'app tiene le ultime 300 vendite. Quando una vendita
+      rimasta indietro su un telefono viene rigiocata, entra in cima alla lista <b>con la sua ora
+      vecchia</b>, e per fare posto l'app buttava fuori la vendita più vecchia della lista — che però
+      poteva essere <b>più recente di quella appena entrata</b>. La vendita buttata fuori restava
+      senza nessuna prova di essere già passata, e la volta dopo veniva <b>contata due volte</b>.
+      <b>L'ho fatto succedere, non l'ho dedotto</b>: due vendite in coda su un solo telefono, e
+      l'incasso di quel giorno è passato <b>da 200 a 293 €</b> invece che a 225, il magazzino è sceso
+      due volte, e nello storico è comparsa una riga di troppo. <b>La cura è di due righe</b>: prima
+      si mette la lista in ordine, poi si taglia — così quella che esce è sempre la più vecchia
+      davvero. <b>6 controlli rossi</b> registrati prima, <b>20 verdi</b> dopo. <b>Otto sabotaggi,
+      otto rossi, zero muti.</b> Cancello sui banchi dei soldi: 9 verdi, 257 controlli. <b>Censimento completo su gen-6.14: in corso mentre scrivo, i numeri arrivano col prossimo aggiornamento.</b>
+      Prima: <b>gen-6.13 «Stimato, non misurato», solo parole.</b> Rileggendo la produzione
       dopo il rilascio ho trovato <b>un mio errore nel testo</b>: avevo scritto «misurato» del ritmo
       delle scritture (350-450 al giorno), ma quello è il conto fatto sui tuoi 100+ ordini nei giorni
       di punta, non una misura. La produzione oggi fa <b>una ventina di scritture al giorno</b>, in
@@ -581,6 +595,21 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 9 settembre, sera · <b>gen-6.14</b> · lo sfratto ordinato</h4>
+        <p><b>Come l'ho trovato.</b> Non cercandolo nel codice: mettendo alla prova il documento che
+        deve far ripartire il lavoro a un'altra sessione. Cinque lettori indipendenti l'hanno letto
+        fingendo di essere quella sessione, e uno di loro è andato a leggere i progetti citati e ha
+        detto: qui c'è scritto che va spedita per prima una riparazione, e non è stata spedita.
+        Era vera.</p>
+        <p><b>Il difetto.</b> L'app tiene le ultime 300 vendite. Una vendita rimasta indietro su un
+        telefono, quando viene rigiocata, entra in cima alla lista con la sua ora vecchia; per fare
+        posto usciva la più vecchia <i>della lista</i>, che poteva essere più recente di lei. Quella
+        che usciva perdeva ogni prova di essere già passata, e la volta dopo veniva contata due
+        volte: giornata da 200 a 293 € invece che a 225, magazzino sceso due volte, una riga di
+        storico in più. Un telefono solo, dentro un solo giro.</p>
+        <p><b>La cura, e come è stata provata.</b> Due righe: si ordina, poi si taglia. Collaudo
+        scritto prima: 6 rossi sulla versione online, 20 verdi sulla nuova. Otto sabotaggi, otto
+        rossi, zero muti. Censimento completo su gen-6.14: in corso mentre scrivo, i numeri arrivano col prossimo aggiornamento.</p>
         <h4>Il 9 settembre, sera · <b>gen-6.13</b> · stimato, non misurato</h4>
         <p><b>Solo parole, e le dico.</b> Nel testo di gen-6.12 avevo scritto «misurato in produzione»
         del ritmo delle scritture — 350-450 al giorno. Quello è il conto sui tuoi 100+ ordini nei giorni
