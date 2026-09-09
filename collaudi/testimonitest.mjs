@@ -6,9 +6,12 @@
    (ORE_VENDITE = 48): una voce piu' vecchia si mette da parte, una piu'
    giovane si rigioca. La promessa implicita e' che ENTRO le 48 ore almeno un
    testimone sia ancora vivo. Non e' vero:
-   - s.applicate teneva 300 nomi, e in rete si scrive ~350-450 volte al giorno
-     (misurato in produzione: 300 nomi = 5.700 caratteri, 19 l'uno). Un nome
-     scade in meno di un giorno.
+   - s.applicate teneva 300 nomi, e al volume di PROGETTO (piu' di 100 ordini
+     nei giorni di punta, con spunte, conteggi e storni) si scrive ~350-450
+     volte al giorno: un nome scade in meno di un giorno. Quello e' una stima
+     dal numero di Valerio; in produzione si e' MISURATO il peso (300 nomi =
+     5.700 caratteri, 19 l'uno), non il ritmo — oggi l'app fa una ventina di
+     scritture al giorno ed e' in rodaggio, e il difetto non e' mai scattato.
    - s.vendite tiene 48 ore MA anche 300 righe: sopra ~150 scontrini al giorno
      la riga esce prima delle 48 ore.
    Fra «tutti e due i testimoni morti» e «steccato delle 48 ore» resta una

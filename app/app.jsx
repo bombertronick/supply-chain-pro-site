@@ -515,8 +515,14 @@ const MAX_MOV_VENDITA = 600;     // ~100 scontrini/di' × 2,5 righe × qualche g
    gen-5.77 abbiamo tolto dal traffico.
    ── PERCHE' MILLEDUECENTO E NON PIU' TRECENTO (gen-6.12) ──
    Il tetto di 300 prometteva «un turno intero di lavoro di tutta la rete».
-   Misurato in produzione il 9 settembre: la rete scrive ~350-450 volte al
-   giorno, quindi un nome scadeva in meno di un giorno. Ma la coda ritrovata
+   Il volume di PROGETTO, dal numero dato da Valerio (piu' di 100 ordini nei
+   giorni di punta: una vendita, una spunta per postazione, conteggi e
+   storni), fa ~350-450 scritture al giorno: un nome scadeva in meno di un
+   giorno. E' una stima, non una misura: in produzione il 9 settembre si e'
+   misurato il PESO (300 nomi = 5.700 caratteri, 19 l'uno), non il ritmo —
+   l'app e' in rodaggio, 14 vendite in tutto e una ventina di scritture al
+   giorno, e il difetto non e' mai scattato. Il tetto sale prima che serva.
+   Ma la coda ritrovata
    rigioca al buio ogni voce piu' giovane di ORE_VENDITE (48 ore), fidandosi
    che almeno un testimone sia ancora vivo — e l'altro testimone, la riga in
    s.vendite, muore anche lui a 300 righe (MAX_VENDITE). Fra le due morti e
@@ -526,8 +532,8 @@ const MAX_MOV_VENDITA = 600;     // ~100 scontrini/di' × 2,5 righe × qualche g
    sceso due volte, una riga di storico in piu'.
    A 1200 nomi un nome vive tre giorni a 400 scritture al giorno, e regge
    fino a 600 al giorno prima di scendere sotto le 48 ore: la premessa dello
-   steccato torna vera. Il peso, dal dato vero e non a occhio: 19 caratteri
-   a nome, 300 nomi erano 5.700 caratteri, 1200 sono 22.800, cioe' +17.100
+   steccato torna vera. Il peso, dal dato misurato: 19 caratteri a nome,
+   300 nomi erano 5.700 caratteri, 1200 sono 22.800, cioe' +17.100
    su uno stato di ~320.000 (+5%). E' il prezzo dichiarato di una promessa
    mantenuta. Se il traffico raddoppia si alza il tetto, non si stringe lo
    steccato; la cura definitiva e' la ricevuta di consegna
@@ -663,7 +669,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.12";
+const VERSIONE = "gen-6.13";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
