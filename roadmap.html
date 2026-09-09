@@ -262,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.11</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.12</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -271,23 +271,32 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Prima di tutto, una cosa sui soldi che devi sapere.</b> Mettendo sotto processo il
-      lavoro sul traffico ho trovato un difetto <b>nel codice che gira adesso</b>, e l'ho
-      verificato riga per riga prima di scrivertelo. <b>Sopra i ~150 scontrini al giorno uno
-      scontrino può essere contato due volte.</b> L'app ha due testimoni per non contare due
-      volte lo stesso scontrino, tutti e due da <b>300 righe</b>; il controllo che decide se
-      ripescare una vendita rimasta su un telefono spento guarda invece <b>l'orologio</b>
-      («meno di 48 ore? la rigioco»). Sopra i 150 scontrini le 300 righe finiscono <i>prima</i>
-      delle 48 ore: si apre una finestra in cui l'orologio dice «fresca» e <b>nessuno dei due
-      testimoni esiste più</b>. In quella finestra la vendita si applica due volte: l'incasso di
-      quel giorno resta gonfiato <b>per novanta giorni</b>, il magazzino scende due volte, e la
-      riga nello storico porta <b>l'orario originale</b>, quindi non salta all'occhio. <b>Tu fai
-      più di 100 ordini nei giorni di punta</b>, e ogni spunta della cucina consuma lo stesso
-      tetto. È il prossimo rilascio, prima di qualunque lavoro sul traffico, e il rimedio non è
-      alzare un tetto: è smettere di decidere sull'orologio e decidere sul testimone.
-      <b>Fatto oggi: gen-6.11 «La postazione Cassa».</b> Le due cose che mi hai chiesto ieri.
+      <dd><b>Fatto oggi: gen-6.12 «I testimoni bastano», sui soldi.</b> Stamattina ti avevo scritto
+      che il rimedio allo scontrino contato due volte <i>non</i> era alzare un tetto. Ho messo il mio
+      rimedio sotto processo prima di scriverlo — cinque revisori indipendenti, <b>20 accuse su 25
+      hanno retto</b> — e avevano ragione loro: il mio rimedio poteva <b>perdere un incasso vero</b>,
+      che è peggio di contarne uno due volte. Quindi oggi ho fatto la cosa piccola e sicura, e quella
+      grande è disegnata e in lista. <b>La cosa piccola</b>: l'app tiene una lista dei salvataggi
+      «già fatti» per non contarli due volte, e la lista teneva <b>300 nomi</b>. Ho misurato in
+      produzione: la tua rete scrive <b>350-450 volte al giorno</b>, quindi un nome durava meno di un
+      giorno, mentre il controllo dell'orologio si fida per 48 ore. Adesso la lista tiene <b>1200
+      nomi</b>: a 400 scritture al giorno un nome vive tre giorni, e regge fino a 600 scritture al
+      giorno prima di scendere sotto le 48 ore. Costa <b>17.100 caratteri in più</b> a ogni
+      salvataggio, il 5%, e te lo dico perché a gen-6.10 ne avevo appena tolti 63.000: ne rimetto un
+      quarto, per una promessa mantenuta. <b>Due riparazioni piccole</b> nello stesso giro: uno storno
+      o una spunta di cucina che non trovano più lo scontrino non scrivono più «Storno di 6,50 €»
+      nello storico per un lavoro non fatto. <b>La prova</b>: ho fatto rifare all'app la scena esatta
+      del difetto — uno scontrino di 36 ore fa, 500 scritture sopra, il tablet che si riaccende — e
+      sulla versione online la giornata di allora passava <b>da 120 a 138 €</b>, il magazzino
+      scendeva due volte e lo storico guadagnava una riga: <b>13 controlli rossi</b>. Sulla nuova:
+      <b>25 verdi</b>. <b>Undici sabotaggi, undici rossi, zero muti — ma il primo giro ne aveva uno muto, e aprirlo ha trovato una ridondanza vera: l'app ha DUE strati che riconoscono un nome già visto, e toglierne uno solo non basta a farle contare due volte.</b> <b>Censimento completo: in corso mentre scrivo, i numeri arrivano col prossimo aggiornamento.</b> <b>Quello che non chiude</b>, detto
+      chiaro: sopra le 600 scritture al giorno la finestra si riapre. La cura definitiva è la
+      <b>ricevuta di consegna</b> — ogni scontrino con un numero di protocollo dato dal server, che
+      non dipende da nessun tetto — ed è disegnata; va fatta insieme al pavimento del traffico perché
+      tocca la stessa strada dei soldi, e quella strada non si tocca due volte.
+      Prima: <b>gen-6.11 «La postazione Cassa».</b> Le due cose che mi hai chiesto ieri.
       <b>Uno</b>: dentro la Cassa la barra è <b>la barra della Cassa</b> — Battere · Clienti ·
       Giornata · Esci — e non più Conteggi · Magazzini · Ordini sotto il pollice di chi batte
       scontrini. «Clienti» è la rubrica con la sua ricerca, e toccare un cliente <b>gli apre un
@@ -518,6 +527,7 @@
       <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Le fasce orarie in una barra scorribile <span class="pillo-ok">online</span></span><p class="desc">Accanto al campo «Per le» c'è una <b>barra laterale che scorre</b> con le ore vere a quarti d'ora, invece dei quattro tastini «fra 15′». Parte dal primo quarto d'ora <i>dopo adesso</i> e copre le sei ore successive: al telefono il cliente dice un'ora, non un ritardo.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">3</span><span class="corpo"><span class="titolo" style="display:block">Più ordini aperti insieme, e modificabili</span><p class="desc">Le tue parole del 7 settembre. Oggi la Cassa tiene <b>un conto solo</b>: finché non incassi, non puoi cominciarne un altro. Servono <b>più ordini aperti insieme</b>, ognuno col suo cliente, che vanno in cucina subito, più un <b>registro ordini</b> dove si legge <b>chi ha ordinato, a che ora, per che ora e cosa</b>, e dove un ordine si <b>riprende dal punto in cui l'hai chiuso</b> per aggiungere roba che le altre postazioni devono preparare in più. Questo è il pezzo grosso, e ha un prerequisito vero: il <b>pavimento del traffico</b> qui sotto — senza, due casse in ora di punta si pestano. Cinque revisori indipendenti hanno demolito il mio primo disegno (<b>11 controprove su 11</b>): lo sto rifacendo, e te lo dico invece di spedirtelo rotto.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">grande</span></span></span></div>
       <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">La verifica dell'indirizzo, automatica, senza uscire dalla Cassa <span class="pillo-ok">online</span></span><p class="desc">Online da gen-6.11. Scrivi mezza via e l'app ti propone quelle vere; ne tocchi una e il campo si riscrive normalizzato, con la spunta «Verificato» e la <b>mini mappa</b> lì dentro. <b>Nessuna pagina si apre.</b> Il servizio scelto non chiede chiavi, apposta: il codice sta in un repository pubblico. E se è giù, <b>la cassa non si ferma</b> — te lo dice e batti lo stesso.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></div>
+      <div class="tappa fatta"><span class="num" aria-hidden="true">✓</span><span class="corpo"><span class="titolo" style="display:block">Lo scontrino che si contava due volte <span class="pillo-ok">online</span></span><p class="desc">Online da gen-6.12. La lista dei salvataggi «già fatti» teneva 300 nomi e la tua rete ne scrive 350-450 al giorno: un nome durava meno di un giorno, mentre il controllo dell'orologio si fida per 48 ore. Adesso ne tiene <b>1200</b>: tre giorni a 400 scritture, e regge fino a 600 al giorno. <b>Non è la cura definitiva</b>: quella è la ricevuta di consegna, disegnata e in lista col pavimento del traffico.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">4</span><span class="corpo"><span class="titolo" style="display:block">L'ingrediente finito avvisa, non blocca</span><p class="desc">Quando un ingrediente è a zero la Cassa deve <b>dirlo</b> a chi batte — non impedirgli di battere. Chi sta al banco sa cose che il magazzino non sa.</p><span class="meta"><span class="tag t-vis">schermate</span><span class="tag t-mis">piccolo</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">6</span><span class="corpo"><span class="titolo" style="display:block">La cassa vede solo la cassa</span><p class="desc">Un profilo che sta al banco non deve vedere le comande — <b>ma deve poterle modificare</b> (tua precisazione del 5 settembre). Sono due cose diverse: vedere lo schermo della cucina, e poter cambiare un ordine già mandato. La seconda arriva col lavoro 3.</p><span class="meta"><span class="tag t-sic">permessi</span><span class="tag t-mis">medio</span></span></span></div>
       <div class="tappa"><span class="num" aria-hidden="true">7</span><span class="corpo"><span class="titolo" style="display:block">Il pavimento del traffico, e i cento scontrini in quattro ore</span><p class="desc">Non è una richiesta tua: è la <b>condizione</b> perché il lavoro 3 regga. Oggi ogni salvataggio spedisce lo stato intero e ogni altro telefono lo riscarica: con due casse in ora di punta si pestano. Le vendite vanno su una chiave loro, che si aggiunge invece di riscrivere tutto. Il pezzo delle <b>richieste chiuse</b> è già fatto (gen-6.10): erano 147 righe morte, il 19,7% di tutto quello che viaggiava, e adesso non viaggiano più. Resta la parte grossa: le vendite su una chiave loro.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">grande</span></span></span></div>
@@ -559,6 +569,27 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 9 settembre, pomeriggio · <b>gen-6.12</b> · i testimoni bastano</h4>
+        <p><b>Il difetto, in una riga.</b> L'app ha due testimoni per non contare due volte lo stesso
+        scontrino, tutti e due da 300 righe, e un controllo dell'orologio che si fida per 48 ore. La
+        tua rete scrive 350-450 volte al giorno — misurato, non stimato — quindi un nome durava meno
+        di un giorno: fra la morte dei testimoni e le 48 ore uno scontrino inviato con la risposta
+        persa veniva ribattuto di nascosto. Sulla versione online: giornata da 120 a 138 €, magazzino
+        sceso due volte, una riga di storico in più.</p>
+        <p><b>Il rimedio che ho buttato.</b> Decidere sul testimone invece che sull'orologio. Cinque
+        revisori indipendenti, 20 accuse su 25 hanno retto: la lista su cui contavo non è ordinata
+        come credevo, e il timbro «inviata» avrebbe potuto perdere incassi veri. Un rimedio che perde
+        soldi per non contarli due volte non è un rimedio.</p>
+        <p><b>Il rimedio fatto.</b> La lista dei «già fatti» passa da 300 a <b>1200 nomi</b>: tre
+        giorni a 400 scritture al giorno, e regge fino a 600. Costa 17.100 caratteri in più a ogni
+        salvataggio, il 5%. E due riparazioni piccole: storno e spunta che non trovano lo scontrino
+        non scrivono più una riga nello storico per un lavoro non fatto.</p>
+        <p><b>Come è stato provato.</b> Collaudo scritto prima del codice, che fa rifare all'app la
+        scena esatta del difetto: 13 rossi sulla versione online, 25 verdi sulla nuova. Undici sabotaggi, undici rossi, zero muti — ma il primo giro ne aveva uno muto, e aprirlo ha trovato una ridondanza vera: l'app ha DUE strati che riconoscono un nome già visto, e toglierne uno solo non basta a farle contare due volte.
+        Censimento completo: in corso mentre scrivo, i numeri arrivano col prossimo aggiornamento.</p>
+        <p><b>Quello che resta aperto.</b> Sopra le 600 scritture al giorno la finestra si riapre. La
+        cura definitiva è la ricevuta di consegna — numero di protocollo dato dal server — disegnata
+        e in lista insieme al pavimento del traffico.</p>
         <h4>Il 9 settembre · <b>gen-6.11</b> · la postazione Cassa e l'indirizzo che si corregge da solo</h4>
         <p><b>La Cassa è una stanza, non una voce.</b> Chi ha l'interruttore «cassa» si trovava
         sotto il pollice Conteggi · Magazzini · Ordini mentre batteva scontrini: la Cassa era una

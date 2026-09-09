@@ -511,12 +511,28 @@ const GIORNI_MOV_VENDITA = 14;   // al kardex e al grafico bastano; le soglie no
 const MAX_MOV_VENDITA = 600;     // ~100 scontrini/di' × 2,5 righe × qualche giorno
 /* Quante modifiche gia' registrate lo stato si ricorda (gen-5.81). Serve a
    non contare due volte un salvataggio arrivato di cui si e' persa la
-   risposta. Trecento nomi sono circa 4KB su uno stato di 165KB: sotto il
-   tre per cento. Non puo' crescere senza tetto, se no diventa il peso che a
-   gen-5.77 abbiamo appena tolto dal traffico. Sotto il tetto ci sta un
-   turno intero di lavoro di tutta la rete, e un rinvio arriva entro
-   qualche secondo: nessun rinvio vero puo' trovare il suo nome scaduto. */
-const MAX_APPLICATE = 300;
+   risposta. Non puo' crescere senza tetto, se no diventa il peso che a
+   gen-5.77 abbiamo tolto dal traffico.
+   ── PERCHE' MILLEDUECENTO E NON PIU' TRECENTO (gen-6.12) ──
+   Il tetto di 300 prometteva «un turno intero di lavoro di tutta la rete».
+   Misurato in produzione il 9 settembre: la rete scrive ~350-450 volte al
+   giorno, quindi un nome scadeva in meno di un giorno. Ma la coda ritrovata
+   rigioca al buio ogni voce piu' giovane di ORE_VENDITE (48 ore), fidandosi
+   che almeno un testimone sia ancora vivo — e l'altro testimone, la riga in
+   s.vendite, muore anche lui a 300 righe (MAX_VENDITE). Fra le due morti e
+   le 48 ore restava una finestra in cui uno scontrino inviato con la
+   risposta persa veniva ribattuto di nascosto. MISURATO dal banco
+   (testimonitest, gen-6.11): giornata a 138 € invece di 120, magazzino
+   sceso due volte, una riga di storico in piu'.
+   A 1200 nomi un nome vive tre giorni a 400 scritture al giorno, e regge
+   fino a 600 al giorno prima di scendere sotto le 48 ore: la premessa dello
+   steccato torna vera. Il peso, dal dato vero e non a occhio: 19 caratteri
+   a nome, 300 nomi erano 5.700 caratteri, 1200 sono 22.800, cioe' +17.100
+   su uno stato di ~320.000 (+5%). E' il prezzo dichiarato di una promessa
+   mantenuta. Se il traffico raddoppia si alza il tetto, non si stringe lo
+   steccato; la cura definitiva e' la ricevuta di consegna
+   (progetti/finestra-cieca.md), che non dipende da nessun tetto. */
+const MAX_APPLICATE = 1200;
 function sfoltisciMov(lista) {
   const limite = Date.now() - SETT_USCITE * 86400000;
   const limiteVen = Date.now() - GIORNI_MOV_VENDITA * 86400000;
@@ -647,7 +663,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.11";
+const VERSIONE = "gen-6.12";
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -749,7 +765,7 @@ function sfoltisciGiornate(lista) {
 function applicaVendita(s, v) {
   /* ── LO STESSO SCONTRINO UNA VOLTA SOLA (gen-6.07) ──
      Il paracadute contro i doppioni era uno solo: il logId in s.applicate, con
-     MAX_APPLICATE = 300. Il commento accanto al tetto promette «un turno
+     un tetto di 300 nomi (allora). Il commento accanto al tetto prometteva «un turno
      intero di lavoro di tutta la rete»: a cento scontrini con due casse sono
      duecento vendite piu' storni e spunte, e il tetto si consuma in una
      serata. Da li' in poi il nome e' scaduto, e una vendita ARRIVATA di cui si
@@ -819,10 +835,13 @@ function applicaVendita(s, v) {
    stornano lo stesso scontrino non devono ripristinare due volte. I salti
    (magazzino sparito nel frattempo) si CONTANO sulla riga contraria invece
    di sparire: un fatto per un lavoro non fatto e' la bugia peggiore. La
-   giornata decrementata e' quella del giorno DELLA VENDITA, non di oggi. */
+   giornata decrementata e' quella del giorno DELLA VENDITA, non di oggi.
+   Torna false quando non fa niente (gen-6.12), come applicaVendita: senza,
+   applicaCoda scriveva «Storno di 6,50 €» nello storico per uno storno mai
+   avvenuto — la stessa bugia su carta chiusa a gen-6.07 per la vendita. */
 function applicaStorno(s, d) {
   const orig = (s.vendite || []).find((v) => v.id === d.origId);
-  if (!orig || orig.stato !== "registrata") return;
+  if (!orig || orig.stato !== "registrata") return false;
   orig.stato = "stornata";
   orig.stornoId = d.stornoId;
   let salti = 0;
@@ -1002,10 +1021,13 @@ const ORE_COMANDE = 12;
    TUTTO da fuori (niente id da generare qui dentro) — con la guardia di
    stato come primo atto: su vendita stornata o gia' sfoltita la spunta
    muore in silenzio, ed e' giusto cosi'. Rieseguita sul replay scrive gli
-   stessi valori: idempotente nei fatti. d.togli e' il tocco sbagliato. */
+   stessi valori: idempotente nei fatti. d.togli e' il tocco sbagliato.
+   Torna false quando non fa niente (gen-6.12): la spunta non ha descr,
+   quindi oggi nessuna riga di storico dipende da questo — ma l'esecutore
+   che riferisce e' la regola, e il prossimo descr non deve trovarla rotta. */
 function applicaComanda(s, d) {
   const v = (s.vendite || []).find((x) => x.id === d.venditaId);
-  if (!v || v.stato !== "registrata") return;
+  if (!v || v.stato !== "registrata") return false;
   const f = { ...(v.fatte || {}) };
   for (const g of d.gruppi || []) {
     if (d.togli) delete f[g];
@@ -15958,7 +15980,7 @@ export default function App() {
           const buone = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
           /* ── LO STECCATO D'ETA' (gen-6.07) ──
              Oltre le 48 ore il telefono ha perso TUTTI E DUE i testimoni: il
-             logId e' uscito da s.applicate (tetto 300) e la riga e' uscita da
+             logId e' uscito da s.applicate (tetto MAX_APPLICATE) e la riga e' uscita da
              s.vendite (sfoltisciVendite). Rigiocare al buio una vendita cosi'
              vecchia non e' «recuperare un incasso»: e' scommettere. E il banco
              ha misurato cosa succede quando la scommessa e' sbagliata — la
