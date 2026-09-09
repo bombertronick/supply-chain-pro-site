@@ -92,6 +92,15 @@ tessere temporanee.
   toccare la produzione.
 - **Dopo lo swap**: verificare len+md5+meta con una `select`, e creare
   `backup:pre-gen<NNN+1>` dallo stato appena messo online.
+- **La stessa regola vale per la dispensa e per `mem:v1`**, non solo per
+  l'app: dopo OGNI scrittura di un testo lungo in base64, confrontare
+  `length` e `md5` del valore in rete con quelli del file locale. Il 9
+  settembre, incollando la voce del passaggio, una singola lettera è cambiata
+  dentro il base64 (una maiuscola diventata minuscola) **a lunghezza
+  invariata**: la lunghezza combaciava, l'md5 no. Un confronto sulla sola
+  lunghezza non vede niente. La riparazione si fa chirurgica, con
+  `update … set value = replace(value, 'vecchio', 'nuovo')`, senza reincollare
+  tutto il testo.
 
 ## I collaudi: i comandi esatti
 

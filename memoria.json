@@ -407,6 +407,11 @@
  ],
  "sbagliato": [
   {
+   "quando": "2026-09-09",
+   "dicevo": "Il cancello a impronta serve al rilascio dell app; per la dispensa basta guardare che il testo ci sia.",
+   "invece": "Incollando in dispensa la voce «passaggio-20260909» ho alterato UN carattere dentro il base64 (una maiuscola diventata minuscola) a LUNGHEZZA INVARIATA: length combaciava, md5 no. L ho trovato solo perche' ho confrontato l md5 e non solo la lunghezza. Da qui: l audit per impronta vale per OGNI testo lungo scritto in base64 — dispensa e mem:v1 comprese, non solo app:jsx:src. E la riparazione si fa CHIRURGICA (update ... set value = replace(value, 'vecchio', 'nuovo')), perche' reincollare tutto il testo e' l occasione dello stesso errore."
+  },
+  {
    "quando": "2026-09-06",
    "dicevo": "(per tutta la sessione del 5-6 settembre) Sto lavorando a quello che serve a Valerio.",
    "invece": "Valerio me lo ha dovuto chiedere: «hai completato le richieste che ti ho fatto?». No. Degli ordini cliente chiesti il 1 e il 4 settembre — nome e telefono, take away o consegna, via verificabile su mappe, fascia oraria, piu ordini insieme, ordini rapidi dal cliente registrato, cartellino in postazione, ingrediente finito, la cassa che vede solo la cassa — NON c era niente: verificato col grep, «clienti» 0 occorrenze, «esaurito» 0, «domicilio» 0, «asporto» 0, e «telefono» 52 volte ma sempre nel senso di dispositivo. Avevo speso tre rilasci di fila (6.05, 6.06, 6.07) su difetti trovati da me, due dei quali MIEI. Erano difetti veri e sui soldi, ma la decisione di inseguirli uno dopo l altro per un intera sessione l ho presa da solo senza metterla in mano a lui. La cosa da non rifare non e riparare i difetti: e non dire che si sta cambiando strada."
