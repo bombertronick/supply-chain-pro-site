@@ -43,9 +43,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
-- **Censimenti**: gen-6.12 e gen-6.13, tutti e due 97 verdi, 1975 controlli
-  veri, 0 rosse, 0 mute, 7 saltate (i sette vogliono i dati veri, che non stanno
-  nel repository, e corri.mjs li elenca da solo alla fine).
+- **Censimenti**: gen-6.12 e gen-6.13 a 97 verdi / 1975 controlli; gen-6.14 a
+  **98 verdi / 1994 controlli** (il banco in più è `sfrattotest`). Sempre 0
+  rosse, 0 mute, 7 saltate: i sette vogliono i dati veri, che non stanno nel
+  repository, e corri.mjs li elenca da solo alla fine.
 - **Dispensa**: indice a rev 23. Le voci che servono: `chk-20260909-sera` (il
   checkpoint completo) e `passaggio-20260909` (questo testo, così sta anche
   fuori dal repository).
