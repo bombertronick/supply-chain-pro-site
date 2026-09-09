@@ -36,15 +36,16 @@ niente. Si aggiorna a ogni rilascio insieme a roadmap e memoria.
   È la base per il prossimo `sql_diff` (le basi «congelate» stavano nello
   scratchpad della sessione vecchia e non servono: coincidono con questo file,
   verificare l'md5 sopra).
-- **Censimento di gen-6.13**: lanciato nella sessione vecchia. Se in
-  `memoria.json` c'è ancora «in corso mentre scrivo», i numeri non sono mai
-  arrivati: rilanciarlo (`cd collaudi && node corri.mjs --censimento`, DA SOLO,
-  ~2 ore e mezza; i banchi `gen6xx` e `generaletest` durano 5-22 minuti l'uno,
-  non è un blocco) e scrivere i numeri in memoria.json, roadmap.md,
-  roadmap.html. Quello di gen-6.12 è finito: 97 verdi, 1975 controlli, 0 rosse,
-  0 mute, 7 saltate.
-- **Dispensa**: indice a rev 22, ultima voce `chk-20260909-sera` (il checkpoint
-  completo: produzione, cosa è cambiato, prove, misure, regole, prossimo).
+- **Censimenti**: tutti e due finiti e scritti nei documenti. gen-6.12 e
+  gen-6.13: 97 verdi, 1975 controlli veri, 0 rosse, 0 mute, 7 saltate (i sette
+  vogliono i dati veri, che non stanno nel repository). Si rilancia con
+  `cd collaudi && node corri.mjs --censimento`, DA SOLO: dura ~2 ore e mezza,
+  e i banchi `gen6xx` e `generaletest` durano 5-22 minuti l'uno — non è un
+  blocco, va aspettato.
+- **Dispensa**: indice a rev 23. Le due voci che servono: `chk-20260909-sera`
+  (il checkpoint completo — produzione, cosa è cambiato, prove, misure, regole,
+  prossimo) e `passaggio-20260909` (questo stesso testo, così sta anche fuori
+  dal repository).
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL).
 
