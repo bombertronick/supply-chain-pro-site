@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260909-sera`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260909-notte`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -47,9 +47,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   **98 verdi / 1994 controlli** (il banco in più è `sfrattotest`). Sempre 0
   rosse, 0 mute, 7 saltate: i sette vogliono i dati veri, che non stanno nel
   repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: indice a rev 23. Le voci che servono: `chk-20260909-sera` (il
-  checkpoint completo) e `passaggio-20260909` (questo testo, così sta anche
-  fuori dal repository).
+- **Dispensa**: indice a rev 25. Le voci che servono: `chk-20260909-notte` (il
+  checkpoint completo, l'ultimo) e `passaggio-20260909` (questo testo, così sta
+  anche fuori dal repository). Ogni voce scritta in dispensa si verifica per
+  impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL).
 
