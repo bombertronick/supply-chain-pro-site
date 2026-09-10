@@ -133,6 +133,35 @@ tessere temporanee.
   MUORE non è «zero rossi»: si dice. Un sabotaggio MUTO non si ignora mai: si
   apre, e quasi sempre è un buco del banco o una ridondanza vera del codice.
 
+## Come GUARDARE l'app, e non solo il codice (10 settembre)
+
+Valerio ha chiesto che la sessione possa VEDERE l'app che costruisce. C'è
+l'attrezzo: `collaudi/guarda.mjs`. Apre il pacchetto costruito da `build.mjs`
+su un server http, lo semina coi dati finti dei collaudi (più un listino e una
+serata di vendite, altrimenti la Cassa è una stanza vuota), entra come Admin e
+fotografa le schermate principali in due formati: telefono (390×844) e schermo
+largo (1280×800).
+
+- **Prima** `node build.mjs ../app/app.jsx`, se no si fotografa il vecchio.
+- `node guarda.mjs` — tutte le schermate, tutti e due i formati (~2 minuti).
+- `node guarda.mjs cassa cassa-giornata` — solo quelle. Nomi: home, cassa,
+  cassa-clienti, cassa-giornata, comande, magazzini, plancia, conteggi, ordini,
+  analisi, gestione.
+- `FORMATO=telefono node guarda.mjs` — un formato solo (`telefono` | `largo`).
+- Le foto finiscono in `collaudi/foto/<versione>/<formato>-<nome>.png` e si
+  aprono con lo strumento di lettura dei file: una PNG si vede. Sono
+  gitignorate (`*.png`).
+- **Per mostrarle a Valerio** si mandano come file (SendUserFile): due o tre,
+  quelle che contano per il lavoro in corso, non tutte.
+
+NON è la produzione: quella sta su `pro-sage.vercel.app`, che il proxy blocca,
+e non si aggira. È lo stesso codice con dati finti — e per vedere COSA si sta
+costruendo è esattamente quello che serve. Due limiti noti: i font di Google
+sono bloccati (si vede il carattere di ripiego, non è un difetto dell'app) e la
+lente va chiusa con Escape prima di cambiare schermata (l'attrezzo lo fa da
+solo). Quando una modifica tocca una schermata, la foto prima/dopo va guardata
+davvero, non data per buona: il banco misura, la foto mostra.
+
 ## Cosa NON c'è nel repo, ed è voluto
 
 - `stato-vero.json`, `stato-vero-conv.json`, `topologia-vera.json`: dati veri,
