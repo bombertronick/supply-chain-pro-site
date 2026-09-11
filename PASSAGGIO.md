@@ -258,8 +258,13 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    `diagRef`; età della lista in cima a Comande, dall'ultima **lettura piena
    accettata** — non dall'ultimo giro del poll, che su un giro magro la lista
    non la chiede nemmeno.
-3. **Il cancello #39 — gen605test smette di ballare**: causa TROVATA l'11
-   settembre, ed era il banco, non l'app. `gen605test` apre l'app da `file://`
+3. ~~Il cancello #39 — gen605test smette di ballare~~: **CHIUSO l'11 settembre
+   sera.** Prova: **otto giri di fila senza un rosso** (il ballo era 1 su 3-4),
+   più un **sabotaggio** — tolta la persistenza della coda, il banco dà 8 rossi
+   e il primo è quello giusto («con la rete morta la vendita è salvata sul
+   telefono — null»): sa ancora vedere la cosa per cui esiste. Sotto, la causa,
+   che resta da sapere.
+   Causa TROVATA l'11 settembre, ed era il banco, non l'app. `gen605test` apre l'app da `file://`
    (riga 129), cioè da un'origine **opaca**: ogni tanto il ricaricamento
    riparte su un'archiviazione azzerata, l'`addInitScript` rimette il seme, e
    il banco legge «0 vendite, mozzarella 50» — i numeri del seme — e ne accusa
@@ -271,9 +276,16 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    «BANCO GUASTO» invece di un rosso falso. Riparazione: http al posto di
    `file://`, pagina nuova al posto di `p.reload()`, la guardia, e il testimone
    più piccolo che esista — **`s.telefoni`**, il battito di gen-6.15, che l'app
-   timbra a ogni scrittura vera e che in un seme non c'è. La prova NON è un
-   censimento: sono molti giri di quel banco senza un rosso, più un sabotaggio
-   che dimostri che sa ancora arrossire.
+   timbra a ogni scrittura vera e che in un seme non c'è.
+   **E una lezione che è costata un rosso, la prima prova dopo la riparazione.**
+   La guardia copiata da `gen606test` sparava anche in §7b, dove il disco che si
+   svuota è il comportamento **giusto**: lì la rete contiene già quella vendita,
+   e l'app accorcia la coda e ripulisce (`if (remoto && !nuoveInCoda(base))` →
+   `specchiaCoda`). Una guardia presa dal banco della porta accanto **va
+   rigiustificata, non incollata**: applicata dove non serve arrossisce sul
+   funzionamento corretto, che è lo stesso danno del rosso falso, dalla parte
+   opposta. Adesso si chiede (`riapri(g, true)`) solo in §2, dove la rete è
+   morta e la coda DEVE sopravvivere.
 4. **Il guscio che disarma la guardia** (difetto dell'APP, scelto da Valerio
    l'11 settembre: prima della ricevuta). In modo sicuro, quando il login
    riesce ma la lettura piena **no**, `entra()` mette in `baseRef` un guscio

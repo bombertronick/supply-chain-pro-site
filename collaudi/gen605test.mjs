@@ -45,10 +45,46 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { apriServer } from "./servi.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
 let ko = 0; const ok = (c, m) => { console.log((c ? "  ok  " : "  KO  ") + m); if (!c) ko++; };
+const srv = await apriServer();
+const URL_APP = srv.url;
+
+/* ── IL RICARICAMENTO SI FA CON UNA PAGINA NUOVA ──
+   Copiata da gen606test, che ci era gia' passato. Una pagina nuova nello
+   stesso contesto e' lo stesso identico caso per l'app — un montaggio da zero
+   che ritrova il disco di prima, perche' localStorage e' del contesto — ed e'
+   ripetibile. E la guardia dice a voce alta se il disco si e' azzerato, invece
+   di far arrossire l'app per un guasto del banco: un banco che sbaglia e da'
+   la colpa a qualcun altro e' peggio di un banco che non c'e'.
+
+   LA GUARDIA SI CHIEDE, NON SI REGALA — e questo me l'ha insegnato la prima
+   prova dopo la riparazione, che e' uscita rossa per colpa mia. Il
+   ricaricamento vuol dire due cose DIVERSE nelle due sezioni di questo banco:
+   in §2 la rete e' morta e la coda DEVE sopravvivere, quindi un disco vuoto e'
+   un guasto del banco; in §7b la rete e' viva e contiene gia' quella vendita,
+   quindi l'app fa la cosa giusta — accorcia la coda e ripulisce il disco
+   (app.jsx, «if (remoto && !nuoveInCoda(base))» → specchiaCoda) — e li' un
+   disco vuoto e' il comportamento ATTESO. Una guardia copiata dal banco della
+   porta accanto va rigiustificata, non incollata: applicata dove non serve
+   arrossisce sul funzionamento corretto, che e' lo stesso danno del rosso
+   falso, solo dalla parte opposta. In §7b il testimone e' un altro:
+   s.telefoni. */
+const riapri = async (g, pretendiCoda = false) => {
+  const prima = pretendiCoda ? await g.p.evaluate(() => localStorage.getItem("scp:coda:v1")) : null;
+  const nuova = await g.ctx.newPage();
+  nuova.on("pageerror", (e) => errs.push("riapri: " + e.message));
+  await g.p.close().catch(() => {});
+  g.p = nuova;
+  await nuova.goto(URL_APP);
+  await nuova.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  const dopo = await nuova.evaluate(() => localStorage.getItem("scp:coda:v1"));
+  if (prima && dopo === null) throw new Error("BANCO GUASTO: il disco si e' azzerato da solo fra le due pagine");
+  return nuova;
+};
 const prova = async (nome, fn) => { try { await fn(); } catch (e) { ok(false, `${nome} — eccezione: ${String(e.message).slice(0, 130)}`); } };
 
 const base = JSON.parse(readFileSync("seed-state.json", "utf8"));
@@ -125,8 +161,24 @@ const apri = async (nome, pin) => {
   p.on("pageerror", (e) => errs.push(nome + ": " + e.message));
   return { p, ctx };
 };
+/* ── L'ORIGINE, E PERCHE' NON E' UN DETTAGLIO (il cancello #39) ──
+   Fino all'11 settembre questo banco apriva l'app da «file://». Su file://
+   Chromium tratta l'origine come OPACA e ogni pagina puo' ricevere
+   un'archiviazione tutta sua: un ricaricamento ogni tanto riparte sul disco
+   AZZERATO. E quando il disco e' azzerato, l'addInitScript qui sopra rimette
+   il seme — quindi la «rete» torna a essere il seme puro, e il banco legge
+   «0 vendite, mozzarella 50» e ne accusa l'app.
+   E' il difetto #39, quello per cui questo banco e' uscito rosso una volta e
+   verde due sullo stesso identico codice, su DUE versioni diverse e con due
+   sintomi diversi (§2 su gen-6.14: la coda sparita; §7b su gen-6.15: la rete
+   tornata al seme). Una sola causa.
+   La regola sta in PASSAGGIO.md — «i banchi si servono su http, mai file://»
+   — ed e' nata proprio da qui, a gen-6.05. servi.mjs esiste dal 5 settembre
+   apposta, e il suo commento dice a chi serve: «a ogni collaudo in cui lo
+   stato deve SOPRAVVIVERE a un ricaricamento». Questo banco e' IL banco che
+   prova esattamente quello, ed era l'ultimo rimasto sul protocollo sbagliato. */
 const entra = async (p, nome, pin) => {
-  await p.goto("file://" + path.resolve("index.html"));
+  await p.goto(URL_APP);
   await p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
   await p.waitForTimeout(600);
   await p.getByText(nome, { exact: true }).first().click().catch(() => {});
@@ -189,8 +241,7 @@ await prova("§2", async () => {
     "ed è salvata come DATO, col suo logId: si può rigiocare");
   /* IL MOMENTO DELLA VERITA': la pagina si ricarica, come quando il telefono
      va in blocco o il sistema sospende la scheda */
-  await A.p.reload();
-  await A.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await riapri(A, true);   // rete morta: la coda DEVE sopravvivere
   await A.p.waitForTimeout(1200);
   /* DOPO IL RICARICAMENTO SI RIENTRA COL PIN, ed e' giusto cosi': l'app
      riparte dalla schermata dei profili. La coda e' gia' stata ritrovata —
@@ -372,8 +423,7 @@ await prova("§7b", async () => {
   });
   ok(!!rimesso, `la vendita e' tornata in coda col suo nome — ${rimesso ? rimesso.logId : "non costruita"}`);
 
-  await D.p.reload();
-  await D.p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await riapri(D);
   await D.p.waitForTimeout(1200);
   await D.p.getByText("OpCassa", { exact: true }).first().click().catch(() => {});
   await D.p.waitForTimeout(400);
@@ -389,6 +439,15 @@ await prova("§7b", async () => {
     `subito dopo il riavvio il totale di oggi NON e' raddoppiato — a schermo: ${(t.match(/€ ?\d+,\d\d/g) || []).slice(0, 4).join(" ") || "nessun importo"}`);
   await D.p.waitForTimeout(6000);
   const fine = await salvato(D.p);
+  /* IL TESTIMONE PIU' PICCOLO CHE ESISTA, e arriva da gen-6.15: il battito
+     s.telefoni lo timbra l'app dentro scriviRemoto, cioe' a OGNI scrittura
+     vera (app.jsx, «stato.telefoni = battito(»). Un seme non ce l'ha.
+     Quindi: se lo stato letto dopo il riavvio non ha telefoni, non l'ha
+     scritto l'app — l'ha riseminato il banco, e i due controlli qui sotto
+     starebbero per dire una bugia sull'app. Va PRIMA di loro, o si legge il
+     sintomo invece della causa. */
+  ok(!!(fine && fine.telefoni && Object.keys(fine.telefoni).length),
+    `lo stato in rete l'ha scritto l'app, non e' un seme rimesso dal banco${fine && fine.telefoni && Object.keys(fine.telefoni).length ? "" : " — RISEMINATO: disco perso al ricaricamento"}`);
   ok((fine?.vendite || []).length === 1,
     `e in rete ce n'e' ancora UNA sola — ${(fine?.vendite || []).length}`);
   const art = (fine?.magazzini || []).find((m) => m.id === linea.id)?.articoli
@@ -401,5 +460,6 @@ ok(errs.length === 0, `zero errori JavaScript in tutto il giro${errs.length ? " 
 
 await A.ctx.close(); await B.ctx.close(); await C.ctx.close(); await D.ctx.close();
 await b.close();
+await srv.chiudi();
 console.log(`\ngen605test: ${ko} controlli KO`);
 process.exit(ko ? 1 : 0);
