@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 9 settembre 2026, sera
+# Passaggio di consegne fra sessioni · 11 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260909-notte`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260911`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -36,21 +36,23 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.14, `app:jsx:src` len 964731, md5
-  `a4cc27660ac7257ed997b80fd9b2e405`, meta `{"len":964731,"ver":"gen-6.14"}`.
-  Backup: `backup:pre-gen615` = gen-6.14, `backup:pre-gen614` = gen-6.13,
-  `backup:pre-gen613` = gen-6.12. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.15, `app:jsx:src` len 986015, md5
+  `8799c5d2ae02533bd7aee1cb2f06ce5e`, meta `{"len":986015,"ver":"gen-6.15"}`.
+  Backup: `backup:pre-gen616` = gen-6.15, `backup:pre-gen615` = gen-6.14,
+  `backup:pre-gen614` = gen-6.13. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
 - **Censimenti**: gen-6.12 e gen-6.13 a 97 verdi / 1975 controlli; gen-6.14 a
-  **98 verdi / 1994 controlli** (il banco in più è `sfrattotest`). Sempre 0
-  rosse, 0 mute, 7 saltate: i sette vogliono i dati veri, che non stanno nel
-  repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: indice a rev 25. Le voci che servono: `chk-20260909-notte` (il
-  checkpoint completo, l'ultimo) e `passaggio-20260909` (questo testo, così sta
-  anche fuori dal repository). Ogni voce scritta in dispensa si verifica per
-  impronta subito dopo, `length` E `md5`.
+  98 verdi / 1994 controlli; gen-6.15 a **99 verdi / 2063 controlli**
+  (girato con `gen605test` ANCORA su `file://`, cioè prima della riparazione di
+  #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
+  `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
+  che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
+- **Dispensa**: le voci che servono: `chk-20260911` (il checkpoint completo,
+  l'ultimo), `chk-20260909-notte` (quello prima) e `passaggio-20260909` (il
+  testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
+  in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL).
 
@@ -79,19 +81,32 @@ per byte, e se non combacia non scrive nemmeno il file), il cancello md5+len
 prima dello swap, lo swap condizionato, la meta condizionata, il delete delle
 tessere temporanee.
 
-**Quello che l'attrezzo NON fa, e che va fatto a mano ogni volta:**
+**Lo spezzettamento e l'audit adesso li scrive un attrezzo** (gen-6.15):
+
+`node strumenti/sql_spezza.mjs <tag>.sql [caratteri] [vecchio.jsx]` scrive
+`<tag>-pezzi/NNN.sql`, numerati nell'ordine in cui vanno mandati, più
+`<tag>-pezzi/audit.sql` se gli si dice qual è il sorgente VECCHIO (quello da cui
+tagliano le tessere `src`). Taglia il **TESTO per punti di codice** e ricodifica
+ogni pezzo in base64 da solo: un taglio dentro il base64 spezzerebbe a metà una
+lettera accentata, che in UTF-8 sta in due byte, e `convert_from` andrebbe in
+errore — o, peggio, non ci andrebbe. Fino a gen-6.14 questo lavoro si faceva a
+mano dentro ogni rilascio, cioè un po' diverso ogni volta.
+
+**Quello che resta a mano ogni volta:**
 
 - **Il file non si esegue in un colpo solo.** `execute_sql` restituisce solo il
-  risultato dell'ULTIMO statement: si manda un blocco per volta e si guarda cosa
-  risponde.
-- **Le tessere grosse vanno spezzate.** Sopra ~2.8 KB di base64 si spezzano in
-  pezzi da ~2000 caratteri con `update kv_store set value = value || …`, e ogni
-  lotto si esegue **esattamente una volta** (non è idempotente). **Un pezzo per
-  chiamata**: incollarne due insieme è come si è corrotta una tessera a gen-6.11.
-- **L'audit per tessera, PRIMA dello swap.** Una `select` che confronta count,
-  md5 e length di ogni `tmp:<tag>:pNNN` con gli attesi calcolati in locale. È il
-  cancello che a gen-6.11 ha trovato una tessera sbagliata su 47 prima di
-  toccare la produzione.
+  risultato dell'ULTIMO statement: si manda un pezzo per chiamata e si guarda
+  cosa risponde.
+- **Gli «update … value || …» UNA VOLTA SOLA**: non sono idempotenti,
+  rieseguirne uno raddoppia quel pezzo. Il cancello md5 prima dello swap lo
+  prende — è il suo mestiere — ma va saputo prima, non scoperto dopo. Incollarne
+  due insieme è come si è corrotta una tessera a gen-6.11.
+- **L'audit per tessera, PRIMA dello swap.** `audit.sql` torna
+  `attese / in_rete / combaciano / diverse`: zero righe diverse = tutte e N le
+  tessere in rete sono quelle provate in locale. È il cancello che a gen-6.11 ha
+  trovato una tessera sbagliata su 47 prima di toccare la produzione. **Non
+  selezionare mai `value` in una `select` di verifica**: torna un megabyte in
+  chat. Solo `length` e `md5`.
 - **Dopo lo swap**: verificare len+md5+meta con una `select`, e creare
   `backup:pre-gen<NNN+1>` dallo stato appena messo online.
 - **La stessa regola vale per la dispensa e per `mem:v1`**, non solo per
@@ -128,6 +143,11 @@ tessere temporanee.
   ha dato dieci risultati diversi sullo stesso codice). Chi tocca localStorage
   usa `collaudi/servi.mjs` (`apriServer`) o si scrive il server come fa
   `gen607test.mjs`.
+- **Il pacchetto è UNO SOLO**: mentre gira QUALUNQUE banco non si chiama
+  `build.mjs`, nemmeno su un file di prova in `/tmp`. `.censimento-in-corso`
+  protegge solo il censimento; un banco singolo no, e chi ricostruisce sotto i
+  suoi piedi gli cambia il codice a metà giro. È l'errore del 31 luglio, rifatto
+  l'11 settembre per la porta accanto.
 - **Sabotaggi contati**: si parte da una copia integra, si rompe UNA cosa, si
   ricostruisce, si contano i rossi, si scrive subito su un diario. Un banco che
   MUORE non è «zero rossi»: si dice. Un sabotaggio MUTO non si ignora mai: si
@@ -146,7 +166,8 @@ largo (1280×800).
 - `node guarda.mjs` — tutte le schermate, tutti e due i formati (~2 minuti).
 - `node guarda.mjs cassa cassa-giornata` — solo quelle. Nomi: home, cassa,
   cassa-clienti, cassa-giornata, comande, magazzini, plancia, conteggi, ordini,
-  analisi, gestione.
+  analisi, gestione, **sistema** (da gen-6.15: è dove sta la scheda
+  diagnostica).
 - `FORMATO=telefono node guarda.mjs` — un formato solo (`telefono` | `largo`).
 - Le foto finiscono in `collaudi/foto/<versione>/<formato>-<nome>.png` e si
   aprono con lo strumento di lettura dei file: una PNG si vede. Sono
@@ -161,6 +182,29 @@ sono bloccati (si vede il carattere di ripiego, non è un difetto dell'app) e la
 lente va chiusa con Escape prima di cambiare schermata (l'attrezzo lo fa da
 solo). Quando una modifica tocca una schermata, la foto prima/dopo va guardata
 davvero, non data per buona: il banco misura, la foto mostra.
+
+## Due fatti di navigazione che costano un giro di banco
+
+Scritti perché li ho pagati due volte, e da fuori non si indovinano:
+
+- **La barra dell'ADMIN non ha né Cassa né Comande**: ci si arriva dalla lente.
+  Un banco che deve entrare in Cassa entra come **operatore con l'interruttore
+  «cassa»**; in Comande come **operatore SENZA cassa** e senza correzioni; in
+  Sistema come **admin**. Tre profili nel seme, non uno.
+- **«Ultime vendite» sta nella riga «Oggi» della stanza di PARTENZA della
+  Cassa**, non dentro «Giornata».
+
+## Due regole per chi scrive i banchi (gen-6.15)
+
+- **Un rilevatore d'arrivo che è vero anche quando non è successo niente non è
+  un rilevatore.** Il mio cercava `/storno/i` nel testo della pagina e pescava
+  «Motivo dello storno», cioè l'etichetta del Foglio aperto da prima: il banco
+  cliccava troppo presto e dava la colpa al codice. Si aspetta un segno che
+  esiste **solo** se lo stato nuovo è entrato (lì: «1 storni» nella riga «Oggi»
+  dietro il Foglio).
+- **`__proto__` scritto come letterale in JavaScript imposta il PROTOTIPO** e
+  non lascia nessuna chiave propria: un banco che lo prova così prova un caso
+  che non esiste. Va costruito con ``JSON.parse(String.raw`{"__proto__":…}`)``.
 
 ## Cosa NON c'è nel repo, ed è voluto
 
@@ -203,32 +247,70 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
 
 1. ~~TESSERA 0 — l'invariante dello sfratto~~: **fatta, online da gen-6.14**
    (`collaudi/sfrattotest.mjs`, 6 rossi → 20 verdi, otto sabotaggi tutti rossi).
-2. **Il resto del PASSO 1 del pavimento** (`progetti/pavimento-traffico.md`):
-   `storna()` rilegge il dato vivo prima di mandare la mutazione; il ramo locale
-   di `mutaDato` raccoglie l'esito; `|| []` sulla riga interna dell'export
-   vendite; battito di versione `s.telefoni` (va aggiunto anche ai default di
-   `normalizza`, o la prima schermata che ci itera muore); scheda che legge
-   `diagRef` (scritto in quattro punti, letto in nessuno); età della lista in
-   cima a Comande. Tutto client, zero effetto sul traffico.
-3. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
+2. ~~Il resto del PASSO 1 del pavimento~~: **fatto, online da gen-6.15**
+   (`collaudi/spietest.mjs`, 12 sezioni, 39 rossi → 69 verdi, Quattordici sabotaggi: dodici rossi e DUE MUTI — e i due muti valevano più dei dodici rossi, perché erano buchi del banco, non ridondanze del codice. Il primo: il collaudo leggeva la soglia dell'ambra dal codice dell'app — cosa giusta, evita di arrossire il giorno che qualcuno la cambia per un buon motivo — ma da quella stessa soglia calcolava anche la propria pazienza: portata la soglia a un'ora, il banco si è ritarato a un'ora, ha aspettato un'ora e ha detto verde. Un metro che prende la propria aspettativa dal codice che misura non può accorgersi che quel codice è cambiato. Il secondo, che conta di più: il banco dimostrava che l'età della lista è viva tagliando la linea, ma la bugia per cui questa versione esiste vive con la linea in piedi — il giro leggero chiede venti byte e la lista non la chiede nessuno. Staccare tutto prova «nessun contatto»; il difetto è «contatto, ma solo quello che non chiede la lista». Riparati tutti e due, i sabotaggi rifatti sono rossi: 14 su 14).
+   Sei voci: `storna()` rilegge il dato vivo; i due rami LOCALI di `muta` e
+   `mutaDato` raccolgono l'esito; `|| []` sulle **TRE** letture scoperte di
+   `v.righe` (export CSV, riga di vendita, Foglio dello Storno — le ultime due
+   sbiancavano la Cassa); battito `s.telefoni` timbrato dentro `scriviRemoto`
+   (l'imbuto VERO: il seed del primo avvio NON passa da `sincronizza`) e potato
+   per **rev**, non per orologio; scheda diagnostica in Sistema che apre
+   `diagRef`; età della lista in cima a Comande, dall'ultima **lettura piena
+   accettata** — non dall'ultimo giro del poll, che su un giro magro la lista
+   non la chiede nemmeno.
+3. **Il cancello #39 — gen605test smette di ballare**: causa TROVATA l'11
+   settembre, ed era il banco, non l'app. `gen605test` apre l'app da `file://`
+   (riga 129), cioè da un'origine **opaca**: ogni tanto il ricaricamento
+   riparte su un'archiviazione azzerata, l'`addInitScript` rimette il seme, e
+   il banco legge «0 vendite, mozzarella 50» — i numeri del seme — e ne accusa
+   l'app. Una sola causa, due sintomi: §2 su gen-6.14 (la coda sparita) e §7b
+   su gen-6.15 (la rete tornata al seme). La regola che lo vieta è in questo
+   file e **è nata da questo banco** (gen-6.05); `collaudi/servi.mjs` esiste dal
+   5 settembre apposta; `gen606test` è già stato sistemato e porta il commento
+   che descrive il guasto parola per parola, più la guardia `riapri` che alza
+   «BANCO GUASTO» invece di un rosso falso. Riparazione: http al posto di
+   `file://`, pagina nuova al posto di `p.reload()`, la guardia, e il testimone
+   più piccolo che esista — **`s.telefoni`**, il battito di gen-6.15, che l'app
+   timbra a ogni scrittura vera e che in un seme non c'è. La prova NON è un
+   censimento: sono molti giri di quel banco senza un rosso, più un sabotaggio
+   che dimostri che sa ancora arrossire.
+4. **Il guscio che disarma la guardia** (difetto dell'APP, scelto da Valerio
+   l'11 settembre: prima della ricevuta). In modo sicuro, quando il login
+   riesce ma la lettura piena **no**, `entra()` mette in `baseRef` un guscio
+   senza `rev` (`app.jsx`, «`const s = letto ? normalizza(letto) : normalizza({
+   profili: ... })`»), e l'assegnazione è **incondizionata** — come lo è quella
+   di `statoRef`, quindi togliere solo la prima non chiude niente. La guardia
+   di `sincronizza` è scritta in termini di rev — «`(baseRef.current?.rev || 0)
+   > 1`» — e il guscio risponde 0: **non scatta**. Chiede «so che in rete ci
+   sono dati veri?» e il guscio dice di no, mentre il guscio È la prova che ci
+   sono, solo che non si è riusciti a leggerli. Da lì `base = remoto ||
+   baseRef.current`, `applicaCoda(guscio)`, `revBase = 0`, e `scriviRemoto`
+   parte. **Oggi in cucina non succede niente** perché lo ferma il cancello nel
+   database (`strumenti/server/app_kv_set.sql`, `RAISE 40001` su `revBase` che
+   non combacia) e il poll rimette la base vera alla prima lettura riuscita:
+   non è un difetto attivo, è una difesa in profondità che manca. Ma l'unica
+   difesa sta **fuori da `app.jsx`**, in una funzione che il file stesso
+   avverte potrebbe non esserci dopo una ricostruzione del database — e allora
+   il guscio atterra e cancella magazzini, prodotti e sedi a tutti. Nota anche
+   il «`> 1`» invece di «`> 0`»: seconda maglia larga sulla stessa riga.
+   Riparazione proposta: marchiare il guscio (`__guscio: true`) e chiedere alla
+   guardia quello che deve davvero sapere — «ho letto la rete?» — invece di
+   dedurlo da un numero. È codice dell'app: **collaudo scritto prima con i
+   rossi registrati, sabotaggi, VERSIONE alzata, censimento**.
+5. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
    finestra cieca (#40, oggi solo STRETTA da MAX_APPLICATE 1200). **È tutta
    client e non tocca il server**: un mittente per caricamento di pagina,
    l'ultima revisione atterrata, e una mappa `s.scritture` potata per valore
    invece che per orologio; il cancello `revBase` che c'è già rende la cosa
    dimostrabile. Quindi **non dipende dal pavimento del traffico** e può uscire
    prima.
-4. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+6. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-5. **Il cancello che viene prima di tutti e quattro** (#39): un banco
-   (`gen605test`) è risultato rosso una volta e verde due sullo stesso codice.
-   Finché quella intermittenza non è chiusa o dichiarata, un rosso dopo un
-   rilascio non si può distinguere da «è lui che balla». Il progetto del
-   pavimento lo mette come condizione al PASSO 0, non come lavoro futuro.
-6. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+7. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», la cassa che vede solo la cassa, ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)

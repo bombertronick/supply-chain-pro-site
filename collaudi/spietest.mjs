@@ -172,6 +172,9 @@ const apri = async (seme = SEME) => {
     };
     let TOKEN = null;
     window.__sospendi = false;
+    /* __soloSpia: la chiave della revisione continua a rispondere, tutto il
+       resto resta appeso. Serve a §12, e il perche' sta scritto la'. */
+    window.__soloSpia = false;
     const appeso = () => new Promise(() => {});
     window.auth = {
       async loginList() {
@@ -195,6 +198,7 @@ const apri = async (seme = SEME) => {
     window.storage = {
       async get(k) {
         if (window.__sospendi) return appeso();
+        if (window.__soloSpia && k !== "scp:rev:v1") return appeso();
         if (!TOKEN) return null;
         const v = localStorage.getItem("db:" + k); return v == null ? null : { value: v };
       },
@@ -651,8 +655,27 @@ await prova("§8", async () => {
    non puo' distinguere «non c'e' niente» da «non lo so da tre minuti». */
 console.log("\n— 9. Comande dice da quanto e' ferma la lista, e va in ambra oltre soglia —");
 await prova("§9", async () => {
-  ok(Number.isFinite(SPIE.SOGLIA_VISTA_FERMA) && SPIE.SOGLIA_VISTA_FERMA > 0,
-    `la soglia si legge dal sorgente (${SPIE.SOGLIA_VISTA_FERMA} ms), non e' scritta a mano qui`);
+  /* IL TETTO UMANO — trovato aprendo il sabotaggio S9 dell'11 settembre, che
+     e' uscito MUTO e che senza questo tetto ci mette 59 minuti a dirlo.
+     Leggere la soglia dal sorgente e' giusto: evita di arrossire il giorno che
+     qualcuno la cambia per un buon motivo. Ma un metro che prende la propria
+     aspettativa DAL CODICE CHE MISURA non puo', per costruzione, accorgersi
+     che quel codice e' cambiato. Portata la soglia a un'ora, il banco si e'
+     ritarato a un'ora, ha aspettato un'ora, e ha detto VERDE: perfettamente
+     d'accordo con l'app su un numero che in cucina non serve a niente.
+     E il secondo danno era peggiore del primo: la pazienza si calcolava dalla
+     soglia LETTA, quindi chiunque tocchi quella costante puo' fermare il banco
+     per un'ora — e un banco fermo un'ora si legge come APPESO, e chi lo legge
+     cosi' lo ammazza, perdendo il giro di sabotaggi intero. Ci sono passato.
+     Quindi: la soglia continua a leggersi dal sorgente, ma deve stare dentro
+     una banda DICHIARATA QUI, e la pazienza si tetta in orologio vero. Una
+     spia che si accende dopo due minuti non e' una spia: in cucina due minuti
+     senza sapere sono gia' troppi. Se un domani la soglia vera va oltre, il
+     banco diventa rosso QUI e chiede conto, invece di ritararsi in silenzio. */
+  const TETTO_UMANO = 120000;
+  ok(Number.isFinite(SPIE.SOGLIA_VISTA_FERMA) && SPIE.SOGLIA_VISTA_FERMA > 0
+     && SPIE.SOGLIA_VISTA_FERMA <= TETTO_UMANO,
+    `la soglia si legge dal sorgente (${SPIE.SOGLIA_VISTA_FERMA} ms) e sta dentro il tetto umano (${TETTO_UMANO} ms)`);
   const seme = semeCon((s) => {
     s.postazioni = [{ id: "po-1", nome: "Forno", gruppi: ["Pizze"], sedeId: FM.id }];
   });
@@ -676,7 +699,9 @@ await prova("§9", async () => {
   ok(/nessuna comanda in coda/i.test(await testoDi(G.p)),
     "e c'e' anche a coda vuota, dove il vuoto da solo non dice niente");
   await G.p.evaluate(() => { window.__sospendi = true; });
-  const soglia = Math.ceil((SPIE.SOGLIA_VISTA_FERMA || 47000) / 1000);
+  /* la pazienza NON si calcola dalla soglia letta: si tetta in orologio vero */
+  const soglia = Math.min(Math.ceil((SPIE.SOGLIA_VISTA_FERMA || 47000) / 1000),
+                          Math.ceil(TETTO_UMANO / 1000));
   const ambra = await finche(G.p, async () => {
     const n = await leggi();
     if (n == null || n <= soglia) return false;
@@ -749,6 +774,67 @@ await prova("§10", async () => {
      parte, e li' un timbro mancante sarebbe passato inosservato */
   const scrivi = src.slice(src.indexOf("async function scriviRemoto(stato)"), src.indexOf("async function scriviRemoto(stato)") + 900);
   ok(/battito\(/.test(scrivi), "il battito si timbra dentro scriviRemoto, da cui passano TUTTE le scritture");
+});
+
+/* ═══ 12. LA BUGIA CON LA LINEA IN PIEDI ═══
+   Trovato aprendo il sabotaggio S14 dell'11 settembre, uscito MUTO — e il
+   muto valeva piu' del sabotaggio, perche' S14 rimette esattamente l'errore
+   che i cinque revisori mi avevano fatto togliere dal disegno.
+   §8 e §9 dimostrano che il numero e' vivo TAGLIANDO la linea: con
+   __sospendi ogni lettura resta appesa, quindi non succede nessun giro — ne'
+   magro ne' pieno — e il timbro sbagliato non ha nemmeno l'occasione di
+   scattare. Ma la bugia che questo rilascio esiste per togliere vive con la
+   LINEA IN PIEDI: il giro magro chiede venti byte, la lista non la chiede
+   nessuno, e timbrare «confermata adesso» li' e' precisamente il risveglio
+   da schermo spento che scrive «aggiornata adesso» sul tablet ripreso in
+   mano dopo venti minuti.
+   Un metro che stacca tutto prova «nessun contatto». Il difetto e'
+   «contatto, ma solo quello che non chiede la lista». */
+console.log("\n— 12. con la linea in piedi ma la lista mai chiesta, l'eta' sale lo stesso —");
+await prova("§12", async () => {
+  const G = await apriCon(SEME);
+  await login(G.p);
+  await vaiA(G.p, "Sistema");
+  await G.p.waitForTimeout(1200);
+  const eta = async () => {
+    const m = (await testoDi(G.p)).match(/allineamento[^0-9]{0,40}(\d+)\s*s/i);
+    return m ? +m[1] : null;
+  };
+  const magri = async () => {
+    const m = (await testoDi(G.p)).match(/giri leggeri consecutivi:\s*(\d+)/i);
+    return m ? +m[1] : null;
+  };
+  await G.p.evaluate(() => { window.__soloSpia = true; });
+  /* PRIMA il testimone, o tutto il resto sarebbe verde per assenza: se
+     __soloSpia non facesse niente non ci sarebbe nessun giro magro, l'eta'
+     salirebbe comunque, e il controllo passerebbe senza aver provato niente.
+     E' lo stesso errore di «__proto__» scritto come letterale. */
+  const contatto = await finche(G.p, async () => (await magri()) >= 2, 30000, 700);
+  ok(contatto, "la linea E' in piedi: i giri magri salgono, la chiave da venti byte risponde");
+  /* e con la linea in piedi l'eta' dell'ultimo allineamento sale lo stesso,
+     perche' un giro magro non ha CHIESTO la lista: non conferma niente */
+  const salita = await finche(G.p, async () => (await eta()) > 8, 30000, 700);
+  ok(salita, "e l'eta' dell'ultimo allineamento supera gli 8 s: il giro magro non la timbra");
+  await G.ctx.close();
+  /* e la stessa cosa sulla riga di Comande, che e' dove la legge la cucina */
+  const seme = semeCon((s) => {
+    s.postazioni = [{ id: "po-1", nome: "Forno", gruppi: ["Pizze"], sedeId: FM.id }];
+  });
+  const H = await apriCon(seme);
+  await login(H.p, "OpCucina", "3333");
+  await vaiA(H.p, "Comande");
+  await H.p.waitForTimeout(1200);
+  await H.p.getByRole("button", { name: /Siediti a Forno/ }).first().click().catch(() => {});
+  await H.p.waitForTimeout(900);
+  const riga = H.p.locator("[data-eta-vista]").first();
+  ok((await riga.count()) > 0, "la riga dell'eta' c'e' anche qui");
+  await H.p.evaluate(() => { window.__soloSpia = true; });
+  const su = await finche(H.p, async () => {
+    const n = await riga.getAttribute("data-eta-vista").catch(() => null);
+    return n != null && +n > 8;
+  }, 30000, 700);
+  ok(su, "e in cima a Comande l'eta' supera gli 8 s con la linea in piedi");
+  await H.ctx.close();
 });
 
 console.log("\nerrori di pagina:", errs.length);
