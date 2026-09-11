@@ -2,10 +2,10 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.14",
-  "len": 964731,
-  "md5": "a4cc27660ac7257ed997b80fd9b2e405",
-  "quando": "2026-09-09",
+  "gen": "gen-6.15",
+  "len": 986015,
+  "md5": "8799c5d2ae02533bd7aee1cb2f06ce5e",
+  "quando": "2026-09-11",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
  "aperti": [
@@ -29,6 +29,13 @@
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.15",
+   "quando": "11 settembre",
+   "chiude": [],
+   "prova": "spietest.mjs",
+   "cosa": "«Le spie che mancano» — il RESTO del PASSO 1 del disegno del pavimento del traffico (progetti/pavimento-traffico.md, IL CLIENT §2 e §4), sei voci, tutte client, zero effetto sul canale. LE VOCI: (1) storna() rilegge il dato vivo prima di mandare la mutazione — il Foglio e' aperto su uno snapshot e il toast «Stornato» era INCONDIZIONATO, quindi la seconda cassa leggeva una bugia mentre il registro restava giusto per via del return false di gen-6.12; (2) i due rami LOCALI di muta e mutaDato raccolgono l'esito dell'esecutore come fa applicaCoda da gen-6.07 — difesa in profondita', misurata sul testo e dichiarata tale nel banco perche' in modo locale lo stato nasce da creaSeed e la scena non si puo' allestire; (3) «|| []» sulle TRE letture scoperte di v.righe, non una: l'export CSV, la riga di vendita (che disegna «Ultime vendite» e la stanza Giornata) e il Foglio dello Storno — le ultime due sbiancavano la Cassa, che e' peggio di un CSV mancato; (4) battito di versione s.telefoni, timbrato dentro scriviRemoto (l'imbuto VERO: il seed del primo avvio non passa da sincronizza), potato per REV e non per orologio, con l'id di dispositivo risolto una volta sola per caricamento e il battito SALTATO se lo storage rifiuta; (5) scheda diagnostica in Sistema che apre diagRef — scritto in quattro punti e letto da nessuna riga di tutto il repository — con la lista dei telefoni confrontata con la versione PIU' ALTA vista, non con la propria; (6) eta' della lista in cima a VistaComande, contata dall'ultima LETTURA PIENA accettata e non dall'ultimo giro del poll. IL PROCESSO: cinque revisori indipendenti sul disegno prima del codice, 43 accuse, sette cose cambiate. La peggiore era mia: «lista aggiornata adesso» su un giro magro, cioe' su un giro in cui la lista non era stata nemmeno chiesta — la bugia esatta che quella riga esiste per togliere, e proprio sul tablet ripreso in mano dopo venti minuti di schermo spento. Corrette anche: il timbro appoggiato a Date.now() invece che alla rev, il ripristino che resuscitava i telefoni del backup, una classe Tailwind nuova (font-mono) che il caricatore di produzione non ha. PROVE: collaudi/spietest.mjs scritto PRIMA, 28 rossi su gen-6.14 -> 65 verdi su gen-6.15, zero errori di pagina. Due difetti del banco trovati e chiusi strada facendo: un rilevatore d'arrivo che pescava l'etichetta del Foglio aperto ed era vero da subito, e un caso «__proto__» scritto come letterale, che in JavaScript non lascia nessuna chiave propria e quindi non provava niente. PRODUZIONE: len 986015, md5 8799c5d2ae02533bd7aee1cb2f06ce5e."
+  },
   {
    "gen": "gen-6.14",
    "quando": "9 settembre, sera",
@@ -413,6 +420,21 @@
   "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
  ],
  "sbagliato": [
+  {
+   "quando": "2026-09-11",
+   "dicevo": "L'eta' della lista in cima a Comande si conta dall'ultimo giro del poll andato a buon fine, magro o pieno che sia.",
+   "invece": "Un giro magro prova solo che scp:rev:v1 risponde: leggiRemoto non viene nemmeno chiamata, la lista NON arriva. E il risveglio da schermo spento fa proprio un giro magro, quindi la riga avrebbe scritto «confermata adesso» sul tablet ripreso in mano dopo venti minuti — la bugia esatta che quella riga esiste per togliere, nell'istante di rischio massimo. Adesso ultimaRete si timbra solo dopo una lettura piena ACCETTATA (rev >= base: una lettura scartata perche' stantia non conferma niente), e il contatto leggero ha un campo suo, ultimaSpia. Trovato da un revisore prima del codice, non dal banco."
+  },
+  {
+   "quando": "2026-09-11",
+   "dicevo": "Il battito di versione si pota per «t», l'ora del telefono che ha scritto: e' la cosa piu' naturale da ordinare.",
+   "invece": "E' la stessa grandezza che questo progetto ha gia' dichiarato inaffidabile — e' il motivo per cui «rev» ha smesso di essere un orologio ed e' diventata un contatore. Con la potatura per t un tablet con la data avanti si inchioda in cima e sfratta righe vere, e tempoFa su un t futuro stampa «adesso» per sempre: dichiara aggiornato proprio chi non salva da una settimana. Adesso si pota per «r», la revisione dello stato, e «t» resta solo etichetta con un ramo esplicito per l'orologio avanti."
+  },
+  {
+   "quando": "2026-09-11",
+   "dicevo": "La bandierina .censimento-in-corso basta a impedire che qualcuno ricostruisca il pacchetto sotto i piedi di un banco che gira.",
+   "invece": "La bandierina la scrive solo corri.mjs, e protegge solo i CENSIMENTI. Oggi ho ricostruito il pacchetto per provare una patch su una copia mentre un banco singolo girava: i suoi contesti aperti dopo quel momento avrebbero caricato il codice nuovo. Me ne sono accorto subito e ho buttato quel giro, ma e' esattamente l'errore del 31 luglio, rifatto per la porta accanto. Regola: mentre gira QUALUNQUE banco non si chiama build.mjs, nemmeno su un file di prova, perche' il pacchetto e' uno solo."
+  },
   {
    "quando": "2026-09-09",
    "dicevo": "Il cancello a impronta serve al rilascio dell app; per la dispensa basta guardare che il testo ci sia.",

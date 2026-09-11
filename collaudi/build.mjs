@@ -60,7 +60,7 @@ try {
    funzione che un collaudo si aspetta e' sparita, questo passo FALLISCE — ed
    e' l'informazione giusta, molto meglio di un verde che non vuol dire
    niente. */
-const LIBRERIE = ["mkconvlib", "mkcontrollilib", "mkinterilib", "mkpesolib", "mkretelib", "mktestlib", "mkpotalib"];
+const LIBRERIE = ["mkconvlib", "mkcontrollilib", "mkinterilib", "mkpesolib", "mkretelib", "mktestlib", "mkpotalib", "mkspielib"];
 for (const g of LIBRERIE) {
   if (!existsSync(`${g}.mjs`)) continue;
   try {

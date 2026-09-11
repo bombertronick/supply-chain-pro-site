@@ -153,6 +153,26 @@ const CHIAVE = "scp:stato:v1";
    peggio del peso che toglie. */
 const CHIAVE_REV = "scp:rev:v1";
 const MAX_GIRI_MAGRI = 10;        /* dopo dieci giri leggeri, uno pieno comunque */
+/* ── DA QUANTO E' CONFERMATA UNA LISTA (gen-6.15) ──
+   La soglia oltre la quale l'eta' di una lista smette di essere
+   informazione e diventa un avviso.
+   L'ETA' SI CONTA DALL'ULTIMA LETTURA PIENA, non dall'ultimo giro del poll,
+   e la differenza e' tutto. Un giro magro prova solo che scp:rev:v1
+   risponde: la lista non viene nemmeno chiesta. Contarlo come contatto
+   avrebbe fatto dire «confermata adesso» al tablet ripreso in mano dopo
+   venti minuti di schermo spento — il risveglio fa un giro magro — cioe'
+   una bugia nell'istante di rischio massimo.
+   DA DOVE VIENE IL NUMERO, E COSA NON E'. In salute, fra due letture piene
+   passano fino a MAX_GIRI_MAGRI giri magri: ~35 s, piu' i 12 s del watchdog
+   che sblocca un ciclo appeso. Sopra quello, qualcosa non sta arrivando.
+   Ma NON e' un tetto garantito dal codice: giriMagri si azzera PRIMA della
+   lettura, quindi una lettura piena fallita rimette il telefono in regime
+   magro per altri dieci giri. E' una soglia DICHIARATA — «oltre questo
+   tempo la lista puo' essere ferma» — non una promessa. Il tetto vero si
+   otterrebbe spostando quell'azzeramento, ma quella e' la museruola, cioe'
+   il PASSO 4 del pavimento, non questo giro. */
+const POLL_MAX_MS = 3500;
+const SOGLIA_VISTA_FERMA = MAX_GIRI_MAGRI * POLL_MAX_MS + 12000;
 const haStorage = () => typeof window !== "undefined" && !!window.storage;
 
 async function leggiRemoto() {
@@ -170,6 +190,14 @@ async function revRemota() {
 }
 async function scriviRemoto(stato) {
   try {
+    /* il battito si timbra QUI perche' qui passano TUTTE le scritture, non
+       solo quelle che nascono da una mutazione: la prima stesura lo metteva
+       accanto a «nuovo.rev» dentro sincronizza, dichiarando che fosse
+       l'unico punto — e non lo e', il seed del primo avvio scrive da un'altra
+       parte. L'esito sarebbe stato al contrario del senso comune: seed
+       riuscito = documento senza battito, seed fallito = documento timbrato
+       dal ripiego. (gen-6.15) */
+    stato.telefoni = battito(stato.telefoni, stato.rev);
     const r = await window.storage.set(CHIAVE, JSON.stringify(stato), true);
     if (!r) return false;
     /* ── UNA RISPOSTA CHE PORTA UN ERRORE NON E' UN SALVATAGGIO (gen-6.07) ──
@@ -669,7 +697,74 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.14";
+const VERSIONE = "gen-6.15";
+/* ── IL BATTITO DI VERSIONE (gen-6.15) ──
+   L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
+   servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
+   quando capita: il telefono del titolare puo' saltare tre versioni in un
+   colpo, il tablet della cassa in kiosk puo' restare indietro tre
+   settimane. Finche' non si sa QUANTI sono indietro, «il difetto e' chiuso»
+   vale solo per la parte di flotta che ha ricaricato.
+   Qui ogni dispositivo che SCRIVE lascia il suo numero di versione, la
+   revisione a cui l'ha lasciato e l'ora. Il costo sta scritto sotto, in
+   caratteri veri: in questo giro la moneta e' il byte e una promessa senza
+   numero non e' controllabile da nessuno.
+   DUE COSE CHE QUESTA LISTA NON SA, e che vanno scritte dove si legge: chi
+   apre l'app e non salva mai non compare, e un dispositivo assente non e'
+   «aggiornato», e' «non lo so». La scheda in Sistema lo dice.
+   L'ID SI RISOLVE UNA VOLTA SOLA PER CARICAMENTO, e se lo storage rifiuta
+   (navigazione privata su un tablet di sala non e' un caso di scuola) il
+   battito si SALTA invece di inventare un id nuovo a ogni salvataggio:
+   dieci scontrini di quel solo telefono basterebbero a sfrattare dalla
+   lista tutti gli altri — e siccome «assente = non aggiornato», la scheda
+   accuserebbe di essere indietro proprio i telefoni aggiornati. Meglio un
+   assente onesto che dieci fantasmi che sfrattano i presenti. */
+const MAX_TELEFONI = 10;
+const CHIAVE_DISP = "scp:disp:v1";
+let idDisp;
+function idDispositivo() {
+  if (idDisp !== undefined) return idDisp;
+  try {
+    let v = localStorage.getItem(CHIAVE_DISP);
+    if (!v) { v = uid("d"); localStorage.setItem(CHIAVE_DISP, v); }
+    idDisp = v;
+  } catch { idDisp = null; }
+  return idDisp;
+}
+/* La mappa si legge SEMPRE da qui, mai a mano. «...s» in normalizza lascia
+   passare qualunque forma arrivi da fuori, e da fuori si arriva davvero:
+   «Importa JSON» accetta un testo incollato e valida tre array, non questo
+   campo. Un «telefoni»: null farebbe esplodere Object.entries e sbiancare
+   proprio VistaSistema, cioe' la schermata da cui si ripara un backup
+   sbagliato. Stessa difesa che il disegno della ricevuta pretende per la
+   sua mappa gemella. */
+const telefoniDi = (s) => {
+  const m = s && s.telefoni;
+  if (!m || typeof m !== "object" || Array.isArray(m)) return {};
+  const buone = Object.entries(m).filter(([, r]) => r && typeof r === "object" && typeof r.v === "string");
+  return Object.fromEntries(buone);
+};
+/* SI POTA PER «r», NON PER L'OROLOGIO. «t» e' Date.now() del telefono che
+   scrive: la stessa grandezza che questo file ha gia' dichiarato
+   inaffidabile, ed e' il motivo per cui rev ha smesso di essere un orologio
+   ed e' diventata un contatore. Con la potatura per t, un tablet con la data
+   avanti si inchioda in cima e sfratta righe vere, e tempoFa su un t nel
+   futuro stampa «adesso» per sempre — cioe' dichiara aggiornato proprio chi
+   non salva da una settimana, il verso vietato. «r» e' la revisione dello
+   stato: un contatore monotono garantito dal cancello del server, uguale
+   per tutti. «t» resta solo come ETICHETTA leggibile, e chi la stampa ha un
+   ramo esplicito per l'orologio avanti.
+   IL COSTO, MISURATO, perche' in questo giro la moneta e' il byte: una riga
+   sta in ~56 caratteri, dieci righe piu' il campo ~590 — lo +0,2% su uno
+   stato che il 9 settembre ne misurava 292.621. */
+function battito(tel, rev) {
+  const id = idDispositivo();
+  if (!id) return telefoniDi({ telefoni: tel });
+  const righe = Object.entries({ ...telefoniDi({ telefoni: tel }), [id]: { v: VERSIONE, r: rev || 0, t: Date.now() } })
+    .sort((a, b) => (b[1].r || 0) - (a[1].r || 0))
+    .slice(0, MAX_TELEFONI);
+  return Object.fromEntries(righe);
+}
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
@@ -4230,7 +4325,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   );
 }
 
-function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, mostraToast, ripristina }) {
+function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, mostraToast, ripristina, leggiDiag }) {
   const [vista, setVista] = useState("home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
@@ -4414,13 +4509,13 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
     if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} sez={sezCassa} vaiSez={setSezCassa} />;
     /* le Comande NON stanno nella lista chiusa: guardare lo schermo e
        spuntare quello che esce e' mestiere, come contare (gen-5.98) */
-    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} />;
+    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} leggiDiag={leggiDiag} sync={sync} />;
     if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
     if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
     if (vista === "informazioni") return <VistaInformazioni stato={stato} sync={sync} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
-      mostraToast={mostraToast} ripristina={ripristina} />;
+      mostraToast={mostraToast} ripristina={ripristina} leggiDiag={leggiDiag} />;
     if (vista === "altro") return <VistaAltro stato={stato} vaiA={naviga} nAcc={nAcc} />;
     if (vista === "storico") return <VistaStorico stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />;
     if (vista === "storico-ordini") return <VistaStoricoOrdini stato={stato} profilo={profilo} mostraToast={mostraToast} vaiA={naviga} />;
@@ -13019,6 +13114,56 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
   );
 }
 
+/* ── DA QUANTO E' FERMA QUESTA LISTA (gen-6.15) ──
+   In cucina il vuoto e' muto: «Nessuna comanda in coda» ha esattamente lo
+   stesso schermo di «non ricevo niente da tre minuti». Questa riga dice
+   quale delle due, e per il documento del pavimento e' la riga che rende
+   rilasciabile la museruola del PASSO 4 in una pizzeria aperta.
+   DA DOVE VIENE IL NUMERO: dal poll (diagRef.ultimaRete), non da s.mtime.
+   s.mtime dice quando ha scritto QUALCUN ALTRO, non quando ho sentito io la
+   rete — ed e' proprio la differenza che serve qui: un sabato tranquillo ha
+   un mtime vecchio e la rete perfetta.
+   PERCHE' E' UN COMPONENTE SUO. Il tic da un secondo rimonta SOLO questa
+   riga. Dentro VistaComande avrebbe rimontato ogni secondo la vista piu'
+   pesante e piu' aperta della casa — carte, tre filtri e tre ordinamenti
+   ricostruiti da capo, senza un useMemo — cioe' tre volte piu' spesso di
+   quello useState accanto al ref che ho scartato proprio per non farlo.
+   E il tic e' un CONTATORE, non il diag: mettere in stato diagRef.current
+   avrebbe fatto bail-out di React finche' il ref non cambia, e il ref non
+   cambia quando la rete e' giu' — la spia si sarebbe spenta nel solo caso
+   per cui esiste. */
+function EtaVista({ leggiDiag, locale }) {
+  /* IL TIC E' DA CINQUE SECONDI, NON DA UNO. Questa riga porta una decisione
+     binaria — e' ferma o no — con una soglia di decine di secondi: un secondo
+     di risoluzione non serve a nessuno, e questo e' lo schermo che il tablet
+     di cucina tiene aperto tutto il servizio. In Sistema, che si apre apposta
+     e per poco, il tic resta da un secondo. */
+  const [, tic] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tic((n) => (n + 1) % 1000000), 5000);
+    return () => clearInterval(id);
+  }, []);
+  const d = (leggiDiag && leggiDiag()) || {};
+  const ms = d.ultimaRete ? Date.now() - d.ultimaRete : null;
+  const eta = ms == null ? -1 : Math.max(0, Math.round(ms / 1000));
+  const ferma = ms != null && ms > SOGLIA_VISTA_FERMA;
+  /* «confermata», non «aggiornata»: quello che il numero misura e' l'ultima
+     volta che la lista e' ARRIVATA, non l'ultima volta che e' cambiata */
+  const testo = locale
+    ? "Questo schermo lavora da solo: non c'è nessuna rete da cui ricevere comande."
+    : ms == null
+      ? "Lista non ancora arrivata dalla rete."
+      : ferma
+        ? `Lista ferma da ${eta} s: qualcosa non sta arrivando`
+        : `Lista confermata ${eta} s fa`;
+  return (
+    <div data-eta-vista={locale ? -1 : eta} data-eta-ferma={ferma ? "1" : "0"}
+      className="flex items-center gap-2 text-xs font-bold mb-3 rounded-2xl px-3.5 py-2"
+      style={{ color: ferma ? T.ambra : T.tenue, background: ferma ? "#FDF3E3" : "#F0F3FB" }}>
+      {ferma ? <CloudOff size={14} /> : <Cloud size={14} />}{testo}
+    </div>
+  );
+}
 /* ─────────── LE COMANDE: LA VISTA (gen-5.98) ───────────
    Sola lettura piu' UN bottone. La verita' sta in v.fatte, non in stato
    locale: il poll non smonta la vista (come per il carrello della Cassa) e
@@ -13029,7 +13174,7 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
    Le stornate NON spariscono sotto le mani del cuoco: card barrata col
    motivo finche' qualcuno tocca «Vista» — presa d'atto locale, zero
    scritture. */
-function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
+function VistaComande({ stato, profilo, muta, mutaDato, mostraToast, leggiDiag, sync }) {
   const postazioni = stato.postazioni || [];
   /* IL PROFILO PROPONE, IL DISPOSITIVO COMANDA (gen-6.01). La sedia resta
      del DISPOSITIVO — il tablet di cucina e' un oggetto fisico attaccato
@@ -13162,6 +13307,7 @@ function VistaComande({ stato, profilo, muta, mutaDato, mostraToast }) {
     <div>
       <Intesta titolo="Comande"
         sotto="La tua parte di ogni scontrino battuto in Cassa: arriva col giro dell'app (qualche secondo), a schermo acceso" />
+      <EtaVista leggiDiag={leggiDiag} locale={sync === "locale"} />
       {postazioniQui.length === 0
         ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Non ci sono ancora postazioni"
             testo="Le disegna un Admin da Gestione → Listino: ogni postazione abbina i gruppi del listino che produce." /></Scheda>
@@ -13837,6 +13983,31 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       if (!adm) return mostraToast("PIN non riconosciuto: serve il PIN di un profilo Admin", "errore");
       autorizzataDa = adm.nome;
     }
+    /* ── SI RILEGGE IL DATO VIVO PRIMA DI MANDARE (gen-6.15) ──
+       Questo Foglio e' aperto su uno SNAPSHOT: «stornoDi» e' la riga com'era
+       quando e' stata toccata. Se nel frattempo un'altra cassa ha stornato
+       lo stesso scontrino, il bivio che protegge la LISTA (piu' su:
+       registrata → bottone, se no riga morta) non serve a niente, perche'
+       sta a monte e non chiude un Foglio gia' aperto. Senza questa riga
+       applicaStorno rifiuta — riferisce «false» da gen-6.12, quindi il
+       registro resta pulito — ma il toast qui sotto e' INCONDIZIONATO e
+       direbbe «Stornato» per un lavoro mai fatto. Una bugia sullo schermo fa
+       ribattere lo scontrino a mano: e' il modo di perdere i soldi due volte.
+       IL LIMITE, DETTO PER QUELLO CHE E': «stato» e' una prop, cioe' una
+       costante catturata al disegno che ha creato questa callback. Mettere
+       il controllo prima o dopo l'await del PIN legge lo stesso identico
+       dato: quello che resta scoperto e' la finestra fra l'ultimo
+       rimontaggio e il tocco, non «l'await». Il caso vero — Foglio aperto,
+       la rete cambia sotto, poi si conferma — e' coperto, perche' l'arrivo
+       dalla rete rimonta la vista.
+       E' la TERZA copia della stessa regola (applicaStorno e il bivio della
+       lista sono le altre due): non e' bello, ed e' scritto qui perche' chi
+       un giorno cambiera' la condizione sappia dove sono le altre. */
+    const viva = (stato.vendite || []).find((v) => v.id === stornoDi.id);
+    if (!viva || viva.stato !== "registrata") {
+      setStornoDi(null); setMotivo(""); setPinA("");
+      return mostraToast("Questo scontrino non è più stornabile: l'ha già stornato un'altra cassa", "errore");
+    }
     const dati = { stornoId: uid("vn"), origId: stornoDi.id, t: Date.now(),
       motivo: motivo.trim(), chi: profilo.nome, autorizzataDa };
     mutaDato("storno", dati, `Storno di ${fmtEuro(stornoDi.totale)}: ${dati.motivo}`);
@@ -13867,7 +14038,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       <>
         <span className="font-bold shrink-0" style={{ color: T.tenue }}>{quando}</span>
         <span className="shrink-0 text-xs" style={{ color: T.tenue }}>{targa}</span>
-        <span className="flex-1 min-w-0 truncate text-left">{v.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+        <span className="flex-1 min-w-0 truncate text-left">{(v.righe || []).map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
         {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
         {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
         {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
@@ -14559,7 +14730,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
         {stornoDi && (
           <div className="flex flex-col gap-4">
             <p className="text-sm" style={{ color: T.dim }}>
-              {stornoDi.righe.map((r) => `${r.qty}× ${r.nome}`).join(", ")} · <b style={{ color: T.ink }}>{fmtEuro(stornoDi.totale)}</b> ({stornoDi.metodo})
+              {(stornoDi.righe || []).map((r) => `${r.qty}× ${r.nome}`).join(", ")} · <b style={{ color: T.ink }}>{fmtEuro(stornoDi.totale)}</b> ({stornoDi.metodo})
             </p>
             <p className="text-xs" style={{ color: T.tenue }}>
               La vendita non si cancella: nasce una riga contraria, le giacenze tornano su, e resta scritto chi e perché.
@@ -14679,7 +14850,93 @@ function VistaInformazioni({ stato, sync }) {
   );
 }
 
-function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
+/* ── COME STA QUESTO TELEFONO (gen-6.15) ──
+   diagRef era scritto in quattro punti e non era letto da NESSUNA riga di
+   tutto il repository: una scatola nera che raccoglieva e non diceva. Qui si
+   apre.
+   Il tic sta in questo componente e non accanto al ref in App(), per la
+   stessa ragione scritta su EtaVista: uno useState accanto al ref rimonta
+   l'app intera a ogni giro del poll.
+   LA LISTA DEI TELEFONI DICE ANCHE QUELLO CHE NON SA, e non e' una formalita':
+   chi apre l'app e non salva mai non compare, e un assente non e'
+   «aggiornato» — e' «non lo so». Senza quella frase la lista mente per
+   omissione proprio a chi la consulta per decidere se un rilascio e' arrivato
+   a tutti. */
+function SchedaDiagnosi({ stato, leggiDiag }) {
+  const [, tic] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tic((n) => (n + 1) % 1000000), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const d = (leggiDiag && leggiDiag()) || {};
+  const ms = d.ultimaRete ? Date.now() - d.ultimaRete : null;
+  const eta = ms == null ? null : Math.max(0, Math.round(ms / 1000));
+  const ferma = ms != null && ms > SOGLIA_VISTA_FERMA;
+  const righe = Object.entries(telefoniDi(stato)).sort((a, b) => (b[1].r || 0) - (a[1].r || 0));
+  /* ── IL CONFRONTO NON SI FA CON LA PROPRIA VERSIONE ──
+     VERSIONE e' la costante compilata nel pacchetto di CHI GUARDA, e su una
+     flotta mista — che e' la premessa di tutto questo giro — chi apre Sistema
+     e' spesso il telefono meno aggiornato: ogni riga piu' NUOVA della sua gli
+     risulterebbe diversa, e la scheda direbbe «non aggiornati» proprio dei
+     dispositivi gia' passati avanti. Il metro e' la versione piu' alta vista
+     in lista, e sta scritto sulla scheda. */
+  const piuAlta = righe.reduce((m, [, r]) => (r.v > m ? r.v : m), VERSIONE);
+  /* Una riga vecchia non dice «questo telefono e' aggiornato»: dice «l'ultima
+     volta che ha salvato lo era». Terzo stato, grigio, fuori dal conto. */
+  const GIORNI_MUTO = 7;
+  const muta = (r) => Number.isFinite(r.t) && Date.now() - r.t > GIORNI_MUTO * 86400000;
+  /* un orologio avanti stampava «adesso» per sempre, cioe' dichiarava
+     aggiornato chi non salva da una settimana: qui ha il suo ramo */
+  const quando = (r) => (Number.isFinite(r.t) ? (r.t > Date.now() + 60000 ? "orologio avanti" : tempoFa(r.t)) : "—");
+  return (
+    <Scheda className="p-5 mt-4">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="rounded-2xl p-2.5" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></div>
+        <div>
+          <div className="font-extrabold" style={{ color: T.ink }}>Come sta questo telefono</div>
+          <div className="text-xs" style={{ color: T.tenue }}>L'allineamento con la rete, visto da qui</div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 text-sm" style={{ color: T.dim }}>
+        <div>Ultimo allineamento riuscito:{" "}
+          <b style={{ color: ferma ? T.ambra : T.verde }}>{eta == null ? "mai, da quando è aperta" : `${eta} s fa`}</b></div>
+        <div>Giri leggeri consecutivi: <b style={{ color: T.ink }}>{d.giriMagri || 0} su {MAX_GIRI_MAGRI}</b></div>
+        <div>Conflitti: <b style={{ color: T.ink }}>{d.nConflitti || 0}</b> · Errori: <b style={{ color: T.ink }}>{d.nErrori || 0}</b></div>
+        {d.ultimoErrore && <div className="text-xs" style={{ color: T.ambra }}>
+          Ultimo errore: {String(d.ultimoErrore.msg).slice(0, 90)} ({tempoFa(d.ultimoErrore.t)})</div>}
+      </div>
+      <div className="mt-4">
+        <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>
+          I telefoni che hanno salvato · {righe.length} su un tetto di {MAX_TELEFONI}</div>
+        {righe.length === 0
+          ? <p className="text-sm" style={{ color: T.tenue }}>Nessuno ancora: la lista si riempie quando un dispositivo salva qualcosa.</p>
+          : <div className="flex flex-col gap-1.5">
+            {righe.map(([id, r]) => (
+              <div key={id} className="flex items-center gap-2 text-sm flex-wrap" style={{ color: T.dim }}>
+                <span className="text-xs font-bold" style={{ color: T.tenue }}>…{String(id).slice(-5)}</span>
+                <b style={{ color: muta(r) ? T.tenue : r.v === piuAlta ? T.verde : T.ambra }}>{r.v}</b>
+                <span className="text-xs">{quando(r)}{Number.isFinite(r.r) ? ` · rev ${r.r}` : ""}</span>
+                {muta(r)
+                  ? <Chip colore={T.tenue}>non si fa sentire</Chip>
+                  : r.v !== piuAlta && <Chip colore={T.ambra}>da ricaricare</Chip>}
+              </div>
+            ))}
+          </div>}
+        <p className="text-xs mt-2" style={{ color: T.tenue }}>
+          È un <b>conteggio parziale, non un inventario</b>. Conta solo i dispositivi che hanno
+          SALVATO qualcosa: chi apre l'app e la guarda non compare. Un dispositivo che non è in
+          lista non è «aggiornato»: è <b>non aggiornato</b>, perché non si sa. Il confronto è fatto
+          con la versione più alta vista qui ({piuAlta}), non con quella di questa scheda: su una
+          flotta mista chi guarda è spesso il più indietro. Chi non salva da {GIORNI_MUTO} giorni
+          è grigio e fuori dal conto: dice solo com'era l'ultima volta.
+          {righe.length >= MAX_TELEFONI && " Il tetto ha morso: qui manca chi salva di rado, ed è proprio chi si vorrebbe vedere."}
+          {" "}Un ripristino da backup non riporta indietro questa lista: resta quella di adesso.
+        </p>
+      </div>
+    </Scheda>
+  );
+}
+function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina, leggiDiag }) {
   const [punti, setPunti] = useState(null);
   const [nota, setNota] = useState("");
   const [creaAperto, setCreaAperto] = useState(false);
@@ -14812,7 +15069,12 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
        condivisa, in una mail, in un foglio aperto da chiunque — la rubrica
        resta dentro l'app (gen-6.08). */
     const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino", "Aggiunte", "Cliente", "Modo"]];
-    (stato.vendite || []).forEach((v) => v.righe.forEach((r) => {
+    /* la riga ESTERNA era protetta, quella interna no: una vendita senza
+       «righe» faceva cadere l'export, e le altre due copie di questo stesso
+       giro (la lista delle vendite e il Foglio dello storno) facevano una
+       cosa peggiore — pagina bianca alla cassa. Tutte e tre chiuse allo
+       stesso modo (gen-6.15). */
+    (stato.vendite || []).forEach((v) => (v.righe || []).forEach((r) => {
       righe.push([dataIt(v.t), trova(stato.sedi, v.sedeId)?.nome, v.chi, r.nome,
         numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id,
         (r.agg || []).map((a) => a.nome).join(" + "),
@@ -14929,6 +15191,8 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
           <Bottone variante="fantasma" icona={Upload} onClick={() => { setImpCatAperto(true); setImpCatTesto(""); setImpCatRep(null); }}>Importa catalogo</Bottone>
         </div>
       </Scheda>
+
+      <SchedaDiagnosi stato={stato} leggiDiag={leggiDiag} />
 
       <Foglio aperto={creaAperto} titolo="Nuovo punto di ripristino" onChiudi={() => setCreaAperto(false)}>
         <div className="flex flex-col gap-4">
@@ -15725,6 +15989,10 @@ export default function App() {
   const offlineRef = useRef(false);
   const timerRef = useRef(null);
   const diagRef = useRef({});
+  /* i lettori si tengono il GETTER, non il valore: diagRef e' un oggetto
+     stabile, quindi questa funzione resta buona anche catturata una volta
+     sola in una useEffect a dipendenze vuote (gen-6.15) */
+  const leggiDiag = () => diagRef.current;
 
   const mostraToast = (msg, tipo = "ok") => {
     setToast({ id: uid("t"), msg, tipo });
@@ -15744,7 +16012,12 @@ export default function App() {
      questa riga puo' solo evitare un crollo, mai nascondere un dato. */
   const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
     listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [], clienti: [],
-    magazzini: [], prodotti: [], sedi: [], unita: [], categorie: [], fornitori: [], profili: [], ...s });
+    magazzini: [], prodotti: [], sedi: [], unita: [], categorie: [], fornitori: [], profili: [],
+    /* «telefoni» e' l'unico campo a OGGETTO fra questi default, ed e' voluto:
+       e' una mappa {idDispositivo: {v, t}}, non una collezione. Sta qui
+       perche' un bundle vecchio scrive stati che non ce l'hanno, e la prima
+       schermata che ci itera morirebbe (gen-6.15). */
+    telefoni: {}, ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {
@@ -15839,7 +16112,15 @@ export default function App() {
         specchiaCoda();
         baseRef.current = base; statoRef.current = base; setStato(base);
         riproveRef.current = 0; conflittiRef.current = 0;
-        diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimoErrore: null,
+        /* ultimaRete si timbra anche QUI, e non e' un di piu' (gen-6.15).
+           Il poll esce subito quando inSyncRef e' vero, cioe' per tutto il
+           tempo in cui la cassa sta salvando: un sabato sera di scritture
+           continue salterebbe giro dopo giro, e l'eta' della lista in cima a
+           Comande andrebbe in ambra mentre la rete funziona benissimo — un
+           avviso falso proprio nel momento in cui deve essere creduto. Quello
+           che serve e' «l'ultimo contatto riuscito con la rete», e un ciclo di
+           scrittura andato a buon fine E' un contatto riuscito. */
+        diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimaRete: Date.now(), ultimoErrore: null,
           nRitrovate: (diagRef.current.nRitrovate || 0) + 1 };
         if (offlineRef.current) { offlineRef.current = false; mostraToast("Connessione ripristinata: dati allineati in rete"); }
         inSyncRef.current = 0;
@@ -15872,7 +16153,7 @@ export default function App() {
       const vista = codaRef.current.length ? applicaCoda(nuovo) : nuovo;
       statoRef.current = vista; setStato(vista);
       riproveRef.current = 0;
-      diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimoErrore: null };
+      diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimaRete: Date.now(), ultimoErrore: null };
       if (offlineRef.current) { offlineRef.current = false; mostraToast("Connessione ripristinata: dati allineati in rete"); }
       inSyncRef.current = 0;
       if (codaRef.current.length) pianifica(80); else setSync("ok");
@@ -15922,8 +16203,17 @@ export default function App() {
     if (modalitaRef.current === "locale") {
       const b = clona(statoRef.current);
       const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
-      try { fn(b); } catch {}
-      if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      /* L'ESECUTORE RIFERISCE ANCHE QUI (gen-6.15). Il ramo di rete lo fa da
+         gen-6.07 (applicaCoda: «m.descr && esito !== false»); i due rami
+         locali — questo e quello di mutaDato — buttavano via l'esito e
+         scrivevano la riga di storico anche per un lavoro non fatto. Oggi
+         nessuna closure passata a muta dice «no», quindi qui e' latente: ma
+         era latente allo stesso modo in mutaDato prima di gen-6.07, e la
+         regola dev'essere UNA nei tre posti che eseguono una mutazione, se
+         no il prossimo che ne legge uno impara quella sbagliata. */
+      let esito;
+      try { esito = fn(b); } catch {}
+      if (descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       b.ordini = sfoltisciOrdini(b.ordini);
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
@@ -15964,8 +16254,10 @@ export default function App() {
     if (modalitaRef.current === "locale") {
       const b = clona(statoRef.current);
       const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
-      try { ESECUTORI[tipo](b, dati); } catch {}
-      if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      /* la gemella della riga in muta, e per la stessa ragione (gen-6.15) */
+      let esito;
+      try { esito = ESECUTORI[tipo](b, dati); } catch {}
+      if (descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       b.ordini = sfoltisciOrdini(b.ordini);
       b.vendite = sfoltisciVendite(b.vendite);
       b.giornate = sfoltisciGiornate(b.giornate);
@@ -16072,6 +16364,11 @@ export default function App() {
       if (letto) {
         const s = normalizza(letto);
         baseRef.current = s;
+        /* anche questa e' una lettura piena andata a buon fine, e senza il
+           timbro la riga in cima a Comande direbbe «non ancora arrivata» per
+           i primi trenta secondi di ogni avvio — falso, e proprio all'inizio
+           del servizio (gen-6.15) */
+        diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now() };
         setStato(codaRef.current.length ? applicaCoda(s) : s);
         setSync(codaRef.current.length ? "salvataggio" : "ok");
         if (codaRef.current.length) pianifica(0);
@@ -16104,7 +16401,21 @@ export default function App() {
          ritardo massimo e' mezzo minuto, non «per sempre». */
       if (giriMagri < MAX_GIRI_MAGRI) {
         const rr = await revRemota();
-        if (rr != null && rr <= (baseRef.current.rev || 0)) { giriMagri++; return; }
+        /* ── DUE ISTANTI DIVERSI, E NON SONO LA STESSA COSA (gen-6.15) ──
+           «ultimaSpia» e' l'ultima volta che il server ha risposto qualcosa;
+           «ultimaRete» e' l'ultima volta che la LISTA e' arrivata davvero.
+           Un giro magro prova solo che scp:rev:v1 risponde: leggiRemoto non
+           viene nemmeno chiamata. Timbrare ultimaRete qui avrebbe fatto
+           scrivere «lista confermata adesso» al tablet ripreso in mano dopo
+           venti minuti — il risveglio chiama aggiorna(), che ricade nel ramo
+           magro — cioe' una bugia nell'istante di rischio massimo. La riga in
+           cima a Comande legge ultimaRete, e solo quella. */
+        if (rr != null && rr <= (baseRef.current.rev || 0)) {
+          giriMagri++;
+          diagRef.current = { ...diagRef.current, ultimaSpia: Date.now(), giriMagri };
+          return;
+        }
+        if (rr != null) diagRef.current = { ...diagRef.current, ultimaSpia: Date.now() };
       }
       giriMagri = 0;
       const letto = await leggiRemoto();
@@ -16115,6 +16426,15 @@ export default function App() {
          tornare indietro la vista (evasioni e ordini «spariti»).
          La rev è un contatore che sale di uno a ogni scrittura andata a
          buon fine, quindi più alta = più nuova, sempre e per tutti. */
+      /* UNA LETTURA SCARTATA NON CONFERMA NIENTE (gen-6.15). Il poll accetta
+         solo revisioni piu' nuove — e' la regola del 14 luglio contro le
+         letture in cache che facevano tornare indietro la vista. Una risposta
+         PIU' VECCHIA della base e' stata buttata via: timbrarla come «lista
+         confermata» vorrebbe dire scrivere «confermata due secondi fa» sopra
+         una risposta scartata perche' stantia. Rev UGUALE invece conferma
+         davvero: vuol dire che in rete non e' cambiato niente. */
+      if ((r.rev || 0) >= (baseRef.current.rev || 0))
+        diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now(), giriMagri: 0 };
       if ((r.rev || 0) > (baseRef.current.rev || 0)) {
         baseRef.current = r;
         setStato(codaRef.current.length ? applicaCoda(r) : r);
@@ -16142,6 +16462,9 @@ export default function App() {
         const letto = await leggiRemoto();
         const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [] });
         baseRef.current = s;
+        /* come sopra: in modo sicuro questa e' la PRIMA lista vera che arriva,
+           e il cuoco che entra non deve leggere «non ancora arrivata» (gen-6.15) */
+        if (letto) diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now() };
         /* ── LA CODA RITROVATA SI RIGIOCA QUI (gen-6.06) ──
            In modo sicuro questo e' il PRIMO momento in cui esiste uno stato
            vero su cui applicarla. Da qui in poi il cassiere che riapre vede
@@ -16202,7 +16525,17 @@ export default function App() {
     }
     const pulito = normalizza(clona(dati));
     const m = {
-      fn: (s) => { for (const k of Object.keys(s)) delete s[k]; Object.assign(s, clona(pulito)); },
+      /* IL BATTITO NON E' UN DATO DI DOMINIO, E' UNA SPIA DI ADESSO
+         (gen-6.15). Il ripristino cancella ogni chiave e ci mette sopra il
+         backup: senza questa riga un backup vecchio azzererebbe la lista dei
+         telefoni (e la scheda direbbe «non aggiornati» di quattro telefoni
+         su cinque), e un backup recente RESUSCITEREBBE righe di tre giorni
+         fa con la versione di allora (e accuserebbe di essere indietro
+         telefoni che nel frattempo hanno ricaricato). In tutti e due i casi
+         la frase scritta sulla scheda diventerebbe falsa proprio nel momento
+         in cui qualcuno la guarda davvero: durante un guasto. */
+      fn: (s) => { const tel = telefoniDi(s); for (const k of Object.keys(s)) delete s[k];
+        Object.assign(s, clona(pulito)); s.telefoni = tel; },
       descr: `Dati ripristinati (${origine})`,
       chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l"),
     };
@@ -16247,7 +16580,7 @@ export default function App() {
         <SchermataLogin stato={stato} sync={sync} daSalvare={daSalvare} muta={muta} onEntra={entra} auth={auth} />
       ) : (
         <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync} daSalvare={daSalvare}
-          esci={esci} mostraToast={mostraToast} ripristina={ripristina} />
+          esci={esci} mostraToast={mostraToast} ripristina={ripristina} leggiDiag={leggiDiag} />
       )}
 
       {toast && (

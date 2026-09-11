@@ -107,6 +107,15 @@ const TUTTE = [
   ["ordini", async (p) => { await vaiO(p, "Ordini"); }],
   ["analisi", async (p) => { await vaiO(p, "Analisi", "Copertura, consumi e valore della merce"); }],
   ["gestione", async (p) => { await vaiO(p, "Gestione"); }],
+  /* Sistema sta DENTRO Gestione, e da gen-6.15 e' dove vive la scheda che
+     dice come sta questo telefono e quali telefoni sono rimasti indietro:
+     senza questa voce quella schermata non si poteva guardare, solo
+     collaudare — e il banco misura, la foto mostra. */
+  ["sistema", async (p) => {
+    await vaiO(p, "Gestione");
+    await p.getByText("Sistema", { exact: true }).locator("visible=true").first().click();
+    await p.waitForTimeout(1100);
+  }],
 ];
 const barraCassa = async (p, re) => {
   const nav = p.locator("nav, [role=navigation], aside");

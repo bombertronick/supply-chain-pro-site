@@ -209,7 +209,7 @@
 
 <div class="wrap">
 
-  <p class="occhiello">Supply Chain Pro · aggiornata il 9 settembre</p>
+  <p class="occhiello">Supply Chain Pro · aggiornata l'11 settembre</p>
   <h1>Scegli l'ordine dei lavori</h1>
   <p class="apertura"><b>DEVO COMINCIARE DA QUI, perché me l'hai dovuto chiedere tu.</b>
   Delle cose che mi hai chiesto il 1º e il 4 settembre — registrare il cliente col nome e il
@@ -262,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.14</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.15</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -271,9 +271,34 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b> e <b>lo storno che non dice «fatto» quando non l'ha fatto</b> e <b>la cucina che sa da quanto è ferma la sua lista</b> e <b>la scheda che dice quali telefoni sono rimasti indietro</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Fatto oggi: gen-6.14 «Lo sfratto ordinato», ed è ancora sui soldi.</b> Mettendo alla
+      <dd><b>Fatto oggi: gen-6.15 «Le spie che mancano».</b> Tre cose che non si vedevano, e una
+      riparazione sui soldi. <b>UNO — lo storno che mentiva.</b> Se due casse stornano lo stesso
+      scontrino, quella che arriva seconda vedeva scritto <b>«Stornato»</b> e non era vero: il
+      registro restava giusto (quello l'avevo già chiuso), ma sullo schermo c'era una bugia — e una
+      bugia sullo schermo fa ribattere lo scontrino a mano, che è il modo di perdere i soldi due
+      volte. Adesso dice <i>«questo scontrino non è più stornabile: l'ha già stornato un'altra
+      cassa»</i>. <b>DUE — la cucina sa da quanto è ferma.</b> Prima «non c'è niente da fare» e «non
+      ricevo niente da tre minuti» avevano lo <b>stesso identico schermo</b>. Adesso in cima alle
+      Comande c'è una riga che dice da quanti secondi la lista è arrivata, e diventa ambra quando è
+      passato troppo. <b>TRE — quali telefoni sono rimasti indietro.</b> In Gestione → Sistema c'è
+      una scheda nuova: come sta questo telefono (ultimo allineamento, conflitti, errori) e la lista
+      dei dispositivi che hanno salvato, con la versione di ognuno. Serve a una domanda che finora
+      non aveva risposta: <b>dopo un rilascio, quanti telefoni hanno davvero il codice nuovo?</b> La
+      scheda dice anche quello che NON sa, ed è la parte che conta: chi apre l'app e non salva mai
+      non compare, e un telefono che non è in lista non è «aggiornato», è «non lo so».
+      <b>E tre riparazioni che non si vedono</b>: l'esportazione CSV delle vendite non cade più su
+      una riga rotta — e nemmeno la Cassa, che con quella stessa riga andava in pagina bianca — e lo
+      storico non scrive più righe per lavori non fatti quando l'app gira senza rete.
+      <b>Come è stata provata.</b> Collaudo scritto prima del codice: <b>28 controlli rossi</b>
+      registrati sulla versione online, <b>65 verdi</b> dopo, zero errori di pagina. E prima ancora
+      ho messo il disegno sotto processo: <b>cinque revisori indipendenti</b>, 43 accuse, e mi hanno
+      fatto cambiare sette cose. La peggiore era mia: avevo scritto una riga che diceva «lista
+      aggiornata adesso» su un giro in cui la lista <b>non era stata nemmeno chiesta</b> — cioè
+      proprio la bugia che quella riga esiste per togliere, e proprio sul tablet ripreso in mano
+      dopo venti minuti.
+      Prima: <b>gen-6.14 «Lo sfratto ordinato», ed è ancora sui soldi.</b> Mettendo alla
       prova il documento che spiega come far ripartire il lavoro a un'altra sessione, ho trovato
       scritto nero su bianco <b>un difetto ancora nel codice che gira</b>, che nessuno dei rilasci di
       oggi aveva chiuso. <b>In parole tue</b>: l'app tiene le ultime 300 vendite. Quando una vendita
@@ -595,6 +620,29 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>L'11 settembre · <b>gen-6.15</b> · le spie che mancano</h4>
+        <p><b>Da dove viene.</b> È il resto del PASSO 1 del disegno del pavimento del traffico: sei
+        voci piccole, tutte dalla parte del telefono, zero effetto sul peso dei dati. Due erano già
+        uscite con gen-6.12; queste sono le altre.</p>
+        <p><b>Lo storno che mentiva.</b> Il foglio dello storno si apre su una <i>fotografia</i>
+        della vendita. Se un'altra cassa la storna nel frattempo, chi ha il foglio aperto conferma e
+        legge «Stornato»: il registro resta pulito — l'esecutore rifiuta da gen-6.12 — ma il
+        messaggio era incondizionato. Adesso prima di mandare si rilegge il dato vivo, e se non è
+        più stornabile si dice perché. Il limite è scritto nel codice: si legge lo stato
+        dell'ultimo disegno, quindi resta scoperta la finestra fra quel disegno e il tocco.</p>
+        <p><b>Le due spie nuove.</b> In cima a Comande, da quanto la lista è <i>confermata</i> —
+        non «aggiornata»: il numero conta dall'ultima volta che la lista è arrivata davvero, non
+        dall'ultimo colpetto al server, e la differenza è tutta lì. In Sistema, una scheda che apre
+        <code>diagRef</code>, che era scritto in quattro punti e non letto da nessuna riga di tutto
+        il repository. La lista dei telefoni confronta con la versione <b>più alta vista</b>, non
+        con la propria: su una flotta mista chi guarda è spesso il più indietro.</p>
+        <p><b>Il processo, e cosa ha cambiato.</b> Cinque revisori indipendenti sul disegno, 43
+        accuse: il timbro non si appoggia più all'orologio del telefono ma al contatore delle
+        revisioni; l'id del dispositivo si risolve una volta sola per caricamento e, se il disco
+        rifiuta, il battito si salta invece di inventare un dispositivo nuovo a ogni salvataggio;
+        il ripristino di un backup non resuscita i telefoni di allora; una lettura scartata perché
+        stantia non conferma più niente. <b>28 rossi registrati prima, 65 verdi dopo.</b>
+        </p>
         <h4>Il 9 settembre, sera · <b>gen-6.14</b> · lo sfratto ordinato</h4>
         <p><b>Come l'ho trovato.</b> Non cercandolo nel codice: mettendo alla prova il documento che
         deve far ripartire il lavoro a un'altra sessione. Cinque lettori indipendenti l'hanno letto

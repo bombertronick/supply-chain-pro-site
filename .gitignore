@@ -30,3 +30,9 @@ collaudi/*-lib-src.jsx
 # uno di questi e' finito dentro un commit.
 collaudi/node_modules
 .gara/
+
+# I pezzi in cui si spezza un rilascio: si rifanno da soli con
+# «node strumenti/sql_spezza.mjs <tag>.sql». Il .sql invece SI salva — e' il
+# documento di cosa e' stato spedito in produzione, e va riletto anni dopo.
+strumenti/*-pezzi/
+strumenti/*-lotti/
