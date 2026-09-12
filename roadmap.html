@@ -262,7 +262,7 @@
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.15</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.16</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -271,9 +271,30 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b> e <b>lo storno che non dice «fatto» quando non l'ha fatto</b> e <b>la cucina che sa da quanto è ferma la sua lista</b> e <b>la scheda che dice quali telefoni sono rimasti indietro</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b> e <b>lo storno che non dice «fatto» quando non l'ha fatto</b> e <b>la cucina che sa da quanto è ferma la sua lista</b> e <b>la scheda che dice quali telefoni sono rimasti indietro</b> e <b>l'app che non scrive più su dati che non è riuscita a leggere</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Fatto oggi: gen-6.15 «Le spie che mancano».</b> Tre cose che non si vedevano, e una
+      <dd><b>Fatto oggi: gen-6.16 «Il guscio».</b> Una riparazione sola, e non si vede quasi —
+      ma è la più grossa degli ultimi giorni. <b>Cos'era.</b> Se il telefono accetta il tuo PIN ma
+      poi <i>non riesce a scaricare i dati</i> (la rete cade proprio in quel mezzo secondo, succede),
+      l'app restava con in mano un <b>guscio</b>: le liste tutte vuote, e nessun modo di sapere che
+      erano vuote per un guasto e non perché non ci fosse niente. Da lì bastava <b>un gesto
+      normale</b> — vedi tutto vuoto, e crei una sede — e quel guscio partiva verso il database:
+      <b>5 magazzini e 103 prodotti diventavano zero</b>. Non è una teoria: l'ho fatto succedere e
+      l'ho misurato. <b>In cucina non è mai successo</b>, perché a fermarlo c'è un controllo dentro
+      il database — ma quel controllo sta <i>fuori</i> dall'app, e il file che lo contiene avverte da
+      solo che se il database venisse rifatto senza di lui si tornerebbe al difetto <i>senza che
+      niente diventi rosso</i>. Adesso la difesa è anche dentro: <b>non si scrive su dati che non si
+      è riusciti a leggere</b>. <b>E una cosa che si vede</b>: in quel caso la pastiglia in alto dice
+      <b>«Riconnessione…»</b> invece di far finta che vada tutto bene.
+      <b>Come è stata provata.</b> Collaudo scritto prima del codice: <b>5 controlli rossi</b>
+      registrati sulla versione online, tutti verdi dopo. <b>Sei sabotaggi: cinque rossi e un
+      muto</b>, aperto e dichiarato ridondanza vera. <b>Censimento completo su gen-6.16: 98 collaudi verdi, 2064 controlli veri, zero mute, 7 saltate</b> — <b>e una rossa, che era mia</b>: nel file della memoria avevo scritto le sezioni del collaudo invece del nome del file, e c'è un controllo che pretende un file che esista davvero. Corretta e rifatta da sola: verde. La scrivo invece di arrotondarla, perché un censimento che si aggiusta i numeri smette di servire.
+      <b>E il disegno è stato demolito prima di diventare codice.</b> Cinque revisori indipendenti,
+      <b>nove accuse su dieci hanno retto</b>, e avevano ragione: la mia prima idea avrebbe fatto
+      scambiare «sessione scaduta» per «database nuovo» e avrebbe <b>seminato i dati dimostrativi
+      sopra il magazzino vero</b>. Sarebbe stato peggio del difetto che chiudevo. La riparazione
+      giusta è più piccola e non tocca affatto la lettura.
+      Prima: <b>gen-6.15 «Le spie che mancano».</b> Tre cose che non si vedevano, e una
       riparazione sui soldi. <b>UNO — lo storno che mentiva.</b> Se due casse stornano lo stesso
       scontrino, quella che arriva seconda vedeva scritto <b>«Stornato»</b> e non era vero: il
       registro restava giusto (quello l'avevo già chiuso), ma sullo schermo c'era una bugia — e una
@@ -620,6 +641,29 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 12 settembre · <b>gen-6.16</b> · il guscio</h4>
+        <p><b>Il difetto.</b> In modo sicuro il login e il caricamento dei dati sono due passi
+        diversi. Se il primo riesce e il secondo no, l'app teneva in mano un <i>guscio</i> — le
+        liste vuote più i soli nomi — e lo trattava come una base valida. La guardia che doveva
+        impedirle di scriverci sopra chiedeva un <i>numero di revisione</i>, e il guscio quel numero
+        non ce l'ha: rispondeva zero e passava. Da lì una sola mutazione qualsiasi mandava in rete
+        uno stato senza magazzini e senza prodotti.</p>
+        <p><b>Il processo, e l'errore mio.</b> Il primo disegno diceva: insegniamo alla lettura a
+        distinguere «non ho potuto leggere» da «non c'è niente». Cinque revisori l'hanno demolito, e
+        avevano ragione: quella domanda <b>non ha risposta</b>, perché il pezzo che parla col
+        database consegna gli errori come risposte normali — chiave assente, sessione scaduta e rete
+        caduta arrivano identiche. Il mio disegno avrebbe letto una sessione scaduta come «database
+        nuovo» e seminato i dati dimostrativi sopra la produzione. <b>La lezione: non si chiede al
+        trasporto cosa significa il suo silenzio; si chiede alla base da dove viene.</b> La
+        riparazione finale marca il guscio e fa chiedere alla guardia quello, invece del numero.</p>
+        <p><b>E una cosa che credevo un difetto ed era giusta.</b> Avevo segnato come maglia larga
+        un confronto «&gt; 1» in quella guardia. È deliberato: uno stato appena nato ha revisione 1, e
+        stringerlo avrebbe impedito per sempre a un'installazione nuova di completare il primo
+        avvio. Resta com'era, adesso col motivo scritto accanto.</p>
+        <p><b>5 rossi registrati prima, tutti verdi dopo.</b> Sei sabotaggi, cinque rossi e un muto
+        aperto. E due difetti del banco trovati strada facendo, tutti e due della stessa famiglia:
+        il primo giro era verde sui controlli che contano <i>perché il gesto non era mai avvenuto</i>,
+        e poi cercavo il lavoro non perso sul disco, dove per disegno non va.</p>
         <h4>L'11 settembre · <b>gen-6.15</b> · le spie che mancano</h4>
         <p><b>Da dove viene.</b> È il resto del PASSO 1 del disegno del pavimento del traffico: sei
         voci piccole, tutte dalla parte del telefono, zero effetto sul peso dei dati. Due erano già

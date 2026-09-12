@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 11 settembre 2026
+# Passaggio di consegne fra sessioni · 12 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260911`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260912`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -36,21 +36,22 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.15, `app:jsx:src` len 986015, md5
-  `8799c5d2ae02533bd7aee1cb2f06ce5e`, meta `{"len":986015,"ver":"gen-6.15"}`.
-  Backup: `backup:pre-gen616` = gen-6.15, `backup:pre-gen615` = gen-6.14,
-  `backup:pre-gen614` = gen-6.13. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.16, `app:jsx:src` len 988312, md5
+  `cf97cfd7ced5c37f3d7d468d9486d5bb`, meta `{"len":988312,"ver":"gen-6.16"}`.
+  Backup: `backup:pre-gen617` = gen-6.16, `backup:pre-gen616` = gen-6.15,
+  `backup:pre-gen615` = gen-6.14. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
 - **Censimenti**: gen-6.12 e gen-6.13 a 97 verdi / 1975 controlli; gen-6.14 a
-  98 verdi / 1994 controlli; gen-6.15 a **99 verdi / 2063 controlli**
+  98 verdi / 1994 controlli; gen-6.15 a 99 verdi / 2063 controlli;
+  gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**
   (girato con `gen605test` ANCORA su `file://`, cioè prima della riparazione di
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260911` (il checkpoint completo,
-  l'ultimo), `chk-20260909-notte` (quello prima) e `passaggio-20260909` (il
+- **Dispensa**: le voci che servono: `chk-20260912` (il checkpoint completo,
+  l'ultimo), `chk-20260911` (quello prima) e `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
@@ -133,6 +134,12 @@ mano dentro ogni rilascio, cioè un po' diverso ogni volta.
   quale file leggere per i controlli sul testo.
 - **Cancello veloce**: `node corri.mjs a.mjs b.mjs` (si ferma al primo rosso) o
   `node corri.mjs --tutte`.
+- **I DOCUMENTI SI CHIUDONO PRIMA DEL CENSIMENTO.** `memoriatest` confronta
+  `memoria.json` con `roadmap.md` e pretende che il campo `prova` nomini un
+  FILE di banco che esiste (`gen606test.mjs`, non «gen606test §9»). Scrivere i
+  documenti mentre il censimento gira vuol dire farglieli leggere a meta': il
+  12 settembre e' uscita rossa per questo, ed era un rosso giusto su un mio
+  errore di scrittura.
 - **Censimento completo**: `node corri.mjs --censimento` — non si ferma mai, DA
   SOLO, ~2 ore e mezza; i banchi `gen6xx` e `generaletest` durano 5-22 minuti
   l'uno, non è un blocco: va aspettato. Mentre gira esiste il file
@@ -286,7 +293,23 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    funzionamento corretto, che è lo stesso danno del rosso falso, dalla parte
    opposta. Adesso si chiede (`riapri(g, true)`) solo in §2, dove la rete è
    morta e la coda DEVE sopravvivere.
-4. **Il guscio che disarma la guardia** (difetto dell'APP, scelto da Valerio
+4. ~~Il guscio che disarma la guardia~~: **fatto, online da gen-6.16.** La
+   riparazione NON e' quella che avevo disegnato: il primo disegno voleva
+   insegnare a `leggiRemoto` a distinguere «errore» da «vuoto», e cinque
+   revisori l'hanno demolito (nove accuse su dieci hanno retto). Quella
+   domanda **non ha risposta**: il caricatore consegna gli errori come VALORI
+   (`app_kv_set.sql` RITORNA `json_build_object('error','auth')`, non solleva;
+   `scriviRemoto` ha tre controlli di forma apposta, `leggiRemoto` nessuno),
+   quindi chiave assente, sessione scaduta e rete caduta sono **la stessa
+   risposta**, e il disegno avrebbe letto una sessione scaduta come «database
+   nuovo» seminando i dati dimostrativi sopra la produzione. **Non si chiede
+   al trasporto cosa significa il suo silenzio: si chiede alla base da dove
+   viene.** Fatto: il guscio si marca `__guscio`, la guardia lo rifiuta DOPO
+   la scelta della base, e a lettura fallita la pastiglia dice `offline`.
+   `leggiRemoto` non e' stato toccato. Il `> 1` resta: uno stato appena
+   seminato ha rev 1 e il primo avvio classico ci passa.
+   Sotto, com'era descritto prima di essere fatto.
+   ~~Il guscio che disarma la guardia~~ (difetto dell'APP, scelto da Valerio
    l'11 settembre: prima della ricevuta). In modo sicuro, quando il login
    riesce ma la lettura piena **no**, `entra()` mette in `baseRef` un guscio
    senza `rev` (`app.jsx`, «`const s = letto ? normalizza(letto) : normalizza({

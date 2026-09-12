@@ -34,5 +34,8 @@ collaudi/node_modules
 # I pezzi in cui si spezza un rilascio: si rifanno da soli con
 # «node strumenti/sql_spezza.mjs <tag>.sql». Il .sql invece SI salva — e' il
 # documento di cosa e' stato spedito in produzione, e va riletto anni dopo.
-strumenti/*-pezzi/
-strumenti/*-lotti/
+# ovunque, non solo sotto strumenti/: il 12 settembre sql_diff ha scritto
+# gen616.sql nella RADICE e i pezzi sono finiti in un commit — la regola
+# copriva il posto, non la cosa.
+*-pezzi/
+*-lotti/

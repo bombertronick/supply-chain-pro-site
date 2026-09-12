@@ -697,7 +697,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.15";
+const VERSIONE = "gen-6.16";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -16090,6 +16090,12 @@ export default function App() {
     inSyncRef.current = Date.now();
     try {
       const letto = await leggiRemoto();
+      /* «> 1» e non «> 0», ed e' deliberato: uno stato appena seminato ha
+         rev 1, e il ramo del primo avvio (piu' sotto) quando la scrittura del
+         seme fallisce ACCODA un lavoro vuoto e chiama qui. Con «> 0» quella
+         chiamata arrossirebbe per sempre e un'installazione nuova non
+         finirebbe mai di nascere. Sembra una maglia larga e non lo e': il
+         guscio, che era il vero buco, lo prende la guardia sotto (gen-6.16). */
       if (!letto && (baseRef.current?.rev || 0) > 1) throw new Error("lettura non riuscita");
       const remoto = letto ? normalizza(letto) : null;
       /* Si riparte SEMPRE da quello che c'è scritto in rete. Prima si
@@ -16098,6 +16104,21 @@ export default function App() {
          telefono avanti di qualche minuto scartava per principio il
          lavoro di tutti gli altri. La rete è l'unica verità. */
       const base = remoto || baseRef.current || statoRef.current;
+      /* ── NON SI SCRIVE SU UN GUSCIO (gen-6.16) ──
+         La guardia qui sopra chiede una REV, e un guscio la rev non ce l'ha:
+         rispondeva 0 e passava. Da li' bastava UNA mutazione qualsiasi — un
+         admin che, vedendo le liste vuote, crea una sede — per mandare in
+         rete uno stato senza magazzini e senza prodotti, con revBase 0. Il
+         banco lo misura: 5 magazzini e 103 prodotti diventavano 0.
+         In produzione lo ferma il cancello dentro il database, ma
+         strumenti/server/app_kv_set.sql avverte da solo che se il database
+         venisse ricostruito senza di lui «si tornerebbe al difetto di prima
+         SENZA che niente diventi rosso». Questa e' la difesa che mancava
+         DENTRO l'app, e non chiede niente al trasporto: chiede alla base da
+         dove viene. Va DOPO la scelta della base, non prima, perche' quando
+         baseRef e' nullo si ricade su statoRef — che e' lo stesso guscio. */
+      if (base && (base.__guscio || base.__prelogin))
+        throw new Error("base non attendibile: non si e' letta la rete");
       const inviate = codaRef.current.length;
       /* In rete ci sono gia' TUTTE le modifiche che ho in coda: la scrittura
          di prima era arrivata, si era persa solo la risposta. Qui non si
@@ -16460,7 +16481,13 @@ export default function App() {
     if (auth) {
       try {
         const letto = await leggiRemoto();
-        const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [] });
+        /* ── IL GUSCIO SI MARCA (gen-6.16) ──
+           Quando il PIN passa ma i dati no, questo non e' uno stato: e' un
+           guscio, le liste vuote di normalizza piu' i soli nomi. Il guscio
+           della schermata dei nomi porta gia' «__prelogin»; questo, che e'
+           l'unico che finisce in baseRef, non portava niente — e una base
+           senza nome e' una base che qualcuno prima o poi usa. */
+        const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [], __guscio: true });
         baseRef.current = s;
         /* come sopra: in modo sicuro questa e' la PRIMA lista vera che arriva,
            e il cuoco che entra non deve leggere «non ancora arrivata» (gen-6.15) */
@@ -16478,7 +16505,11 @@ export default function App() {
         const conCoda = !!letto && codaRef.current.length > 0;
         const vista = conCoda ? applicaCoda(s) : s;
         statoRef.current = vista; setStato(vista);
-        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        /* e la pastiglia dice quello che SA. Senza la lettura, «ok» e' una
+           bugia: le liste sono vuote perche' non si e' riusciti a leggerle,
+           non perche' non ci sia niente. Non «salvataggio», che in questa
+           casa vuol dire «c'e' lavoro in volo»: «offline» (gen-6.16). */
+        setSync(!letto ? "offline" : (codaRef.current.length ? "salvataggio" : "ok"));
         if (conCoda) pianifica(0);
         /* QUELLO CHE SI E' FERMATO SI DICE (gen-6.07). Una volta sola, appena
            c'e' uno stato vero su cui scriverlo, e con dentro il totale: senza

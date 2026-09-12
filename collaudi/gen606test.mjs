@@ -102,6 +102,12 @@ base.aggiunte = []; base.postazioni = []; base.vendite = []; base.giornate = [];
 const PRC = { id: "pr-ok", nome: "OpCassa", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
   magazziniIds: [linea.id], cassa: true, pinHash: hash("2222") };
 const SEME = JSON.stringify({ ...base, profili: [PRC] });
+/* solo per §9: il gesto che tocca il difetto lo puo' fare un admin, non un
+   cassiere. Con le liste vuote la Cassa non ha nemmeno un tasto — e questo e'
+   un fatto da dire, non da nascondere: la porta e' stretta, ma il muro va
+   messo nel motore, non nella scarsita' di porte. */
+const PRA = { id: "pr-adm", nome: "AdminG", ruolo: "admin", colore: "#111827", pinHash: hash("1234") };
+const SEME_ADMIN = JSON.stringify({ ...base, profili: [PRC, PRA] });
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
 const errs = [];
@@ -110,7 +116,7 @@ const errs = [];
    che rifiuta senza token. Gli interruttori della rete vivono su
    localStorage e non in memoria, se no al ricaricamento tornerebbe tutto
    vivo e il banco misurerebbe il caso sbagliato (imparato a gen-6.05). */
-const apri = async () => {
+const apri = async (seme = SEME) => {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await ctx.addInitScript(([j]) => {
     try { localStorage.setItem("scp:tour:v1", "1"); } catch {}
@@ -184,7 +190,7 @@ const apri = async () => {
       },
       async delete(k) { if (!TOKEN) return null; localStorage.removeItem("db:" + k); return true; },
     };
-  }, [SEME]);
+  }, [seme]);
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errs.push(e.message));
   return { p, ctx };
@@ -219,6 +225,17 @@ const vai = async (p) => {
      un difetto dell'app */
   await p.getByText("OpCassa", { exact: true }).first().waitFor({ state: "visible", timeout: 25000 }).catch(() => {});
   await p.waitForTimeout(400);
+};
+const entraCome = async (p, chi, pin) => {
+  const nome = p.getByText(chi, { exact: true }).first();
+  await nome.waitFor({ state: "visible", timeout: 20000 });
+  await nome.click();
+  const uno = p.getByRole("button", { name: pin[0], exact: true }).first();
+  await uno.waitFor({ state: "visible", timeout: 20000 });
+  for (const d of pin) { await p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {}); await p.waitForTimeout(130); }
+  await uno.waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
+  await p.waitForSelector("nav, [role=navigation]", { timeout: 20000 }).catch(() => {});
+  await p.waitForTimeout(700);
 };
 const login = async (p) => {
   const nome = p.getByText("OpCassa", { exact: true }).first();
@@ -468,6 +485,168 @@ await prova("§8", async () => {
   ok(/1 vendita da salvare/.test(t) || /da salvare/.test(t), "e la spia continua a dirlo");
 });
 await D.ctx.close();
+
+/* ═══ 9. IL GUSCIO NON DIVENTA UNA BASE ═══
+   §8 prova che la coda RITROVATA non si rigioca sul guscio, e quella guardia
+   c'e' da gen-6.06 («const conCoda = !!letto && ...»). Ma il guscio resta
+   dentro baseRef E dentro statoRef, e la guardia di sincronizza chiede una
+   REV che il guscio non ha: la prima mutazione NUOVA fatta da li' in poi si
+   costruisce su di lui e parte con revBase 0.
+   In produzione la ferma il cancello nel database (app_kv_set.sql). Ma quel
+   file avverte da solo che se il database venisse ricostruito senza di lui
+   «si tornerebbe al difetto di prima SENZA che niente diventi rosso».
+   Questa sezione E' quel «qualcosa che diventa rosso»: il finto server qui
+   NON ha il cancello, apposta, perche' quello che si misura e' il CLIENT.
+   Il gesto e' quello vero, ed e' l'unico che regge: un admin che vede le
+   liste vuote e crea una sede. Con le liste vuote la Cassa non ha nemmeno un
+   tasto — la porta e' stretta, e va detto; ma un muro che regge solo perche'
+   le porte sono poche non e' un muro. */
+console.log("\n— 9. il guscio dei soli nomi non diventa la base di una scrittura —");
+const E = await apri(SEME_ADMIN);
+await prova("§9", async () => {
+  await vai(E.p);
+  await entraCome(E.p, "AdminG", "1234");
+  const prima = await salvato(E.p);
+  const magPrima = (prima.magazzini || []).length;
+  const sediPrima = (prima.sedi || []).length;
+  ok(magPrima > 0 && sediPrima > 0, `in rete ci sono ${magPrima} magazzini e ${sediPrima} sedi, e devono restarci`);
+
+  /* si riparte: il PIN passa, i dati no */
+  await riapri(E);
+  await E.p.evaluate(() => window.__perdiLettura(true));
+  await entraCome(E.p, "AdminG", "1234");
+  await E.p.waitForTimeout(1500);
+
+  /* (1) LA PASTIGLIA NON DICE CHE VA TUTTO BENE. Con le liste vuote in mano,
+         «ok» e' una bugia: e' la stessa specie della frase sull'offline che
+         gen-5.91 ha tolto dai conteggi. */
+  const t1 = await testoDi(E.p);
+  ok(/Riconness/i.test(t1),
+    `a lettura persa la pastiglia dichiara di non avere i dati — a schermo: «${(t1.match(/(Riconness|Tutto a posto|Salvataggio)[^·]{0,20}/) || ["(nessuna pastiglia)"])[0]}»`);
+
+  /* IL GESTO, E IL SUO TESTIMONE. Un admin crea una sede da quelle liste
+     vuote. Il testimone viene PRIMA di tutto il resto e non e' un di piu':
+     al primo giro questa sezione era verde sui due controlli che contano, e
+     lo era perche' il gesto NON ERA MAI AVVENUTO — i catch se l'erano
+     mangiato. Un controllo che passa perche' non e' successo niente non e' un
+     controllo. Se la porta con le liste vuote e' chiusa, questo diventa rosso
+     e lo DICE, invece di lasciar credere che il muro abbia tenuto. */
+  await vaiA(E.p, "Sedi").catch(() => {});
+  await E.p.waitForTimeout(700);
+  const tastoNuova = E.p.getByRole("button", { name: /Nuova sede/ }).first();
+  const portaAperta = await tastoNuova.isVisible().catch(() => false);
+  ok(portaAperta, "la porta esiste: con le liste vuote l'admin arriva a «Nuova sede»");
+  if (portaAperta) {
+    await tastoNuova.click().catch(() => {});
+    await E.p.waitForTimeout(600);
+    const campo = E.p.getByLabel(/Nome sede/i).first();
+    const campoC = await campo.isVisible().catch(() => false);
+    ok(campoC, "e il foglio si apre col campo del nome");
+    if (campoC) {
+      await campo.fill("Sede del guscio");
+      /* DI TIPO LABORATORIO, e non e' un dettaglio: una sede «operatore»
+         vuole un laboratorio di riferimento, e con le liste vuote non ce
+         n'e' nessuno — il modulo si rifiuta, giustamente. Al primo giro il
+         banco salvava una sede operatore, il salvataggio veniva respinto, e
+         i due controlli che contano restavano verdi PER ASSENZA. */
+      await E.p.getByRole("button", { name: /^Laboratorio$/ }).first().click().catch(() => {});
+      await E.p.waitForTimeout(300);
+      await E.p.getByRole("button", { name: /^Salva$/ }).first().click().catch(() => {});
+      await E.p.waitForTimeout(1200);
+    }
+  }
+  /* il gesto E' AVVENUTO: la sede si vede nella vista di questo telefono */
+  const fatto = /Sede del guscio/.test(await testoDi(E.p));
+  ok(fatto, "IL GESTO E' ANDATO A SEGNO: la sede nuova si vede su questo telefono");
+  await E.p.waitForTimeout(3500);
+
+  /* (2) E (3) IL CUORE: in rete non e' arrivato un guscio. */
+  const dopo = await salvato(E.p);
+  ok((dopo.magazzini || []).length === magPrima,
+    `in rete i magazzini sono ancora ${(dopo.magazzini || []).length} (erano ${magPrima}): non ha scritto il guscio sopra i dati veri`);
+  ok((dopo.prodotti || []).length === (prima.prodotti || []).length,
+    `e i prodotti sono ancora ${(dopo.prodotti || []).length} (erano ${(prima.prodotti || []).length})`);
+
+  /* (4) CONTROCONTROLLO: e la sede nuova NON e' sparita in silenzio.
+         Rifiutare di scrivere e' giusto; buttare via il lavoro di chi l'ha
+         fatto no — sarebbe lo stesso modo di perdere roba in silenzio che
+         gen-6.05 e gen-6.07 hanno chiuso da altre due parti.
+         SI MISURA SULLO SCHERMO, NON SUL DISCO: su «scp:coda:v1» ci vanno
+         solo le tre mutazioni che portano SOLDI (vendita, storno, spunta di
+         cucina) — una sede no, per disegno dichiarato. Cercarla li' voleva
+         dire misurare il piano sbagliato, ed e' l'errore che questo banco ha
+         fatto al primo giro. Il lavoro c'e' finche' si vede e finche'
+         riparte: la riga qui sotto prova la prima meta', il controllo in
+         fondo («arriva da sola») la seconda. */
+  ok(/Sede del guscio/.test(await testoDi(E.p)),
+    "il lavoro appena fatto resta sullo schermo: non e' stato buttato via col rifiuto");
+
+  /* (5) CONTROCONTROLLO, quello che vale di piu': quando la lettura torna,
+         l'app si riprende DA SOLA. Se il rimedio spegnesse il poll, avrei
+         chiuso una porta murando la casa. */
+  await E.p.evaluate(() => window.__perdiLettura(false));
+  const tornata = await finche(E.p, async () => {
+    const s = await salvato(E.p);
+    return (s?.sedi || []).some((x) => x.nome === "Sede del guscio");
+  }, 25000, 800);
+  ok(tornata, "e quando la rete si lascia leggere di nuovo, la sede arriva da sola: l'app si riprende");
+  const fine = await salvato(E.p);
+  ok((fine.magazzini || []).length === magPrima,
+    `e i magazzini sono rimasti ${(fine.magazzini || []).length} per tutto il giro`);
+});
+await E.ctx.close();
+
+/* ═══ 9b. CON LA RETE BUONA NON CAMBIA NIENTE ═══
+   Un avviso che compare anche quando va tutto bene diventa arredamento, e il
+   giorno che serve non lo legge piu' nessuno (gen-5.91). */
+console.log("\n— 9b. con la lettura buona, creare una sede funziona come sempre —");
+const G = await apri(SEME_ADMIN);
+await prova("§9b", async () => {
+  await vai(G.p);
+  await entraCome(G.p, "AdminG", "1234");
+  await vaiA(G.p, "Sedi").catch(() => {});
+  await G.p.waitForTimeout(600);
+  await G.p.getByRole("button", { name: /Nuova sede/ }).first().click().catch(() => {});
+  await G.p.waitForTimeout(500);
+  await G.p.getByLabel(/Nome sede/i).fill("Sede normale").catch(() => {});
+  await G.p.getByRole("button", { name: /^Salva$/ }).first().click().catch(() => {});
+  const arrivata = await finche(G.p, async () => {
+    const s = await salvato(G.p);
+    return (s?.sedi || []).some((x) => x.nome === "Sede normale");
+  }, 20000, 700);
+  ok(arrivata, "con la rete buona la sede arriva in rete come sempre");
+  const t = await testoDi(G.p);
+  ok(!/Riconness/i.test(t), `e non compare nessun avviso nuovo — «${(t.match(/Riconness[^·]{0,20}/) || ["(nessuno, giusto cosi')"])[0]}»`);
+});
+await G.ctx.close();
+
+/* ═══ 9c. LA GUARDIA GUARDA LA BASE SCELTA, NON SOLO baseRef ═══
+   Questa si misura sul TESTO, ed e' DICHIARATA tale: in questo banco non si
+   puo' rendere rossa sul comportamento senza falsificare il server, e
+   falsificare il server per far passare un controllo sarebbe peggio del
+   controllo mancante.
+   LA STRADA CHE PROTEGGE, trovata aprendo il sabotaggio S3 (uscito muto).
+   «esci()» NON svuota la coda e mette baseRef a null lasciando in statoRef il
+   guscio della schermata dei nomi (con «__prelogin»). Un lavoro rimasto in
+   coda, in quella finestra, arriva a sincronizza con baseRef nullo: la scelta
+   della base ricade su statoRef, cioe' proprio su quel guscio. Oggi a fermare
+   la scrittura c'e' solo il controllo del token SUL SERVER — fuori dall'app.
+   Ed e' esattamente la specie di difesa che gen-6.16 esiste per portare
+   dentro: app_kv_set.sql avverte da solo che, ricostruito il database senza
+   di lui, si tornerebbe al difetto «senza che niente diventi rosso».
+   Quindi la guardia deve stare DOPO la scelta della base e guardare «base»,
+   non «baseRef»: questa riga lo pretende. */
+console.log("\n— 9c. la guardia sta dopo la scelta della base (misurato sul testo) —");
+await prova("§9c", async () => {
+  const sorgente = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
+  const i = sorgente.indexOf("const base = remoto || baseRef.current || statoRef.current;");
+  ok(i > 0, "la scelta della base e' dove ci si aspetta");
+  const dopo = sorgente.slice(i, i + 1400);
+  ok(/if \(base && \(base\.__guscio \|\| base\.__prelogin\)\)/.test(dopo),
+    "e subito dopo la guardia chiede a «base» — non a baseRef, che quando e' nullo lascia passare il guscio di statoRef");
+  ok(/__guscio: true/.test(sorgente),
+    "e il guscio di entra() porta il suo marchio");
+});
 
 ok(errs.length === 0, "zero errori JavaScript" + (errs.length ? " → " + errs[0] : ""));
 await b.close();
