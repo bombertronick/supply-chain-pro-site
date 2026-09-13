@@ -159,10 +159,33 @@ ok(/\(variante \? " " \+ variante\.nome : ""\)/.test(rigaNome),
   "la giunzione della variante è uno SPAZIO, non « + »: «Panino Maxi + Salsiccia» si legge con una regola sola");
 for (const f of ["giraAgg", "levaDaRiga", "lavoraSu", "bersagliabile"])
   ok(new RegExp("const " + f + " = ").test(src), `la Cassa ha ${f}`);
-/* il motore NON si è mosso: guardia sul sorgente, senza browser */
-const motore = src.slice(src.indexOf("const calcoloScarico"), src.indexOf("const gruppoDi"));
-ok(!/\bdentro\b|\bmano\b|\bviva\b|composizione/.test(motore),
+/* il motore NON si è mosso: guardia sul sorgente, senza browser.
+   RIPARATA il 13 settembre, e va detto perché. Cercava «const calcoloScarico»
+   e «const gruppoDi»: calcoloScarico è una FUNCTION, non una const, quindi
+   indexOf tornava −1; e gruppoDi sta a 62.619 caratteri, cioè PRIMA. La fetta
+   era lunga ZERO e il controllo passava sempre, da quando esiste. Un controllo
+   che non può diventare rosso non è un controllo — la lezione è già scritta in
+   casa, e questa è la seconda volta che la pago.
+   I confini veri: da «function calcoloScarico» a «function datiGiornata», che
+   racchiudono calcoloScarico → applicaVendita → applicaStorno. */
+const iMot = src.indexOf("function calcoloScarico"), jMot = src.indexOf("function datiGiornata");
+ok(iMot > 0 && jMot > iMot && jMot - iMot > 2000,
+  `i confini del motore esistono davvero e racchiudono qualcosa — ${jMot - iMot} caratteri`);
+/* SENZA I COMMENTI. Appena la guardia ha ricominciato a guardare qualcosa,
+   ha suonato subito — e per niente: dentro applicaVendita ci sono due
+   commenti che usano «dentro» come preposizione italiana («un uid() qui
+   dentro», «viene riapplicata dentro»). L'intento di questo controllo è che
+   il MOTORE non impari la composizione, e un motore è fatto di codice: la
+   prosa che gli sta accanto non lo tocca. Si tolgono i commenti e si
+   guardano i nomi veri di gen-6.03, non parole comuni che ci somigliano. */
+const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+const motore = senzaCommenti(src.slice(iMot, jMot));
+ok(!/dentroDi|suffissoAgg|\bmano\b|\bviva\b|composizione/.test(motore),
   "il motore (calcoloScarico → applicaVendita → applicaStorno) non nomina niente di gen-6.03: non è stato toccato");
+/* e la guardia sa ancora vedere la cosa per cui esiste: se il motore
+   imparasse «dentroDi», questo secondo controllo diventerebbe rosso */
+ok(/const dentroDi = /.test(senzaCommenti(src)),
+  "«dentroDi» esiste davvero nel file: la parola che il motore non deve conoscere non è sparita");
 /* RIALLINEATO il 6 settembre, e va detto perche' invece che fatto e basta.
    Il controllo diceva «resta a undici colonne» e guardava la FINE della riga
    («…"Scontrino", "Aggiunte"]]»). Il suo intento pero' non era il numero
@@ -502,7 +525,23 @@ await prova("§12", async () => {
     const m = document.querySelector("main") || document.documentElement;
     return m.scrollWidth > m.clientWidth + 1;
   });
-  ok(!scorre, "e la pagina non scorre in orizzontale: i chip scorrono dentro la loro fascia");
+  ok(!scorre, "e la pagina non scorre in orizzontale");
+  /* RISCRITTO il 13 settembre (gen-6.17). Diceva «i chip scorrono dentro la
+     loro fascia», e da quando i chip VANNO A CAPO quella frase è vera per
+     forza: nessuno scorre più di lato, quindi il controllo non poteva più
+     diventare rosso. Adesso misura la cosa nuova — che vadano a capo davvero
+     — e quella vecchia che conta ancora: che dentro la fascia non resti
+     niente che scorra in orizzontale. */
+  const capo = await M.p.evaluate(() => {
+    const f = document.querySelector('[data-fascia="1"]');
+    if (!f) return null;
+    const c = [...f.querySelectorAll("[data-agg]")];
+    return { chip: c.length,
+      righe: [...new Set(c.map((e) => Math.round(e.getBoundingClientRect().top)))].length,
+      lato: [...f.querySelectorAll("div")].some((d) => d.scrollWidth > d.clientWidth + 1) };
+  });
+  ok(!!capo && capo.chip >= 2 && !capo.lato,
+    `dentro la fascia niente scorre di lato: ${capo ? capo.chip : 0} chip, scorrimento orizzontale ${capo && capo.lato ? "SÌ" : "no"}`);
   await M.ctx.close();
 });
 await C.ctx.close();

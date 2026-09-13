@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 12 settembre 2026
+# Passaggio di consegne fra sessioni · 13 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260912`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260913`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -36,10 +36,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.16, `app:jsx:src` len 988312, md5
-  `cf97cfd7ced5c37f3d7d468d9486d5bb`, meta `{"len":988312,"ver":"gen-6.16"}`.
-  Backup: `backup:pre-gen617` = gen-6.16, `backup:pre-gen616` = gen-6.15,
-  `backup:pre-gen615` = gen-6.14. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.17, `app:jsx:src` len 997686, md5
+  `f96ad21282fa8f09b48696aa3f0ba5a9`, meta `{"len":997686,"ver":"gen-6.17"}`.
+  Backup: `backup:pre-gen618` = gen-6.17, `backup:pre-gen617` = gen-6.16,
+  `backup:pre-gen616` = gen-6.15. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
@@ -50,8 +50,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260912` (il checkpoint completo,
-  l'ultimo), `chk-20260911` (quello prima) e `passaggio-20260909` (il
+- **Dispensa**: le voci che servono: `chk-20260913` (il checkpoint completo,
+  l'ultimo), `chk-20260912` (quello prima) e `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
@@ -213,6 +213,29 @@ Scritti perché li ho pagati due volte, e da fuori non si indovinano:
   non lascia nessuna chiave propria: un banco che lo prova così prova un caso
   che non esiste. Va costruito con ``JSON.parse(String.raw`{"__proto__":…}`)``.
 
+## Un controllo che non può diventare rosso (gen-6.17)
+
+`gen603test:163` sorvegliava che il motore delle vendite non imparasse la
+composizione di gen-6.03, e lo faceva così:
+`src.slice(src.indexOf("const calcoloScarico"), src.indexOf("const gruppoDi"))`.
+`calcoloScarico` è una **function**, non una const — `indexOf` tornava −1 — e
+`gruppoDi` sta a 62.619 caratteri, cioè **prima**. La fetta era lunga **zero** e
+il controllo passava sempre, da quando esiste. Riparato ai confini veri
+(`function calcoloScarico` → `function datiGiornata`), con accanto un controllo
+che pretende che quei confini racchiudano davvero qualcosa.
+
+**E appena ha ricominciato a guardare ha suonato a vuoto**: dentro
+`applicaVendita` due commenti usano «dentro» come preposizione italiana («un
+`uid()` qui dentro»). L'intento era che il motore non imparasse i NOMI di
+gen-6.03, e un motore è fatto di codice: adesso toglie i commenti e cerca
+`dentroDi`/`suffissoAgg`/`mano`/`viva`/`composizione`, più un controllo che
+pretende che `dentroDi` esista ancora nel file — se sparisse, il primo
+diventerebbe verde per il motivo sbagliato.
+
+**La regola generale**: quando si scrive una guardia sul SORGENTE, si verifica
+subito che la fetta che guarda non sia vuota, e che le parole che cerca siano
+nomi di identificatori e non parole comuni della lingua.
+
 ## Cosa NON c'è nel repo, ed è voluto
 
 - `stato-vero.json`, `stato-vero-conv.json`, `topologia-vera.json`: dati veri,
@@ -332,21 +355,69 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    guardia quello che deve davvero sapere — «ho letto la rete?» — invece di
    dedurlo da un numero. È codice dell'app: **collaudo scritto prima con i
    rossi registrati, sabotaggi, VERSIONE alzata, censimento**.
-5. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
+5. ~~La cassa che vede solo la cassa, le aggiunte categorizzate e in
+   alfabeto~~: **fatto, online da gen-6.17** (`collaudi/cassa617test.mjs`,
+   16 rossi → tutti verdi). Tre richieste di Valerio del 13 settembre su
+   quattro. **La forma della riparazione è stata cambiata dai revisori, e la
+   ragione vale più del codice**: avevo scritto «sta solo in cassa» come una
+   DEDUZIONE (`ruolo === "operatore" && puoCassa && !puoCorreggere &&
+   !puoStruttura`). Sembra gratis perché descrive esattamente l'unico profilo
+   di cassa che esiste in produzione. Ma è una regola dedotta da un'**assenza**:
+   il giorno che un admin assegna una linea al cassiere, quella persona perde i
+   Conteggi senza che nessuno abbia spento niente. E avrebbe reso `soloCassa`
+   **ogni profilo di cassa dei banchi** — sedici file lo seminano identico
+   (`cassa: true`, `magazziniIds`, niente correzioni) — quindi con «Esci» =
+   logout in barra, `navtest.vaiA` avrebbe toccato quel tasto per «uscire e
+   rientrare» e ~40 sezioni in 12 banchi si sarebbero **disconnesse da sole**,
+   cadendo a cascata e accusando l'app. Un **quinto interruttore esplicito**
+   (`profilo.soloCassa`, acceso dall'admin, appeso a `cassa`) chiude tutte e
+   due le accuse insieme, ed è coerente con la casa: struttura, correzioni,
+   ordini e cassa sono TUTTI interruttori. **L'admin decide, l'app non indovina.**
+   Altre due cose che i revisori hanno raddrizzato: le tre voci della barra
+   chiamavano solo `setSezCassa` — dentro la Cassa basta, ma con quella barra
+   FISSA ogni porta che porta fuori le lasciava accese senza portare da nessuna
+   parte (ora `vaiInCassa`); e «Esci dal profilo» come quarta voce erano 16
+   caratteri su 81 px (troncati a 360) più un secondo bottone con lo stesso
+   `aria-label` dell'intestazione, che avrebbe fatto lanciare
+   `autorizzazionitest:286` in strict mode. Tre voci, e l'uscita resta quella
+   di sempre.
+   **DUE PEZZI SONO USCITI DAL RILASCIO**, e sono i prossimi:
+   · **l'esaurito** (la quarta richiesta di Valerio) ha preso SEI accuse tutte
+     in piedi, con i rimedi già scritti: la guardia in `giraAgg` bloccherebbe
+     anche la × (`levaDaRiga` **è** `giraAgg`); le porte da cui si mette
+     un'aggiunta sono QUATTRO (chip, Foglio di scelta, mano, ricomposizione) e
+     il disegno ne chiudeva una; `FormAggiunta` riscrive l'aggiunta intera,
+     quindi **Salva cancella `esaurito`** — e le 23 aperture che chiedevo a
+     Valerio sarebbero state 23 cancellazioni; il toggle dentro `muta` lascia
+     DISPONIBILE se due casse lo segnano insieme (valore deciso fuori,
+     ri-lookup nella bozza, `return false` se non cambia); la coda di `muta`
+     sono closure e non sopravvivono al ricaricamento (meglio un esecutore +
+     `mutaDato`, che è già come scrive tutto il resto della Cassa); e la
+     «modalità Esauriti» dà al chip un terzo significato che resta acceso sul
+     piatto dopo (meglio un Foglio con un interruttore per riga).
+   · **i bottoni dei gruppi** (pizze/fritti/dolci uno per volta): misurato da
+     me, perché la lente che doveva demolirli è morta per limite di sessione.
+     **DIECI banchi** seminano listini a più gruppi e toccano «Aggiungi X»
+     diretto (cassatest 15 volte, clientetest 9, cassa2test 7, gen605test 5,
+     gen603/604test 4, comandetest e postazionecassatest 3). Con una sola
+     sezione aperta, ogni voce fuori dal gruppo aperto **non è nel DOM**: ~50
+     tocchi rossi per il motivo sbagliato. Serve una migrazione dei banchi, e
+     va progettata prima.
+6. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
    finestra cieca (#40, oggi solo STRETTA da MAX_APPLICATE 1200). **È tutta
    client e non tocca il server**: un mittente per caricamento di pagina,
    l'ultima revisione atterrata, e una mappa `s.scritture` potata per valore
    invece che per orologio; il cancello `revBase` che c'è già rende la cosa
    dimostrabile. Quindi **non dipende dal pavimento del traffico** e può uscire
    prima.
-6. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+7. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-7. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
-   c'è dentro», la cassa che vede solo la cassa, ordini cliente.
+8. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+   c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)
 

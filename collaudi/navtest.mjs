@@ -7,6 +7,19 @@ export async function vaiA(p, dove, attesa = 1300) {
      nascosta: senza «:visible» si finisce ad aspettare per sempre un
      elemento che non comparirà mai. */
   const menu = p.locator("nav:visible, aside:visible");
+  /* ── SE LA CASSA È GIÀ APERTA, NON SI ESCE PER RIENTRARE (gen-6.17) ──
+     Dentro la Cassa la barra dice «Battere», non «Cassa»: cercando «Cassa» si
+     finiva al ramo qui sotto, che tocca «Esci». Finché «Esci» riportava a
+     Home era solo un giro inutile. Da gen-6.17 esiste un profilo che in barra
+     «Esci» NON ce l'ha — sta solo in cassa, e la sua uscita è il tasto in
+     intestazione, che è il LOGOUT: un banco che lo toccasse si
+     disconnetterebbe da solo e tutte le sezioni dopo cadrebbero una
+     sull'altra per traboccamento, accusando l'app di una cosa che non ha
+     fatto. È già successo una volta (postazionecassatest, 11 settembre). */
+  if (/^cassa$/i.test(dove)) {
+    const dentro = await menu.getByText("Battere", { exact: true }).count();
+    if (dentro) return "gia-dentro";
+  }
   const diretta = menu.getByText(dove, { exact: true });
   if (await diretta.count()) {
     await diretta.first().click();

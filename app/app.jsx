@@ -697,7 +697,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.16";
+const VERSIONE = "gen-6.17";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -1114,6 +1114,30 @@ const nomeBase = (r) => { const x = suffissoAgg(r.agg); return x && r.nome.endsW
 const aggiunteTutte = (stato) => (stato.aggiunte || [])
   .filter((a) => a.attivo !== false)
   .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+/* ── LA CATEGORIA DELL'AGGIUNTA SI LEGGE DAL MAGAZZINO (gen-6.17) ──
+   Parole di Valerio: «le aggiunte sono sempre gli ingredienti presenti nel
+   magazzino o frigo con i quali si preparano le pietanze, quindi non dovrei
+   neanche riscriverle e categorizzarle perche' l'ho gia' fatto».
+   Ha ragione: la categoria c'e' gia', sta sul PRODOTTO del catalogo. Se
+   l'aggiunta ha una distinta, la sua categoria si deduce da li'.
+   QUELLA SCRITTA A MANO VINCE, sempre: e' una scelta esplicita di chi sta al
+   banco, la distinta e' il ripiego. Il contrario butterebbe via il lavoro di
+   chi l'ha scritta — ed e' il motivo per cui il campo libero resta.
+   Si ferma al PRIMO prodotto che una categoria ce l'ha: una distinta di
+   farina + mozzarella + sale non ha «una» categoria, e inventarne una media
+   sarebbe peggio che dire «Altro».
+   Stringa vuota = nessuna: chi chiama decide se diventa «Altro». */
+const categoriaAgg = (stato, a) => {
+  const scritta = (a?.categoria || "").trim();
+  if (scritta) return scritta;
+  for (const d of a?.distinta || []) {
+    const prod = trova(stato.prodotti || [], d.prodottoId);
+    const cat = prod && trova(stato.categorie || [], prod.categoriaId);
+    const nome = (cat?.nome || "").trim();
+    if (nome) return nome;
+  }
+  return "";
+};
 /* «Boscaiola» e' un nome che vale per mozzarella+funghi+salsiccia: al banco
    si legge il NOME, questa riga dice di cosa e' fatto (gen-6.03, parole di
    Valerio). Sta sul LISTINO, non sulla riga battuta: sulla riga costerebbe
@@ -2633,6 +2657,22 @@ function puoOrdinare(profilo) {
    vendere non da' correzioni, ne' ordini, ne' struttura, e viceversa. */
 function puoCassa(profilo) {
   return profilo?.ruolo === "admin" || !!profilo?.cassa;
+}
+/* ── CHI STA SOLO IN CASSA (gen-6.17, parole di Valerio del 13 settembre:
+     «la cassa ancora vede le altre sezioni che non le interessano» e «la
+     cassa puo' solo utilizzare le funzionalita' della cassa») ──
+   E' un INTERRUTTORE, non una deduzione. La tentazione era scriverlo come
+   «ha cassa e non ha ne' correzioni ne' struttura»: sembra gratis perche'
+   oggi descrive esattamente l'unico profilo di cassa che esiste. Ma sarebbe
+   una regola dedotta da un'ASSENZA, e il giorno che un admin assegna una
+   linea al cassiere — o accende «cassa» a un magazziniere — quella persona
+   si troverebbe senza Conteggi senza che nessuno abbia spento niente.
+   Qui struttura, correzioni, ordini e cassa sono TUTTI interruttori
+   espliciti: l'admin decide, l'app non indovina. Questo e' il quinto.
+   Pretende «cassa»: una barra fatta di sole voci della Cassa, addosso a chi
+   in Cassa non puo' entrare, sarebbe una porta su un muro. */
+function soloCassa(profilo) {
+  return profilo?.ruolo !== "admin" && !!profilo?.soloCassa && puoCassa(profilo);
 }
 /* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
    Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
@@ -4326,7 +4366,11 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
 }
 
 function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, mostraToast, ripristina, leggiDiag }) {
-  const [vista, setVista] = useState("home");
+  /* si calcola nel CORPO, a ogni render, e non in uno stato: «profilo» e'
+     derivato da stato.profili ed e' vivo, quindi un permesso acceso o spento
+     dall'admin arriva al poll dopo senza che nessuno ricarichi niente. */
+  const soloQui = soloCassa(profilo);
+  const [vista, setVista] = useState(soloQui ? "cassa" : "home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
   const [cerca, setCerca] = useState(false);    // ricerca globale dall'intestazione
@@ -4356,6 +4400,15 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
   const [sezCassa, setSezCassa] = useState("battere");
   const naviga = (v, dati) => { setSalto(dati || null); if (v === "cassa") setSezCassa("battere"); setVista(v); };
   const vaiDallaLente = (v) => { setSalto(null); if (v === "cassa") setSezCassa("battere"); setVista(v); setGiro((g) => g + 1); };
+  /* ── LE TRE VOCI DELLA CASSA NAVIGANO (gen-6.17) ──
+     Fino a ieri chiamavano solo setSezCassa, e bastava: la barra della Cassa
+     esisteva solo DENTRO la Cassa, quindi «vista» era gia' giusta. Da oggi
+     per chi sta solo in cassa quella barra e' l'unica che ha, e una voce che
+     si accende senza portare da nessuna parte e' esattamente la «porta che
+     non apre niente» che questa casa vieta. Non passa da naviga() perche'
+     naviga("cassa") rimette sempre «battere», e mangerebbe la sezione
+     chiesta proprio da chi l'ha chiesta. */
+  const vaiInCassa = (s) => { setSalto(null); setVista("cassa"); setSezCassa(s); };
   const nRic = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId && r.stato === "in-attesa").length;
   /* il conto delle righe da ordinare accende il badge solo per chi il
      ciclo d'acquisto ce l'ha: per gli altri e' un invito a una porta chiusa */
@@ -4379,7 +4432,30 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
      L'icona è fra quelle già importate: aggiungerne una nuova vorrebbe dire
      scommettere sulla versione di lucide che il caricatore ha in produzione,
      e se il nome non esiste non si rompe l'icona, si rompe l'app. */
-  const NAV = {
+  /* ── LA BARRA DELLA CASSA, SCRITTA UNA VOLTA SOLA (gen-6.17) ──
+     La usano in due: chi sta solo in cassa (e' la sua barra, sempre) e
+     chiunque altro entri in Cassa (ce l'ha finche' resta li'). Scriverla due
+     volte vorrebbe dire che la prossima modifica ne cambia una sola.
+     TRE VOCI per chi sta solo in cassa, QUATTRO per gli altri, e la
+     differenza e' «Esci». Per gli altri «Esci» riporta a Home, che e' una
+     stanza che hanno. Chi sta solo in cassa una Home non ce l'ha: la sua
+     uscita e' il bottone che sta GIA' in intestazione, collaudato da sempre.
+     Una quarta voce «Esci dal profilo» qui sotto sarebbe due bottoni con lo
+     stesso nome sulla stessa schermata — una trappola per chi legge, e per i
+     banchi che lo cercano per nome — e a 360px si troncherebbe: la barra da'
+     81px a voce, e sedici caratteri in grassetto da 10,5px ne chiedono di
+     piu'. Le icone sono fra quelle gia' importate. */
+  const BARRA_CASSA = [
+    { id: "cassa-battere", nome: "Battere", icona: Store, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "battere", azione: () => vaiInCassa("battere") },
+    { id: "cassa-clienti", nome: "Clienti", icona: Users, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "clienti", azione: () => vaiInCassa("clienti") },
+    { id: "cassa-giornata", nome: "Giornata", icona: BarChart3, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "giornata", azione: () => vaiInCassa("giornata") },
+    ...(soloQui ? [] : [{ id: "cassa-esci", nome: "Esci", icona: ArrowLeft, pronta: true,
+      attiva: false, azione: () => naviga("home") }]),
+  ];
+  const NAV = soloQui ? BARRA_CASSA : {
     admin: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
@@ -4424,22 +4500,12 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
        porta che una porta su una stanza vuota (gen-5.95) */
     .filter((v) => profilo.ruolo === "admin" || v.id !== "plancia" || puoCorreggere(profilo));
   const voceAttiva = NAV.find((n) => n.id === vista) || NAV[0];
-  /* Dentro la Cassa la barra e' quella della Cassa. «Esci» riporta a Home e
-     quindi alla barra di prima: non si toglie niente a nessuno, si cambia
-     stanza, e la porta di ritorno e' sempre lo stesso tasto nello stesso
-     posto. Quattro voci e non cinque: piu' larghe, e a 360px non si tronca
-     niente. Le icone sono fra quelle gia' importate — una nuova non rompe
-     l'icona, rompe l'app (il commento del 2 settembre, pagato una volta). */
-  const NAV_QUI = vista === "cassa" ? [
-    { id: "cassa-battere", nome: "Battere", icona: Store, pronta: true,
-      attiva: sezCassa === "battere", azione: () => setSezCassa("battere") },
-    { id: "cassa-clienti", nome: "Clienti", icona: Users, pronta: true,
-      attiva: sezCassa === "clienti", azione: () => setSezCassa("clienti") },
-    { id: "cassa-giornata", nome: "Giornata", icona: BarChart3, pronta: true,
-      attiva: sezCassa === "giornata", azione: () => setSezCassa("giornata") },
-    { id: "cassa-esci", nome: "Esci", icona: ArrowLeft, pronta: true,
-      attiva: false, azione: () => naviga("home") },
-  ] : NAV;
+  /* Dentro la Cassa la barra e' quella della Cassa: non si toglie niente a
+     nessuno, si cambia stanza, e la porta di ritorno e' sempre lo stesso
+     tasto nello stesso posto. Per chi sta solo in cassa e' la barra di
+     sempre, anche nella schermata che dice che una sezione non e' sua —
+     cosi' da li' si torna a battere con un tocco invece che col logout. */
+  const NAV_QUI = (soloQui || vista === "cassa") ? BARRA_CASSA : NAV;
 
   /* primo accesso: avvia la panoramica una volta sola (per dispositivo) */
   useEffect(() => {
@@ -4449,7 +4515,11 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
          resta valida come «gia' visto», cosi' i telefoni esistenti non si
          ributtano nel tour in massa (gen-5.95). */
       const k = "scp:tour:v1:" + profilo.id;
-      if (!localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
+      /* a chi sta solo in cassa NON parte: la panoramica racconta Conta ·
+         Ordina · Ricevi, che e' il mestiere di un altro. La chiave si scrive
+         lo stesso, cosi' se un giorno cambia mestiere non gli parte addosso
+         un giro vecchio (gen-6.17). */
+      if (!soloQui && !localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
       localStorage.setItem(k, "1");
     } catch {}
   }, []);
@@ -4488,6 +4558,10 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
        Un muro qui vale per ogni porta, comprese quelle di domani. */
     const admin = profilo.ruolo === "admin";
     const chiusa =
+      /* chi sta solo in cassa ha una stanza sola. La lente e il «?» sono gia'
+         filtrati; questo e' il muro di riserva, che vale anche per le porte
+         di domani — la stessa ragione per cui il gate esiste (gen-5.95). */
+      (soloQui && vista !== "cassa") ||
       (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino", "informazioni"].includes(vista)) ||
       (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
       (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
@@ -4623,6 +4697,12 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
       <Foglio aperto={aiuto} titolo="Guida e tutorial" onChiudi={() => setAiuto(false)}>
         <div className="flex flex-col gap-2">
           <p className="text-sm mb-1" style={{ color: T.dim }}>Un aiuto veloce, quando vuoi. Puoi sempre saltarlo.</p>
+          {/* a chi sta solo in cassa queste due non si offrono: la Plancia
+              e' una porta che il gate qui sopra gli chiude, e la Panoramica
+              racconta un mestiere che non e' il suo. Gli resta la guida
+              della sua stanza, che esce col nome giusto grazie a
+              FUORI_BARRA (gen-6.17). */}
+          {!soloQui && (<>
           <button onClick={() => { setAiuto(false); naviga("plancia"); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
             <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></span>
@@ -4637,6 +4717,7 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
               <span className="text-xs" style={{ color: T.dim }}>Un giro guidato di tutte le sezioni dell'app</span></span>
             <ChevronRight size={18} style={{ color: T.tenue }} />
           </button>
+          </>)}
           <button onClick={() => { setAiuto(false); setGuida(guidaSezione(vista)); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
             <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><IconaQui size={18} /></span>
@@ -5582,6 +5663,13 @@ function azioniTrovate(profilo, q) {
   /* un operatore non deve trovare porte che poi non può aprire */
   const suo = (a) => {
     if (profilo.ruolo === "admin") return true;
+    /* chi sta solo in cassa ha UNA porta, e la lente non gliene apre altre:
+       i filtri qui sotto coprono catalogo, conteggi, plancia, cassa e gli
+       ordini con «serve», ma NON i magazzini (ci arrivano per il ripiego
+       finale), NON le comande (true per tutti, apposta) e NON le voci degli
+       ordini senza «serve». Con la barra della Cassa fissa, ognuna di quelle
+       porte lo lascerebbe in una stanza che non e' sua (gen-6.17). */
+    if (soloCassa(profilo)) return a.d === "cassa";
     if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino", "informazioni"].includes(a.d)) return false;
     if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
     if (a.d === "plancia") return puoCorreggere(profilo);
@@ -5601,6 +5689,9 @@ function azioniTrovate(profilo, q) {
 function righeRicerca(stato, profilo, q) {
   const testo = (q || "").trim().toLowerCase();
   if (testo.length < 2) return [];
+  /* e nemmeno le righe dei prodotti: ognuna porta un bottone che apre i
+     Magazzini, e un cassiere non ha domande di magazzino (gen-6.17) */
+  if (soloCassa(profilo)) return [];
   const mags = magazziniVisti(stato, profilo);
   const out = [];
   for (const p of stato.prodotti) {
@@ -7348,6 +7439,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [correzioni, setCorrezioni] = useState(!!item?.correzioni);
   const [ordini, setOrdini] = useState(!!item?.ordini);
   const [cassa, setCassa] = useState(!!item?.cassa);
+  const [soloBanco, setSoloBanco] = useState(!!item?.soloCassa);
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
@@ -7392,6 +7484,10 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
         ordini: ruolo === "admin" ? undefined : (ordini || undefined),
         cassa: ruolo === "admin" ? undefined : (cassa || undefined),
+        /* appeso a «cassa»: se la cassa si spegne, si spegne anche questo —
+           una barra di sole voci della Cassa addosso a chi in Cassa non puo'
+           entrare sarebbe una porta su un muro (gen-6.17) */
+        soloCassa: ruolo === "admin" ? undefined : ((cassa && soloBanco) || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -7501,6 +7597,13 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
           <InterruttoreAut acceso={cassa} onCambia={() => setCassa((v) => !v)}
             titolo="Può battere in cassa"
             sotto="La vista Cassa: vendite al cliente con scarico automatico dal magazzino di cassa della sede. In barra prende il posto della Plancia. Non comprende correzioni né ordini." />
+          {/* compare solo se la cassa e' accesa: senza, sarebbe un
+              interruttore che non puo' fare niente (gen-6.17) */}
+          {cassa && (
+            <InterruttoreAut acceso={soloBanco} onCambia={() => setSoloBanco((v) => !v)}
+              titolo="Sta solo in cassa"
+              sotto="Chi lo ha acceso apre l'app direttamente sulla Cassa e sotto il pollice trova Battere · Clienti · Giornata, niente altro: né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi al banco batte e basta." />
+          )}
           <InterruttoreAut acceso={struttura} onCambia={() => setStruttura((v) => !v)}
             titolo="Può modificare la struttura dei magazzini"
             sotto="Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco. Comprende anche le correzioni delle quantità." />
@@ -12807,13 +12910,13 @@ function VistaListino({ stato, muta, mostraToast }) {
             le scrive qui deve ritrovare lo stesso ordine che trovera' al banco,
             o le due liste diventano due mondi (gen-6.09) */}
         {[...(stato.aggiunte || [])].sort((a, b) =>
-          ((a.categoria || "").trim() || "\uffff").localeCompare((b.categoria || "").trim() || "\uffff", "it")
+          (categoriaAgg(stato, a) || "\uffff").localeCompare(categoriaAgg(stato, b) || "\uffff", "it")
           || a.nome.localeCompare(b.nome, "it")).map((ag) => (
           <div key={ag.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
             <span className="flex-1 min-w-0">
               <b style={{ color: T.ink }}>{ag.nome}</b>
               <span className="text-xs block truncate" style={{ color: T.dim }}>
-                {ag.categoria ? `${ag.categoria} · ` : ""}{fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
+                {categoriaAgg(stato, ag) ? `${categoriaAgg(stato, ag)} · ` : ""}{fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
                 {(ag.distinta || []).length > 0
                   ? ` · scala ${ag.distinta.length} prodott${ag.distinta.length === 1 ? "o" : "i"}`
                   : " · non scala niente"}
@@ -13037,7 +13140,23 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
         suggerimento="Si somma al prezzo della voce. Zero è legittimo: una cortesia della casa." />
       <div>
         <Campo label="Categoria" valore={categoria} onCambia={setCategoria} placeholder="Es. Verdure"
-          suggerimento="Raggruppa gli ingredienti nella fascia della Cassa. Si può lasciare vuota: finiscono in fondo, sotto «Altro»." />
+          suggerimento="Raggruppa gli ingredienti nella fascia della Cassa. Si può lasciare vuota: la prende dal prodotto della distinta, e se non c'è nemmeno quello finisce sotto «Altro»." />
+        {/* ── QUELLO CHE NON SERVE RISCRIVERE (gen-6.17) ──
+            Parole di Valerio: «non dovrei neanche riscriverle e
+            categorizzarle perche' l'ho gia' fatto». Se la distinta punta a un
+            prodotto che una categoria ce l'ha, qui si LEGGE quale — cosi' chi
+            apre il campo vede che è già pieno di suo e chiude senza scrivere.
+            Sparisce appena si scrive qualcosa: da quel momento vince lo
+            scritto, e dire due cose diverse insieme confonderebbe. */}
+        {(() => {
+          const dal = categoriaAgg(stato, { distinta: distinta.filter((d) => d.prodottoId) });
+          if (!dal || categoria.trim()) return null;
+          return (
+            <p className="text-xs mt-1.5" style={{ color: T.blu }}>
+              Dal magazzino: <b>{dal}</b> — non serve riscriverla.
+            </p>
+          );
+        })()}
         {/* le categorie GIA' SCRITTE, a portata di tocco: e' l'unica difesa
             contro il refuso, perche' il campo resta libero. Solo quelle
             diverse da quella scritta adesso: un tasto che non cambia niente
@@ -13638,15 +13757,20 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      risponde al tocco DOVE il tocco e' caduto (gen-6.00) */
   const nelConto = {};
   for (const r of carrello) nelConto[r.voceId] = (nelConto[r.voceId] || 0) + r.qty;
-  /* le battute delle AGGIUNTE, gemelle di quelle dei gruppi: la fascia e'
-     una riga sola e su 390px se ne vedono due e mezzo — chi ci entra lo
-     decide il sabato, non l'alfabeto. Sort client, zero scritture. */
-  const battuteAgg = {};
-  for (const v of stato.vendite || [])
-    for (const r of v.righe || [])
-      for (const a of r.agg || []) battuteAgg[a.id] = (battuteAgg[a.id] || 0) + Math.abs(+r.qty || 0);
-  const perBanco = (l) => [...l].sort((a, b) =>
-    (battuteAgg[b.id] || 0) - (battuteAgg[a.id] || 0) || a.nome.localeCompare(b.nome, "it"));
+  /* ── L'ORDINE DEGLI INGREDIENTI E' L'ALFABETO (gen-6.17) ──
+     Qui stavano «battuteAgg» e «perBanco»: ordinavano i chip per quante volte
+     erano stati battuti, e la ragione scritta era che la fascia era una riga
+     sola e su 390px se ne vedevano due e mezzo — quindi le due piu' probabili
+     andavano messe sotto il pollice.
+     Quella ragione non c'e' piu' per due motivi, e tutti e due contano. Il
+     primo: da oggi i chip VANNO A CAPO, se ne vedono quattro, e non c'e' piu'
+     una feritoia da ottimizzare. Il secondo, che basterebbe da solo — Valerio
+     il 13 settembre: «con zero categorie va in ordine alfabetico». Il dito non
+     cerca «la piu' probabile», cerca UNA PAROLA che sa gia', e una parola si
+     trova in alfabeto. L'ordine per battute resta dove serve ancora: sui
+     GRUPPI del listino, dove non c'e' nessuna parola da cercare.
+     Niente da riordinare: aggiunteDi e aggiunteTutte ordinano gia' in
+     alfabeto, e le due funzioni se ne vanno invece di restare qui spente. */
   /* ── LE AGGIUNTE PER CATEGORIA (gen-6.09, parole di Valerio del 6 e 7
        settembre: «devono poter essere divisi per categoria così mentre la
        cassa prepara l'ordine le aggiunte sono ordinate e le può selezionare
@@ -13665,7 +13789,9 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
   const perCategoria = (l) => {
     const per = new Map();
     for (const a of l) {
-      const c = (a.categoria || "").trim() || SENZA_CAT;
+      /* non piu' «a.categoria» soltanto: se non e' scritta si legge dal
+         prodotto della distinta (gen-6.17, categoriaAgg) */
+      const c = categoriaAgg(stato, a) || SENZA_CAT;
       if (!per.has(c)) per.set(c, []);
       per.get(c).push(a);
     }
@@ -13680,7 +13806,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      nello stesso gruppo, l'intestazione ruba una riga e non dice niente —
      si torna alla fila unica per battute, che e' l'ordine di prima. */
   const vuoleCategorie = (l) =>
-    new Set(l.map((a) => (a.categoria || "").trim() || SENZA_CAT)).size > 1;
+    new Set(l.map((a) => categoriaAgg(stato, a) || SENZA_CAT)).size > 1;
   /* una volta per gruppo, non una per riga del conto: su un Android da
      banco un filter+sort per riga si sente */
   const aggPer = {}; for (const g of gruppi) aggPer[g] = aggiunteDi(stato, g);
@@ -14286,7 +14412,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       {aggiunteTutte(stato).length > 0 && (() => {
         const inMano = mano.length > 0;
         const rv = inMano ? null : rigaViva;
-        const chips = perBanco(rv ? aggiunteDelGruppo(rv.gruppo) : aggiunteTutte(stato));
+        const chips = rv ? aggiunteDelGruppo(rv.gruppo) : aggiunteTutte(stato);
         /* LA PAROLA CHE DICE DOV'E' IL TOCCO. E' la stessa a fascia aperta e
            a fascia chiusa, di proposito: chiudere la fascia non deve mai
            togliere l'informazione, solo lo spazio. */
@@ -14356,10 +14482,20 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
                     </button>
                   );
                 };
-                /* SENZA categorie vere resta la fila unica di prima, per
-                   battute: due modi diversi solo quando la differenza c'e'. */
+                /* SENZA categorie vere, UNA GRIGLIA CHE VA A CAPO (gen-6.17,
+                   parole di Valerio: «le aggiunte hanno una barra poco utile»).
+                   Era una fila che scorreva di lato: su 390px si vedevano due
+                   chip e mezzo su ventitre', e il resto stava oltre il bordo
+                   senza che niente lo facesse capire — la stessa forma che a
+                   gen-5.52 aveva gia' rotto la barra di navigazione.
+                   Adesso se ne vedono quattro e si scorre col pollice in giu',
+                   come in tutto il resto dell'app. Costa 52px in piu' SOLO a
+                   fascia aperta (165 contro 113), sotto i 209 che gen-6.04 ha
+                   giudicato troppi; chiusa non cambia di un pixel.
+                   Il tetto a 6.1rem sono due righe di chip: oltre, si scorre. */
                 if (!vuoleCategorie(chips))
-                  return <div className="flex gap-2 overflow-x-auto">{chips.map(unChip)}</div>;
+                  return <div className="flex flex-wrap gap-2 overflow-y-auto sc-scroll"
+                    style={{ maxHeight: "6.1rem" }}>{chips.map(unChip)}</div>;
                 /* CON le categorie: una riga per categoria, il nome a
                    sinistra e i suoi chip che scorrono accanto. In verticale
                    e non in orizzontale perche' la parola che si cerca e' la
@@ -14371,10 +14507,13 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
                 return (
                   <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll" style={{ maxHeight: "12.5rem" }}>
                     {perCategoria(chips).map(([cat, aggs]) => (
-                      <div key={cat} data-cat={cat} className="flex items-center gap-2">
+                      <div key={cat} data-cat={cat} className="flex items-start gap-2">
+                        {/* l'etichetta sta in ALTO e non al centro: con i chip
+                            su due righe, centrata galleggerebbe in mezzo alla
+                            categoria invece di intitolarla (gen-6.17) */}
                         <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wide text-right"
-                          style={{ color: T.tenue, width: "4.6rem" }}>{cat}</span>
-                        <div className="flex gap-2 overflow-x-auto">{aggs.map(unChip)}</div>
+                          style={{ color: T.tenue, width: "4.6rem", paddingTop: "0.9rem" }}>{cat}</span>
+                        <div className="flex flex-wrap gap-2">{aggs.map(unChip)}</div>
                       </div>
                     ))}
                   </div>
