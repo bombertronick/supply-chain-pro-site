@@ -100,6 +100,20 @@ const TUTTE = [
   ["cassa", async (p) => { await vaiO(p, "Cassa", "Battere una vendita"); }],
   ["cassa-clienti", async (p) => { await vaiO(p, "Cassa", "Battere una vendita"); await barraCassa(p, /Clienti/); }],
   ["cassa-giornata", async (p) => { await vaiO(p, "Cassa", "Battere una vendita"); await barraCassa(p, /Giornata/); }],
+  /* LA FASCIA E GLI ESAURITI (gen-6.18). Due schermate che i banchi misurano e
+     che nessuno aveva mai VISTO: il bottone nuovo nell'intestazione della
+     fascia, e il Foglio che apre. La seconda TOCCA davvero l'interruttore,
+     cosi' la foto mostra lo stato «esaurito» invece di un elenco di righe
+     tutte uguali — il banco misura, la foto mostra. */
+  ["cassa-fascia", async (p) => { await vaiO(p, "Cassa", "Battere una vendita"); await apriLaFascia(p); }],
+  ["cassa-esauriti", async (p) => {
+    await vaiO(p, "Cassa", "Battere una vendita");
+    await apriLaFascia(p);
+    await p.locator('[data-fascia="1"] [data-esauriti="1"]').first().click();
+    await p.waitForTimeout(800);
+    await p.locator('[data-esa-riga="ag-buf"] button').first().click();
+    await p.waitForTimeout(1400);
+  }],
   ["comande", async (p) => { await vaiO(p, "Comande", "Le comande in cucina"); }],
   ["magazzini", async (p) => { await vaiO(p, "Magazzini"); }],
   ["plancia", async (p) => { await vaiO(p, "Plancia"); }],
@@ -117,6 +131,10 @@ const TUTTE = [
     await p.waitForTimeout(1100);
   }],
 ];
+const apriLaFascia = async (p) => {
+  const c = p.locator('[data-fascia-chiusa="1"] button');
+  if (await c.count()) { await c.first().click(); await p.waitForTimeout(700); }
+};
 const barraCassa = async (p, re) => {
   const nav = p.locator("nav, [role=navigation], aside");
   const v = nav.getByRole("button", { name: re }).first();

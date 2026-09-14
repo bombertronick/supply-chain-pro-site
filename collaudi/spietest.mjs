@@ -252,6 +252,20 @@ const scriviInRete = (p, cambia) => p.evaluate((f) => {
   return s.rev;
 }, cambia);
 const testoDi = async (p) => (await p.locator("body").innerText()).replace(/\s+/g, " ");
+/* ── UN'ORA CHE E' SICURAMENTE DI OGGI (14 settembre, trovato alle 00:35) ──
+   `Date.now() - 90 minuti` alle 00:35 e' LE 23:05 DI IERI. La giornata che
+   l'app mostra nella riga «Oggi» e' quella di oggi, e il contatore degli
+   storni di ieri sera non ci compare: §2 diventava rosso per novanta minuti
+   ogni notte, sempre, e la notte in cui il container ha girato l'ho preso in
+   pieno. E' la stessa trappola di mezzanotte che gen-6.07 ha chiuso
+   nell'APP — e che il banco si portava dentro.
+   Si torna indietro dei minuti chiesti, ma mai prima delle 00:01 di oggi:
+   nelle ore normali non cambia niente, a mezzanotte e mezza la prova continua
+   a misurare quello che deve misurare invece di misurare il calendario. */
+const oraDiOggi = (minutiFa) => {
+  const m = new Date(); m.setHours(0, 1, 0, 0);
+  return Math.max(Date.now() - minutiFa * 60000, m.getTime());
+};
 const finche = async (p, quando, ms = 12000, passo = 200) => {
   const fine = Date.now() + ms;
   for (;;) { if (await quando()) return true; if (Date.now() > fine) return false; await p.waitForTimeout(passo); }
@@ -308,7 +322,7 @@ await prova("§1", async () => {
    Il caso che si verifica il sabato sera, e che nessun banco provava. */
 console.log("\n— 2. storno confermato su uno scontrino che nel frattempo e' gia' stato stornato —");
 await prova("§2", async () => {
-  const T = Date.now() - 90 * 60000;
+  const T = oraDiOggi(90);
   const V = vendita("ve-gara", T, 6.5);
   const seme = semeCon((s) => {
     s.vendite = [V];
@@ -402,7 +416,7 @@ await prova("§2", async () => {
    Senza questo si e' solo spenta una funzione. */
 console.log("\n— 3. controcontrollo: uno storno onesto passa, come sempre —");
 await prova("§3", async () => {
-  const T = Date.now() - 60 * 60000;
+  const T = oraDiOggi(60);
   const V = vendita("ve-onesta", T, 6.5);
   const seme = semeCon((s) => {
     s.vendite = [V];
@@ -461,7 +475,7 @@ await prova("§4", async () => {
 /* ═══ 5. L'EXPORT DELLE VENDITE NON CADE SU UNA RIGA SENZA «righe» ═══ */
 console.log("\n— 5. l'export delle vendite regge una riga senza «righe» —");
 await prova("§5", async () => {
-  const T = Date.now() - 30 * 60000;
+  const T = oraDiOggi(30);
   const seme = semeCon((s) => {
     s.vendite = [vendita("ve-buona", T, 6.5), { ...vendita("ve-rotta", T - 60000, 6.5), righe: undefined }];
     s.giornate = [giornata(T, 13, 2)];

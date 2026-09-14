@@ -53,7 +53,13 @@ if (diarioVecchio && existsSync(diarioVecchio)) {
      prendono tutte e quattro le parole, e il collaudo di questa riga e' che
      il conto della ripresa torni con quello del rapporto. */
   for (const r of readFileSync(diarioVecchio, "utf8").split("\n")) {
-    const m = r.match(/^(verde|ROSSA|muto|SALTA) +([a-z0-9-]+test\.mjs)/);
+    /* «MUTA » e' come il rapporto la scrive DAVVERO (riga sopra: `muto ?
+       "MUTA "`), e qui cercavo «muto» minuscolo: un file muto non risultava
+       mai gia' fatto e si rigirava a ogni ripresa, finendo nel diario due
+       volte. E' la gemella esatta dello sbaglio del 6 settembre con «rosso»
+       minuscolo — stessa riga, stessa lezione: si copia la parola dal posto
+       che la stampa, non dalla memoria. (14 settembre) */
+    const m = r.match(/^(verde|ROSSA|MUTA|SALTA) +([a-z0-9-]+test\.mjs)/);
     if (m) gia.add(m[2]);
   }
 }

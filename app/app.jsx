@@ -697,7 +697,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.17";
+const VERSIONE = "gen-6.18";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -1087,11 +1087,17 @@ const chiaveGruppo = (g) => senzaAccenti((g || "").trim());
    l'aggiunta e' «cosa ci metti sopra» (quante vuoi, ha prezzo suo e una sua
    distinta di magazzino, vive nel catalogo). Le due convivono sulla stessa
    riga: «Panino + Maxi + Salsiccia». */
+/* ── L'ORDINE DEGLI INGREDIENTI, in un comparatore solo (gen-6.18) ──
+   Alfabeto, ma le ESAURITE in fondo: il dito cerca quello che puo' mettere.
+   Un comparatore solo perche' i posti che ordinano sono TRE — aggiunteDi,
+   aggiunteTutte e perCategoria, che ri-ordina ogni gruppo per nome e
+   cancellerebbe in silenzio qualunque criterio arrivato da monte. */
+const ordineAgg = (a, b) => (!!a.esaurito - !!b.esaurito) || a.nome.localeCompare(b.nome, "it");
 const aggiunteDi = (stato, gruppo) => {
   const g = chiaveGruppo(gruppo);
   return (stato.aggiunte || [])
     .filter((a) => a.attivo !== false && (a.gruppi || []).some((x) => chiaveGruppo(x) === g))
-    .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    .sort(ordineAgg);
 };
 /* il suffisso che compone il nome della riga: lo scriviamo NOI, sempre con
    lo stesso separatore della variante, cosi' un telefono gen-6.01 che non
@@ -1113,7 +1119,7 @@ const nomeBase = (r) => { const x = suffissoAgg(r.agg); return x && r.nome.endsW
    riordina per battute, come gia' fa coi gruppi. */
 const aggiunteTutte = (stato) => (stato.aggiunte || [])
   .filter((a) => a.attivo !== false)
-  .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+  .sort(ordineAgg);
 /* ── LA CATEGORIA DELL'AGGIUNTA SI LEGGE DAL MAGAZZINO (gen-6.17) ──
    Parole di Valerio: «le aggiunte sono sempre gli ingredienti presenti nel
    magazzino o frigo con i quali si preparano le pietanze, quindi non dovrei
@@ -1184,6 +1190,49 @@ function applicaComanda(s, d) {
   }
   v.fatte = f;
 }
+/* ── «STASERA E' FINITO» (gen-6.18, parole di Valerio del 13 settembre: la
+     cassa «puo' scegliere gli ingredienti disponibili, e quelli esauriti») ──
+   E' la CASSA che lo dichiara, non il magazzino che lo deduce da una
+   giacenza: la bufala puo' essere a 3 kg ed essere finita perche' e' caduta.
+   Percio' `esaurito` e' un campo suo, e non si ricava da niente.
+   DIVERSO da `attivo`: quello e' l'admin che la toglie dal menu per sempre.
+
+   PERCHE' UN ESECUTORE E NON UNA CLOSURE. E' un gesto DI SERVIZIO, fatto
+   proprio nel momento in cui la rete piu' facilmente non c'e', e la coda di
+   muta() vive solo nella memoria della pagina. Come vendita, storno e spunta,
+   viaggia come DATO e sopravvive al ricaricamento.
+
+   LO STECCATO D'ETA', E PERCHE' STA QUI DENTRO. Gli altri tre esecutori hanno
+   un testimone che rende innocuo il rigioco stantio (una vendita gia' in
+   s.vendite, una vendita non piu' «registrata»). Questo scrive un valore
+   ASSOLUTO, e un valore assoluto **non puo' sapere di essere vecchio**: senza
+   steccato, un segno messo venerdi' sera e rimasto in coda tornerebbe a
+   riscrivere il sabato mattina — con la merce arrivata e il frigo pieno.
+   Un compare-and-set non basta, e l'ho provato: il campo e' BOOLEANO, quindi
+   «era disponibile → lo segno → qualcuno lo rimette disponibile → rigioco»
+   trova lo stesso valore di partenza e passa. E' un ABA da manuale.
+   Sta QUI e non nel ritrovamento perche' l'esecutore e' l'unico punto per cui
+   passano tutte le strade: il ritrovamento, applicaCoda a ogni giro, e la
+   riapplicazione dopo ogni lettura remota.
+   UNA DURATA E NON IL GIORNO DI CALENDARIO: con giornoDi un segno messo alle
+   23:50 e ancora in coda alle 00:01 sparirebbe sotto le dita di chi lo ha
+   appena messo, e una pizzeria in servizio a mezzanotte e' la norma. Sei ore
+   coprono un servizio intero senza arrivare al giorno dopo.
+   IL VERSO IN CUI SBAGLIA E' QUELLO GIUSTO: scartare lascia l'ingrediente
+   DISPONIBILE. Fra «potrei vendere una cosa finita» — e chi sta al banco se
+   ne accorge e la risegna — e «blocco la vendita di una cosa che c'e'», che
+   e' un incasso perso in silenzio, si sbaglia dalla parte che una persona
+   vede. */
+const ORE_ESAURITO = 6;
+function applicaEsaurito(s, d) {
+  if (d.t && Date.now() - d.t > ORE_ESAURITO * 3600000) return false;
+  const a = (s.aggiunte || []).find((x) => x.id === d.id);
+  /* niente da fare = niente riga di storico (la regola di gen-6.15). E' anche
+     quello che fa convergere due casse che segnano insieme: la seconda trova
+     gia' il valore e esce, invece di ribaltarlo come farebbe un toggle. */
+  if (!a || !!a.esaurito === !!d.val) return false;
+  if (d.val) a.esaurito = true; else delete a.esaurito;
+}
 /* ── IL REGISTRO DELLE MUTAZIONI SALVABILI (gen-6.05) ──
    La coda di muta() contiene FUNZIONI, e una funzione non si salva su
    disco. Finche' e' cosi', tutto quello che e' in attesa di invio vive
@@ -1197,7 +1246,8 @@ function applicaComanda(s, d) {
    compreso». Quindi si accodano come DATI e sopravvivono al riavvio.
    Tutto il resto resta closure: e' configurazione, si rifa' a mano, e
    fingere di salvarla sarebbe peggio che dire che non si salva. */
-const ESECUTORI = { vendita: applicaVendita, storno: applicaStorno, spunta: applicaComanda };
+const ESECUTORI = { vendita: applicaVendita, storno: applicaStorno, spunta: applicaComanda,
+  esaurito: applicaEsaurito };
 const CHIAVE_CODA = "scp:coda:v1";
 /* dove finisce quello che e' troppo vecchio per rigiocarsi da solo (gen-6.07) */
 const CHIAVE_FERMA = "scp:coda-ferma:v1";
@@ -1804,7 +1854,11 @@ function SchermataLogin({ stato, sync, daSalvare = 0, muta, onEntra, auth }) {
               <div className="flex items-start gap-3" data-da-salvare={daSalvare}>
                 <CloudOff size={18} style={{ color: T.ambra }} className="mt-0.5 shrink-0" />
                 <div className="text-sm" style={{ color: T.ink }}>
-                  <b>{daSalvare === 1 ? "1 vendita da salvare" : `${daSalvare} vendite da salvare`}</b>
+                  {/* «modifica» e non «vendita» (gen-6.18): da gen-6.10 la
+                      coda porta anche le spunte di cucina, e da gen-6.18 gli
+                      ingredienti esauriti. Chiamarle tutte vendite faceva
+                      cercare un incasso che non c'era mai stato. */}
+                  <b>{daSalvare === 1 ? "1 modifica da salvare" : `${daSalvare} modifiche da salvare`}</b>
                   {" "}su questo telefono: erano in attesa quando l'app si è chiusa.
                   <span className="block text-xs mt-0.5" style={{ color: T.dim }}>
                     Non si perdono e non si contano due volte: partono da sole appena entri.
@@ -13128,7 +13182,15 @@ function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
     muta((s) => {
       const lista = s.aggiunte || [];
       s.aggiunte = lista.some((x) => x.id === dati.id)
-        ? lista.map((x) => (x.id === dati.id ? dati : x))
+        /* «esaurito» NON passa da qui e non deve sparire da qui (gen-6.18).
+           Lo scrive la cassa in servizio, spesso mentre l'admin ha il foglio
+           aperto sul suo telefono: un Salva che sostituisce l'oggetto intero
+           rimetterebbe in vendita una cosa finita, senza un avviso.
+           Si conserva dalla BOZZA (`x`) e non da `item`: `item` e' la foto di
+           quando il foglio si e' aperto, la bozza e' quello che c'e' adesso —
+           ed e' l'unica forma che converge se due admin salvano insieme, in
+           tutti e due gli ordini di riapplicazione della coda. */
+        ? lista.map((x) => (x.id === dati.id ? { ...dati, ...(x.esaurito ? { esaurito: true } : {}) } : x))
         : [...lista, dati];
     }, `Aggiunta «${dati.nome}» ${item ? "aggiornata" : "creata"}`);
     onChiudi();
@@ -13626,6 +13688,10 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      cassiere debba chiedersi se il chip appoggia o prende. */
   const [viva, setViva] = useState(null);
   const [mano, setMano] = useState([]);
+  /* il Foglio degli esauriti: uno stato LOCALE come il carrello, zero byte
+     sul canale. Sta qui e non dentro la fascia perche' il suo markup deve
+     stare FUORI dal `fixed` della fascia (gen-6.18, vedi piu' sotto). */
+  const [esauritiSu, setEsauritiSu] = useState(false);
   /* LA FASCIA SI APRE QUANDO SERVE (gen-6.04, parole di Valerio: «non deve
      essere visibile in cassa se non quando richiesto, attualmente rimane una
      barra aperta»). Misurato prima di toccare: aperta costava 105 px piu' 104
@@ -13796,7 +13862,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       per.get(c).push(a);
     }
     return [...per.entries()]
-      .map(([cat, aggs]) => [cat, aggs.sort((x, y) => x.nome.localeCompare(y.nome, "it"))])
+      .map(([cat, aggs]) => [cat, aggs.sort(ordineAgg)])
       .sort((a, b) => {
         if ((a[0] === SENZA_CAT) !== (b[0] === SENZA_CAT)) return a[0] === SENZA_CAT ? 1 : -1;
         return a[0].localeCompare(b[0], "it");
@@ -13861,8 +13927,15 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
        cosi' il percorso della pizza liscia — il 90% delle battute del
        sabato — non cambia di una riga al punto di chiamata (gen-6.03) */
     const ammesse   = aggiunteDelGruppo(gruppoDi(voce));
-    const daMano    = usaMano ? ammesse.filter((a) => mano.includes(a.id)) : [];
+    /* PORTA 4 (gen-6.18): quello che si ha in mano e' sempre NUOVO per il
+       piatto che nasce, quindi un'esaurita non ci sale. */
+    const daMano    = usaMano ? ammesse.filter((a) => mano.includes(a.id) && !a.esaurito) : [];
     const rifiutate = usaMano ? mano.filter((id) => !ammesse.some((a) => a.id === id)) : [];
+    /* e NON sparisce in silenzio: «rifiutate» contiene solo cio' che il
+       gruppo non ammette, e un'esaurita e' ammessa eccome — senza questa
+       riga uscirebbe dalla mano senza che nessuno lo dica, che e' lo stesso
+       danno del prezzo che scende di nascosto, dalla parte opposta. */
+    const fuoriPerEsaurito = usaMano ? mano.filter((id) => ammesse.some((a) => a.id === id && a.esaurito)) : [];
     /* le aggiunte si ordinano per nome (il testo che si legge) e la chiave
        usa i loro id ORDINATI: broccoletti+salsiccia e salsiccia+broccoletti
        sono la stessa pizza, e devono fondersi in una riga da 2 (gen-6.02) */
@@ -13912,6 +13985,8 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       if (usaMano) setMano([]);
       if (ammesse.length) setViva(chiave);
     }
+    if (fuoriPerEsaurito.length)
+      mostraToast(`Esaurita, l'ho tolta dalla mano: ${nomiDi(fuoriPerEsaurito)}`, "errore");
   };
   /* il foglio si apre da due porte: la cella (voce con varianti) e il NOME
      della riga gia' nel conto (voce con aggiunte). Nel secondo caso si
@@ -13928,20 +14003,65 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      niente. (gen-6.02) */
   const metti = (variante) => {
     if (!scelta) return;
-    const scelte = aggiunteDi(stato, gruppoDi(scelta)).filter((a) => aggSel.includes(a.id));
+    /* PORTA 3 — il foglio di scelta (gen-6.18). Stessa regola delle altre
+       cinque: si rifiuta cio' che e' NUOVO, si conserva cio' che la riga ha
+       gia'. Senza `eraGia`, riaprire dal nome una riga che porta un'esaurita
+       la strapperebbe via al primo Salva — e il prezzo scenderebbe in
+       silenzio, che e' proprio quello che giraAgg evita gia' per la variante
+       sparita. */
+    const eraGia = rigaDa ? ((carrello.find((r) => r.chiave === rigaDa) || {}).agg || []).map((a) => a.id) : [];
+    const spuntate = aggiunteDi(stato, gruppoDi(scelta)).filter((a) => aggSel.includes(a.id));
+    const scelte = spuntate.filter((a) => !a.esaurito || eraGia.includes(a.id));
+    const tolte = spuntate.filter((a) => !scelte.includes(a));
     if (rigaDa) cambia(rigaDa, -1);
     aggiungi(scelta, variante, scelte);
+    if (tolte.length) mostraToast(`Esaurita, non si mette: ${tolte.map((a) => a.nome).join(", ")}`, "errore");
   };
   /* LE DUE STRADE DI VALERIO FINISCONO QUI DENTRO. Sposta UNA unita', come
      metti(): «tre margherite, una coi broccoletti» sono due righe, non due
      conti. Con la mano piena non c'e' riga viva (invariante), quindi il
      chip prende in mano invece di appoggiare. */
+  /* ── LA GUARDIA DELL'ESAURITO STA QUI, E SOLO QUI (gen-6.18) ──
+     «Si rifiuta cio' che e' NUOVO, si conserva cio' che c'e' gia'.»
+     Perche' dentro giraAgg e non sul chip: `levaDaRiga` E' `giraAgg`, e il
+     chip fa QUATTRO mestieri (prende, lascia, mette, leva). Una guardia in
+     testa alla funzione bloccherebbe anche la ×; un cortocircuito sul chip
+     renderebbe queste due righe irraggiungibili — e un controllo che non puo'
+     diventare rosso non e' un controllo. Cosi' invece sono entrambe
+     esercitate dal chip, quindi collaudabili e sabotabili.
+     Il toast e' di tipo «errore» come il rifiuto gemello qui sotto («X non va
+     su Y: resta in mano»): e' l'unico tipo che cambia l'icona in
+     AlertTriangle, e un rifiuto vestito da spunta e' una bugia.
+     La RAGIONE sta prima del nome perche' il toast tronca la coda. */
+  const rifiutaEsaurita = (a) => mostraToast(`Esaurita, non si mette: ${a.nome}`, "errore");
+  /* UNA SCRITTURA PER TOCCO, non un «salva» finale: l'altra cassa lo vede al
+     giro di poll invece che a fine serata, ed e' tutto il punto del gesto.
+     Il costo e' dichiarato: ogni tocco e' una scrittura dello stato intero e
+     un nome in s.applicate. Una giornata tipo ne spende 15-25.
+     Il valore e' ASSOLUTO e non un giro: e' quello che fa convergere due
+     casse che segnano la stessa cosa nello stesso minuto — la seconda trova
+     gia' il valore e l'esecutore esce senza scrivere. L'ora viaggia col dato
+     perche' lo steccato d'eta' vive dentro l'esecutore (vedi applicaEsaurito). */
+  const segnaEsaurito = (a, val) => {
+    mutaDato("esaurito", { id: a.id, val, t: Date.now() }, val
+      ? `Esaurita: «${a.nome}» non si mette più sui piatti`
+      : `Di nuovo disponibile: «${a.nome}»`);
+  };
   const giraAgg = (agId, su = null) => {
     const riga = su || (mano.length ? null : rigaViva);
-    if (!riga) { setMano((xs) => (xs.includes(agId) ? xs.filter((x) => x !== agId) : [...xs, agId])); return; }
+    const ag = (stato.aggiunte || []).find((x) => x.id === agId);
+    if (!riga) {
+      /* PORTA 1 — la mano. Il controllo sta FUORI dal setter funzionale:
+         li' dentro non si puo' ne' mostrare un toast ne' sapere il verso. */
+      if (ag?.esaurito && !mano.includes(agId)) return rifiutaEsaurita(ag);
+      setMano((xs) => (xs.includes(agId) ? xs.filter((x) => x !== agId) : [...xs, agId])); return;
+    }
     const voce = trova(voci, riga.voceId);
     if (!voce) return;                       // voce sparita: non si ricompone al buio
     const ids = (riga.agg || []).map((a) => a.id);
+    /* PORTA 2 — la riga. Solo sull'AGGIUNTA: `ids` sono quelle gia' sulla
+       riga, e toglierle deve restare possibile anche da esaurite. */
+    if (ag?.esaurito && !ids.includes(agId)) return rifiutaEsaurita(ag);
     const dopo = ids.includes(agId) ? ids.filter((x) => x !== agId) : [...ids, agId];
     const variante = (voce.varianti || []).find((v) => v.id === riga.varianteId) || null;
     /* formato sparito dal listino a meta' servizio: si RIAPRE il foglio
@@ -13972,8 +14092,11 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
     const voce = trova(voci, r.voceId);
     if (!voce) { setViva(r.chiave); return; }
     const ammesse = aggiunteDelGruppo(r.gruppo);
+    /* PORTA 5 (gen-6.18): la mano che si fonde in una riga gia' battuta. Le
+       aggiunte GIA' sulla riga restano (prima meta' dell'unione); il
+       contributo della mano e' nuovo, e le esaurite non entrano. */
     const dopo = [...new Set([...(r.agg || []).map((a) => a.id),
-      ...ammesse.filter((a) => mano.includes(a.id)).map((a) => a.id)])];
+      ...ammesse.filter((a) => mano.includes(a.id) && !a.esaurito).map((a) => a.id)])];
     const variante = (voce.varianti || []).find((v) => v.id === r.varianteId) || null;
     if (r.varianteId && !variante) return apriScelta(voce, dopo, r.chiave);
     cambia(r.chiave, -1);
@@ -14254,7 +14377,13 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
                     /* con qualcosa in mano il foglio si apre gia' spuntato:
                        «prendo la salsiccia, poi il panino Maxi» e' un giro
                        solo (gen-6.03) */
-                    ? apriScelta(v, aggiunteDelGruppo(gruppoDi(v)).filter((a) => mano.includes(a.id)).map((a) => a.id))
+                    /* PORTA 6 (gen-6.18), la piu' nascosta: la cella di una voce CON
+                       varianti apre il Foglio di scelta PRE-SEMINATO dalla mano, senza
+                       nessuna riga di partenza. Il primo disegno la dava per sicura
+                       («aggSel puo' contenerne una solo se gia' sulla riga»): era falso,
+                       e un'esaurita si vendeva senza che nessuna delle altre guardie la
+                       vedesse passare. Si chiude dove NASCE. */
+                    ? apriScelta(v, aggiunteDelGruppo(gruppoDi(v)).filter((a) => mano.includes(a.id) && !a.esaurito).map((a) => a.id))
                     : aggiungi(v, null))}
                   className="relative rounded-2xl px-3 py-3.5 text-left"
                   data-nel-conto={nelConto[v.id] || 0}
@@ -14457,6 +14586,22 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
                     style={{ minHeight: 44, background: inMano ? "#fff" : "#F0F3FB", color: inMano ? "#7A4A00" : T.tenue }}>
                     <X size={14} />{inMano ? "Lascia" : "Stacca"}</button>
                 )}
+                {/* ── LA PORTA DEGLI ESAURITI (gen-6.18) ──
+                    Il disegno la voleva solo a mano vuota, per non rubare
+                    larghezza al titolo su 360 px. Il banco ha dimostrato che
+                    era la condizione sbagliata, e con lo scenario piu' vero
+                    che ci sia: la Bufala e' IN MANO e qualcuno dal forno
+                    grida che e' finita. Con «!inMano» la porta non c'e'
+                    proprio nel momento in cui serve, e per segnarla bisogna
+                    prima posare quello che si tiene.
+                    Quindi c'e' sempre, e il prezzo e' misurato, non stimato:
+                    a mano piena restano 128 px al titolo («In mano: Bufa…»)
+                    e il collaudo §18 verifica che a 360 px non sbordi niente.
+                    Un titolo accorciato si legge; una porta che non c'e' no.
+                    Icona sola, la stessa forma della × qui accanto. */}
+                <button onClick={() => setEsauritiSu(true)} aria-label="Ingredienti esauriti" data-esauriti="1"
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ width: 44, height: 44, background: "#F0F3FB", color: T.tenue }}><PackageMinus size={15} /></button>
                 {/* chiudere la fascia NON lascia la mano: si richiude sulla
                     pastiglia, che resta ambra e dice cosa si sta tenendo.
                     Sono due gesti diversi e devono restare due bottoni. */}
@@ -14470,13 +14615,31 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
                    una sola. */
                 const unChip = (a) => {
                   const giu = rv ? (rv.agg || []).some((x) => x.id === a.id) : mano.includes(a.id);
+                  /* ── IL VESTITO DELL'ESAURITA (gen-6.18) ──
+                     Qui si decide SOLO l'aspetto e la parola: la regola sta in
+                     giraAgg, e il chip continua a chiamarlo sempre. `fuori` e'
+                     lo specchio esatto delle due guardie — con una riga viva
+                     «giu» E' ids.includes, senza riga viva E' mano.includes —
+                     percio' un'esaurita che sta GIA' sulla riga o in mano
+                     resta un chip normale: si deve poter ancora levare e
+                     lasciare.
+                     Si cambia il FONDO, non il grigio: #F0F3FB e' esattamente
+                     il fondo del chip disponibile, e T.tenue dista da T.dim di
+                     15/13/15 su 255 — cioe' l'unico canale che non si vede. Il
+                     fondo caldo tiene T.dim a 4,7:1, che passa AA; T.tenue su
+                     quel fondo si ferma sotto la soglia.
+                     Niente aria-disabled: il tocco fa qualcosa (dice perche'),
+                     e in tutto il file quell'attributo non compare mai. */
+                  const fuori = !!a.esaurito && !giu;
                   return (
                     <button key={a.id} data-agg={a.nome} aria-pressed={giu} onClick={() => giraAgg(a.id)}
-                      aria-label={rv
+                      aria-label={fuori ? `${a.nome} esaurita: non si mette` : (rv
                         ? (giu ? `Leva ${a.nome} da ${nomeBase(rv)}` : `Metti ${a.nome} su ${nomeBase(rv)}`)
-                        : (giu ? `Lascia ${a.nome}` : `Prendi in mano ${a.nome}`)}
-                      className="rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5 shrink-0"
-                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }) }}>
+                        : (giu ? `Lascia ${a.nome}` : `Prendi in mano ${a.nome}`))}
+                      className={`rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5 shrink-0${fuori ? " line-through" : ""}`}
+                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" }
+                        : fuori ? { background: "#F6EFE6", color: T.dim, border: `1.5px dashed ${T.tenue}` }
+                        : { background: "#F0F3FB", color: T.dim }) }}>
                       {giu && <Check size={13} />}{a.nome}
                       <span className="text-[11px] font-semibold" style={{ opacity: .8 }}>+ {fmtEuro(a.prezzo || 0)}</span>
                     </button>
@@ -14665,6 +14828,57 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
             ))}
           </div>);
         })()}
+      </Foglio>
+      {/* ═══ GLI INGREDIENTI ESAURITI (gen-6.18) ═══
+          Parole di Valerio del 13 settembre: la cassa «può scegliere gli
+          ingredienti disponibili, e quelli esauriti».
+          IL MARKUP STA QUI, non dentro la fascia, e non e' un dettaglio di
+          stile: la fascia e' un `fixed z-30`, e un elemento posizionato crea
+          un contesto di impilamento — lo z-50 del Foglio varrebbe solo li'
+          dentro e la barra di navigazione (z-40) gli dipingerebbe sopra. Nella
+          fascia resta il solo bottone; il Foglio vive accanto agli altri.
+          Il collaudo §10 non guarda gli z-index: chiede al documento chi
+          riceve il tocco nel punto della barra. */}
+      <Foglio aperto={esauritiSu} titolo="Ingredienti esauriti" onChiudi={() => setEsauritiSu(false)}>
+        <p className="text-sm mb-3" style={{ color: T.dim }}>
+          Quello che segni qui finisce in fondo alla fascia, barrato, e non si mette più sui piatti.
+          Le righe già nel conto non si toccano: si incassano com'erano.
+          <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+            Le altre casse lo vedono al giro dopo, qualche secondo. A fine serata si rimette disponibile da qui.</span>
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {aggiunteTutte(stato).length === 0 && (
+            <p className="text-sm" style={{ color: T.tenue }}>Non c'è nessun ingrediente da segnare.</p>
+          )}
+          {aggiunteTutte(stato).map((a) => {
+            const fin = !!a.esaurito;
+            return (
+              /* il marcatore sta sulla RIGA e il bottone dentro: sono due cose
+                 diverse — lo stato si legge, il tocco si dà. Stessa ragione del
+                 cartello «da salvare», che il banco aveva già insegnato. */
+              <div key={a.id} data-esa-riga={a.id} data-esa-stato={fin ? "esaurito" : "disponibile"}>
+                <button type="button" onClick={() => segnaEsaurito(a, !fin)} aria-pressed={fin}
+                  aria-label={fin ? `Rimetti disponibile ${a.nome}` : `Segna esaurito ${a.nome}`}
+                  className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+                  style={fin
+                    ? { background: "#F6EFE6", border: `1.5px dashed ${T.tenue}` }
+                    : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+                  <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                    style={{ background: fin ? T.ambra : "#fff", border: `1.5px solid ${fin ? T.ambra : T.tenue}` }}>
+                    {fin && <Check size={13} color="#fff" />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-sm font-extrabold truncate${fin ? " line-through" : ""}`}
+                      style={{ color: T.ink }}>{a.nome}</span>
+                    <span className="block text-xs" style={{ color: T.dim }}>
+                      {fin ? "Esaurita: non si mette sui piatti" : "Disponibile"}</span>
+                  </span>
+                  <span className="text-xs shrink-0" style={{ color: T.tenue }}>+ {fmtEuro(a.prezzo || 0)}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </Foglio>
       {/* ── CHI È, E COME LO VUOLE (gen-6.08) ──
           Un foglio solo per tutte e tre le domande, nell'ordine in cui le fa
@@ -16654,9 +16868,20 @@ export default function App() {
            c'e' uno stato vero su cui scriverlo, e con dentro il totale: senza
            la cifra la riga non serve a decidere se ribattere. */
         if (fermeRef.current.length && letto) {
+          /* IL NUMERO DELLE RIGHE E GLI EURO PARLANO DI COSE DIVERSE
+             (gen-6.18). Prima questa riga diceva «N vendite ferme (€ X)»
+             sommando m.dati.totale su TUTTA la coda: una spunta di cucina o un
+             ingrediente esaurito non hanno un totale, contavano zero, e chi
+             leggeva nello storico condiviso cercava un incasso che non c'era.
+             Adesso le righe si contano tutte e gli euro solo dove ci sono. */
           const q = fermeRef.current; fermeRef.current = [];
-          const somma = q.reduce((x, m) => x + (Number(m?.dati?.totale) || 0), 0);
-          muta(() => {}, `${q.length === 1 ? "Una vendita ferma" : q.length + " vendite ferme"} da piu' di ${ORE_VENDITE} ore su questo telefono (${fmtEuro(somma)}): NON sono state rispedite, vanno controllate a mano`);
+          const conSoldi = q.filter((m) => Number(m?.dati?.totale) > 0);
+          const somma = conSoldi.reduce((x, m) => x + Number(m.dati.totale), 0);
+          const quante = q.length === 1 ? "Una modifica ferma" : q.length + " modifiche ferme";
+          const euro = conSoldi.length
+            ? ` (di cui ${conSoldi.length === 1 ? "1 vendita" : conSoldi.length + " vendite"} per ${fmtEuro(somma)})`
+            : "";
+          muta(() => {}, `${quante} da piu' di ${ORE_VENDITE} ore su questo telefono${euro}: NON sono state rispedite, vanno controllate a mano`);
         }
       } catch {}
     }
@@ -16687,9 +16912,14 @@ export default function App() {
        verde costa dieci secondi — mentre una serata di incassi non torna. */
     const inFila = codaRef.current.filter((m) => m.tipo).length;
     if (inFila > 0) {
+      /* si continua a contare OGNI m.tipo, e non solo quelli che portano
+         soldi: due righe sotto c'e' «codaRef.current = [m]», UN'ASSEGNAZIONE
+         che butta la coda. Filtrare qui riaprirebbe di proposito il buco che
+         gen-6.10 ha chiuso per le spunte di cucina. Cambia solo il
+         SOSTANTIVO, che e' l'unica cosa che era sbagliata. */
       mostraToast(inFila === 1
-        ? "Non ripristino: c'è 1 vendita ancora da salvare. Aspetta che il pallino in alto torni verde."
-        : `Non ripristino: ci sono ${inFila} vendite ancora da salvare. Aspetta che il pallino in alto torni verde.`,
+        ? "Non ripristino: c'è 1 modifica ancora da salvare. Aspetta che il pallino in alto torni verde."
+        : `Non ripristino: ci sono ${inFila} modifiche ancora da salvare. Aspetta che il pallino in alto torni verde.`,
         "errore");
       return false;
     }

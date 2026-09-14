@@ -119,7 +119,7 @@ const incassa = async (p, metodo) => {
 
 /* ═══ 1. LA FONTE: la versione sale, il prezzo in cella sale a text-sm ═══ */
 console.log("\n— 1. la fonte —");
-const src = readFileSync("../app/app.jsx", "utf8");
+const src = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
 /* 01/09: qui c'era la versione inchiodata a «gen-6.00». Era giusta il giorno
    del rilascio e SBAGLIATA da quello dopo: al primo rilascio successivo
    (gen-6.01, le postazioni ai profili) e' diventata rossa da sola senza che

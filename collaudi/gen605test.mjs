@@ -202,7 +202,7 @@ const incassa = async (p) => {
 
 /* ═══ 1. LA FONTE ═══ */
 console.log("\n— 1. la fonte —");
-const src = readFileSync("../app/app.jsx", "utf8");
+const src = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
 const ver = (src.match(/const VERSIONE = "gen-(\d+)\.(\d+)"/) || []).slice(1).map(Number);
 ok(ver.length === 2 && (ver[0] > 6 || (ver[0] === 6 && ver[1] >= 5)),
   `VERSIONE è gen-${ver.join(".")}: non più vecchia di gen-6.05, che ha reso la coda a prova di ricaricamento`);

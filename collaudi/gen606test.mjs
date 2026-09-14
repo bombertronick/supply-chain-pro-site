@@ -337,8 +337,12 @@ console.log("\n— 3. chi riprende in mano il telefono lo sa subito —");
 await prova("§3", async () => {
   await riapri(A);
   const pre = await testoDi(A.p);
-  ok(/1 vendita da salvare/.test(pre),
-    `sulla schermata dei nomi c'è scritto quante ne aspettano — «${(pre.match(/.{0,4}\d+ vendit\w+ da salvare.{0,30}/) || ["(niente)"])[0]}»`);
+  /* «modifica» e non «vendita» da gen-6.18: il cartello conta OGNI voce
+     salvabile — vendite, storni, spunte di cucina, ingredienti esauriti — e
+     chiamarle tutte vendite faceva cercare un incasso che non c'era. Qui
+     dentro la coda ha una vendita sola, ed e' il numero che conta. */
+  ok(/1 modifica da salvare/.test(pre),
+    `sulla schermata dei nomi c'è scritto quante ne aspettano — «${(pre.match(/.{0,4}\d+ modific\w+ da salvare.{0,30}/) || ["(niente)"])[0]}»`);
   ok((await A.p.locator("[data-da-salvare]").count()) === 1, "ed è un cartello suo, non una parola persa nel testo");
   ok(/partono da sole/.test(pre), "e dice anche cosa succederà, non solo che c'è un problema");
 });
@@ -355,7 +359,7 @@ await prova("§4", async () => {
   const pre = await testoDi(A.p);
   ok(!/Connessione instabile|offline|Riconnessione/i.test(pre),
     "e non dice «offline» sulla schermata dei nomi, dove nessuno ha ancora sbagliato niente");
-  ok(/1 vendita da salvare/.test(pre), "la spia però continua a dire che c'è una vendita in attesa");
+  ok(/1 modifica da salvare/.test(pre), "la spia però continua a dire che c'è qualcosa in attesa");
 });
 
 /* ═══ 5. AL LOGIN LA CODA PARTE DA SOLA, E ARRIVA UNA VOLTA SOLA ═══ */
@@ -482,7 +486,7 @@ await prova("§8", async () => {
     "e non ha scritto la vendita su uno stato costruito sul niente");
   const coda = await codaSalvata(D.p);
   ok(Array.isArray(coda) && coda.length === 1, `la vendita resta in coda, non si perde — ${JSON.stringify(coda) === "null" ? "SPARITA" : (coda || []).length}`);
-  ok(/1 vendita da salvare/.test(t) || /da salvare/.test(t), "e la spia continua a dirlo");
+  ok(/1 modifica da salvare/.test(t) || /da salvare/.test(t), "e la spia continua a dirlo");
 });
 await D.ctx.close();
 

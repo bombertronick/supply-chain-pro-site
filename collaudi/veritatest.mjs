@@ -37,7 +37,7 @@ const prova = async (nome, fn) => { try { await fn(); } catch (e) { ok(false, `$
 
 /* ═══ 1. IL SORGENTE NON MENTE (controlli sul file, non sull'interfaccia) ═══ */
 console.log("\n— 1. le parole del sorgente —");
-const src = readFileSync("../app/app.jsx", "utf8");
+const src = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
 ok((src.match(/tempo reale/gi) || []).length === 0,
   `«tempo reale» non esiste più nel sorgente (trovate ${(src.match(/tempo reale/gi) || []).length})`);
 ok((src.match(/Gamepad2/g) || []).length === 0,

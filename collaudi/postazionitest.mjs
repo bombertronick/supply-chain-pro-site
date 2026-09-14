@@ -110,7 +110,7 @@ const laSedia = (p) => p.evaluate(() => localStorage.getItem("scp:comande:v1"));
 
 /* ═══ 1. LA FONTE ═══ */
 console.log("\n— 1. la fonte —");
-const src = readFileSync("../app/app.jsx", "utf8");
+const src = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
 /* 02/09: qui la versione era inchiodata a «gen-6.01». Era giusta il giorno
    del rilascio e SBAGLIATA da quello dopo: al primo rilascio successivo
    (gen-6.02, le aggiunte) e' diventata rossa da sola senza che niente fosse

@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 13 settembre 2026
+# Passaggio di consegne fra sessioni · 14 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260913`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260914`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -36,22 +36,23 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.17, `app:jsx:src` len 997686, md5
-  `f96ad21282fa8f09b48696aa3f0ba5a9`, meta `{"len":997686,"ver":"gen-6.17"}`.
-  Backup: `backup:pre-gen618` = gen-6.17, `backup:pre-gen617` = gen-6.16,
-  `backup:pre-gen616` = gen-6.15. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.18, `app:jsx:src` len 1013583, md5
+  `e7aecade7aa6a5d7ef3ad9b78edda8b7`, meta `{"len":1013583,"ver":"gen-6.18"}`.
+  Backup: `backup:pre-gen619` = gen-6.18, `backup:pre-gen618` = gen-6.17,
+  `backup:pre-gen617` = gen-6.16. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
 - **Censimenti**: gen-6.12 e gen-6.13 a 97 verdi / 1975 controlli; gen-6.14 a
   98 verdi / 1994 controlli; gen-6.15 a 99 verdi / 2063 controlli;
-  gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**
+  gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**;
+  gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**.
   (girato con `gen605test` ANCORA su `file://`, cioè prima della riparazione di
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260913` (il checkpoint completo,
-  l'ultimo), `chk-20260912` (quello prima) e `passaggio-20260909` (il
+- **Dispensa**: le voci che servono: `chk-20260914` (il checkpoint completo,
+  l'ultimo), `chk-20260913` (quello prima) e `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
@@ -172,7 +173,10 @@ largo (1280×800).
 - **Prima** `node build.mjs ../app/app.jsx`, se no si fotografa il vecchio.
 - `node guarda.mjs` — tutte le schermate, tutti e due i formati (~2 minuti).
 - `node guarda.mjs cassa cassa-giornata` — solo quelle. Nomi: home, cassa,
-  cassa-clienti, cassa-giornata, comande, magazzini, plancia, conteggi, ordini,
+  cassa-clienti, cassa-giornata, **cassa-fascia**, **cassa-esauriti** (da
+  gen-6.18: la fascia aperta col bottone nuovo, e il Foglio degli esauriti —
+  la seconda TOCCA l'interruttore, quindi la foto mostra lo stato e non un
+  elenco di righe uguali), comande, magazzini, plancia, conteggi, ordini,
   analisi, gestione, **sistema** (da gen-6.15: è dove sta la scheda
   diagnostica).
 - `FORMATO=telefono node guarda.mjs` — un formato solo (`telefono` | `largo`).
@@ -235,6 +239,30 @@ diventerebbe verde per il motivo sbagliato.
 **La regola generale**: quando si scrive una guardia sul SORGENTE, si verifica
 subito che la fetta che guarda non sia vuota, e che le parole che cerca siano
 nomi di identificatori e non parole comuni della lingua.
+
+## Due trappole dei banchi, chiuse a gen-6.18
+
+Sono la stessa famiglia di «un controllo che non può diventare rosso», e
+costano ore a chi le trova senza saperle.
+
+1. **Il banco che legge il file del repository invece della copia sabotata.**
+   Otto banchi scrivevano `readFileSync("../app/app.jsx")` fisso. Sotto
+   sabotaggio `build.mjs` costruisce da `/tmp/lavoro-sabotato.jsx`, ma il
+   controllo sul TESTO continuava a leggere il file integro: diceva **verde su
+   un muro che non c'era più**. È il difetto che a gen-6.17 ha prodotto due
+   sabotaggi MUTI. Adesso tutti e otto leggono
+   `process.env.SORGENTE || "../app/app.jsx"`. **Chi scrive un banco nuovo che
+   legge il sorgente lo scrive già così**, se no il suo primo sabotaggio mente.
+2. **La trappola di mezzanotte, ma dentro il banco.** `spietest §2` seminava
+   uno scontrino a `Date.now() - 90 minuti` e poi pretendeva di vederlo nel
+   contatore di **oggi**. Alle 00:35 «novanta minuti fa» è **ieri**: il banco
+   diventava rosso per novanta minuti ogni notte, da quando esiste, e nessuno
+   l'aveva mai visto perché nessuno gira i collaudi a quell'ora. Trovato il 14
+   settembre alle 00:35, e **verificato girando lo stesso banco su gen-6.17**:
+   identico rosso, stessa riga — cioè non era una regressione. Riparato con
+   `oraDiOggi(minutiFa)`, che non torna mai prima delle 00:01 di oggi.
+   **La regola**: un seme «N minuti fa» che poi si confronta con un contatore
+   di giornata va **agganciato al giorno**, non all'orologio.
 
 ## Cosa NON c'è nel repo, ed è voluto
 
@@ -381,8 +409,9 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    `aria-label` dell'intestazione, che avrebbe fatto lanciare
    `autorizzazionitest:286` in strict mode. Tre voci, e l'uscita resta quella
    di sempre.
-   **DUE PEZZI SONO USCITI DAL RILASCIO**, e sono i prossimi:
-   · **l'esaurito** (la quarta richiesta di Valerio) ha preso SEI accuse tutte
+   **DUE PEZZI ERANO USCITI DAL RILASCIO**: il primo è online da gen-6.18
+   (voce 6 qui sotto), il secondo aspetta ancora.
+   · ~~**l'esaurito**~~ (la quarta richiesta di Valerio) ha preso SEI accuse tutte
      in piedi, con i rimedi già scritti: la guardia in `giraAgg` bloccherebbe
      anche la × (`levaDaRiga` **è** `giraAgg`); le porte da cui si mette
      un'aggiunta sono QUATTRO (chip, Foglio di scelta, mano, ricomposizione) e
@@ -403,20 +432,47 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
      sezione aperta, ogni voce fuori dal gruppo aperto **non è nel DOM**: ~50
      tocchi rossi per il motivo sbagliato. Serve una migrazione dei banchi, e
      va progettata prima.
-6. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
+6. ~~**L'esaurito**~~: **fatto, online da gen-6.18** (`collaudi/esauritotest.mjs`,
+   17 rossi → tutti verdi; `collaudi/sabotaggi-gen618.mjs`, dodici sabotaggi, 12 rossi dopo aver aperto l'unico muto (S8: §6 non interrogava la sesta porta, la prova mancava ed e' §21)).
+   **Le sei accuse di gen-6.17 erano giuste tutte e sei, ma il disegno che le
+   riparava era ancora sbagliato**: quattro revisori e degli scettici l'hanno
+   demolito con **34 accuse, otto alte**. Le tre che contano per chi viene dopo:
+   · **le porte erano SEI, non quattro.** `apriScelta` ha DUE chiamanti che
+     seminano `aggSel`: il nome della riga (`da = r.chiave`) e la **cella di una
+     voce con varianti**, che semina **dalla MANO** con `da = null`. Il Foglio
+     nasceva col chip già acceso senza che nessun dito lo avesse toccato.
+   · **due guardie scritte non potevano diventare rosse.** `giraAgg` ha due soli
+     chiamanti: il chip e `levaDaRiga`. Cortocircuitando il chip in un toast,
+     dentro `giraAgg` resta solo `levaDaRiga`, che per costruzione passa un id
+     **già sulla riga**: `!ids.includes(agId)` è sempre falso. La regola sta in
+     **un posto solo, `giraAgg`**, e il chip continua a chiamarlo sempre: così
+     le guardie sono raggiungibili, quindi collaudabili e sabotabili.
+   · **un compare-and-set era un ABA**, e falliva proprio nello scenario per cui
+     l'avevo messo: il campo è booleano, quindi «segnata → rimessa disponibile →
+     rigioco» ritrova il valore di partenza e passa. La difesa vera è lo
+     **steccato d'età dentro l'esecutore** (`ORE_ESAURITO = 6` su `d.t`):
+     l'esecutore è l'unico punto per cui passano tutte le strade — il
+     ritrovamento, `applicaCoda` a ogni giro, la riapplicazione dopo ogni
+     lettura remota. Una DURATA e non `giornoDi`, perché un segno delle 23:50
+     non deve sparire alle 00:01 sotto le dita di chi lo ha messo.
+   **E due sezioni del banco sono TESTIMONI dichiarati, non rossi** (§19 lo
+   steccato d'età, §20 la terza porta): su gen-6.17 non potevano diventare rosse
+   perché il tipo `esaurito` non esisteva. Esistono perché senza di loro due
+   guardie sarebbero state **scritte e mai provate**, ed è scritto nel banco.
+7. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
    finestra cieca (#40, oggi solo STRETTA da MAX_APPLICATE 1200). **È tutta
    client e non tocca il server**: un mittente per caricamento di pagina,
    l'ultima revisione atterrata, e una mappa `s.scritture` potata per valore
    invece che per orologio; il cancello `revBase` che c'è già rende la cosa
    dimostrabile. Quindi **non dipende dal pavimento del traffico** e può uscire
    prima.
-7. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+8. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-8. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+9. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)

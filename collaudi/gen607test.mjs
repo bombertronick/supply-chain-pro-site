@@ -585,7 +585,7 @@ await prova("§11", async () => {
 
 console.log("\n— 12. la guida dentro l'app non dice il contrario del codice —");
 await prova("§12", async () => {
-  const src = readFileSync("../app/app.jsx", "utf8");
+  const src = readFileSync(process.env.SORGENTE || "../app/app.jsx", "utf8");
   ok(!/gli scontrini di oggi/.test(src),
     "in app.jsx non e' rimasto scritto «gli scontrini di oggi» dove adesso sono 48 ore");
 });
