@@ -38,8 +38,13 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 - **Produzione**: gen-6.19, `app:jsx:src` len 1022364, md5
   `c5cffb144af4c8afa72927802ab50912`, meta `{"len":1022364,"ver":"gen-6.19"}`.
-  Backup: `backup:pre-gen620` = gen-6.19, `backup:pre-gen619` = gen-6.18,
-  `backup:pre-gen618` = gen-6.17. Verificare con una `select` prima di toccare.
+  Backup: `backup:pre-gen619` = gen-6.18, `backup:pre-gen618` = gen-6.17,
+  `backup:pre-gen617` = gen-6.16. Verificare con una `select` prima di toccare.
+  (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen619` è il codice di
+  PRIMA di gen-6.19, cioè gen-6.18. `backup:pre-gen620` nascerà col rilascio di
+  gen-6.20, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  sopra è il motivo per cui non è finito in produzione.)
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
