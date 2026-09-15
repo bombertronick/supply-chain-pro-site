@@ -9,6 +9,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync, mkdirSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -107,8 +108,8 @@ await A.ctx.close();
 /* ── CASSA (Sara) ── */
 const S = await apri("Sara", "2222");
 await vaiA(S.p, "Cassa"); await shot(S.p, "09-cassa-griglia");
-await S.p.getByRole("button", { name: "Aggiungi Fritto misto" }).click(); await S.p.waitForTimeout(250);
-await S.p.getByRole("button", { name: "Aggiungi Tiramisù" }).click(); await S.p.waitForTimeout(350);
+await batti(S.p, "Fritto misto", 250);
+await batti(S.p, "Tiramisù", 350);
 await shot(S.p, "10-cassa-carrello");
 /* gen-6.00: «Svuota» con la via del ritorno */
 await S.p.getByRole("button", { name: "Svuota il conto" }).click().catch(() => {});

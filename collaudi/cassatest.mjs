@@ -19,6 +19,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -124,9 +125,16 @@ await prova("§2", async () => {
   ok(!/Plancia/.test(nav), "e la Plancia no: la cassa da sola non dà comandi di magazzino");
   await vaiA(OK1.p, "Cassa");
   const t0 = await testoDi(OK1.p);
-  ok(/Spritz/.test(t0) && /Panino/.test(t0), "la griglia mostra le voci del listino");
-  await OK1.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await OK1.p.waitForTimeout(250);
-  await OK1.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await OK1.p.waitForTimeout(350);
+  /* RISCRITTA a gen-6.19, non migrata: qui non c'era un tocco da tradurre, c'era
+     una PRETESA che il disegno cambia. Da quando i gruppi sono pulsanti la
+     griglia mostra un gruppo per volta — qui «Mangiare», che ha 3 voci contro
+     l'unica di «Bere» — e lo Spritz sta dietro il suo pulsante. Sostituirla
+     meccanicamente l'avrebbe fatta diventare rossa per il motivo sbagliato. */
+  ok(/Panino/.test(t0), "la griglia mostra le voci del gruppo aperto");
+  ok(/MANGIARE/i.test(t0) && /BERE/i.test(t0),
+    "e i pulsanti di TUTTI i gruppi, anche di quelli chiusi: lo Spritz è a un tocco, non sparito");
+  await batti(OK1.p, "Spritz", 250);
+  await batti(OK1.p, "Spritz", 350);
   ok(/€ 10,00/.test(await testoDi(OK1.p)), "due Spritz nel carrello: totale € 10,00");
   await incassa(OK1.p, "Contanti");
   const st = await stato(OK1.p);
@@ -147,7 +155,7 @@ await prova("§2", async () => {
 /* ═══ 2b. LA VARIANTE ═══ */
 console.log("\n— 2b. la variante: prezzo congelato con il delta —");
 await prova("§2b", async () => {
-  await OK1.p.getByRole("button", { name: "Aggiungi Panino" }).click(); await OK1.p.waitForTimeout(500);
+  await batti(OK1.p, "Panino", 500);
   await OK1.p.getByRole("button", { name: /Maxi/ }).first().click(); await OK1.p.waitForTimeout(400);
   ok(/Panino Maxi/.test(await testoDi(OK1.p)), "nel carrello si legge «Panino + Maxi»");
   await incassa(OK1.p, "Carta");
@@ -162,7 +170,7 @@ await prova("§2b", async () => {
 /* ═══ 2c. L'OMAGGIO ═══ */
 console.log("\n— 2c. l'omaggio a prezzo zero si registra —");
 await prova("§2c", async () => {
-  await OK1.p.getByRole("button", { name: "Aggiungi Assaggio" }).click(); await OK1.p.waitForTimeout(350);
+  await batti(OK1.p, "Assaggio", 350);
   await incassa(OK1.p, "Contanti");
   const st = await stato(OK1.p);
   const v = (st.vendite || [])[0];
@@ -194,7 +202,7 @@ await prova("§3", async () => {
   ok(trovato > 0, "la lente gli offre «Battere una vendita»");
   await A.p.getByText("Battere una vendita", { exact: true }).first().click();
   await A.p.waitForTimeout(1200);
-  await A.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A.p.waitForTimeout(350);
+  await batti(A.p, "Spritz", 350);
   await incassa(A.p, "Contanti");
   const st = await stato(A.p);
   const v = (st.vendite || [])[0];
@@ -235,7 +243,7 @@ await prova("§6", async () => {
     totale: 150, nVendite: 30, nStorni: 0, metodi: { contanti: 150, carta: 0, altro: 0 } }];
   const S = await apri(st6, [PR.opCassa], "OpCassa", "2222");
   await vaiA(S.p, "Cassa");
-  await S.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await S.p.waitForTimeout(350);
+  await batti(S.p, "Spritz", 350);
   await incassa(S.p, "Contanti");
   const st = await stato(S.p);
   ok((st.vendite || []).length <= 300, `il tetto tiene: ${st.vendite.length} righe (≤ 300)`);
@@ -253,13 +261,13 @@ await prova("§7", async () => {
   l7.articoli.find((a) => a.prodottoId === artA.prodottoId).qty = 0.4;
   const S = await apri(st7, [PR.opCassa], "OpCassa", "2222");
   await vaiA(S.p, "Cassa");
-  await S.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await S.p.waitForTimeout(350);
+  await batti(S.p, "Spritz", 350);
   await incassa(S.p, "Contanti");
   let st = await stato(S.p);
   const aA = st.magazzini.find((m) => m.id === linea.id).articoli.find((a) => a.prodottoId === artA.prodottoId);
   ok(Math.abs(aA.qty + 0.1) < 1e-9,
     `la vendita passa e la giacenza dice il vero: −0,1 (vale ${aA.qty}) — il negativo è un invito a contare`);
-  await S.p.getByRole("button", { name: "Aggiungi Tagliere" }).click(); await S.p.waitForTimeout(350);
+  await batti(S.p, "Tagliere", 350);
   await incassa(S.p, "Contanti");
   st = await stato(S.p);
   const v = (st.vendite || [])[0];
@@ -279,8 +287,8 @@ await prova("§8a", async () => {
   await lente(A8.p, "vendita");
   await A8.p.getByText("Battere una vendita", { exact: true }).first().click();
   await A8.p.waitForTimeout(1200);
-  await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(250);
-  await A8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await A8.p.waitForTimeout(350);
+  await batti(A8.p, "Spritz", 250);
+  await batti(A8.p, "Spritz", 350);
   await incassa(A8.p, "Contanti");
   /* gen-6.00 (1/9): le ultime vendite sono traslocate dietro il Foglio
      «Ultime vendite» — la riga si tocca per stornare, l'aria-label e' rimasto */
@@ -310,7 +318,7 @@ console.log("\n— 8b. chi non è admin storna SOLO col PIN di un admin —");
 await prova("§8b", async () => {
   const O8 = await apri(base, [PR.opCassa, PR.admin], "OpCassa", "2222");
   await vaiA(O8.p, "Cassa");
-  await O8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await O8.p.waitForTimeout(350);
+  await batti(O8.p, "Spritz", 350);
   await incassa(O8.p, "Contanti");
   /* gen-6.00 (1/9): prima si apre il Foglio delle ultime vendite */
   await O8.p.getByRole("button", { name: "Ultime vendite" }).click(); await O8.p.waitForTimeout(600);
@@ -340,7 +348,7 @@ await prova("§8d", async () => {
   await lente(M8.p, "vendita");
   await M8.p.getByText("Battere una vendita", { exact: true }).first().click();
   await M8.p.waitForTimeout(1200);
-  await M8.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await M8.p.waitForTimeout(350);
+  await batti(M8.p, "Spritz", 350);
   await incassa(M8.p, "Contanti");
   /* gen-6.00 (1/9): prima si apre il Foglio delle ultime vendite */
   await M8.p.getByRole("button", { name: "Ultime vendite" }).click(); await M8.p.waitForTimeout(600);
@@ -359,10 +367,10 @@ console.log("\n— 9. il report di giornata: totali, metodi e scorporo IVA infor
 await prova("§9", async () => {
   const R9 = await apri(base, [PR.opCassa], "OpCassa", "2222");
   await vaiA(R9.p, "Cassa");
-  await R9.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R9.p.waitForTimeout(250);
-  await R9.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R9.p.waitForTimeout(350);
+  await batti(R9.p, "Spritz", 250);
+  await batti(R9.p, "Spritz", 350);
   await incassa(R9.p, "Contanti");
-  await R9.p.getByRole("button", { name: "Aggiungi Panino" }).click(); await R9.p.waitForTimeout(500);
+  await batti(R9.p, "Panino", 500);
   await R9.p.getByRole("button", { name: /Maxi/ }).first().click(); await R9.p.waitForTimeout(400);
   await incassa(R9.p, "Carta");
   await R9.p.getByRole("button", { name: "Report di giornata", exact: true }).click();

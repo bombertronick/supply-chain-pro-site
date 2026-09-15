@@ -2,6 +2,7 @@
 import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
 const base = JSON.parse(readFileSync("seed-state.json", "utf8"));
@@ -59,7 +60,7 @@ await p.goto(URL); await p.waitForTimeout(1500); await login();
 const nav = p.getByText("Cassa", { exact: true }); for (let i=0;i<await nav.count();i++) if (await nav.nth(i).isVisible()) { await nav.nth(i).click(); break; }
 await p.waitForTimeout(900);
 await p.evaluate(() => window.__uccidiRete(true));
-await p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click(); await p.waitForTimeout(300);
+await batti(p, "Margherita", 300);
 await p.getByRole("button", { name: "Incassa", exact: true }).click(); await p.waitForTimeout(600);
 await p.getByRole("button", { name: "Registra l'incasso", exact: true }).click(); await p.waitForTimeout(3000);
 console.log("PRIMA del ricaricamento · coda:", coda ? (await coda()) ? "presente" : "ASSENTE" : "?");

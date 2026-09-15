@@ -44,6 +44,7 @@ import { readFile } from "fs/promises";
 import { createServer } from "http";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { cella } from "./cassanav.mjs";
 
 /* ── PERCHE' QUESTO BANCO NON APRE UN file:// ──
    Con file:// questo file ha dato 11, 5, 11, 5, 3, 0, 0, 12, 0, 10 rossi sullo
@@ -266,9 +267,9 @@ const finche = async (p, quando, ms = 12000, passo = 150) => {
   for (;;) { if (await quando()) return true; if (Date.now() > fine) return false; await p.waitForTimeout(passo); }
 };
 const battiEIncassa = async (p) => {
-  const cella = p.getByRole("button", { name: "Aggiungi Margherita", exact: true });
-  await cella.waitFor({ state: "visible", timeout: 20000 });
-  await cella.click();
+  const cellaM = await cella(p, "Margherita");
+  await cellaM.waitFor({ state: "visible", timeout: 20000 });
+  await cellaM.click();
   const incassa = p.getByRole("button", { name: "Incassa", exact: true });
   await incassa.waitFor({ state: "visible", timeout: 20000 });
   await incassa.click();

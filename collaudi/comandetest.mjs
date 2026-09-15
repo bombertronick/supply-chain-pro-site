@@ -29,6 +29,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -159,8 +160,9 @@ let dopoVendita = null;
 await prova("§2", async () => {
   await vaiA(OC.p, "Cassa");
   for (const nome of ["Fritto misto", "Margherita", "Tiramisù", "Acqua"]) {
-    await OC.p.getByRole("button", { name: `Aggiungi ${nome}` }).click();
-    await OC.p.waitForTimeout(200);
+    /* quattro nomi in quattro GRUPPI diversi: una riga sola qui, quattro
+       tocchi a runtime, e l'aiutante apre il gruppo dove serve */
+    await batti(OC.p, nome, 200);
   }
   await incassa(OC.p);
   dopoVendita = await stato(OC.p);
@@ -238,10 +240,10 @@ await prova("§4", async () => {
   await lente(AD2.p, "cassa");
   await AD2.p.getByText("Battere una vendita", { exact: false }).first().click();
   await AD2.p.waitForTimeout(900);
-  await AD2.p.getByRole("button", { name: "Aggiungi Fritto misto" }).click();
+  await batti(AD2.p, "Fritto misto");
   await AD2.p.waitForTimeout(250);
   await incassa(AD2.p);
-  await AD2.p.getByRole("button", { name: "Aggiungi Tiramisù" }).click();
+  await batti(AD2.p, "Tiramisù");
   await AD2.p.waitForTimeout(250);
   await incassa(AD2.p);
   const st = await stato(AD2.p);
@@ -264,7 +266,7 @@ await prova("§5", async () => {
   await lente(AD3.p, "cassa");
   await AD3.p.getByText("Battere una vendita", { exact: false }).first().click();
   await AD3.p.waitForTimeout(900);
-  await AD3.p.getByRole("button", { name: "Aggiungi Fritto misto" }).click();
+  await batti(AD3.p, "Fritto misto");
   await AD3.p.waitForTimeout(250);
   await incassa(AD3.p);
   /* gen-6.00 (1/9): le ultime vendite stanno dietro il Foglio «Ultime

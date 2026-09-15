@@ -41,6 +41,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti, cella } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -214,10 +215,10 @@ const C = await apri(base, [PR.opCassa, PR.admin], "OpCassa", "2222");
 await prova("§2", async () => {
   await vaiA(C.p, "Cassa");
   const t0 = Date.now();
-  await tocca(C.p, "Aggiungi Margherita", 250);
+  await batti(C.p, "Margherita", 250);
   ok(Date.now() - t0 < 2000, "il tocco sulla cella risponde subito");
   ok((await C.p.locator(".fixed.inset-0").count()) === 0, "nessun foglio si è aperto");
-  await tocca(C.p, "Aggiungi Margherita", 350);
+  await batti(C.p, "Margherita", 350);
   ok(/Totale € 13,00/.test(await testoDi(C.p)), "due tocchi = due Margherite, € 13,00");
   ok((await C.p.locator(".fixed.inset-0").count()) === 0, "e nemmeno adesso c'è un foglio di mezzo");
   await tocca(C.p, "Svuota il conto", 350);
@@ -226,7 +227,7 @@ await prova("§2", async () => {
 /* ═══ 3. DOPO: piatto → ingrediente, DUE tocchi ═══ */
 console.log("\n— 3. prima il piatto, poi l'ingrediente —");
 await prova("§3", async () => {
-  await tocca(C.p, "Aggiungi Margherita", 350);
+  await batti(C.p, "Margherita", 350);
   ok(/Su: Margherita/.test(await testoDi(C.p)),
     "la fascia dice a parole dove cade il prossimo tocco: «Su: Margherita»");
   await apriFascia(C.p);
@@ -259,7 +260,7 @@ await prova("§4", async () => {
   ok(/In mano: Broccoletti/.test(t1), "il chip va IN MANO e la fascia lo scrive");
   ok((await C.p.getByRole("button", { name: "Svuota la mano", exact: true }).count()) === 1,
     "e si può lasciare");
-  await tocca(C.p, "Aggiungi Margherita", 450);
+  await batti(C.p, "Margherita", 450);
   const t2 = await testoDi(C.p);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita + Broccoletti", exact: true }).count()) === 1,
     "il piatto prende quello che si teneva in mano: «Margherita + Broccoletti» in due tocchi");
@@ -268,7 +269,7 @@ await prova("§4", async () => {
   await tocca(C.p, "Svuota il conto", 400);
   await apriFascia(C.p);
   await tocca(C.p, "Prendi in mano Broccoletti", 350);
-  await tocca(C.p, "Aggiungi Spritz", 500);
+  await batti(C.p, "Spritz", 500);
   const t3 = await testoDi(C.p);
   ok(/Totale € 5,00/.test(t3), "lo Spritz entra liscio: i broccoletti non ci vanno");
   ok(/In mano: Broccoletti/.test(t3), "e i broccoletti restano IN MANO invece di sparire");
@@ -281,8 +282,8 @@ await prova("§4", async () => {
 /* ═══ 5. A QUALE RIGA, COL CONTO PIENO ═══ */
 console.log("\n— 5. il bersaglio quando il conto è lungo —");
 await prova("§5", async () => {
-  for (const n of ["Aggiungi Margherita", "Aggiungi Spritz", "Aggiungi Boscaiola", "Aggiungi Acqua"])
-    await tocca(C.p, n, 300);
+  for (const n of ["Margherita", "Spritz", "Boscaiola", "Acqua"])
+    await batti(C.p, n, 300);
   ok((await viva(C.p).count()) === 1, "una sola riga è viva in tutto il conto");
   ok(/Su: Boscaiola/.test(await testoDi(C.p)),
     "l'Acqua battuta per ultima NON ruba il bersaglio: non ha aggiunte, e la fascia dice ancora «Su: Boscaiola»");
@@ -301,7 +302,7 @@ await prova("§5", async () => {
     "«Stacca» libera il bersaglio: da qui l'ingrediente torna a prendersi in mano");
   await tocca(C.p, "Svuota il conto", 400);
   /* vale per una */
-  for (let i = 0; i < 3; i++) await tocca(C.p, "Aggiungi Margherita", 250);
+  for (let i = 0; i < 3; i++) await batti(C.p, "Margherita", 250);
   await apriFascia(C.p);
   await tocca(C.p, "Metti Broccoletti su Margherita", 450);
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita", exact: true }).count()) === 1
@@ -317,7 +318,7 @@ await prova("§6", async () => {
   ok((await C.p.getByRole("button", { name: "Aumenta Margherita + Broccoletti", exact: true }).count()) === 0,
     "lo stesso chip disfa: le tre Margherite tornano una riga sola");
   /* la × della sotto-riga, su una riga NON viva, con la mano piena */
-  await tocca(C.p, "Aggiungi Boscaiola", 300);
+  await batti(C.p, "Boscaiola", 300);
   await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia su Boscaiola", 450);
   await tocca(C.p, "Lavora su Margherita", 400);
@@ -338,15 +339,29 @@ await prova("§6", async () => {
 /* ═══ 7. LA CARTA: il nome corto e la composizione ═══ */
 console.log("\n— 7. «cosa c'è nella boscaiola?» —");
 await prova("§7", async () => {
-  const cella = C.p.getByRole("button", { name: "Aggiungi Boscaiola", exact: true });
-  const tc = (await cella.innerText()).replace(/\s+/g, " ");
+  /* DICE QUALE MONDO STA MISURANDO (gen-6.19): da quando i gruppi sono
+     pulsanti, «un tocco» vale solo se la Margherita è già in griglia. Se
+     domani il gruppo di partenza cambiasse, questa riga si accende PRIMA
+     dell'altra e dice perché. Il tocco resta CRUDO: passarlo da cassanav.mjs
+     lo renderebbe verde dopo aver speso un tocco per aprire il gruppo, cioè
+     un verde per il motivo sbagliato su una promessa del padrone di casa. */
+  const espG = await C.p.locator('[data-gruppo="Pizze"]').first()
+    .getAttribute("aria-expanded").catch(() => null);
+  ok(espG !== "false", `le Pizze sono già in griglia: è il mondo in cui «un tocco» vuol dire qualcosa (${espG ?? "nessun pulsante: gruppo unico"})`);
+  /* i DUE locator qui sotto restano CRUDI per sempre, ed è il motivo per cui
+     gruppitest §22 ammette 2 riferimenti a questo file: §7 promette «ZERO
+     tocchi» e per dirlo deve leggere DUE celle — la Boscaiola che la
+     composizione ce l'ha e la Margherita che non ce l'ha. Farle passare da
+     cassanav.mjs le renderebbe verdi dopo un tocco. */
+  const cellaB = C.p.getByRole("button", { name: "Aggiungi Boscaiola", exact: true });
+  const tc = (await cellaB.innerText()).replace(/\s+/g, " ");
   ok(/mozzarella, funghi, salsiccia/.test(tc),
     "ZERO tocchi: la composizione è già scritta sulla cella, sotto il prezzo");
   ok(/Boscaiola/.test(tc), "e il nome resta il nome");
   const cellaM = C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true });
   ok(!/mozzarella/.test((await cellaM.innerText()).toLowerCase()),
     "la Margherita, che non ha «cosa c'è dentro» scritto, non guadagna nemmeno un pixel");
-  await tocca(C.p, "Aggiungi Boscaiola", 400);
+  await batti(C.p, "Boscaiola", 400);
   ok(/mozzarella, funghi, salsiccia/.test(await testoDi(C.p)),
     "e la fascia la ripete accanto al bersaglio: «su cosa lavoro» e «di cosa è fatto» in uno sguardo");
   await apriFascia(C.p);
@@ -358,18 +373,18 @@ await prova("§7", async () => {
   /* §7b — il nome non si allunga MAI: contro-controllo che deve valere sempre */
   ok(!/mozzarella/.test(tr.toLowerCase()),
     "§7b: la composizione non entra nella riga del conto");
-  ok(!/mozzarella/.test((await cella.innerText()).split("\n")[0].toLowerCase()),
+  ok(!/mozzarella/.test((await cellaB.innerText()).split("\n")[0].toLowerCase()),
     "§7b: e non entra nel nome grande della cella");
 });
 
 /* ═══ 8. LE VARIANTI A SCHERMO ═══ */
 console.log("\n— 8. il nome del formato, non la parola «varianti» —");
 await prova("§8", async () => {
-  const cp = C.p.getByRole("button", { name: "Aggiungi Panino", exact: true });
+  const cp = await cella(C.p, "Panino");
   const tp = (await cp.innerText()).replace(/\s+/g, " ");
   ok(/Maxi/i.test(tp), "la cella del Panino stampa il NOME del formato: «Maxi»");
   ok(!/variant/i.test(tp), "e non più la parola muta «varianti»");
-  await tocca(C.p, "Aggiungi Panino", 500);
+  await batti(C.p, "Panino", 500);
   await apriFascia(C.p);
   await tocca(C.p, "Metti Salsiccia", 300);
   await tocca(C.p, "Maxi + Salsiccia · € 11,50", 500);
@@ -500,11 +515,11 @@ await prova("§12", async () => {
      controllo che non puo' diventare rosso non e' un controllo. */
   const M = await apri(base, [PR.opCassa], "OpCassa", "2222");
   await vaiA(M.p, "Cassa");
-  for (const v of ["Aggiungi Margherita", "Aggiungi Spritz", "Aggiungi Acqua", "Aggiungi Panino"]) {
-    await M.p.getByRole("button", { name: v, exact: true }).click(); await M.p.waitForTimeout(250);
-    if (v === "Aggiungi Panino") { await M.p.getByRole("button", { name: "Così com'è · € 8,00", exact: true }).click(); await M.p.waitForTimeout(350); }
+  for (const v of ["Margherita", "Spritz", "Acqua", "Panino"]) {
+    await batti(M.p, v, 250);
+    if (v === "Panino") { await M.p.getByRole("button", { name: "Così com'è · € 8,00", exact: true }).click(); await M.p.waitForTimeout(350); }
   }
-  await M.p.getByRole("button", { name: "Aggiungi Boscaiola", exact: true }).click(); await M.p.waitForTimeout(300);
+  await batti(M.p, "Boscaiola", 300);
   await apriFascia(M.p);
   await M.p.getByRole("button", { name: "Metti Salsiccia su Boscaiola", exact: true }).click(); await M.p.waitForTimeout(450);
   for (const n of ["Metti Broccoletti su Boscaiola", "Lavora su Boscaiola + Salsiccia", "Riga: leva Salsiccia da Boscaiola + Salsiccia"]) {

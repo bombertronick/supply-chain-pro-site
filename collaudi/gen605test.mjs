@@ -46,6 +46,7 @@ import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -230,7 +231,7 @@ await prova("§2", async () => {
   await A.p.waitForTimeout(700);
   /* la rete muore PRIMA di battere */
   await A.p.evaluate(() => window.__uccidiRete(true));
-  await A.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(A.p, "Margherita");
   await A.p.waitForTimeout(300);
   await incassa(A.p);
   await A.p.waitForTimeout(2500);            // il tempo di tre tentativi falliti
@@ -291,7 +292,7 @@ await prova("§4", async () => {
      questo passo il controllo cerca i tasti del banco su un'altra schermata */
   await vaiA(A.p, "Cassa");
   await A.p.waitForTimeout(700);
-  await A.p.getByRole("button", { name: "Aggiungi Acqua", exact: true }).click();
+  await batti(A.p, "Acqua");
   await A.p.waitForTimeout(300);
   await incassa(A.p);
   await A.p.waitForTimeout(2000);
@@ -309,7 +310,7 @@ await prova("§5", async () => {
   await B.p.waitForTimeout(700);
   await B.p.evaluate(() => window.__uccidiRete(true));
   for (let i = 0; i < 3; i++) {
-    await B.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+    await batti(B.p, "Margherita");
     await B.p.waitForTimeout(250);
     await incassa(B.p);
     await B.p.waitForTimeout(400);
@@ -354,8 +355,7 @@ await prova("§7", async () => {
   await vaiA(C.p, "Cassa");
   await C.p.waitForTimeout(700);
   await C.p.evaluate(() => window.__perdiRisposta(true));
-  await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
-  await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await incassa(C.p);
   await C.p.waitForTimeout(3000);
   const dopo = await salvato(C.p);
@@ -394,7 +394,7 @@ await prova("§7b", async () => {
   await vaiA(D.p, "Cassa");
   await D.p.waitForTimeout(700);
   /* una vendita normale, che arriva in rete come si deve */
-  await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(D.p, "Margherita");
   await D.p.waitForTimeout(300);
   await incassa(D.p);
   await D.p.waitForTimeout(2500);

@@ -28,6 +28,7 @@ import { readFileSync, existsSync } from "fs";
 import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
@@ -230,7 +231,7 @@ console.log("\n— 9. la pizza liscia resta un tocco —");
 await prova("§9", async () => {
   await C.p.getByRole("button", { name: "Va bene", exact: true }).click();
   await C.p.waitForTimeout(400);
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click();
+  await batti(C.p, "Margherita");
   await C.p.waitForTimeout(350);
   ok((await C.p.locator(".sc-foglio").count()) === 0, "nessun foglio si è aperto");
   ok(/€ 6,00/.test(await testoDi(C.p)), "una Margherita, € 6,00, un tocco solo");

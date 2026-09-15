@@ -62,8 +62,10 @@ await vaiA(p, "Cassa");
 await p.waitForTimeout(900);
 /* «Incassa» e «Il conto» a conto VUOTO non ci sono: cercarli faceva dare
    l'allarme a una misura giusta. Si guarda una cella del listino, che in
-   Cassa c'e' sempre. */
-const inCassa = (await p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).count()) > 0;
+   Cassa c'e' sempre — ma NON per nome: da gen-6.19 la griglia mostra un
+   gruppo per volta e la Margherita puo' essere dietro un pulsante. Si guarda
+   data-nel-conto, che sta su OGNI cella della Cassa e su nient'altro. */
+const inCassa = (await p.locator("[data-nel-conto]").count()) > 0;
 console.log("  sono davvero in Cassa:   " + (inCassa ? "si" : "NO — la misura sotto non vale niente"));
 
 console.log("\n— quanto costa la fascia sempre aperta, su 390x844 —");

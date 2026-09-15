@@ -29,6 +29,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -190,7 +191,7 @@ console.log("\n— 8. il report leggibile —");
 await prova("§8", async () => {
   const S = await apri("Sara", "2222");
   await vaiA(S.p, "Cassa");
-  await S.p.getByRole("button", { name: "Aggiungi Caffè" }).click(); await S.p.waitForTimeout(300);
+  await batti(S.p, "Caffè", 300);
   await S.p.getByRole("button", { name: "Incassa", exact: true }).click(); await S.p.waitForTimeout(600);
   await S.p.getByRole("button", { name: "Registra l'incasso", exact: true }).click();
   await S.p.waitForTimeout(1200);

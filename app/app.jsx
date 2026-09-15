@@ -697,7 +697,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.18";
+const VERSIONE = "gen-6.19";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -1077,6 +1077,39 @@ const gruppoDi = (v) => ((v?.gruppo || "").trim()) || "Altro";
 /* la chiave con cui i gruppi si confrontano: il listino e' testo libero e
    «Pizze» e «pizze » sono la stessa pizzeria (riusa senzaAccenti) */
 const chiaveGruppo = (g) => senzaAccenti((g || "").trim());
+/* ── QUALE GRUPPO E' APERTO QUANDO ARRIVI (gen-6.19) ──
+   NON il piu' battuto. L'ordine per battute (in VistaCassa) e' un ordine di
+   TITOLI e si spegne da solo: le vendite durano 48 ore (ORE_VENDITE), quindi
+   il mercoledi' di riapertura, dopo le ferie, dopo un ripristino o al primo
+   servizio di un listino nuovo «battute» e' vuoto e decide a.localeCompare —
+   cioe' l'alfabeto, cioe' DOLCI prima di PIZZE. La margherita liscia e' il
+   90% delle battute del sabato e non puo' dipendere da una classifica che si
+   azzera da sola.
+   E c'e' di peggio: le vendite cambiano MENTRE si batte. applicaVendita
+   infila lo scontrino appena incassato in testa a s.vendite e il poll porta
+   dentro quelli dell'altra cassa ogni 2,6-3,5 s: con l'apertura appesa alle
+   battute, incassare un tiramisu' riaprirebbe la cassa sui DOLCI — cioe'
+   esattamente il tocco in piu' che questa generazione esiste per togliere.
+   Si guarda il LISTINO, che non si azzera e lo cambia solo un Admin: vince il
+   gruppo con PIU' VOCI (in produzione Pizze, 20 su 26). E' anche la scommessa
+   giusta sotto ignoranza: la cella che verra' toccata sta piu' probabilmente
+   nel cassetto piu' grande.
+   A parita' vince chi compare PRIMA nel listino: e' un ordine scritto da una
+   persona, mentre l'alfabeto e' un caso. «Altro» non parte mai aperto se non
+   e' l'unico gruppo che esiste — stessa ragione gia' scritta sull'ordine dei
+   titoli: e' il ripieno delle voci senza gruppo, non un gruppo scelto. */
+const gruppoDiPartenza = (voci) => {
+  const n = new Map();
+  for (const v of voci || []) {
+    const g = gruppoDi(v);
+    if (!n.has(g)) n.set(g, { g, quante: 0, primo: n.size });
+    n.get(g).quante++;
+  }
+  const tutti = [...n.values()];
+  const veri = tutti.filter((x) => x.g !== "Altro");
+  return (veri.length ? veri : tutti)
+    .sort((a, b) => b.quante - a.quante || a.primo - b.primo)[0]?.g ?? null;
+};
 /* LE AGGIUNTE (gen-6.02): «la pizza piu' broccoletti, patate e salsiccia».
    Sono un CATALOGO riusabile (s.aggiunte), non un campo della voce: i
    broccoletti valgono per TUTTE le pizze, e riscriverli su venti voci e' il
@@ -2154,7 +2187,7 @@ const GUIDA_SEZIONE = {
     { titolo: "Il ritardo e lo storno", testo: "La comanda arriva col giro dell'app: qualche secondo a schermo ACCESO — a schermo spento non arriva niente, quindi il tablet di postazione resta acceso sull'app. Uno scontrino stornato resta a schermo barrato in rosso col motivo, finché non tocchi «Vista»." },
   ],
   cassa: [
-    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi più battuti salgono in cima da soli, e sulla voce vedi quante ce ne sono già nel conto." },
+    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi sono pulsanti: tocchi PIZZE, FRITTI o DOLCI e si apre il suo gruppo. All'arrivo è aperto il più grande del listino. Sul pulsante di un gruppo chiuso leggi quante ne hai già battute; il prezzo e gli ingredienti si vedono aprendolo." },
     { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "In basso c'è la fascia degli ingredienti, e l'ordine non conta. Se hai già battuto il piatto, la fascia dice «Su: Margherita» e il tocco sull'ingrediente ci va sopra. Se non hai battuto niente, l'ingrediente resta IN MANO e lo prende il primo piatto che tocchi. Per cambiare bersaglio tocca il nome di un'altra riga («Lavora su…»), per liberarlo «Stacca». Vale per UNA: da due margherite ne resta una liscia e nasce «Margherita + Broccoletti». Si disfa dove hai sbagliato: lo stesso ingrediente per toglierlo, la × accanto alla riga, «Lascia» per svuotare la mano." },
     { titolo: "Il cliente: asporto, consegna, e per che ora", testo: "In cima alla Cassa c'è una pastiglia che dice «Banco»: al bancone non la tocchi mai e batti come sempre. Quando suona il telefono la apri e scegli «Asporto» o «Consegna». Il numero è la chiave: battine anche solo le ultime cifre e se il cliente ha già ordinato compare lì sotto — un tocco e nome, telefono e via si riempiono da soli. Il nome è obbligatorio (in cucina è quello che si legge sul sacchetto) e per la consegna lo è anche la via, con «Vedi sulla mappa» che te la apre PRIMA di prometterla. «Per le» è l'ora richiesta: i tastini «fra 15′» la scrivono da soli. La rubrica tiene i 300 clienti che hanno ordinato più di recente, e telefono e indirizzo NON escono mai nel CSV." },
     { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini delle ultime 48 ore — quello di ieri sera compreso, col giorno scritto accanto all'ora: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
@@ -13705,6 +13738,46 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      si leggeva, e nasconderla e basta avrebbe reso invisibile uno stato —
      peggio della barra sempre aperta. */
   const [fasciaSu, setFasciaSu] = useState(false);
+  /* ── I GRUPPI SONO PULSANTI (gen-6.19, parole di Valerio del 13 settembre:
+     «pizze fritti e dolci devono diventare dei pulsanti che aprono la loro
+     sezione») ──
+     26 voci su due colonne sono 13 righe da ~72px: le PIZZE DA SOLE fanno
+     ~720px su un 390x844, e fritti e dolci stavano SEMPRE sotto la piega,
+     dopo venti pizze.
+     UNA sola memoria, e locale: quale gruppo ha SCELTO chi sta battendo.
+     Niente localStorage — e' un attrezzo per un gesto, non una preferenza, la
+     stessa riga della fascia qui sopra — e niente canale condiviso: lo stato
+     viaggia INTERO a ogni scrittura e la cassa accanto vedrebbe aprirsi una
+     sezione da sola. Zero byte sui ~286 KB. */
+  const [gruppoScelto, setGruppoScelto] = useState(null);
+  /* l'ancora per tornare in cima. NON e' la riga appiccicata: un elemento
+     sticky e' gia' al bordo alto dello scrollport per definizione, e
+     scrollIntoView su se stesso non ha dove portarlo. */
+  const cimaRef = useRef(null);
+  /* e si scorre a mano il SOLO contenitore che scorre davvero, mai con
+     scrollIntoView. Misurato: scrollIntoView scorre TUTTI gli antenati
+     scorrevoli, e la scorza dell'app («sc-root», overflow-hidden) e' alta
+     139px piu' dello schermo — il primo tentativo si portava dietro anche
+     quella e spingeva <main> fuori schermo, con la riga appiccicata che
+     spariva insieme a lui. Il difetto lo ha visto §15 del banco, non io. */
+  const tornaInCima = () => {
+    try {
+      const a = cimaRef.current;
+      if (!a) return;
+      let s = a.parentElement;
+      while (s && !(s.scrollHeight > s.clientHeight + 4
+        && /auto|scroll/.test(getComputedStyle(s).overflowY))) s = s.parentElement;
+      if (!s) return;
+      s.scrollTop += Math.round(a.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientTop);
+    } catch {}
+  };
+  /* chi sta SOLO in cassa non esce MAI dalla Cassa (il tasto «Esci» non
+     esiste per soloQui, e ogni altra vista e' murata) e cambiare stanza NON
+     rimonta la vista — «sez» e' una prop, si smonta solo il sottoalbero delle
+     tre stanze. Senza questa riga il gruppo scelto alle 23 sarebbe ancora li'
+     a mezzogiorno del giorno dopo, sullo stesso telefono: la memoria che
+     questo disegno rifiuta, riprodotta senza scriverla. */
+  useEffect(() => { setGruppoScelto(null); }, [sez]);
   /* l'altezza VERA del blocco degli ingredienti, misurata dopo ogni disegno:
      con le categorie non e' piu' una costante, e lo spaziatore che tiene
      «Incassa» sopra la fascia deve seguirla (gen-6.09) */
@@ -13823,6 +13896,29 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      risponde al tocco DOVE il tocco e' caduto (gen-6.00) */
   const nelConto = {};
   for (const r of carrello) nelConto[r.voceId] = (nelConto[r.voceId] || 0) + r.qty;
+  /* ── QUALE GRUPPO E' APERTO ADESSO (gen-6.19) ──
+     il gruppo di partenza si RICALCOLA a ogni disegno e non si congela in un
+     ref: se un Admin cancella dal listino l'ultima voce del gruppo aperto
+     mentre il banco batte, la griglia deve tornare al gruppo di partenza, mai
+     restare vuota. */
+  const gPartenza = gruppoDiPartenza(voci);
+  const gAperto = gruppi.includes(gruppoScelto) ? gruppoScelto : gPartenza;
+  /* con UN GRUPPO SOLO niente pulsanti: una fisarmonica a un'anta e' 44px di
+     tassa su ogni tocco, e su un listino senza gruppi metterebbe in cima un
+     «ALTRO» che nessuno ha scelto */
+  const aFisarmonica = gruppi.length > 1;
+  /* quante ne ho gia' battute, GRUPPO per gruppo. E' il rimedio all'unica
+     cosa che i pulsanti tolgono: il badge di una cella chiusa non si vede
+     piu'. Stessa mossa dell'intestazione dei Conteggi e stessa ragione gia'
+     scritta li' — «per non trasformare un gruppo chiuso in una scatola nera».
+     Si cerca la voce nel listino INTERO e non fra le «voci» attive: una voce
+     disattivata a meta' conto deve continuare a contare nel gruppo dov'e'
+     gia' stata battuta. */
+  const nelGruppo = {};
+  for (const r of carrello) {
+    const v = (stato.listino || []).find((x) => x.id === r.voceId);
+    if (v) nelGruppo[gruppoDi(v)] = (nelGruppo[gruppoDi(v)] || 0) + r.qty;
+  }
   /* ── L'ORDINE DEGLI INGREDIENTI E' L'ALFABETO (gen-6.17) ──
      Qui stavano «battuteAgg» e «perBanco»: ordinavano i chip per quante volte
      erano stati battuti, e la ragione scritta era che la fascia era una riga
@@ -14213,7 +14309,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
     azzeraCliente();
     /* chiude anche la fascia: il conto dopo riparte pulito come il primo
        della serata, senza ereditare la barra aperta di quello prima */
-    setViva(null); setMano([]); setFasciaSu(false);
+    setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null);
   };
 
   const storna = async () => {
@@ -14320,7 +14416,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
         ? `Ogni vendita scarica «${magCassa.nome}»`
         : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
       {profilo.ruolo === "admin" && sediOp.length > 1 && (
-        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); azzeraCliente(); }} opzioni={sediOp} /></div>
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null); azzeraCliente(); }} opzioni={sediOp} /></div>
       )}
       {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
           registro. Le ultime vendite — coi loro storni — stanno dietro il
@@ -14363,12 +14459,59 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
         <span className="flex-1 text-left truncate">{targhettaCliente}</span>
         <ChevronRight size={16} />
       </button>
+      {/* l'ancora di «torna in cima»: sta FUORI dalla riga appiccicata,
+          perche' una riga sticky e' gia' in cima e non saprebbe dove andare */}
+      <div ref={cimaRef} data-cima-gruppi="1" />
+      {aFisarmonica && (
+        /* APPICCICATA: una fisarmonica in posto avrebbe lasciato il pulsante
+           «Fritti» sotto le venti pizze, cioe' sotto la piega, cioe' il
+           difetto di partenza. La tecnica e' quella gia' in casa nella barra
+           dei Magazzini e nel Catalogo; la velatura e' la stessa stringa —
+           T.bg velato, non un colore nuovo. VA A CAPO e non scorre di lato:
+           un bersaglio in una feritoia laterale al banco non esiste. */
+        <div data-riga-gruppi="1" className="flex flex-wrap gap-2 mb-3"
+          style={{ position: "sticky", top: 0, zIndex: 20, paddingTop: 6, paddingBottom: 6,
+            background: "rgba(244,247,254,.94)", backdropFilter: "blur(10px)" }}>
+          {gruppi.map((g) => {
+            const aperto = g === gAperto;
+            const n = nelGruppo[g] || 0;
+            return (
+              <button key={g} type="button" data-gruppo={g} data-nel-gruppo={n}
+                aria-expanded={aperto} aria-controls={`griglia-${g}`}
+                /* il nome dice COSA FA e COME STA: chi ascolta deve sapere
+                   perche' toccare il pulsante acceso non svuota lo schermo.
+                   I banchi cercano il pulsante per data-gruppo e MAI per nome
+                   accessibile: il nome porta un conto vivo che cambia mentre
+                   si batte. */
+                aria-label={aperto
+                  ? `${g}: gruppo aperto${n ? `, ${n} nel conto` : ""} — torna in cima`
+                  : `Apri ${g}${n ? `, ${n} nel conto` : ""}`}
+                /* il pulsante gia' acceso NON chiude: riporta la riga in cima.
+                   Se esistesse lo stato «tutto chiuso», esisterebbe uno stato
+                   in cui la margherita costa due tocchi. */
+                onClick={() => { setGruppoScelto(g); tornaInCima(); }}
+                className="flex-1 min-w-0 rounded-2xl px-3 inline-flex items-center justify-center gap-1.5 text-sm font-extrabold uppercase tracking-wide"
+                /* 44 punti espliciti: prima l'intestazione era un div alto
+                   ~16px, e al banco si batte col pollice, di fretta */
+                style={{ minHeight: 44, background: aperto ? T.blu : T.sup,
+                  color: aperto ? T.sup : T.dim,
+                  border: `1.5px solid ${aperto ? T.blu : T.bordo}` }}>
+                <span className="truncate">{g}</span>
+                {n > 0 && <Chip colore={aperto ? T.sup : T.blu} pieno={!aperto}>{n}</Chip>}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {voci.length === 0
         ? <Scheda className="p-8"><Vuoto icona={Store} titolo="Il listino è vuoto"
             testo="Le voci della Cassa le prepara un Admin da Gestione → Listino." /></Scheda>
-        : gruppi.map((g) => (
-          <div key={g} className="mb-3">
-            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+        : gruppi.filter((g) => !aFisarmonica || g === gAperto).map((g) => (
+          <div key={g} id={`griglia-${g}`} data-griglia={g} className="mb-3">
+            {/* CON UN GRUPPO SOLO resta il titolino di prima, identico */}
+            {!aFisarmonica && (
+              <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {voci.filter((v) => gruppoDi(v) === g)
                 .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
@@ -14485,7 +14628,7 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
               ); })}
           </div>
           <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
-            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); setFasciaSu(false); }} aria-label="Svuota il conto"
+            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null); }} aria-label="Svuota il conto"
               className="text-xs font-bold rounded-full px-4 shrink-0"
               style={{ color: T.tenue, background: "#F0F3FB", minHeight: 44 }}>Svuota</button>
             <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>

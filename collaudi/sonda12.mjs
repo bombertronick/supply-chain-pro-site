@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
 const base = JSON.parse(readFileSync("seed-state.json", "utf8"));
@@ -34,11 +35,11 @@ await p.getByText("OpCassa", { exact: true }).first().click(); await p.waitForTi
 for (const d of "2222") { await p.getByRole("button", { name: d, exact: true }).first().click().catch(()=>{}); await p.waitForTimeout(130); }
 await p.waitForTimeout(1500);
 await vaiA(p, "Cassa");
-for (const v of ["Aggiungi Margherita", "Aggiungi Spritz", "Aggiungi Acqua", "Aggiungi Panino"]) {
-  await p.getByRole("button", { name: v, exact: true }).click(); await p.waitForTimeout(250);
-  if (v === "Aggiungi Panino") { await p.getByRole("button", { name: "Così com'è · € 8,00", exact: true }).click(); await p.waitForTimeout(350); }
+for (const v of ["Margherita", "Spritz", "Acqua", "Panino"]) {
+  await batti(p, v, 250);
+  if (v === "Panino") { await p.getByRole("button", { name: "Così com'è · € 8,00", exact: true }).click(); await p.waitForTimeout(350); }
 }
-await p.getByRole("button", { name: "Aggiungi Boscaiola", exact: true }).click(); await p.waitForTimeout(300);
+await batti(p, "Boscaiola", 300);
 await p.getByRole("button", { name: "Metti Salsiccia su Boscaiola", exact: true }).click(); await p.waitForTimeout(450);
 await p.evaluate(() => { const m = document.querySelector("main"); if (m) m.scrollTop = m.scrollHeight; });
 await p.waitForTimeout(400);

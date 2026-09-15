@@ -38,6 +38,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -318,6 +319,15 @@ await prova("§8", async () => {
 
 console.log("\n— 9. la pizza liscia: un tocco, e la barra resta chiusa —");
 await prova("§9", async () => {
+  /* DICE QUALE MONDO STA MISURANDO (gen-6.19): da quando i gruppi sono
+     pulsanti, «un tocco» vale solo se la Margherita è già in griglia. Se
+     domani il gruppo di partenza cambiasse, questa riga si accende PRIMA
+     dell'altra e dice perché. Il tocco resta CRUDO: passarlo da cassanav.mjs
+     lo renderebbe verde dopo aver speso un tocco per aprire il gruppo, cioè
+     un verde per il motivo sbagliato su una promessa del padrone di casa. */
+  const espG = await C.p.locator('[data-gruppo="Pizze"]').first()
+    .getAttribute("aria-expanded").catch(() => null);
+  ok(espG !== "false", `le Pizze sono già in griglia: è il mondo in cui «un tocco» vuol dire qualcosa (${espG ?? "nessun pulsante: gruppo unico"})`);
   await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await C.p.waitForTimeout(450);
   ok((await aperta(C.p).count()) === 0,
@@ -366,7 +376,7 @@ await prova("§11", async () => {
   ok((await aperta(D.p).count()) === 0, "la × chiude la fascia senza lasciare la mano");
   ok((await D.p.getByRole("button", { name: "In mano: Salsiccia", exact: true }).count()) === 1,
     "e da CHIUSA la pastiglia dice ancora cosa si tiene: chiudere toglie spazio, non informazione");
-  await D.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(D.p, "Margherita");
   await D.p.waitForTimeout(650);
   /* il nome INTERO della riga sta nel nome accessibile del bottone «Aumenta»:
      a schermo il conto lo mostra spezzato — «Margherita» sopra e «+ Salsiccia»
@@ -382,10 +392,10 @@ const E = await apri(baseC, [PRC], "OpCassa", "2222");
 await prova("§12", async () => {
   await vaiA(E.p, "Cassa");
   for (let i = 0; i < 9; i++) {
-    await E.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+    await batti(E.p, "Margherita");
     await E.p.waitForTimeout(200);
   }
-  await E.p.getByRole("button", { name: "Aggiungi Acqua", exact: true }).click();
+  await batti(E.p, "Acqua");
   await E.p.waitForTimeout(300);
   const misura = async (etichetta, deveEssereAperta) => {
     /* si prova PRIMA in che stato siamo: senza questo, con la fascia sempre

@@ -32,6 +32,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -184,8 +185,8 @@ await prova("§3", async () => {
   await vaiA(C.p, "Cassa");
   /* la voce liscia resta UN tocco: la cella non apre niente, come in
      gen-6.01. È il 90% delle battute del sabato e non deve rallentare. */
-  await tocca(C.p, "Aggiungi Margherita", 250);
-  await tocca(C.p, "Aggiungi Margherita", 350);
+  await batti(C.p, "Margherita", 250);
+  await batti(C.p, "Margherita", 350);
   ok(/Totale € 13,00/.test(await testoDi(C.p)),
     "due tocchi sulla cella = due Margherite, nessun foglio di mezzo: € 13,00");
   /* 02/09, gen-6.03: qui si apriva un Foglio dal nome della riga e ci
@@ -221,7 +222,7 @@ await prova("§3", async () => {
 /* ═══ 4. VARIANTI E AGGIUNTE INSIEME ═══ */
 console.log("\n— 4. «Panino Maxi con salsiccia»: le due cose convivono —");
 await prova("§4", async () => {
-  await tocca(C.p, "Aggiungi Panino", 600);
+  await batti(C.p, "Panino", 600);
   const tf = (await foglio(C.p).innerText()).replace(/\s+/g, " ");
   /* contro-controllo VERDE anche oggi: senza spuntare niente il foglio dice
      quello che ha sempre detto (cassatest §2b e cassa2test §5 lo cercano) */
@@ -310,7 +311,7 @@ console.log("\n— 8. quello che NON deve cambiare —");
 const Z = await apri(base, [PR.opCassa], "OpCassa", "2222");
 await prova("§8", async () => {
   await vaiA(Z.p, "Cassa");
-  await tocca(Z.p, "Aggiungi Spritz", 400);
+  await batti(Z.p, "Spritz", 400);
   ok(/Totale € 5,00/.test(await testoDi(Z.p)), "lo Spritz (gruppo «Bere», nessuna aggiunta) entra con un tocco solo");
   /* 02/09: l'etichetta vecchia («Aggiunte per Spritz») in gen-6.03 non
      esiste piu' e questo controllo sarebbe rimasto verde PER CASO — cioe'
@@ -318,7 +319,7 @@ await prova("§8", async () => {
      l'etichetta nuova. */
   ok((await Z.p.getByRole("button", { name: /^Lavora su Spritz/ }).count()) === 0,
     "e la sua riga NON diventa un bottone: niente porte che non aprono niente");
-  await tocca(Z.p, "Aggiungi Acqua", 400);
+  await batti(Z.p, "Acqua", 400);
   ok(/Totale € 6,00/.test(await testoDi(Z.p)), "l'Acqua senza gruppo entra anche lei con un tocco: € 6,00");
 });
 await Z.ctx.close();

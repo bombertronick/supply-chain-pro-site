@@ -52,6 +52,7 @@ import { readFileSync, existsSync } from "fs";
 import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
@@ -306,8 +307,10 @@ await prova("§7", async () => {
   /* e adesso la cosa che conta davvero: si incassa lo stesso */
   await B.p.getByRole("button", { name: /Va bene|Conferma|Chiudi/i }).last().click().catch(() => {});
   await B.p.waitForTimeout(500);
-  await B.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click().catch(() => {});
-  await B.p.waitForTimeout(400);
+  /* DISINNESCATO a gen-6.19: prima era `.click().catch(() => {})`, cioe' un
+     controllo che non poteva diventare rosso — se la cella mancava l'errore
+     spariva e l'asserzione dopo parlava di servizi di mappe. `batti` urla. */
+  await batti(B.p, "Margherita", 400);
   const testo = await testoDi(B.p);
   ok(/6,00|Incassa/i.test(testo), "e si continua a battere: un servizio di mappe giu' non ferma una cassa");
 });
@@ -317,6 +320,15 @@ console.log("\n— 8. contro-controllo: la pizza liscia al banco resta un tocco 
 const C = await apri(base, PR.opCassa, "OpCassa", "2222");
 await prova("§8", async () => {
   await vaiInCassa(C.p);
+  /* DICE QUALE MONDO STA MISURANDO (gen-6.19): da quando i gruppi sono
+     pulsanti, «un tocco» vale solo se la Margherita è già in griglia. Se
+     domani il gruppo di partenza cambiasse, questa riga si accende PRIMA
+     dell'altra e dice perché. Il tocco resta CRUDO: passarlo da cassanav.mjs
+     lo renderebbe verde dopo aver speso un tocco per aprire il gruppo, cioè
+     un verde per il motivo sbagliato su una promessa del padrone di casa. */
+  const espG = await C.p.locator('[data-gruppo="Pizze"]').first()
+    .getAttribute("aria-expanded").catch(() => null);
+  ok(espG !== "false", `le Pizze sono già in griglia: è il mondo in cui «un tocco» vuol dire qualcosa (${espG ?? "nessun pulsante: gruppo unico"})`);
   await C.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
   await C.p.waitForTimeout(500);
   const t = await testoDi(C.p);
@@ -359,7 +371,7 @@ await prova("§10", async () => {
   await sugg.first().click(); await E.p.waitForTimeout(600);
   await E.p.getByRole("button", { name: /Va bene|Chiudi|Fatto/i }).last().click().catch(() => {});
   await E.p.waitForTimeout(500);
-  await E.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click(); await E.p.waitForTimeout(400);
+  await batti(E.p, "Margherita", 400);
   await E.p.getByRole("button", { name: /Incassa/i }).first().click(); await E.p.waitForTimeout(500);
   await E.p.getByRole("button", { name: /Registra/i }).first().click(); await E.p.waitForTimeout(2000);
   const st = await salvato(E.p);

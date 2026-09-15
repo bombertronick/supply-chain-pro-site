@@ -82,6 +82,7 @@ import { readFile } from "fs/promises";
 import { createServer } from "http";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti } from "./cassanav.mjs";
 
 const radice = process.cwd();
 const SORGENTE = process.env.SORGENTE || path.resolve("../app/app.jsx");
@@ -557,7 +558,7 @@ await prova("§6", async () => {
   await login(G.p, "OpCassa", "2222");
   /* una scrittura qualunque: si batte una vendita dalla Cassa */
   await vaiA(G.p, "Cassa");
-  await G.p.getByRole("button", { name: "Aggiungi Margherita" }).first().click();
+  await batti(G.p, "Margherita");
   await G.p.waitForTimeout(500);
   await G.p.getByRole("button", { name: "Incassa", exact: true }).click();
   await G.p.waitForTimeout(600);

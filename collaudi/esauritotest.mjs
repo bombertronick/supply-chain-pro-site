@@ -50,6 +50,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import crypto from "crypto";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
@@ -240,7 +241,7 @@ await prova("§4", async () => {
 
 console.log("\n— 5. toccare un chip esaurito non lo mette, e dice perche' —");
 await prova("§5", async () => {
-  await A.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(A.p, "Margherita");
   await A.p.waitForTimeout(600);
   await apriFascia(A.p);
   await A.p.locator('[data-fascia="1"] [data-agg="Bufala"]').first().click();
@@ -284,7 +285,7 @@ await prova("§6", async () => {
   ok(/non si mette/i.test(await testoDi(S.p)), "e il rifiuto e' detto, non silenzioso");
   /* la cella di una voce CON varianti apre il Foglio di scelta pre-seminato
      dalla mano: e' il punto che il primo disegno dava per sicuro */
-  await S.p.getByRole("button", { name: "Aggiungi Capricciosa", exact: true }).click();
+  await batti(S.p, "Capricciosa");
   await S.p.waitForTimeout(700);
   /* dentro il FOGLIO, non in tutta la pagina: i chip della fascia hanno anche
      loro aria-pressed, e al primo giro me li sono ritrovati nell'elenco */
@@ -316,7 +317,7 @@ await prova("§7", async () => {
   await M.p.waitForTimeout(1200);
   await M.p.getByRole("button", { name: /Chiudi|Va bene|Fatto/i }).last().click().catch(() => {});
   await M.p.waitForTimeout(500);
-  await M.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(M.p, "Margherita");
   await M.p.waitForTimeout(800);
   ok(!(await suRiga(M.p, "Bufala")), "la Bufala non sale sul piatto");
   ok(/tolta dalla mano/i.test(await testoDi(M.p)), "e l'app lo DICE invece di farla sparire in silenzio");
@@ -385,7 +386,7 @@ console.log("\n— 11. CONTRO-CONTROLLO: la × toglie un'esaurita gia' sulla rig
 await prova("§11", async () => {
   /* si compone la riga col Foglio di scelta, che su gen-6.17 la spunta
      ancora: quello che conta e' che la × sappia toglierla */
-  await V.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(V.p, "Margherita");
   await V.p.waitForTimeout(500);
   await V.p.getByRole("button", { name: /Lavora su Margherita/ }).first().click().catch(() => {});
   await V.p.waitForTimeout(600);
@@ -411,7 +412,7 @@ await prova("§12", async () => {
   await entraInCassa(R.p);
   await apriFascia(R.p);
   /* prima la Bufala va sulla riga (non e' ancora esaurita) */
-  await R.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(R.p, "Margherita");
   await R.p.waitForTimeout(500);
   await R.p.locator('[data-fascia="1"] [data-agg="Bufala"]').first().click();
   await R.p.waitForTimeout(700);
@@ -523,7 +524,7 @@ await prova("§15", async () => {
 
 console.log("\n— 16. CONTRO-CONTROLLO: la pizza liscia resta UN tocco —");
 await prova("§16", async () => {
-  await V.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(V.p, "Margherita");
   await V.p.waitForTimeout(600);
   ok(/€ 6,00/.test(await testoDi(V.p)), "un tocco sulla cella e la Margherita e' nel conto");
 });
@@ -609,7 +610,7 @@ await prova("§20", async () => {
      nessun testimone. */
   const Q = await apri(filaSegnata, [PR.cassa, PR.admin], "OpCassa", "2222");
   await entraInCassa(Q.p);
-  await Q.p.getByRole("button", { name: "Aggiungi Capricciosa", exact: true }).click();
+  await batti(Q.p, "Capricciosa");
   await Q.p.waitForTimeout(700);
   await Q.p.getByRole("button", { name: /Così com'è/ }).first().click();
   await Q.p.waitForTimeout(800);
@@ -650,7 +651,7 @@ await prova("§21", async () => {
   await X.p.getByRole("button", { name: /Chiudi|Va bene|Fatto/i }).last().click().catch(() => {});
   await X.p.waitForTimeout(500);
   /* la CELLA di una voce CON varianti: e' lei che semina il Foglio dalla mano */
-  await X.p.getByRole("button", { name: "Aggiungi Capricciosa", exact: true }).click();
+  await batti(X.p, "Capricciosa");
   await X.p.waitForTimeout(800);
   const spuntate = await X.p.evaluate(() => {
     const f = document.querySelector(".sc-foglio");

@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 14 settembre 2026
+# Passaggio di consegne fra sessioni · 15 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -36,23 +36,26 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.18, `app:jsx:src` len 1013583, md5
-  `e7aecade7aa6a5d7ef3ad9b78edda8b7`, meta `{"len":1013583,"ver":"gen-6.18"}`.
-  Backup: `backup:pre-gen619` = gen-6.18, `backup:pre-gen618` = gen-6.17,
-  `backup:pre-gen617` = gen-6.16. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.19, `app:jsx:src` len 1022364, md5
+  `c5cffb144af4c8afa72927802ab50912`, meta `{"len":1022364,"ver":"gen-6.19"}`.
+  Backup: `backup:pre-gen620` = gen-6.19, `backup:pre-gen619` = gen-6.18,
+  `backup:pre-gen618` = gen-6.17. Verificare con una `select` prima di toccare.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
 - **Censimenti**: gen-6.12 e gen-6.13 a 97 verdi / 1975 controlli; gen-6.14 a
   98 verdi / 1994 controlli; gen-6.15 a 99 verdi / 2063 controlli;
   gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**;
-  gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**.
+  gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**;
+  gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**
+  (il banco in più è `gruppitest`; il file in più è `cassanav.mjs`, che NON è un
+  banco e infatti non finisce nel censimento — vedi la sezione sulla porta unica).
   (girato con `gen605test` ANCORA su `file://`, cioè prima della riparazione di
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260914` (il checkpoint completo,
-  l'ultimo), `chk-20260913` (quello prima) e `passaggio-20260909` (il
+- **Dispensa**: le voci che servono: `chk-20260915` (il checkpoint completo,
+  l'ultimo), `chk-20260914` (quello prima) e `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
@@ -264,6 +267,44 @@ costano ore a chi le trova senza saperle.
    **La regola**: un seme «N minuti fa» che poi si confronta con un contatore
    di giornata va **agganciato al giorno**, non all'orologio.
 
+## La porta unica delle celle del listino (gen-6.19)
+
+Da gen-6.19 la griglia della Cassa mostra **un gruppo per volta**: le celle
+degli altri **non sono nel DOM**. Chi scrive o tocca un banco che batte in
+Cassa deve sapere tre cose.
+
+1. **Si passa da `collaudi/cassanav.mjs`**, `batti(p, "Spritz", 350)` per i
+   tocchi e `cella(p, "Spritz")` per le letture. Se la cella c'è già la tocca e
+   basta (**zero tocchi sui pulsanti**, quindi i banchi a gruppo unico si
+   comportano esattamente come prima); se non c'è, ci arriva **come ci arriva
+   una persona** — toccando il pulsante del gruppo, mai scrivendo nello stato,
+   mai con `evaluate`, mai con `force`; se non ci arriva **alza un'eccezione**
+   che nomina la voce e i gruppi visti. Non ingoia mai.
+2. **La regola di ferro: l'aiutante NON si usa mai dentro un'asserzione che
+   conta i tocchi.** Tre punti restano col selettore crudo **per sempre**, e
+   ognuno ha il commento che dice perché: `gen603test §7` («ZERO tocchi», e
+   legge DUE celle per dirlo), `gen604test §9` e `postazionecassatest §8` (la
+   pizza liscia a UN tocco). Farli passare di lì li renderebbe verdi **dopo aver
+   speso un tocco**: un verde per il motivo sbagliato su una promessa di
+   Valerio, che è peggio di un rosso sbagliato. Tutti e tre hanno guadagnato una
+   riga che dichiara **quale mondo** stanno misurando (`aria-expanded` del
+   gruppo che gli serve).
+3. **L'aiutante rende gli otto banchi CIECHI al difetto «il gruppo non si
+   apre»**, ed è scritto nel suo cappello. Quel difetto lo provano a viso
+   aperto **solo** `§3` e `§6` di `gruppitest`, che toccano il pulsante col
+   selettore crudo e non importano mai `cassanav.mjs`. Se si tocca quella
+   coppia, si tocca l'unica rete che regge otto banchi.
+
+Il file **non si chiama `*test.mjs` apposta**: `corri.mjs:92` filtra
+`/test\.mjs$/`, e `navtest.mjs` c'è già cascato dentro — girava, non provava
+niente, e risultava MUTO a ogni censimento finché non è stato messo in
+`NON_COLLAUDI`. Lo stesso sbaglio non si fa due volte.
+
+Il contratto con l'app, che i banchi migrati danno per buono: ogni pulsante
+porta `data-gruppo="<gruppo>"`, la griglia aperta porta `data-griglia="<gruppo>"`,
+la cella porta `aria-label="Aggiungi <voce>"`. Il pulsante **non si cerca mai
+per nome accessibile**: quello porta il conto del gruppo e cambia mentre si batte.
+
 ## Cosa NON c'è nel repo, ed è voluto
 
 - `stato-vero.json`, `stato-vero-conv.json`, `topologia-vera.json`: dati veri,
@@ -424,14 +465,18 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
      `mutaDato`, che è già come scrive tutto il resto della Cassa); e la
      «modalità Esauriti» dà al chip un terzo significato che resta acceso sul
      piatto dopo (meglio un Foglio con un interruttore per riga).
-   · **i bottoni dei gruppi** (pizze/fritti/dolci uno per volta): misurato da
-     me, perché la lente che doveva demolirli è morta per limite di sessione.
+   · ~~**i bottoni dei gruppi**~~ (pizze/fritti/dolci uno per volta): **fatto,
+     online da gen-6.19** — voce 7 qui sotto. Quello che segue è la misura
+     dell'epoca, e il numero era sbagliato in difetto:
      **DIECI banchi** seminano listini a più gruppi e toccano «Aggiungi X»
      diretto (cassatest 15 volte, clientetest 9, cassa2test 7, gen605test 5,
      gen603/604test 4, comandetest e postazionecassatest 3). Con una sola
      sezione aperta, ogni voce fuori dal gruppo aperto **non è nel DOM**: ~50
      tocchi rossi per il motivo sbagliato. Serve una migrazione dei banchi, e
-     va progettata prima.
+     va progettata prima. **Contati bene erano 88 riferimenti in 16 banchi**
+     (non ~50 in dieci), e la migrazione vera è stata di 31 statici / 33 a
+     runtime in 8 banchi, perché l'apertura di partenza è stata ancorata al
+     **listino** invece che alle battute: vedi la voce 7.
 6. ~~**L'esaurito**~~: **fatto, online da gen-6.18** (`collaudi/esauritotest.mjs`,
    17 rossi → tutti verdi; `collaudi/sabotaggi-gen618.mjs`, dodici sabotaggi, 12 rossi dopo aver aperto l'unico muto (S8: §6 non interrogava la sesta porta, la prova mancava ed e' §21)).
    **Le sei accuse di gen-6.17 erano giuste tutte e sei, ma il disegno che le
@@ -459,20 +504,55 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    steccato d'età, §20 la terza porta): su gen-6.17 non potevano diventare rosse
    perché il tipo `esaurito` non esisteva. Esistono perché senza di loro due
    guardie sarebbero state **scritte e mai provate**, ed è scritto nel banco.
-7. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
+7. ~~**I gruppi diventano pulsanti**~~: **fatto, online da gen-6.19**
+   (`collaudi/gruppitest.mjs`, 29 rossi → tutti verdi;
+   `collaudi/sabotaggi-gen619.mjs`, venti sabotaggi, 20 rossi dopo aver aperto
+   l'unico muto). Le tre cose che contano per chi viene dopo:
+   · **l'apertura di partenza NON può stare sulle battute.** Tutti e quattro i
+     disegni indipendenti aprivano `gruppi[0]`, cioè il primo dell'ordine per
+     battute. Quella riga non regge la promessa «la pizza liscia resta un
+     tocco» per due ragioni verificate sul codice: le vendite durano **48 ore**,
+     quindi a classifica vuota decide `localeCompare` (DOLCI prima di PIZZE, per
+     due giorni, dopo ogni riapertura o ripristino); e `battute` si ricalcola
+     **nel corpo di render**, quindi incassare un tiramisù riaprirebbe la cassa
+     sui dolci. La regola buona guarda il **listino** (`gruppoDiPartenza`): più
+     voci vince, a parità il primo del listino, «Altro» mai se non è l'unico.
+     **L'ORDINE dei pulsanti resta quello delle battute**: zero righe cambiate
+     sul sort dei gruppi. Ed è la regola che ha fatto crollare la migrazione da
+     58 tocchi in 12 banchi a 31 in 8, **lasciando verdi e intatti** i tre punti
+     che contano i tocchi.
+   · **il muto aveva ragione, di nuovo.** S6 spegneva il ripiego «il gruppo
+     scelto non c'è più nel listino» e non arrossiva niente: §18 non
+     **sceglieva** mai un gruppo, quindi `gruppoScelto` restava `null` e il ramo
+     non veniva mai imboccato. È lo stesso errore che il disegno dichiarava di
+     aver già chiuso. Riscritta §18 (il cassiere sceglie i Dolci, l'Admin
+     rinomina **quelli**), S6 è rosso: 20 su 20.
+   · **`scrollIntoView` scorre TUTTI gli antenati scorrevoli.** La scorza
+     dell'app (`.sc-root`, `overflow-hidden`) è alta ~139px più dello schermo,
+     quindi il «torna in cima» si portava dietro anche quella e spingeva
+     `<main>` fuori schermo, con la riga appiccicata che spariva con lui.
+     L'ha trovato §15, non io. Chi deve riportare in cima dentro questa app
+     **scorre a mano il solo contenitore che scorre davvero**, mai con
+     `scrollIntoView`.
+   E **cinque difetti erano del banco e non dell'app** — una porzione di file
+   lunga zero, un tasto misurato dove non esiste, una soglia numericamente
+   impossibile, una sezione che batteva nel gruppo di partenza (quindi cieca al
+   suo sabotaggio) e una misura senza lo scorrimento in fondo. Stanno scritti
+   **dentro il banco**, riga per riga, invece che nel numero.
+8. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
    finestra cieca (#40, oggi solo STRETTA da MAX_APPLICATE 1200). **È tutta
    client e non tocca il server**: un mittente per caricamento di pagina,
    l'ultima revisione atterrata, e una mappa `s.scritture` potata per valore
    invece che per orologio; il cancello `revBase` che c'è già rende la cosa
    dimostrabile. Quindi **non dipende dal pavimento del traffico** e può uscire
    prima.
-8. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+9. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-9. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+10. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)

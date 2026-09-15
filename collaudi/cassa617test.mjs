@@ -61,6 +61,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import crypto from "crypto";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
@@ -337,7 +338,7 @@ console.log("\n— 12. CONTRO-CONTROLLO: la pizza liscia resta UN tocco —");
 await prova("§12", async () => {
   await A.p.getByRole("button", { name: "Chiudi gli ingredienti", exact: true }).click().catch(() => {});
   await A.p.waitForTimeout(400);
-  await A.p.getByRole("button", { name: "Aggiungi Margherita", exact: true }).click();
+  await batti(A.p, "Margherita");
   await A.p.waitForTimeout(600);
   ok(/€ 6,00/.test(await testoDi(A.p)), "un tocco sulla cella e la Margherita e' nel conto");
 });

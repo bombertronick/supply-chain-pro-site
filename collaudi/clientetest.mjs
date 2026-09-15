@@ -24,6 +24,7 @@ import { readFileSync, existsSync } from "fs";
 import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
 import { apriServer } from "./servi.mjs";
+import { batti } from "./cassanav.mjs";
 
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
@@ -149,7 +150,7 @@ await prova("§2", async () => {
 /* ═══ 3. ASPORTO: IL NOME È OBBLIGATORIO ═══ */
 console.log("\n— 3. asporto: senza nome non si incassa, e c'è scritto perché —");
 await prova("§3", async () => {
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Asporto", exact: true }).click(); await C.p.waitForTimeout(350);
   ok(/Nome/.test(await testoDi(C.p)), "il foglio chiede il nome");
@@ -176,7 +177,7 @@ await prova("§3", async () => {
 /* ═══ 4. CONSEGNA: LA VIA È OBBLIGATORIA, E SI VERIFICA SULLE MAPPE ═══ */
 console.log("\n— 4. consegna: via obbligatoria, col tasto che la apre sulle mappe —");
 await prova("§4", async () => {
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Consegna", exact: true }).click(); await C.p.waitForTimeout(350);
   await scrivi(C.p, "Nome", "Altro Finto");
@@ -205,7 +206,7 @@ await prova("§4", async () => {
 /* ═══ 5. LA FASCIA ORARIA ═══ */
 console.log("\n— 5. la fascia oraria: si scrive, viaggia, si rilegge —");
 await prova("§5", async () => {
-  await C.p.getByRole("button", { name: "Aggiungi Bibita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Bibita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Asporto", exact: true }).click(); await C.p.waitForTimeout(300);
   await scrivi(C.p, "Nome", "Terzo Finto");
@@ -222,7 +223,7 @@ await prova("§5", async () => {
 /* ═══ 6. IL CLIENTE SI REGISTRA, E NON SI SDOPPIA ═══ */
 console.log("\n— 6. il cliente entra in rubrica una volta sola —");
 await prova("§6", async () => {
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Asporto", exact: true }).click(); await C.p.waitForTimeout(300);
   await scrivi(C.p, "Nome", "Quarto Finto");
@@ -238,7 +239,7 @@ await prova("§6", async () => {
      il riconoscimento passerebbe per l'id e non proverebbe niente sul
      numero, che è il caso vero: la stessa persona che richiama e detta il
      numero in un'altra forma. */
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Asporto", exact: true }).click(); await C.p.waitForTimeout(300);
   await scrivi(C.p, "Telefono", "+39 3401110009");
@@ -254,7 +255,7 @@ await prova("§6", async () => {
 /* ═══ 7. CERCABILE PER TELEFONO, E L'ORDINE RAPIDO ═══ */
 console.log("\n— 7. si cerca per telefono e l'ordine parte già pieno —");
 await prova("§7", async () => {
-  await C.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await C.p.waitForTimeout(300);
+  await batti(C.p, "Margherita", 300);
   await apriCliente(C.p);
   await C.p.getByRole("button", { name: "Consegna", exact: true }).click(); await C.p.waitForTimeout(300);
   await scrivi(C.p, "Telefono", "0001");
@@ -312,7 +313,7 @@ await prova("§9", async () => {
   }));
   const G = await apri(grosso, [PR.opCassa], "OpCassa", "2222");
   await vaiA(G.p, "Cassa");
-  await G.p.getByRole("button", { name: "Aggiungi Bibita" }).click(); await G.p.waitForTimeout(300);
+  await batti(G.p, "Bibita", 300);
   await apriCliente(G.p);
   await G.p.getByRole("button", { name: "Asporto", exact: true }).click(); await G.p.waitForTimeout(300);
   await scrivi(G.p, "Nome", "Ultimo Finto");
@@ -356,7 +357,7 @@ console.log("\n— 11. la pizza liscia al banco resta un tocco —");
 await prova("§11", async () => {
   const B = await apri(base, [PR.opCassa], "OpCassa", "2222");
   await vaiA(B.p, "Cassa");
-  await B.p.getByRole("button", { name: "Aggiungi Margherita" }).click(); await B.p.waitForTimeout(300);
+  await batti(B.p, "Margherita", 300);
   await incassa(B.p);
   const st = await stato(B.p);
   const v = (st.vendite || [])[0];
@@ -374,7 +375,7 @@ await prova("§12", async () => {
   delete vecchio.clienti;
   const V = await apri(vecchio, [PR.opCassa], "OpCassa", "2222");
   await vaiA(V.p, "Cassa");
-  await V.p.getByRole("button", { name: "Aggiungi Bibita" }).click(); await V.p.waitForTimeout(300);
+  await batti(V.p, "Bibita", 300);
   await apriCliente(V.p);
   await V.p.getByRole("button", { name: "Asporto", exact: true }).click(); await V.p.waitForTimeout(300);
   await scrivi(V.p, "Nome", "Senza Rubrica");

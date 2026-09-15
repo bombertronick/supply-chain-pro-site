@@ -33,6 +33,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { batti, cella } from "./cassanav.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
@@ -137,9 +138,11 @@ ok(ver.length === 2 && (ver[0] > 6 || (ver[0] === 6 && ver[1] >= 0)),
    SBAGLIATA — quella dell'elenco del Listino (app.jsx:12288), che è in
    grassetto e non ha classi di taglia. La cella della Cassa è l'unica che
    stampa quel prezzo in T.blu: si àncora lì. */
-const cella = src.split("\n").find((r) =>
+/* rinominata a gen-6.19: «cella» adesso è il nome dell'aiutante importato da
+   cassanav.mjs, e questa è una RIGA DI SORGENTE, non una cella a schermo */
+const rigaCella = src.split("\n").find((r) =>
   /fmtEuro\(v\.prezzo \|\| 0\)/.test(r) && /T\.blu/.test(r)) || "";
-ok(/text-sm/.test(cella), "il prezzo in cella è text-sm, non più text-xs");
+ok(/text-sm/.test(rigaCella), "il prezzo in cella è text-sm, non più text-xs");
 
 /* ═══ 2. LA GRIGLIA: gruppi per battute, «Altro» ultimo, badge sul conto ═══ */
 console.log("\n— 2. la griglia che impara dalle battute —");
@@ -157,9 +160,9 @@ await prova("§2", async () => {
   ok(iM >= 0 && iB >= 0 && iM < iB,
     `MANGIARE (4 battute) viene prima di BERE (1) — non è più l'alfabeto (pos ${iM} vs ${iB})`);
   ok(iA > iB, `e ALTRO sta ULTIMO anche con 10 battute: il ripieno non scala la classifica (pos ${iA})`);
-  await G.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await G.p.waitForTimeout(250);
-  await G.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await G.p.waitForTimeout(350);
-  const cellaSpr = G.p.getByRole("button", { name: "Aggiungi Spritz" });
+  await batti(G.p, "Spritz", 250);
+  await batti(G.p, "Spritz", 350);
+  const cellaSpr = await cella(G.p, "Spritz");
   ok((await cellaSpr.getAttribute("data-nel-conto")) === "2",
     "la cella porta data-nel-conto=\"2\" dopo due tocchi");
   ok(/2/.test((await cellaSpr.innerText())),
@@ -204,8 +207,8 @@ console.log("\n— 4. il resto: aiuto al banco, zero fiscale —");
 const R = await apri(base, [PR.opCassa], "OpCassa", "2222");
 await prova("§4", async () => {
   await vaiA(R.p, "Cassa");
-  await R.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R.p.waitForTimeout(250);
-  await R.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R.p.waitForTimeout(350);
+  await batti(R.p, "Spritz", 250);
+  await batti(R.p, "Spritz", 350);
   await R.p.getByRole("button", { name: "Incassa", exact: true }).click(); await R.p.waitForTimeout(600);
   ok(/Ricevuti/.test(await foglio(R.p).innerText()),
     "con «Contanti» il Foglio d'incasso offre il campo «Ricevuti»");
@@ -228,8 +231,8 @@ await prova("§4", async () => {
 /* ═══ 5. «SVUOTA» SI PUÒ DISFARE ═══ */
 console.log("\n— 5. svuota, e ripristina —");
 await prova("§5", async () => {
-  await R.p.getByRole("button", { name: "Aggiungi Spritz" }).click(); await R.p.waitForTimeout(250);
-  await R.p.getByRole("button", { name: "Aggiungi Panino" }).click(); await R.p.waitForTimeout(400);
+  await batti(R.p, "Spritz", 250);
+  await batti(R.p, "Panino", 400);
   await R.p.getByRole("button", { name: "Così com'è · € 8,00" }).click(); await R.p.waitForTimeout(400);
   ok(/Totale € 13,00/.test(await testoDi(R.p)), "§5a: il conto c'è — € 13,00");
   await R.p.getByRole("button", { name: "Svuota il conto" }).click(); await R.p.waitForTimeout(400);
