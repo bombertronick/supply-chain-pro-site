@@ -255,14 +255,17 @@
   giro, il <b>conto delle composizioni</b> in cima al Listino, che ripara un mio errore: ti
   avevo detto che le voci senza «Cosa c'è dentro» erano tutte marcate, e lo erano solo quelle
   che avevano già una distinta. Prima, nella stessa giornata, l'<b>ingrediente in mano</b>, le
-  <b>aggiunte a catalogo</b> e le <b>postazioni assegnate ai profili</b>. <b>Di difetti non ne
-  resta nessuno.</b> Da scegliere restano le <b>tre</b> migliorie già in lista, più il
-  <b>piano degli ordini cliente</b> qui sotto.</p>
+  <b>aggiunte a catalogo</b> e le <b>postazioni assegnate ai profili</b>. <b>Restano <b>due</b>
+  difetti</b>, e li ho trovati io guardando la strada dei soldi riga per riga
+  mentre scrivevo la ricevuta: c'erano già prima di questa versione, sono stretti — servono due
+  cose insieme perché succedano — e li trovi qui sotto. Quelli del consiglio del 2 agosto sono
+  chiusi tutti. Da scegliere ci sono loro, le <b>tre</b> migliorie già in lista e il <b>piano
+  degli ordini cliente</b>.</p>
 
   <div class="stato">
     <dl>
       <dt>In cucina</dt>
-      <dd><b>gen-6.19</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
+      <dd><b>gen-6.20</b> — merce già partita, CSV, doppio conteggio, peso del traffico, le dosi
       delle ricette, i conteggi che si rivedono, due telefoni che salvano insieme senza
       cancellarsi, i salvataggi che non si contano due volte, le conversioni in blocco,
       l'annulla che sa disfarle, il laboratorio che produce da dove legge cosa fare la
@@ -271,9 +274,66 @@
       bastano</b>, <b>la frase sull'offline che dice il vero</b>, <b>la Memoria</b>, <b>le liste in
       ordine</b>, <b>la vista essenziale</b> <b>la revisione human factor coi tre
       interruttori</b>, <b>la Cassa col suo listino</b>, <b>lo storno col report di
-      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b> e <b>lo storno che non dice «fatto» quando non l'ha fatto</b> e <b>la cucina che sa da quanto è ferma la sua lista</b> e <b>la scheda che dice quali telefoni sono rimasti indietro</b> e <b>l'app che non scrive più su dati che non è riuscita a leggere</b> e <b>la cassa che fa solo la cassa</b> e <b>gli ingredienti che vanno a capo in ordine alfabetico</b> e <b>la categoria che si legge dal magazzino</b> e <b>l'ingrediente esaurito</b> e <b>i gruppi che si aprono a pulsante</b>. Tutto online.</dd>
+      giornata</b>, <b>le comande alle postazioni</b>, <b>la lingua che dice il vero</b>, <b>la Cassa da banco</b>, <b>le postazioni assegnate ai profili</b> <b>le aggiunte sul piatto</b>, <b>l'ingrediente che si tocca in qualsiasi momento</b> <b>gli ingredienti che si aprono solo quando servono</b> e <b>le vendite in attesa che non si perdono più al riavvio</b> e <b>il ritrovamento che funziona anche col login vero</b> e <b>i soldi che non si contano due volte</b> e <b>il cliente col suo ordine</b> e <b>le aggiunte divise per categoria</b> e <b>la barra delle ore</b> e <b>le richieste chiuse che non viaggiano più</b> e <b>la postazione Cassa</b> e <b>l'indirizzo che si corregge da solo</b> e <b>lo scontrino che non si conta più due volte</b> e <b>lo storno che non dice «fatto» quando non l'ha fatto</b> e <b>la cucina che sa da quanto è ferma la sua lista</b> e <b>la scheda che dice quali telefoni sono rimasti indietro</b> e <b>l'app che non scrive più su dati che non è riuscita a leggere</b> e <b>la cassa che fa solo la cassa</b> e <b>gli ingredienti che vanno a capo in ordine alfabetico</b> e <b>la categoria che si legge dal magazzino</b> e <b>l'ingrediente esaurito</b> e <b>i gruppi che si aprono a pulsante</b> e <b>la ricevuta di consegna</b>. Tutto online.</dd>
       <dt>Fatto oggi</dt>
-      <dd><b>Fatto oggi: gen-6.19 «I gruppi diventano pulsanti».</b> L'ultima delle quattro cose
+      <dd><b>Fatto oggi: gen-6.20 «La ricevuta di consegna».</b> È la cura definitiva del
+      difetto che ti porto dietro da gen-6.12, quello che allora avevo solo <i>stretto</i>: uno
+      scontrino che si conta <b>due volte</b> nel totale della giornata.
+      <b>Da dove viene.</b> Quando batti «Incassa» la vendita entra in fila e parte al primo giro
+      utile. A volte la rete <i>riceve</i> il salvataggio ma la risposta non torna indietro: il
+      telefono crede di aver fallito e riprova. Per non contare due volte lo stesso scontrino,
+      fino a ieri l'app lo <b>cercava</b> in due elenchi — gli ultimi 1200 salvataggi e le
+      vendite delle ultime 48 ore. In una serata piena quegli elenchi si consumano, la vendita
+      non si trova più, e la riprova la conta un'altra volta: <b>giornata gonfiata e magazzino
+      sceso due volte</b>, in silenzio.
+      <b>Cosa c'è da oggi.</b> Ogni salvataggio parte con un <b>numero di protocollo</b>, e in
+      rete resta scritto qual è l'ultimo numero arrivato <i>da quel telefono</i>. Al giro dopo il
+      telefono legge il suo numero: se copre quello stampato sulla vendita, quella vendita è
+      <b>dimostrata</b> arrivata ed esce dalla fila senza essere rigiocata. Non si cerca più
+      niente in nessun elenco, quindi <b>non c'è più nessun tetto da tarare</b>: vale uguale con
+      dieci scontrini e con mille.
+      <b>Quello che devi fare tu, e va fatto.</b> <b>Ricarica l'app su OGNI tablet</b> (chiudi e
+      riapri, o tira giù la pagina per aggiornarla). Un tablet che non ha ricaricato lavora ancora
+      come prima — la ricevuta non ce l'ha — e <b>i suoi</b> scontrini possono ancora contarsi due
+      volte. Gli altri non ne soffrono: la riparazione avanza un telefono alla volta, senza
+      bisogno che siano tutti allineati nello stesso momento.
+      <b>Due cose che ci guadagni senza averle chieste.</b> La prima: quando delle vendite restano
+      indietro più di due giorni, l'app te lo scrive nello storico. Fino a ieri diceva «NON sono
+      state rispedite, vanno controllate a mano» <i>per tutte</i>, con la somma di tutte — anche
+      per quelle che <b>erano già in cassa</b>, mandandoti a ribattere un incasso già preso. Da
+      oggi la frase si spacca in due: <b>«N risultano già in rete: NON ribatterle»</b> e «N da
+      controllare a mano», <b>con gli euro solo del secondo gruppo</b>. La seconda: in cucina, un
+      <b>«Fatto»</b> toccato da uno schermo senza rete e rigiocato tre ore dopo <b>non cancella
+      più</b> una spunta più recente fatta da un altro schermo sulla stessa postazione — prima la
+      comanda riappariva in coda e uscivano due pizze già consegnate.
+      <b>Quello che NON copre, detto prima che lo scopra tu.</b> Se hai l'app installata
+      <i>e</i> il sito aperto nel browser sullo stesso telefono, e la seconda scheda prende la
+      fila <b>prima</b> che il primo numero sia stato stampato, quella copia non ha ricevuta e può
+      ancora rigiocare. È un difetto che c'era anche prima, non lo apre questa versione, e la cura
+      è un'altra (l'affido della fila fra schede): l'ho messo in lista. E in cucina resta il
+      rovescio della medaglia: dopo un <b>«Riporta in coda»</b> legittimo, un «Fatto» vecchio
+      rigiocato fa <i>rinascere</i> la spunta. Costa un campo in più su ogni comanda chiuderlo, e
+      su un'app dove il problema numero uno è il peso di quello che viaggia ho preferito
+      dichiararlo che pagarlo.
+      <b>Come è stato provato, e la parte scomoda.</b> Il disegno di questa versione è del 9
+      settembre. Prima di scrivere una riga l'ho rimesso sotto processo contro il codice di oggi:
+      <b>33 accuse, 14 gravi, nessuna confutata</b>. Due di quelle accuse erano <b>perdite di
+      soldi vere</b>, e stavano proprio nella parte che il disegno chiamava «la dimostrazione»:
+      spedito com'era scritto, questo lavoro avrebbe fatto <i>sparire</i> incassi veri invece di
+      salvarli. Sono state corrette prima di toccare il codice, e la correzione è scritta per
+      esteso in fondo al documento del progetto.
+      <b>Collaudo scritto prima:</b> 29 controlli rossi registrati sulla versione online, tutti
+      verdi dopo. Più un banco senza browser che prova la decisione nuda, riga per riga.
+      <b>Ventisei sabotaggi</b>: sedici hanno fatto diventare rosso quello che dovevano, e
+      <b>dieci sono muti dichiarati</b>, ognuno con scritto perché. E uno di quei muti ha trovato
+      un difetto <b>del mio banco</b>: la prova della seconda perdita era <b>verde per il motivo
+      sbagliato</b> — la scena si riparava da sola prima di succedere. Riscritta, adesso è quella
+      giusta. <b>Censimento completo su gen-6.20: 102 collaudi verdi, 2300 controlli veri, zero mute, 7 saltate, 111 file (due rosse nel giro, tutte e due rifatte verdi: gruppitest §22, un tocco crudo mio nel banco nuovo, riparato; e memoriaapptest, intermittenza nota di file://, verde due volte di fila sullo stesso codice).</b>
+      <b>Quello che aspetto da te.</b> Ricarica i tablet, e poi batti una serata normale: se il
+      pallino in alto si comporta come sempre e i totali tornano, questa versione ha fatto il suo
+      mestiere — perché il suo mestiere è <i>non farsi notare</i>.</dd>
+      <dt>Fatto prima</dt>
+      <dd><b>gen-6.19 «I gruppi diventano pulsanti».</b> L'ultima delle quattro cose
       che mi hai chiesto il 13 — quella che avevo tolto <i>due volte</i> dal rilascio, e stavolta
       con la ragione buona: i miei banchi di prova toccano le voci del listino in ottanta punti, e
       nasconderne metà li avrebbe fatti diventare rossi per il motivo sbagliato.
@@ -346,7 +406,6 @@
       dove li cerca, e se il prezzo nascosto ti pesa davvero quanto temo. E se non l'hai ancora
       fatto: accendi <b>«Sta solo in cassa»</b> sul profilo del banco, e collega le aggiunte ai
       prodotti del magazzino.</dd>
-      <dt>Fatto prima</dt>
       <dd><b>gen-6.18 «L'esaurito».</b> La quarta cosa che mi hai chiesto il 13, quella
       che ieri avevo tolto dal rilascio: <b>la cassa può dire che un ingrediente è finito</b>.
       <b>Com'è fatto.</b> Nella fascia degli ingredienti, accanto alla × che la chiude, c'è un
@@ -560,9 +619,9 @@
       scendeva due volte e lo storico guadagnava una riga: <b>13 controlli rossi</b>. Sulla nuova:
       <b>25 verdi</b>. <b>Undici sabotaggi, undici rossi, zero muti — ma il primo giro ne aveva uno muto, e aprirlo ha trovato una ridondanza vera: l'app ha DUE strati che riconoscono un nome già visto, e toglierne uno solo non basta a farle contare due volte.</b> <b>Censimento completo su gen-6.12: 97 collaudi verdi, 1975 controlli veri, zero rosse, zero mute, 7 saltate perché i dati veri non stanno nel repository.</b> <b>Quello che non chiude</b>, detto
       chiaro: sopra le 600 scritture al giorno la finestra si riapre. La cura definitiva è la
-      <b>ricevuta di consegna</b> — ogni scontrino con un numero di protocollo dato dal server, che
-      non dipende da nessun tetto — ed è disegnata; va fatta insieme al pavimento del traffico perché
-      tocca la stessa strada dei soldi, e quella strada non si tocca due volte.
+      <b>ricevuta di consegna</b> — ogni scontrino con un numero di protocollo, che non dipende da
+      nessun tetto — ed è <b>online da gen-6.20</b>: è tutta dentro l'app e non ha avuto bisogno
+      di toccare il server, quindi non ha dovuto aspettare il pavimento del traffico.
       Prima: <b>gen-6.11 «La postazione Cassa».</b> Le due cose che mi hai chiesto ieri.
       <b>Uno</b>: dentro la Cassa la barra è <b>la barra della Cassa</b> — Battere · Clienti ·
       Giornata · Esci — e non più Conteggi · Magazzini · Ordini sotto il pollice di chi batte
@@ -803,11 +862,16 @@
 
   <section>
     <p class="eti" style="color:var(--verde)">Da scegliere · difetti</p>
-    <h2>Adesso non ne resta nessuno</h2>
-    <p class="guida">Gli undici del consiglio del 2 agosto sono chiusi, e con loro i due che ho
-    trovato io strada facendo. Questo riquadro resta qui, vuoto, invece di sparire: se domani ne
-    salta fuori uno lo trovi in questo punto.</p>
-    <div class="schede" id="lista-difetti"></div>
+    <h2>Due, e li ho trovati io scrivendo la ricevuta</h2>
+    <p class="guida">Gli undici del consiglio del 2 agosto sono chiusi, e con loro i due che avevo
+    trovato strada facendo. Questi due sono nuovi in <i>lista</i>, non nel codice: c'erano già
+    prima di gen-6.20 e li ho incontrati mentre guardavo la strada dei soldi riga per riga. Sono
+    tutti e due <b>stretti</b> — servono due cose insieme perché succedano — ma quando succedono
+    portano via un incasso in silenzio, e questo qui dentro vale più di quanto siano probabili.</p>
+    <div class="schede" id="lista-difetti">
+      <button type="button" class="voce" aria-pressed="false" data-id="schede-gemelle" aria-label="Due schede della stessa app non si vedono fra loro — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Due schede della stessa app non si vedono fra loro</span><p class="desc">Se sullo stesso telefono hai <b>l'app installata</b> e anche <b>il sito aperto nel browser</b>, le due si dividono la stessa fila d'attesa senza sapere l'una dell'altra. Da gen-6.20 la copia presa <i>dopo</i> il primo numero di protocollo è coperta — la ricevuta la riconosce. Resta scoperta quella presa <b>prima</b>: non ha numero, e può rigiocare uno scontrino già arrivato. E c'è il rovescio: la scheda che salva per ultima <b>cancella la copia dell'altra</b> dal telefono, quindi se quell'altra si chiude prima di aver salvato, quello che aveva in fila non torna. La cura è una sola e vale per tutti e due i versi: la fila prende un <b>proprietario</b>, e chi non è il proprietario non la riscrive. Finché non c'è: <b>tieni aperta una sola delle due</b>.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">medio</span></span></span></button>
+      <button type="button" class="voce" aria-pressed="false" data-id="taglio-posizionale" aria-label="Un salvataggio che si impianta può portarsi via quelli dopo — tocca per aggiungerla alla lista."><span class="num" aria-hidden="true">·</span><span class="corpo"><span class="titolo" style="display:block">Un salvataggio che si impianta può portarsi via quelli dopo</span><p class="desc">Se un salvataggio resta appeso più di <b>dodici secondi</b>, l'app ne fa partire un altro invece di restare bloccata — ed è giusto. Ma quando quello lento torna per ultimo, toglie dalla fila <b>un numero</b> di voci invece delle <i>sue</i>: e in quel momento in cima alla fila ci sono gli scontrini battuti nel frattempo. Succede solo con una rete che si impianta a lungo proprio mentre si batte. La ricevuta di gen-6.20 ne chiude una parte gratis (le voci già dimostrate arrivate escono per nome, non per posizione), ma la cura completa è fotografare le voci che partono e togliere <b>quelle</b>. Sono due righe, e non le ho spedite con gen-6.20 perché nessun banco le misura ancora: preferisco scriverlo qui che spedirti codice che nessuno guarda.</p><span class="meta"><span class="tag t-str">struttura</span><span class="tag t-mis">piccolo</span></span></span></button>
+    </div>
 </section>
 
   <section>
@@ -836,6 +900,61 @@
     <details>
       <summary>Quello che è già stato fatto e messo online</summary>
       <div class="dentro">
+        <h4>Il 15 settembre · <b>gen-6.20</b> · la ricevuta di consegna</h4>
+        <p><b>Cosa c'è.</b> Ogni salvataggio parte con un <b>numero di protocollo</b>; in rete
+        resta scritto l'ultimo numero arrivato da ciascun telefono. Al giro dopo il telefono
+        legge il <i>suo</i> numero: se copre quello stampato sulla voce in fila, la voce è
+        <b>dimostrata</b> consegnata ed esce senza essere rigiocata. Sparisce la dipendenza dai
+        due elenchi potati (1200 salvataggi, 48 ore di vendite) che sono la causa del difetto
+        #40: adesso vale uguale con dieci scontrini e con mille.</p>
+        <p><b>Il numero non nasce dalla lettura, e questa è la riga che vale i soldi.</b> Se
+        nascesse dall'ultima revisione letta, una lettura vecchia — che in questa app succede
+        per davvero, sta scritto nel codice dal 14 luglio — potrebbe stampare un numero
+        <b>già usato</b>. Al giro dopo il telefono troverebbe il proprio numero in rete e
+        dichiarerebbe consegnata una vendita <b>che non è mai partita</b>. Il numero parte
+        quindi dal più alto fra «quello che ho letto» e «l'ultimo che ho stampato io», e si
+        aggiorna <b>prima</b> dell'attesa, insieme al timbro sul disco: sbagliare in alto tiene
+        la voce in fila (innocuo), sbagliare in basso costa un incasso.</p>
+        <p><b>E la ricevuta certifica la bozza che viene scritta, mai la lettura che l'ha
+        preceduta.</b> Se dentro la fila c'è un <b>ripristino</b>, quello cancella tutto e
+        rimette il backup: costruire la mappa dalla lettura viva avrebbe rimesso in piedi la
+        ricevuta di un altro telefono <i>sopra</i> dati che non esistono più, e quel telefono
+        avrebbe buttato via la sua vendita. Le due righe qui sopra sono le <b>due perdite</b>
+        che la demolizione ha trovato nel disegno del 9 settembre: 33 accuse, 14 gravi, nessuna
+        confutata, e quelle due stavano proprio nella parte che il disegno chiamava «la
+        dimostrazione».</p>
+        <p><b>La potatura tiene prima le ricevute mie.</b> La mappa ricorda 60 mittenti e si pota
+        per <i>valore</i>, non per orologio. Ma l'ordine di sfratto per sola revisione era
+        <b>avverso</b> proprio al caso che serve: il primo a uscire sarebbe stato chi tace da più
+        tempo, cioè il tablet spento con una vendita in fila. Adesso otto posti sono riservati al
+        dispositivo che sta leggendo.</p>
+        <p><b>Le ferme non dicono più una cosa che può essere falsa.</b> L'avviso nello storico
+        distingue «N risultano già in rete: NON ribatterle» da «N da controllare a mano», e gli
+        euro li conta <b>solo sul secondo gruppo</b>. E la chiave dove quelle voci si
+        parcheggiano — che non legge nessuno e butta le più vecchie — si ripulisce di quelle
+        dimostrate arrivate.</p>
+        <p><b>La spunta di cucina non vince più col dato più vecchio.</b> Un «Fatto» o un
+        «Riporta in coda» toccati al buio e rigiocati ore dopo non sovrascrivono più il lavoro
+        più recente di un altro schermo sulla stessa postazione. Resta dichiarata l'asimmetria
+        opposta: dopo un «Riporta in coda» legittimo, un «Fatto» vecchio fa rinascere la spunta —
+        chiuderlo costerebbe un campo in più su ogni comanda, su una collezione che viaggia
+        intera a ogni salvataggio.</p>
+        <p><b>Quello che non copre.</b> La <b>scheda gemella</b> (app installata più sito aperto)
+        è coperta solo se la sua copia della fila è stata presa <i>dopo</i> il primo timbro;
+        presa prima, non ha numero e può rigiocare. Difetto preesistente, cura sua (l'affido
+        della fila fra schede). E finché un tablet non ricarica, <b>i suoi</b> scontrini restano
+        esposti come prima: la riparazione avanza per dispositivo, senza nessun momento in cui
+        la flotta debba essere allineata.</p>
+        <p><b>Come è stato provato.</b> 29 controlli rossi registrati sulla versione online,
+        tutti verdi dopo; un banco <b>senza browser</b> per la tabella di verità della
+        decisione; <b>26 sabotaggi</b> — 16 rossi dove dovevano, 10 muti dichiarati con dentro
+        il perché. Due muti hanno insegnato qualcosa: dei <b>tre</b> agganci del filtro, i soldi
+        li regge solo quello dentro il motore di salvataggio (gli altri due reggono la
+        <i>vista</i> nei secondi prima del primo giro, e nessun banco li misura: sta scritto nel
+        codice). E un terzo muto ha trovato un difetto del banco: la prova della seconda perdita
+        era verde <b>per il motivo sbagliato</b>, perché la scena si riparava da sola prima di
+        succedere.</p>
+
         <h4>Il 15 settembre · <b>gen-6.19</b> · i gruppi a pulsante</h4>
         <p><b>Cosa c'è.</b> In cima al listino una <b>riga di pulsanti</b> — PIZZE, FRITTI,
         DOLCI — con uno solo acceso e sotto solo le sue voci. La riga <b>resta appiccicata</b>

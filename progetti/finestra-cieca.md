@@ -1,5 +1,29 @@
 DISEGNO DI RECORD — LA FINESTRA CIECA DELL'EXACTLY-ONCE (9 settembre)
 
+>>> SPEDITO il 15 settembre con gen-6.20, nella forma della CORREZIONE in fondo
+>>> (mai in quella qui sotto). Collaudi: collaudi/protocollotest.mjs (19 sezioni
+>>> col browser) e collaudi/protopurotest.mjs (la tabella di verita' nuda), 29
+>>> rossi registrati su gen-6.19 e tutti verdi dopo; 26 sabotaggi in
+>>> collaudi/sabotaggi-gen620.mjs, 16 rossi dove dovevano e 10 muti DICHIARATI.
+>>> TRE COSE CHE LA MISURA HA CORRETTO ANCHE ALLA CORREZIONE, e vanno lette
+>>> perche' cambiano quello che si puo' promettere:
+>>> · dei TRE agganci, i soldi li regge solo quello di sincronizza. Togliere
+>>>   quello dell'avvio classico o quello di entra() non arrossisce NIENTE
+>>>   (sabotaggi 19 e 20): reggono la vista nei secondi prima del primo giro, e
+>>>   nessun banco misura il primo disegno della schermata. Restano, dichiarati.
+>>> · la bandiera «stantia» (la terza correzione) e' la SECONDA rete, non la
+>>>   prima: col numero monotono un protocollo e' sempre piu' alto di ogni slot
+>>>   gia' atterrato, quindi una mappa vecchia non puo' piu' certificare niente.
+>>>   Ignorarla non arrossisce niente (sabotaggio 12).
+>>> · hasOwnProperty dentro consegnata NON e' la guardia che ferma una voce con
+>>>   mitt «__proto__»: a fermarla e' il confronto NUMERICO. Sostituirla con
+>>>   «in» non arrossisce niente (sabotaggio 17). Si tiene lo stesso.
+>>> E una del BANCO, che vale per chiunque scriva scene di rete: §12 era VERDE
+>>> PER IL MOTIVO SBAGLIATO finche' il telefono, dopo la risposta persa,
+>>> continuava a riprovare — ogni riprova RI-TIMBRA la coda con un numero piu'
+>>> alto e la scena si ripara da sola prima di succedere. Serve far AMMUTOLIRE
+>>> il telefono (__mutoDopoPersa), e l'ha trovato il sabotaggio 21.
+
 >>> ATTENZIONE, 15 settembre: QUESTO DISEGNO, SPEDITO COM'E' SCRITTO, PERDE SOLDI.
 >>> E' stato rimesso sotto processo contro il codice di gen-6.19 (otto generazioni
 >>> dopo): quattro ricognizioni sul file vivo, sei lenti d'accusa indipendenti,

@@ -697,7 +697,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.19";
+const VERSIONE = "gen-6.20";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -768,6 +768,12 @@ function battito(tel, rev) {
 const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
 const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
 const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
+/* ── LA RICEVUTA DI CONSEGNA (gen-6.20) ──
+   Quanti mittenti si ricordano (~1,2 KB su uno stato di ~300) e quanti slot
+   restano in corsia preferenziale al MIO dispositivo. I due numeri sono
+   diversi apposta: il tetto grande serve alla flotta, quello piccolo a me. */
+const MAX_SCRITTURE = 60;
+const MAX_MIEI = 8;
 /* ── LA RUBRICA (gen-6.08) ──
    Trecento e non mille. Un cliente pesa ~110 caratteri e lo stato INTERO
    viaggia a ogni salvataggio: mille clienti sarebbero 110KB su uno stato che
@@ -823,6 +829,77 @@ function sfoltisciVendite(lista) {
   const limite = Date.now() - ORE_VENDITE * 3600000;
   return (lista || []).filter((v) => v && v.t >= limite)
     .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
+}
+/* ══════════ LA RICEVUTA DI CONSEGNA (gen-6.20) ══════════
+   IL DIFETTO CHE CHIUDE. Quando la rete fa le bizze, una vendita resta in coda
+   e si rigioca. Per sapere se era gia' arrivata, fino a ieri l'app la CERCAVA
+   in liste potate: s.applicate (MAX_APPLICATE) e s.vendite (MAX_VENDITE piu'
+   48 ore). Nelle serate piene quelle liste si consumano, il telefono non sa
+   piu', rigioca, e lo scontrino si conta DUE VOLTE nel totale della giornata.
+   Da qui in avanti ogni scrittura parte con un numero di protocollo e lo stato
+   porta una mappa {mittente: ultima rev sua}: al ritorno il telefono legge il
+   PROPRIO slot, e se copre il numero stampato la voce e' DIMOSTRATA
+   consegnata. Niente orologi, niente liste potate, nessun tetto da tarare.
+   Le due funzioni sono PURE e stanno qui fuori apposta: si provano nude in
+   collaudi/protopurotest.mjs, dove la tabella di verita' completa costa un
+   secondo invece di venti minuti di browser. */
+/* un valore di slot e' un numero o una stringa numerica, e basta: Number(null)
+   fa 0 e Number("") fa 0, cioe' due modi silenziosi di inventare una ricevuta
+   che nessuno ha stampato */
+const numSlot = (r) => {
+  const n = (typeof r === "number" || (typeof r === "string" && r.trim() !== "")) ? Number(r) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+/* SI POTA PER VALORE, NON PER DATA. La rev e' un contatore monotono garantito
+   dal cancello (strumenti/server/app_kv_set.sql), e questa e' l'unica potatura
+   del file che non dipende dall'orologio di un telefono.
+   E LA CORSIA PREFERENZIALE NON E' UN VEZZO: con la sola rev decrescente il
+   primo slot a uscire e' il mittente che tace da piu' tempo — cioe' il telefono
+   spento con una vendita in coda, che e' l'UNICO caso in cui la ricevuta serve
+   davvero. L'ordine di sfratto era avverso proprio al caso della tessera. Il
+   dispositivo sta nella CHIAVE (<dispositivo>·<caricamento>), quindi tenere i
+   miei e' una riga sola; in navigazione privata idDispositivo() torna null, non
+   c'e' nessuna corsia, e si degrada al comportamento senza ricevuta.
+   Se uno slot esce lo stesso, il codice non sbaglia: torna a non sapere, e chi
+   non sa fa quello che faceva prima della 6.20. */
+function sfoltisciScritture(mappa, mio) {
+  if (!mappa || typeof mappa !== "object" || Array.isArray(mappa)) return {};
+  const righe = Object.entries(mappa)
+    /* «__proto__» non entra MAI: «"__proto__" in {}» e' vero, e una mappa che
+       se lo porta dietro e' una mappa che puo' autocertificare una voce
+       corrotta arrivata dal disco */
+    .filter(([k]) => k !== "__proto__")
+    .map(([k, r]) => [k, numSlot(r)])
+    .filter(([, r]) => r != null)
+    .sort((a, b) => b[1] - a[1]);
+  const dispositivo = String(mio || "").split("·")[0];
+  const miei = dispositivo
+    ? righe.filter(([k]) => k.split("·")[0] === dispositivo).slice(0, MAX_MIEI)
+    : [];
+  const presi = new Set(miei.map(([k]) => k));
+  const resto = righe.filter(([k]) => !presi.has(k)).slice(0, Math.max(0, MAX_SCRITTURE - miei.length));
+  return Object.fromEntries([...miei, ...resto]);
+}
+/* IL VERDETTO. QUATTRO VIE, e la quarta e' quella che rende la tessera
+   reversibile:
+   1. prot c'e' e lo slot del MIO mittente e' >= prot -> CONSEGNATA, certezza;
+   2. prot c'e' e lo slot dice meno -> NON consegnata, si rigioca, certezza;
+   3. prot non c'e' (mai passata da una spedizione: e' lo scontrino battuto due
+      minuti fa) -> si rigioca, certezza. E' la trappola che si chiudeva
+      ragionando sull'eta': qui non serve nessuna eta';
+   4. slot assente (mappa nuova, sfrattata, telefono a gen-6.19) -> NON SI SA,
+      e allora si fa esattamente quello che faceva il codice prima: steccato
+      d'eta' piu' le due guardie sul dato. Mai peggio di prima, mai un
+      parcheggio inventato.
+   hasOwnProperty e non «in», per la stessa ragione scritta sopra. */
+function consegnata(base, m) {
+  const prot = m ? numSlot(m.prot) : null;
+  if (!m || !m.mitt || prot == null) return false;
+  const map = base && base.scritture;
+  if (!map || typeof map !== "object" || Array.isArray(map)) return false;
+  if (!Object.prototype.hasOwnProperty.call(map, m.mitt)) return false;
+  const r = numSlot(map[m.mitt]);
+  return r != null && r >= prot;
 }
 /* IL NUMERO E' LA CHIAVE, MA SI SCRIVE IN CINQUE MODI (gen-6.08).
    «340 111 0002», «3401110002», «+39 340 1110002», «0039 3401110002» sono lo
@@ -1208,8 +1285,20 @@ const ORE_COMANDE = 12;
 /* La spunta di cucina, gemella di applicaStorno: pura su (s, d) — d viene
    TUTTO da fuori (niente id da generare qui dentro) — con la guardia di
    stato come primo atto: su vendita stornata o gia' sfoltita la spunta
-   muore in silenzio, ed e' giusto cosi'. Rieseguita sul replay scrive gli
-   stessi valori: idempotente nei fatti. d.togli e' il tocco sbagliato.
+   muore in silenzio, ed e' giusto cosi'. d.togli e' il tocco sbagliato.
+   «Rieseguita sul replay scrive gli stessi valori: idempotente nei fatti»
+   c'era scritto qui fino a gen-6.19, ed era vero rispetto a se' stessa e falso
+   rispetto allo STATO: fra la battuta e il rigioco il mondo cambia, e un altro
+   schermo puo' aver gia' lavorato. La guardia sull'ora sta qui sotto.
+   E L'ASIMMETRIA CHE RESTA, dichiarata invece che pagata: la guardia chiude il
+   verso «una spunta vecchia non cancella lavoro recente», non il rovescio —
+   dopo un «Riporta in coda» legittimo la riga non c'e' piu' (delete), quindi un
+   «Fatto» vecchio rigiocato la fa rinascere. Chiuderlo vorrebbe dire una lapide
+   { t, chi, tolto: 1 } invece di una cancellazione, cioe' un campo in piu' per
+   ogni gruppo spuntato su una collezione che viaggia INTERA a ogni salvataggio,
+   su un'app il cui collo di bottiglia numero uno e' il traffico. Il limite e'
+   tenuto visibile da protocollotest §14b, che il giorno della lapide diventera'
+   rosso apposta.
    Torna false quando non fa niente (gen-6.12): la spunta non ha descr,
    quindi oggi nessuna riga di storico dipende da questo — ma l'esecutore
    che riferisce e' la regola, e il prossimo descr non deve trovarla rotta. */
@@ -1217,11 +1306,23 @@ function applicaComanda(s, d) {
   const v = (s.vendite || []).find((x) => x.id === d.venditaId);
   if (!v || v.stato !== "registrata") return false;
   const f = { ...(v.fatte || {}) };
+  let cambiato = false;
   for (const g of d.gruppi || []) {
-    if (d.togli) delete f[g];
-    else f[g] = { t: d.t, chi: d.chi };
+    const p = f[g];
+    /* ── UNA SPUNTA PIU' VECCHIA NON CANCELLA LAVORO PIU' RECENTE (gen-6.20) ──
+       Senza questa riga i due rami qui sotto sono un last-write-wins in cui
+       vince l'ULTIMO RIGIOCATO, e d.t e' congelato al momento del dito: un
+       «Riporta in coda» battuto al buio alle 20:05 e rigiocato alle 23:10
+       cancellava una spunta delle 20:20 fatta da un ALTRO schermo sulla stessa
+       postazione (la sedia e' del dispositivo), la comanda riappariva in coda e
+       uscivano due pizze gia' consegnate. Misurato in protocollotest §14. */
+    if (p && typeof p.t === "number" && typeof d.t === "number" && p.t >= d.t) continue;
+    if (d.togli) { if (p) { delete f[g]; cambiato = true; } }
+    else { f[g] = { t: d.t, chi: d.chi }; cambiato = true; }
   }
+  if (!cambiato) return false;
   v.fatte = f;
+  return true;
 }
 /* ── «STASERA E' FINITO» (gen-6.18, parole di Valerio del 13 settembre: la
      cassa «puo' scegliere gli ingredienti disponibili, e quelli esauriti») ──
@@ -16485,6 +16586,35 @@ export default function App() {
   const offlineRef = useRef(false);
   const timerRef = useRef(null);
   const diagRef = useRef({});
+  /* ── IL MITTENTE DELLA RICEVUTA (gen-6.20) ──
+     Non e' il telefono e non e' la scheda: e' IL DISPOSITIVO PIU' IL
+     CARICAMENTO, e la ragione di ciascuna meta' e' un incasso.
+     Il caricamento, perche' due schede della stessa origine condividono il
+     disco (CHIAVE_CODA) e NON si vedono fra loro — zero BroadcastChannel, zero
+     navigator.locks, zero addEventListener("storage") in tutto il file. Con un
+     nome solo, la scrittura della scheda B farebbe da garante per una voce
+     della scheda A che non e' mai partita, e quella voce uscirebbe dalla coda
+     in silenzio.
+     Il dispositivo, perche' sta nella CHIAVE e non nel valore: e' cosi' che la
+     potatura puo' tenere in corsia preferenziale le ricevute mie senza
+     chiedere niente a nessuno (vedi sfoltisciScritture). In navigazione
+     privata idDispositivo() torna null, si degrada a «anon» e si torna al
+     comportamento di prima della 6.20: non si sa, e chi non sa fa come prima.
+     Non va in localStorage: un mittente che sopravvive al ricaricamento
+     rimetterebbe in piedi esattamente il problema delle due schede. */
+  const caricamentoRef = useRef(uid("c"));
+  const mittRef = useRef((idDispositivo() || "anon") + "·" + caricamentoRef.current);
+  /* L'ULTIMO NUMERO CHE HO STAMPATO, e non «l'ultima scrittura atterrata» —
+     che NON e' conoscibile. Lo slot in rete avanza a ogni ATTERRAGGIO, compresi
+     quelli la cui risposta si e' persa, che sono l'unico caso per cui questa
+     ricevuta esiste: un ref aggiornato solo dopo un successo resterebbe
+     indietro proprio li', e il protocollo successivo riuserebbe un numero gia'
+     atterrato. Al giro dopo il mio stesso slot testimonierebbe per una
+     scrittura che non e' mai partita, e un incasso vero sparirebbe col
+     pallino verde (misurato in collaudi/protocollotest.mjs §7).
+     Si aggiorna PRIMA dell'attesa, insieme al timbro: sbagliare in alto tiene
+     la voce in coda, che e' innocuo; sbagliare in basso costa un incasso. */
+  const ultimoProtRef = useRef(0);
   /* i lettori si tengono il GETTER, non il valore: diagRef e' un oggetto
      stabile, quindi questa funzione resta buona anche catturata una volta
      sola in una useEffect a dipendenze vuote (gen-6.15) */
@@ -16513,7 +16643,14 @@ export default function App() {
        e' una mappa {idDispositivo: {v, t}}, non una collezione. Sta qui
        perche' un bundle vecchio scrive stati che non ce l'hanno, e la prima
        schermata che ci itera morirebbe (gen-6.15). */
-    telefoni: {}, ...s });
+    telefoni: {},
+    /* la mappa delle ricevute (gen-6.20), gemella di «telefoni» e per lo
+       stesso motivo: un bundle vecchio scrive stati che non ce l'hanno, e la
+       prima riga che ci itera morirebbe. «...s» viene dopo, quindi un client
+       che non la conosce la porta AVANTI intatta — ed e' cosi' che la
+       riparazione avanza per dispositivo, senza nessun momento in cui la
+       flotta debba essere allineata (misurato in protocollotest §8). */
+    scritture: {}, ...s });
 
   /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
   const nuoveInCoda = (base) => {
@@ -16577,6 +16714,39 @@ export default function App() {
     return b;
   };
 
+  /* ── IL FILTRO (gen-6.20) ──
+     Toglie dalla coda SOLO le voci di cui lo stato in rete DIMOSTRA la
+     consegna. Non parcheggia niente e non puo' parcheggiare niente: se la
+     mappa manca, e' sporca o lo slot e' stato sfrattato, consegnata() torna
+     false e la coda non si muove.
+     LA GUARDIA DEL GUSCIO STA QUI DENTRO e non solo nei chiamanti: un guscio
+     (gen-6.16) ha le liste vuote, quindi anche la mappa vuota, quindi
+     giudicherebbe «mai consegnata» tutto — innocuo oggi, ma il giorno in cui
+     qualcuno passasse di qui una base diversa sarebbe una decisione presa sul
+     niente. Stessa disciplina della guardia di sincronizza.
+     Il try/catch non e' pudore: l'IIFE d'avvio NON ha un catch esterno, quindi
+     un lancio da qui lascerebbe l'app sulla schermata di caricamento invece di
+     degradare al comportamento di prima.
+     L'ORDINE DELLE TRE RIGHE FINALI E' VOLUTO: prima si conta, poi si assegna,
+     poi si scrive il diario, e lo specchio per ultimo. Se lo specchio lanciasse
+     (navigazione privata), il catch tornerebbe 0 — ma il conto e' gia' nel
+     diario e la coda in memoria e' gia' giusta; lo specchio lungo si ripara da
+     solo alla prima scrittura riuscita, mentre l'ordine inverso avrebbe
+     lasciato «zero tolte» accanto a una coda gia' potata. */
+  const cernitaConsegnate = (base) => {
+    try {
+      if (!codaRef.current.length || !base) return 0;
+      if (base.__guscio || base.__prelogin) return 0;
+      const restano = codaRef.current.filter((m) => !consegnata(base, m));
+      const tolte = codaRef.current.length - restano.length;
+      if (!tolte) return 0;
+      codaRef.current = restano;
+      diagRef.current = { ...diagRef.current, nConsegnate: (diagRef.current.nConsegnate || 0) + tolte };
+      specchiaCoda();
+      return tolte;
+    } catch { return 0; }
+  };
+
   const pianifica = (ms) => { clearTimeout(timerRef.current); timerRef.current = setTimeout(sincronizza, ms); };
 
   const sincronizza = async () => {
@@ -16615,6 +16785,31 @@ export default function App() {
          baseRef e' nullo si ricade su statoRef — che e' lo stesso guscio. */
       if (base && (base.__guscio || base.__prelogin))
         throw new Error("base non attendibile: non si e' letta la rete");
+      /* ── LA LETTURA VECCHIA NON LANCIA, SPEGNE (gen-6.20) ──
+         Una lettura piu' VECCHIA della mia base capita davvero (il commento del
+         poll lo dice: «una lettura stantia o in cache subito dopo una
+         scrittura»). Ma farne un errore creerebbe una trappola che prima non
+         c'era: se la rev in rete SCENDE per davvero — database ricostruito,
+         riga cancellata, seme nuovo che nasce con rev 1 — ogni giro
+         lancerebbe, si finirebbe su «offline» con backoff fino a 8 s, e niente
+         riabbasserebbe baseRef: il tablet non scriverebbe piu' per tutta la
+         serata e la coda finirebbe nello steccato delle 48 ore, cioe' in una
+         chiave senza lettori. Oggi lo stesso telefono scrive revBase 1 su una
+         rete a rev 1, il cancello accetta e la situazione si cura da sola
+         (protocollotest §7b).
+         Quindi la scrittura si costruisce come sempre — decide il cancello del
+         server, che e' il suo mestiere — e la lettura vecchia spegne la SOLA
+         cosa che ne dipende: la cernita, che ha bisogno di slot freschi.
+         Il pavimento prende tutti e due gli ancoraggi, perche' baseRef puo'
+         essere un guscio (che rev non ne ha) mentre il mio ultimo protocollo
+         c'e' sempre. */
+      const pav = Math.max(baseRef.current?.rev || 0, ultimoProtRef.current || 0);
+      const stantia = !!remoto && (remoto.rev || 0) < pav;
+      /* L'ORDINE E' OBBLIGATO: «inviate» fotografa la lunghezza della coda, e
+         presa prima del filtro conterebbe voci gia' consegnate. E si cerne
+         SOLO con la rete che ha davvero risposto: giudicare sulla propria copia
+         vorrebbe dire chiedere alla vendita se e' arrivata. */
+      if (remoto && !stantia) cernitaConsegnate(remoto);
       const inviate = codaRef.current.length;
       /* In rete ci sono gia' TUTTE le modifiche che ho in coda: la scrittura
          di prima era arrivata, si era persa solo la risposta. Qui non si
@@ -16649,9 +16844,43 @@ export default function App() {
       /* rev = contatore semplice, un passo per scrittura: niente più
          orologi, e il numero da cui si è partiti viaggia insieme allo
          stato perché il server possa rifiutare chi arriva secondo. */
-      nuovo.revBase = base.rev || 0;
-      nuovo.rev = (base.rev || 0) + 1;
+      nuovo.revBase = base.rev || 0;          // il cancello del server vuole la rev DELLA BASE
+      /* IL NUMERO NON NASCE DALLA SOLA LETTURA (gen-6.20). Se nascesse da
+         base.rev e la lettura fosse vecchia, questo numero potrebbe essere PIU'
+         BASSO di una rev che ho gia' fatto atterrare — e al giro dopo il mio
+         stesso slot testimonierebbe per una scrittura che non e' mai partita.
+         Il Math.max non fa passare la scrittura (revBase resta quello vero e il
+         cancello rifiuta lo stesso, ed e' giusto): serve solo a non stampare
+         sulla ricevuta un numero gia' usato. */
+      nuovo.rev = Math.max(base.rev || 0, ultimoProtRef.current || 0) + 1;
       nuovo.mtime = Date.now();
+      /* LA RICEVUTA CERTIFICA I DATI DI QUESTA BOZZA, quindi si costruisce
+         dalla BOZZA e mai dalla lettura che l'ha preceduta. Non e' pignoleria:
+         se dentro la coda c'e' un ripristino, la sua fn ha appena cancellato
+         ogni chiave e rimesso il backup — «vendite» e «applicate» sono tornate
+         indietro. Ripartire da base.scritture rimetterebbe sopra la mappa VIVA,
+         e lo slot sopravvivrebbe al ripristino: da li' la voce di un altro
+         telefono uscirebbe dalla coda certificata da uno slot che parla di dati
+         che non esistono piu' (protocollotest §12). */
+      nuovo.scritture = sfoltisciScritture({ ...(nuovo.scritture || {}), [mittRef.current]: nuovo.rev }, mittRef.current);
+      /* IL TIMBRO VA SUL DISCO PRIMA DELL'ATTESA, perche' il caso che conta e'
+         il telefono che muore DENTRO l'await qui sotto: al risveglio deve poter
+         chiedere «la mia 812 e' atterrata?». Se lo specchio finisse dopo
+         l'await, la coda ritrovata sarebbe senza numero — cioe' la via 4, cioe'
+         il comportamento di prima — proprio nel caso per cui la tessera esiste.
+         Fra la scelta della base e qui NON c'e' nessun await, quindi nessuna
+         voce puo' entrare in coda in mezzo e prendersi un numero che non le
+         spetta; se un domani qualcuno ne infila uno, va timbrata solo
+         codaRef.current.slice(0, inviate).
+         E il ref si aggiorna QUI, non dopo il successo: vedi la sua lapide. */
+      ultimoProtRef.current = nuovo.rev;
+      for (const m of codaRef.current) { m.mitt = mittRef.current; m.prot = nuovo.rev; }
+      specchiaCoda();
+      /* IL TIMBRO NON SI TOGLIE MAI guardando revRemota: scriviRemoto scrive
+         CHIAVE_REV DOPO lo stato, fuori transazione e dentro un catch vuoto, e
+         su risposta persa lo stato e' passato mentre la spia e' rimasta
+         indietro. Il numero non ha bisogno di essere tolto: se la scrittura non
+         e' atterrata lo slot non si muove, e la via 2 rigioca da sola. */
       if (!(await scriviRemoto(nuovo))) {
         /* Distinguere «ha vinto un altro» da «è caduta la linea»: se il
            numero di revisione in rete si è mosso, la rete c'è ed è stata
@@ -16881,6 +17110,21 @@ export default function App() {
       if (letto) {
         const s = normalizza(letto);
         baseRef.current = s;
+        /* ── LA CERNITA ANCHE QUI, E SI SA ESATTAMENTE QUANTO PESA (gen-6.20) ──
+           Va PRIMA del setStato qui sotto, cosi' la vista e il semaforo nascono
+           gia' coerenti: senza, per il secondo che passa fra l'avvio e il primo
+           giro di rete, la giornata mostrerebbe due volte un incasso che e' gia'
+           in cassa — e chi guarda il totale in quel momento non ha modo di
+           sapere che si sta per aggiustare da solo.
+           MA I SOLDI NON LI REGGE QUESTA RIGA, e va detto invece di lasciarlo
+           credere: li regge la cernita dentro sincronizza, che gira prima di
+           applicaCoda e prima di OGNI scrittura. Misurato: togliendo questa riga
+           (sabotaggio 19) non diventa rossa nessuna sezione, perche' la voce
+           esce comunque al primo giro. Quindi e' difesa in profondita' piu' una
+           vista onesta, non l'argine — e nessun banco misura il primo disegno
+           della schermata: e' un limite dichiarato, scritto anche in
+           PASSAGGIO.md. */
+        cernitaConsegnate(s);
         /* anche questa e' una lettura piena andata a buon fine, e senza il
            timbro la riga in cima a Comande direbbe «non ancora arrivata» per
            i primi trenta secondi di ogni avvio — falso, e proprio all'inizio
@@ -16985,6 +17229,18 @@ export default function App() {
            senza nome e' una base che qualcuno prima o poi usa. */
         const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [], __guscio: true });
         baseRef.current = s;
+        /* ── LA CERNITA PRIMA DEL RIGIOCO (gen-6.20) ──
+           In modo sicuro questo e' il primo momento in cui esiste uno stato
+           vero, quindi e' anche il primo in cui la ricevuta si puo' leggere: le
+           voci gia' atterrate escono QUI, prima che applicaCoda le rimetta
+           dentro la vista. Mai sul guscio dei soli nomi — lo dice anche la
+           guardia dentro cernitaConsegnate, e le due righe si coprono a vicenda.
+           Come la gemella dell'avvio classico, questa riga regge la VISTA e non
+           i soldi: il sabotaggio 20 la toglie e non arrossisce niente, perche'
+           la scrittura passa comunque dalla cernita di sincronizza. Sta qui
+           perche' il cassiere che rientra non deve leggere, nemmeno per un
+           secondo, una giornata che conta due volte il suo incasso. */
+        if (letto) cernitaConsegnate(s);
         /* come sopra: in modo sicuro questa e' la PRIMA lista vera che arriva,
            e il cuoco che entra non deve leggere «non ancora arrivata» (gen-6.15) */
         if (letto) diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now() };
@@ -17018,13 +17274,50 @@ export default function App() {
              leggeva nello storico condiviso cercava un incasso che non c'era.
              Adesso le righe si contano tutte e gli euro solo dove ci sono. */
           const q = fermeRef.current; fermeRef.current = [];
-          const conSoldi = q.filter((m) => Number(m?.dati?.totale) > 0);
-          const somma = conSoldi.reduce((x, m) => x + Number(m.dati.totale), 0);
+          /* ── E NON SI DICE UNA COSA CHE PUO' ESSERE FALSA (gen-6.20) ──
+             Lo steccato d'eta' vive nel ritrovamento, SOPRA il bivio: taglia
+             prima che qualunque slot sia consultabile, e li' ha ragione. Ma
+             questa frase gira molto piu' tardi, e qui lo stato di rete e' in
+             mano: dichiarare «NON sono state rispedite, vanno controllate a
+             mano» per voci che la ricevuta DIMOSTRA atterrate sarebbe una bugia
+             scritta nello storico condiviso — la stessa classe di difetto che
+             gen-6.07 ha gia' trattato come tale — e gli euro sommati
+             manderebbero a ribattere un incasso gia' in cassa. */
+          const gia = q.filter((m) => consegnata(s, m));
+          const restano = q.filter((m) => !consegnata(s, m));
+          /* e la stessa cernita rilegge la chiave delle ferme: ha zero lettori
+             e «.slice(-50)» butta le piu' vecchie, quindi una voce dimostrata
+             consegnata ci resterebbe per sempre, a gonfiare un accumulatore che
+             nessuno azzera */
+          try {
+            const dentro = JSON.parse(localStorage.getItem(CHIAVE_FERMA) || "[]");
+            if (Array.isArray(dentro) && dentro.length) {
+              const puliti = dentro.filter((m) => !consegnata(s, m));
+              if (puliti.length !== dentro.length) {
+                if (puliti.length) localStorage.setItem(CHIAVE_FERMA, JSON.stringify(puliti));
+                else localStorage.removeItem(CHIAVE_FERMA);
+              }
+            }
+          } catch {}
+          /* IL NUMERO DELLE RIGHE E GLI EURO PARLANO DI COSE DIVERSE
+             (gen-6.18). Le righe si contano tutte, gli euro solo dove ci sono —
+             e da gen-6.20 solo su quelle che qualcuno deve davvero guardare. */
+          const euroDi = (lista) => {
+            const conSoldi = lista.filter((m) => Number(m?.dati?.totale) > 0);
+            if (!conSoldi.length) return "";
+            const somma = conSoldi.reduce((x, m) => x + Number(m.dati.totale), 0);
+            return ` (di cui ${conSoldi.length === 1 ? "1 vendita" : conSoldi.length + " vendite"} per ${fmtEuro(somma)})`;
+          };
           const quante = q.length === 1 ? "Una modifica ferma" : q.length + " modifiche ferme";
-          const euro = conSoldi.length
-            ? ` (di cui ${conSoldi.length === 1 ? "1 vendita" : conSoldi.length + " vendite"} per ${fmtEuro(somma)})`
-            : "";
-          muta(() => {}, `${quante} da piu' di ${ORE_VENDITE} ore su questo telefono${euro}: NON sono state rispedite, vanno controllate a mano`);
+          const testa = `${quante} da piu' di ${ORE_VENDITE} ore su questo telefono`;
+          /* quando il protocollo non ha niente da dire, la frase e' quella di
+             gen-6.18 parola per parola: una riparazione non deve cambiare
+             quello che gia' andava bene */
+          muta(() => {}, !gia.length
+            ? `${testa}${euroDi(q)}: NON sono state rispedite, vanno controllate a mano`
+            : (!restano.length
+              ? `${testa}: risultano GIA' in rete, NON ribatterle`
+              : `${testa}: ${gia.length} ${gia.length === 1 ? "risulta" : "risultano"} gia' in rete (NON ribatterle), ${restano.length} da controllare a mano${euroDi(restano)}`));
         }
       } catch {}
     }
@@ -17077,8 +17370,14 @@ export default function App() {
          telefoni che nel frattempo hanno ricaricato). In tutti e due i casi
          la frase scritta sulla scheda diventerebbe falsa proprio nel momento
          in cui qualcuno la guarda davvero: durante un guasto. */
+      /* «scritture» si azzera insieme al resto, ed e' IGIENE e non la cura: la
+         cura e' che la ricevuta si costruisce dalla bozza (vedi sincronizza).
+         Va scritto qui perche' il prossimo che legge non ripari meta' e creda
+         di aver finito: un backup vecchio porterebbe dentro slot che parlano di
+         revisioni di un altro mondo, e il battito dei telefoni resta invece
+         perche' quello e' una spia di ADESSO (gen-6.15). */
       fn: (s) => { const tel = telefoniDi(s); for (const k of Object.keys(s)) delete s[k];
-        Object.assign(s, clona(pulito)); s.telefoni = tel; },
+        Object.assign(s, clona(pulito)); s.telefoni = tel; s.scritture = {}; },
       descr: `Dati ripristinati (${origine})`,
       chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l"),
     };

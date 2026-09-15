@@ -2,9 +2,9 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.19",
-  "len": 1022364,
-  "md5": "c5cffb144af4c8afa72927802ab50912",
+  "gen": "gen-6.20",
+  "len": 1042138,
+  "md5": "33979df5b436f10204137719e14a7d06",
   "quando": "2026-09-15",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
@@ -26,9 +26,30 @@
    "dove": "altro",
    "prova": null,
    "_prova_perche": "e' una decisione di Valerio su come lavora, non un difetto."
+  },
+  {
+   "id": "schede-gemelle",
+   "dove": "difetti",
+   "prova": "protocollotest.mjs",
+   "_prova_nota": "§12b prova la META' COPERTA (copia presa DOPO il primo timbro). La meta' scoperta — copia presa PRIMA — non ha banco: sarebbe una sezione dichiarata rossa per sempre, e la cura (proprietario della coda + battito sul disco, e specchiaCoda che si rifiuta di scrivere se il proprietario non e' suo) e' questa voce."
+  },
+  {
+   "id": "taglio-posizionale",
+   "dove": "difetti",
+   "prova": null,
+   "_prova_perche": "nessun banco fa girare DUE cicli di sincronizza sovrapposti: servirebbe tenere il primo appeso oltre i 12 secondi del watchdog mentre il secondo parte, e il freno di protocollotest tiene appeso UN solo set. La cura e' due righe (fotografare le voci in partenza per riferimento: const partite = codaRef.current.slice(0, inviate) prima dell'await, e codaRef.current.filter((m) => !partite.includes(m)) al successo) e va spedita CON il suo banco, non prima."
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.20",
+   "quando": "15 settembre",
+   "chiude": [
+    "finestra-cieca"
+   ],
+   "prova": "protocollotest.mjs",
+   "cosa": "«La ricevuta di consegna» — chiude il difetto #40 («la finestra cieca dell'exactly-once»), che gen-6.12 aveva solo STRETTO alzando MAX_APPLICATE a 1200. IL MECCANISMO: ogni scrittura parte con un numero di protocollo (nuovo.rev) e lo stato porta s.scritture = {mittente: ultima rev sua}; al ritorno il telefono legge il PROPRIO slot e se copre il numero stampato la voce e' DIMOSTRATA consegnata ed esce dalla coda senza rigiocarsi. Niente orologi, niente liste potate, nessun tetto da tarare. Mittente = idDispositivo()+'·'+caricamento (due schede della stessa origine condividono CHIAVE_CODA e non si vedono fra loro: con un nome solo la scheda B farebbe da garante per una voce di A mai partita). Il dispositivo sta nella CHIAVE perche' la potatura tiene MAX_MIEI=8 slot del proprio dispositivo PRIMA di riempire per rev decrescente: l'ordine di sfratto per sola rev era AVVERSO proprio al caso che serve (il telefono spento con una vendita in coda e' quello che tace da piu' tempo). LE DUE PERDITE DEL DISEGNO DEL 9 SETTEMBRE, trovate dalla demolizione (33 accuse, 14 alte, zero confutate) e corrette PRIMA di scrivere codice: (A) il numero costruito su «l'ultima rev atterrata» — non conoscibile, perche' lo slot in rete avanza anche sulle scritture la cui risposta si e' persa, che sono l'unico caso per cui la ricevuta esiste: il secondo scontrino prendeva un numero GIA' usato e usciva dalla coda senza essere mai partito. Cura: ultimoProtRef = «l'ultimo numero che ho stampato», aggiornato PRIMA dell'await, e nuovo.rev = Math.max(base.rev, ultimoProt)+1. (B) la mappa costruita da «base» (la lettura viva) invece che da «nuovo» (la bozza): con un ripristino in coda lo slot sopravviveva al ripristino e certificava dati che non esistevano piu'. Cura scritta come INVARIANTE: la ricevuta certifica i dati di QUESTA bozza. TESSERA 7 SEMPLIFICATA: non lancia (una rev che scende per davvero — database ricostruito — avrebbe bloccato il tablet per tutta la serata); e' una bandiera «stantia» che spegne solo la cernita. TRE AGGANCI, e uno solo regge i soldi: sincronizza (cerne prima di applicaCoda e prima di ogni scrittura). Gli altri due (avvio classico ed entra) reggono la VISTA nei secondi prima del primo giro — MISURATO: i sabotaggi 19 e 20 li tolgono e non arrossisce niente, ed e' scritto nel codice. PIU': le ferme non dicono piu' una cosa falsa (la frase si spacca in «N risultano gia' in rete: NON ribatterle» e «N da controllare a mano», con gli euro SOLO sul secondo, e CHIAVE_FERMA si ripulisce delle dimostrate); e applicaComanda non vince piu' col dato piu' vecchio (guardia p.t >= d.t). COLLAUDI: protocollotest.mjs (19 sezioni, browser, con quattro attrezzi nuovi — cancello revBase dentro la pagina, risposta persa, lettura stantia, FRENO sulla set per leggere il disco mentre il ciclo e' fermo dentro l'await, piu' il telefono che ammutolisce dopo l'atterraggio) e protopurotest.mjs (senza browser, tabella di verita' di consegnata e sfoltisciScritture, libreria da mkprotolib.mjs). 29 rossi registrati su gen-6.19, tutti verdi dopo. SABOTAGGI: 26, 16 rossi dove dovevano e 10 MUTI DICHIARATI col perche'; il sabotaggio 21 ha trovato che §12 era VERDE PER IL MOTIVO SBAGLIATO (la riprova ritimbrava la coda e la scena si riparava da sola prima di succedere): riscritta con __mutoDopoPersa. LIMITI DICHIARATI: la scheda gemella la cui copia e' stata presa PRIMA del primo timbro non e' coperta (voce «schede-gemelle»); il taglio posizionale dopo il watchdog dei 12s resta (voce «taglio-posizionale»); dopo un «Riporta in coda» legittimo un «Fatto» vecchio fa rinascere la spunta (asimmetria dichiarata, §14b la tiene visibile e il giorno della lapide va INVERTITA). FLOTTA MISTA: un tablet che non ha ricaricato lavora come prima e i SUOI scontrini restano esposti; la mappa gli attraversa intatta («...s» di normalizza), quindi la riparazione avanza per dispositivo senza allineamenti. CENSIMENTO su gen-6.20: 102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file; due rosse nel giro, rifatte verdi tutte e due — gruppitest §22 (un tocco crudo mio dentro il banco nuovo, riparato) e memoriaapptest (intermittenza nota di file://, verde due volte di fila sullo stesso codice). PRODUZIONE: len 1042138, md5 33979df5b436f10204137719e14a7d06."
+  },
   {
    "gen": "gen-6.19",
    "quando": "15 settembre",
@@ -433,7 +454,7 @@
   }
  ],
  "tuoi": [
-  "LA FINESTRA CIECA DELL EXACTLY-ONCE (#40) E STRETTA, NON CHIUSA: da gen-6.12 MAX_APPLICATE=1200 rende vera la premessa delle 48 ore fino a ~600 scritture al giorno (volume di progetto stimato per i giorni di punta: 350-450; misurato in produzione il 9 settembre: ~20 al giorno, l app e in rodaggio). Sopra quella soglia si riapre. La cura definitiva e la ricevuta di consegna (progetti/finestra-cieca.md): numero di protocollo dato dal server, contatore monotono, da fare INSIEME al pavimento del traffico perche tocca la stessa strada dei soldi. Spia da guardare a ogni rilascio: la lunghezza di s.applicate in produzione e quanto avanza rev in un giorno — se le scritture al giorno superano 600, alzare il tetto o fare la ricevuta.",
+  "LA FINESTRA CIECA DELL EXACTLY-ONCE (#40) E CHIUSA da gen-6.20 con la ricevuta di consegna: numero di protocollo su ogni scrittura piu' la mappa s.scritture {mittente: ultima rev sua}, tutta dentro l app, senza toccare il server e senza dipendere da nessun tetto. MAX_APPLICATE resta a 1200 come SECONDA rete (nuoveInCoda) e non si toglie: due reti indipendenti che sbagliano in modi diversi valgono piu' di una rete elegante, e §13 di protocollotest esiste apposta perche' toglierla diventi rosso. QUELLO CHE RESTA DA GUARDARE: (1) finche un tablet non ha RICARICATO lavora come prima e i SUOI scontrini possono ancora contarsi due volte — dopo ogni rilascio serve un giro di ricarica su tutti, e a Valerio va detto con queste parole; (2) la scheda gemella con la copia presa prima del primo timbro (voce schede-gemelle); (3) il taglio posizionale del watchdog (voce taglio-posizionale).",
   "LA VERIFICA AUTOMATICA DELL'INDIRIZZO (chiesta il 7 settembre) HA UNA DECISIONE TUA DENTRO: oggi «Vedi sulla mappa» apre le mappe del telefono — un link, nessuna chiave, niente che parte. Farla fare AL TASTO, con una mini mappa dentro la Cassa e senza aprire altre pagine, vuol dire chiamare un servizio di mappe dall'app: va scelto quale, e quasi tutti chiedono una chiave e hanno un tetto di chiamate. Dimmi se vuoi che lo scelga io o se preferisci decidere tu, perche' e' l'unica cosa di quella richiesta che non posso chiudere da solo.",
   "IL PIN ADMIN ORA CONTA DOPPIO: da gen-5.97 autorizza anche gli storni di cassa, ed e' ANCORA quello dimostrativo. Va cambiato da Gestione > Profili prima di usare la cassa davvero.",
   "LA CASSA VA ARMATA DA VALERIO: (1) riempire il Listino da Gestione > Listino — senza voci la Cassa e' vuota; (2) accendere «Puo' battere in cassa» sul profilo di chi sta al banco; (3) se il banco non scarica dalla prima linea, scegliere il magazzino di cassa in Gestione > Sedi. DECISIONE APERTA: quanti scontrini/giorno fa davvero? Oltre ~100, o con due casse, serve la chiave vendite separata lato server (progettata, non fatta).",
@@ -445,7 +466,9 @@
   "34 conversioni sono stime mie, non pesate. Adesso si sostituiscono in blocco con la spunta.",
   "I prezzi: 5 su 102. Non e' un lavoro da blocco (ogni prodotto ha il suo): la strada e' il CSV.",
   "Le dosi delle ricette: 13 prodotti marcati «lo fa il laboratorio», le ricette scritte sono ancora poche.",
-  "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica."
+  "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica.",
+  "I TRE AGGANCI DELLA CERNITA NON PESANO UGUALE, ed e' misurato: i SOLDI li regge solo quello dentro sincronizza (cerne prima di applicaCoda e prima di ogni scrittura). Quelli dell avvio classico e di entra() reggono la VISTA e il semaforo nei secondi prima del primo giro, e togliendoli non diventa rosso NIENTE (sabotaggi 19 e 20 di sabotaggi-gen620.mjs): nessun banco misura il primo disegno della schermata. Sta scritto anche nei commenti accanto alle due righe. Chi un domani volesse semplificare puo' toglierli sapendo cosa perde; chi li tiene sappia che non sono l argine.",
+  "LA GUARDIA hasOwnProperty DENTRO consegnata NON E LEI a difendere da una voce con mitt «__proto__»: a difendere e il confronto NUMERICO (numSlot), perche «{}[\"__proto__\"]» e un oggetto e un oggetto non e >= di niente. Misurato: il sabotaggio 17 la sostituisce con «in» e non arrossisce niente. Si tiene lo stesso — due guardie, una puo cadere — ma chi legge non creda che il collaudo la stia provando."
  ],
  "sbagliato": [
   {

@@ -36,14 +36,14 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.19, `app:jsx:src` len 1022364, md5
-  `c5cffb144af4c8afa72927802ab50912`, meta `{"len":1022364,"ver":"gen-6.19"}`.
-  Backup: `backup:pre-gen619` = gen-6.18, `backup:pre-gen618` = gen-6.17,
-  `backup:pre-gen617` = gen-6.16. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.20, `app:jsx:src` len 1042138, md5
+  `33979df5b436f10204137719e14a7d06`, meta `{"len":1042138,"ver":"gen-6.20"}`.
+  Backup: `backup:pre-gen620` = gen-6.19, `backup:pre-gen619` = gen-6.18,
+  `backup:pre-gen618` = gen-6.17. Verificare con una `select` prima di toccare.
   (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
-  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen619` è il codice di
-  PRIMA di gen-6.19, cioè gen-6.18. `backup:pre-gen620` nascerà col rilascio di
-  gen-6.20, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen620` è il codice di
+  PRIMA di gen-6.20, cioè gen-6.19. `backup:pre-gen621` nascerà col rilascio di
+  gen-6.21, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
   sopra è il motivo per cui non è finito in produzione.)
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
@@ -52,7 +52,16 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   98 verdi / 1994 controlli; gen-6.15 a 99 verdi / 2063 controlli;
   gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**;
   gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**;
-  gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**
+  gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**;
+  gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**
+  (i due banchi in più sono `protocollotest` e `protopurotest`; il file in più è
+  `mkprotolib.mjs`, che è una libreria e non un banco). **ATTENZIONE alla
+  sequenza, che stavolta non è stata quella giusta**: il censimento di gen-6.20 è
+  partito con i documenti ancora fermi a gen-6.19, quindi `memoriatest` e
+  `roadmaptest` là dentro hanno letto i documenti VECCHI (ed erano coerenti fra
+  loro, quindi verdi per il motivo giusto ma sulla versione prima). I due sono
+  stati rifatti da soli DOPO l'aggiornamento dei documenti, e il loro esito vero
+  è quello. La regola resta: **i documenti si chiudono PRIMA del censimento**.
   (il banco in più è `gruppitest`; il file in più è `cassanav.mjs`, che NON è un
   banco e infatti non finisce nel censimento — vedi la sezione sulla porta unica).
   (girato con `gen605test` ANCORA su `file://`, cioè prima della riparazione di
@@ -310,6 +319,63 @@ porta `data-gruppo="<gruppo>"`, la griglia aperta porta `data-griglia="<gruppo>"
 la cella porta `aria-label="Aggiungi <voce>"`. Il pulsante **non si cerca mai
 per nome accessibile**: quello porta il conto del gruppo e cambia mentre si batte.
 
+## La ricevuta di consegna (gen-6.20)
+
+Chiude il difetto #40. Il meccanismo in tre righe: ogni scrittura parte con un
+**numero di protocollo** (`nuovo.rev`), lo stato porta `s.scritture =
+{mittente: ultima rev sua}`, e al ritorno il telefono legge il **proprio** slot:
+se copre il numero stampato sulla voce, quella voce è **dimostrata** consegnata
+ed esce dalla coda senza rigiocarsi. Il mittente è
+`idDispositivo() + "·" + caricamento`. Le cose da sapere prima di toccarla:
+
+1. **Il numero non nasce dalla lettura.** `nuovo.rev = Math.max(base.rev,
+   ultimoProtRef.current) + 1`, e `ultimoProtRef` si aggiorna **prima**
+   dell'await, insieme al timbro. Il disegno del 9 settembre lo costruiva
+   sull'«ultima rev atterrata», che **non è conoscibile**: lo slot in rete
+   avanza anche sulle scritture la cui risposta si è persa — che sono l'unico
+   caso per cui la ricevuta esiste. Con quel ref, il secondo scontrino prende un
+   numero **già usato** e al primo giro fresco esce dalla coda senza essere mai
+   partito. È una perdita di soldi, e la misura `protocollotest §7`.
+2. **La ricevuta certifica la BOZZA, mai la lettura che l'ha preceduta.**
+   `{ ...(nuovo.scritture || {}) }`, non `base.scritture`. Con un **ripristino**
+   in coda, `base` porta ancora la mappa viva e lo slot di un altro telefono
+   sopravviverebbe al ripristino, certificando dati che non ci sono più. La
+   misura è `§12`, e ci è voluto il **sabotaggio 21** per scoprire che quella
+   sezione era verde per il motivo sbagliato: la riprova che parte mezzo secondo
+   dopo **ri-timbra** la coda con un numero più alto, e la scena si riparava da
+   sola prima di succedere. Chi scrive una scena con «la risposta si è persa»
+   deve anche far **ammutolire** il telefono (`__mutoDopoPersa`), o non sta
+   misurando quello che crede.
+3. **Dei tre agganci, i soldi li regge solo quello dentro `sincronizza`.**
+   Cerne prima di `applicaCoda` e prima di ogni scrittura. Gli altri due (avvio
+   classico ed `entra`) reggono la **vista** e il semaforo nei secondi prima del
+   primo giro: togliendoli non diventa rosso niente (sabotaggi 19 e 20), e sta
+   scritto accanto alle due righe. Non è una copertura: è difesa in profondità
+   dichiarata.
+4. **La potatura tiene prima gli slot del MIO dispositivo** (`MAX_MIEI = 8` su
+   `MAX_SCRITTURE = 60`). L'ordine di sfratto per sola rev decrescente era
+   **avverso** proprio al caso che serve: il primo a uscire sarebbe il mittente
+   che tace da più tempo, cioè il tablet spento con una vendita in coda.
+5. **Due limiti dichiarati, e sono due voci di roadmap**: la scheda gemella la
+   cui copia della coda è stata presa **prima** del primo timbro
+   (`schede-gemelle`), e il taglio **posizionale** dopo il watchdog dei 12
+   secondi (`taglio-posizionale`, cura nota di due righe, non spedita perché
+   nessun banco la misura). Più l'asimmetria della spunta: dopo un «Riporta in
+   coda» legittimo, un «Fatto» vecchio la fa rinascere — `§14b` la tiene visibile
+   con un verde, e **il giorno in cui qualcuno scrive la lapide quella
+   asserzione va INVERTITA**.
+6. **`SEZIONI=6,6a node protocollotest.mjs`** gira solo quelle sezioni. Serve ai
+   sabotaggi: il banco intero costa una decina di minuti, e ventisei sabotaggi a
+   giro intero sarebbero mezza giornata. Il prezzo è dichiarato in testa al file
+   dei sabotaggi: con il filtro non si vede se un sabotaggio arrossisce anche una
+   sezione che nessuno si aspettava, e per i due che contano di più (S1 e S5) si
+   paga il giro intero.
+7. **Dopo il rilascio serve un giro di ricarica su TUTTI i tablet**, e a Valerio
+   va detto con queste parole: finché un tablet non ha ricaricato, **i suoi**
+   scontrini possono ancora contarsi due volte. La mappa gli attraversa intatta
+   (`...s` di `normalizza`), quindi la riparazione avanza per dispositivo senza
+   nessun momento di allineamento della flotta.
+
 ## Cosa NON c'è nel repo, ed è voluto
 
 - `stato-vero.json`, `stato-vero-conv.json`, `topologia-vera.json`: dati veri,
@@ -544,13 +610,10 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    impossibile, una sezione che batteva nel gruppo di partenza (quindi cieca al
    suo sabotaggio) e una misura senza lo scorrimento in fondo. Stanno scritti
    **dentro il banco**, riga per riga, invece che nel numero.
-8. **La ricevuta di consegna** (`progetti/finestra-cieca.md`), che chiude la
-   finestra cieca (#40, oggi solo STRETTA da MAX_APPLICATE 1200). **È tutta
-   client e non tocca il server**: un mittente per caricamento di pagina,
-   l'ultima revisione atterrata, e una mappa `s.scritture` potata per valore
-   invece che per orologio; il cancello `revBase` che c'è già rende la cosa
-   dimostrabile. Quindi **non dipende dal pavimento del traffico** e può uscire
-   prima.
+8. ~~La ricevuta di consegna~~: **fatta, online da gen-6.20** — e va letta la
+   sezione «La ricevuta di consegna» qui sotto prima di toccare qualunque cosa
+   che scriva sullo stato, perché tre delle sue lezioni valgono per chiunque
+   lavori su quella strada.
 9. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
