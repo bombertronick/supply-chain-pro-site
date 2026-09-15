@@ -69,16 +69,26 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260915-sera` (il checkpoint
-  completo, l'ultimo: gen-6.20), `chk-20260915` (quello prima) e
+- **Dispensa**: le voci che servono: `chk-20260915-notte` (il checkpoint
+  completo, l'ultimo: gen-6.21), `chk-20260915-sera` (quello prima: gen-6.20) e
   `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
+  E si verifica anche che le voci VECCHIE non si siano mosse: lo snapshot va
+  ricopiato a mano e una svista lì riscriverebbe l'indice di tutti. Il modo che
+  costa un secondo: prima di scrivere, farsi dare dal database
+  `id|t|car|tag|md5(titolo)` di ogni voce, rifarlo in locale sullo snapshot e
+  confrontare; dopo, `md5` dell'array senza la voce nuova contro quello di
+  prima.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL;
-  gen-6.20 e' la Versione 31). Prima di ripubblicare si passa da
+  gen-6.21 e' la **Versione 32**). Prima di ripubblicare si passa da
   `node strumenti/artefatto-tocco.mjs <file>`: prova la copia PUBBLICATA, che
-  non e' il file del repository.
+  non e' il file del repository. E prima ancora si LEGGE l'artefatto pubblicato
+  (`action: "read"`): il corpo che torna, tolto l'involucro dell'host, deve
+  essere identico al `roadmap.html` del commit precedente a meno di due righe
+  vuote — se non lo e', qualcuno l'ha modificato fuori dal repository e
+  ripubblicare gli passerebbe sopra.
 
 ## Le due regole del caricatore, che vengono prima di tutto
 
