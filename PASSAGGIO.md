@@ -28,7 +28,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260914`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260915-sera`. Non cambiare niente prima di aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -68,12 +68,16 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260915` (il checkpoint completo,
-  l'ultimo), `chk-20260914` (quello prima) e `passaggio-20260909` (il
+- **Dispensa**: le voci che servono: `chk-20260915-sera` (il checkpoint
+  completo, l'ultimo: gen-6.20), `chk-20260915` (quello prima) e
+  `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
-  (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL).
+  (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL;
+  gen-6.20 e' la Versione 31). Prima di ripubblicare si passa da
+  `node strumenti/artefatto-tocco.mjs <file>`: prova la copia PUBBLICATA, che
+  non e' il file del repository.
 
 ## Le due regole del caricatore, che vengono prima di tutto
 
