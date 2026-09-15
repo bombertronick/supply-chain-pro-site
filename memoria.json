@@ -2,9 +2,9 @@
  "_cose": "La memoria fra una conversazione e l'altra, in forma che una macchina sa leggere. La roadmap (roadmap.html) e' la stessa cosa scritta per Valerio; questo file e' la stessa cosa scritta per un collaudo. Non e' un doppione decorativo: esiste perche' i due si possano CONFRONTARE, e perche' il confronto diventi rosso quando uno dei due invecchia. Chi lo tiene aggiornato: chi fa il rilascio, nello stesso momento in cui aggiorna la roadmap.",
  "_perche_esiste": "Il 3 agosto ho sistemato il doppio conteggio in gen-5.76 ma NON ho tolto la voce dalla lista da scegliere. Valerio l'ha scelta il giorno dopo, e ha speso una scelta per un lavoro gia' fatto. La memoria non si era persa — la roadmap era in git, integra. Era diventata FALSA. Un archivio piu' robusto non avrebbe cambiato niente: quello che mancava era qualcosa che diventasse rosso. Questo file, piu' memoriatest.mjs, e' quel qualcosa.",
  "online": {
-  "gen": "gen-6.20",
-  "len": 1042138,
-  "md5": "33979df5b436f10204137719e14a7d06",
+  "gen": "gen-6.21",
+  "len": 1047212,
+  "md5": "c230922976fc1191d6f38b868edb753f",
   "quando": "2026-09-15",
   "_nota": "len e md5 sono quelli di app:jsx:src in produzione, verificati dal cancello del rilascio. Il collaudo controlla che «gen» combaci con quello che la roadmap dice di avere in cucina, e che len e md5 combacino con quelli scritti nella nota dell ultimo lavoro spedito («PRODUZIONE: len N, md5 HEX»). NON puo controllare da solo che combacino con la produzione vera, perche in CI non c e la chiave del database: quel confronto lo fa chi rilascia, con execute_sql, ed e la ragione per cui la nota porta il numero uscito dal cancello e non uno riscritto a memoria."
  },
@@ -34,13 +34,22 @@
    "_prova_nota": "§12b prova la META' COPERTA (copia presa DOPO il primo timbro). La meta' scoperta — copia presa PRIMA — non ha banco: sarebbe una sezione dichiarata rossa per sempre, e la cura (proprietario della coda + battito sul disco, e specchiaCoda che si rifiuta di scrivere se il proprietario non e' suo) e' questa voce."
   },
   {
-   "id": "taglio-posizionale",
+   "id": "scorciatoia-vecchia",
    "dove": "difetti",
    "prova": null,
-   "_prova_perche": "nessun banco fa girare DUE cicli di sincronizza sovrapposti: servirebbe tenere il primo appeso oltre i 12 secondi del watchdog mentre il secondo parte, e il freno di protocollotest tiene appeso UN solo set. La cura e' due righe (fotografare le voci in partenza per riferimento: const partite = codaRef.current.slice(0, inviate) prima dell'await, e codaRef.current.filter((m) => !partite.includes(m)) al successo) e va spedita CON il suo banco, non prima."
+   "_prova_perche": "la cura e' una parola («if (remoto && !stantia && !nuoveInCoda(base))») ma non esiste un osservabile onesto: il totale a schermo, il toast «Connessione ripristinata» e il conto delle scritture rifiutate restano uguali con e senza. Si spedisce il giorno in cui si trova come farla diventare rossa, non prima."
   }
  ],
  "chiusi": [
+  {
+   "gen": "gen-6.21",
+   "quando": "15 settembre",
+   "chiude": [
+    "taglio-posizionale"
+   ],
+   "prova": "sorpassatotest.mjs",
+   "cosa": "«Il ciclo sorpassato» — chiude la voce di roadmap «taglio-posizionale», aperta la mattina stessa con gen-6.20. IL DIFETTO: il watchdog (app.jsx, sincronizza) lascia partire un SECONDO ciclo quando il primo e' appeso oltre 12 s; ogni ciclo fotografava la LUNGHEZZA della coda e al ritorno tagliava quel numero di POSIZIONI, quindi il ciclo lento tagliava voci che non aveva mai spedito — le piu' nuove. Piu' tre danni del ciclo sorpassato che rientra: rimetteva la propria base vecchia in baseRef e nella vista, azzerava inSyncRef col semaforo su «ok» e riapriva il rubinetto con pianifica, e dentro scriviRemoto aveva gia' riscritto scp:rev:v1 col suo numero vecchio (chiave che il cancello del server NON protegge), accecando il poll degli altri telefoni fino a mezzo minuto. LE QUATTRO TESSERE: (1) const partite = codaRef.current.slice(0, inviate) dichiarata DOVE NASCE «inviate» — non accanto al timbro, o il ramo della scorciatoia la userebbe prima della dichiarazione e sarebbe un ReferenceError in una strada quotidiana — e i due tagli diventano filter((m) => !partite.includes(m)); (2) giroRef: «const mio = ++giroRef.current» all'inizio del ciclo e, nei TRE punti che concludono (scorciatoia, successo, catch), «if (mio !== giroRef.current) return;» dopo aver tolto le proprie voci: un ciclo sorpassato non tocca base, vista, semaforo, inSyncRef, riprove ne' pianifica; (3) la spia scp:rev:v1 si scrive solo se il numero SALE (variabile di modulo spiaScritta, timbrata solo dopo il successo) — LIMITE: ferma solo le MIE scritture all'indietro, la cura completa e' un cancello su quella chiave nel server; (4) il ripristino conta TUTTA la coda (era «filter((m) => m.tipo).length»): l'assegnazione «codaRef.current = [m]» butta anche le mutazioni a closure — evasioni, produzioni, conteggi, la riga delle ferme — che non hanno tipo e non stanno sul disco. LA DEMOLIZIONE, fatta PRIMA di scrivere codice: quattro ricognizioni, sei lenti, due scettici per accusa, 56 agenti — 23 accuse, 16 in piedi, 7 confutate. Il disegno di partenza NON PARTIVA: la sua cura lanciava un ReferenceError e la sua scena di collaudo era VERDE col difetto dentro (serve una QUARTA condizione: la vendita nuova deve anche non riuscire a partire da sola, se no si salva e il taglio non la trova). E ha bocciato la guardia «nuovo.rev >= baseRef.rev» che avevo proposto: riaprirebbe la trappola di gen-6.20 §7b (rev che scende davvero + ultimoProtRef a 0 = baseRef appeso per sempre). COLLAUDO: collaudi/sorpassatotest.mjs, sei sezioni, con un attrezzo nuovo — il freno che COMMITTA e poi tiene appesa la RISPOSTA, con una MAPPA di attese per rev e rilascio scelto (__frenaDopo, __appese, __rilascia, __rilasciaMale): col resolver scalare di protocollotest il secondo arrivato sovrascriveva il primo e il ciclo lento restava appeso per sempre, muto. 10 rossi registrati su gen-6.20, tutti verdi dopo; §1b e' un contro-controllo verde prima e dopo. SABOTAGGI: collaudi/sabotaggi-gen621.mjs, 11 — 9 come attesi e DUE APERTI: il sabotaggio 2 era muto e ha fatto nascere §1b (la fotografia e' una COPIA, e conta solo quando un solo ciclo e' in volo: con due, un altro riassegna l'array e la voce nuova finisce altrove); il sabotaggio 10 ha misurato che senza la quarta condizione §1 resta rossa ma le due asserzioni sui SOLDI diventano verdi col difetto dentro. NON SPEDITO, e aperto come voce «scorciatoia-vecchia»: il ramo del ritrovamento adotta in baseRef e nella vista una lettura che due righe sopra ha gia' giudicato stantia — cura di una parola, ma nessun osservabile onesto la rende rossa. CENSIMENTO su gen-6.21: 105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file, pulito al primo giro. PRODUZIONE: len 1047212, md5 c230922976fc1191d6f38b868edb753f."
+  },
   {
    "gen": "gen-6.20",
    "quando": "15 settembre",
@@ -468,7 +477,8 @@
   "Le dosi delle ricette: 13 prodotti marcati «lo fa il laboratorio», le ricette scritte sono ancora poche.",
   "12 righe d'ordine finte (lab/ricevuto) e alcuni doppioni in anagrafica.",
   "I TRE AGGANCI DELLA CERNITA NON PESANO UGUALE, ed e' misurato: i SOLDI li regge solo quello dentro sincronizza (cerne prima di applicaCoda e prima di ogni scrittura). Quelli dell avvio classico e di entra() reggono la VISTA e il semaforo nei secondi prima del primo giro, e togliendoli non diventa rosso NIENTE (sabotaggi 19 e 20 di sabotaggi-gen620.mjs): nessun banco misura il primo disegno della schermata. Sta scritto anche nei commenti accanto alle due righe. Chi un domani volesse semplificare puo' toglierli sapendo cosa perde; chi li tiene sappia che non sono l argine.",
-  "LA GUARDIA hasOwnProperty DENTRO consegnata NON E LEI a difendere da una voce con mitt «__proto__»: a difendere e il confronto NUMERICO (numSlot), perche «{}[\"__proto__\"]» e un oggetto e un oggetto non e >= di niente. Misurato: il sabotaggio 17 la sostituisce con «in» e non arrossisce niente. Si tiene lo stesso — due guardie, una puo cadere — ma chi legge non creda che il collaudo la stia provando."
+  "LA GUARDIA hasOwnProperty DENTRO consegnata NON E LEI a difendere da una voce con mitt «__proto__»: a difendere e il confronto NUMERICO (numSlot), perche «{}[\"__proto__\"]» e un oggetto e un oggetto non e >= di niente. Misurato: il sabotaggio 17 la sostituisce con «in» e non arrossisce niente. Si tiene lo stesso — due guardie, una puo cadere — ma chi legge non creda che il collaudo la stia provando.",
+  "IL CICLO SORPASSATO (gen-6.21): quando due sincronizza convivono — e convivono ogni volta che una scrittura resta appesa oltre i 12 s del watchdog — chi rientra per ultimo NON e necessariamente l ultimo. Da gen-6.21 ogni ciclo si fotografa le voci che spedisce (const partite = codaRef.current.slice(0, inviate), dichiarata dove nasce «inviate») e prende un numero di giro (++giroRef.current): al ritorno toglie le SUE voci per identita e, se non e piu l ultimo, si ferma li. Chi tocca sincronizza deve sapere due cose: (1) la fotografia va dichiarata PRIMA della scorciatoia, se no e un ReferenceError in una strada quotidiana; (2) la guardia giusta e il NUMERO DI GIRO, non un confronto fra rev — la rev confonde «un mio ciclo piu recente ha gia adottato» con «la rete e tornata indietro davvero», e quella seconda cosa deve restare adottabile (e la trappola misurata in protocollotest §7b)."
  ],
  "sbagliato": [
   {

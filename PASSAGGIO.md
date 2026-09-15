@@ -36,14 +36,14 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.20, `app:jsx:src` len 1042138, md5
-  `33979df5b436f10204137719e14a7d06`, meta `{"len":1042138,"ver":"gen-6.20"}`.
-  Backup: `backup:pre-gen620` = gen-6.19, `backup:pre-gen619` = gen-6.18,
-  `backup:pre-gen618` = gen-6.17. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.21, `app:jsx:src` len 1047212, md5
+  `c230922976fc1191d6f38b868edb753f`, meta `{"len":1047212,"ver":"gen-6.21"}`.
+  Backup: `backup:pre-gen621` = gen-6.20, `backup:pre-gen620` = gen-6.19,
+  `backup:pre-gen619` = gen-6.18. Verificare con una `select` prima di toccare.
   (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
-  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen620` è il codice di
-  PRIMA di gen-6.20, cioè gen-6.19. `backup:pre-gen621` nascerà col rilascio di
-  gen-6.21, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen621` è il codice di
+  PRIMA di gen-6.21, cioè gen-6.20. `backup:pre-gen622` nascerà col rilascio di
+  gen-6.22, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
   sopra è il motivo per cui non è finito in produzione.)
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
@@ -53,7 +53,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   gen-6.16 a **98 verdi / 2064 controlli, 0 mute, 1 rossa mia (memoriatest, campo «prova») corretta e riverificata verde**;
   gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**;
   gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**;
-  gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**
+  gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**;
+  gen-6.21 a **105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file** (il banco in più è `sorpassatotest`)
   (i due banchi in più sono `protocollotest` e `protopurotest`; il file in più è
   `mkprotolib.mjs`, che è una libreria e non un banco). **ATTENZIONE alla
   sequenza, che stavolta non è stata quella giusta**: il censimento di gen-6.20 è
@@ -380,6 +381,54 @@ ed esce dalla coda senza rigiocarsi. Il mittente è
    (`...s` di `normalizza`), quindi la riparazione avanza per dispositivo senza
    nessun momento di allineamento della flotta.
 
+## Il ciclo sorpassato (gen-6.21)
+
+Due `sincronizza` possono convivere: il watchdog ne lascia partire un altro
+quando il primo è appeso da più di dodici secondi, e quello lento **non è più
+l'ultimo** quando rientra. Da gen-6.21 ogni ciclo prende `const mio =
+++giroRef.current` e si fotografa le voci che spedisce
+(`const partite = codaRef.current.slice(0, inviate)`); al ritorno toglie **le
+sue** per identità e, se `mio !== giroRef.current`, **si ferma lì** — niente
+base, niente vista, niente semaforo, niente `inSyncRef`, niente `pianifica`.
+Quattro cose da sapere prima di toccare quel pezzo:
+
+1. **La fotografia va dichiarata dove nasce `inviate`**, non più in basso
+   accanto al timbro: il ramo della scorciatoia la userebbe **prima** della
+   dichiarazione, e sarebbe un `ReferenceError` in una strada che l'app
+   percorre tutti i giorni (la «via 2» della ricevuta, quella che
+   `protocollotest §13` esercita a ogni giro). L'ha trovato la demolizione del
+   disegno, non un collaudo: il disegno di partenza, spedito com'era scritto,
+   **non sarebbe partito**.
+2. **La guardia giusta è il numero di giro, non un confronto fra `rev`.**
+   Avevo proposto `if ((nuovo.rev || 0) >= (baseRef.current?.rev || 0))` ed è
+   stata bocciata con le righe in mano: riaprirebbe la trappola misurata in
+   `protocollotest §7b` — quando la rev in rete **scende per davvero**
+   (database ricostruito) e `ultimoProtRef` vale ancora 0 perché quel
+   caricamento non ha mai scritto, quella guardia rifiuterebbe di adottare e
+   `baseRef` resterebbe appeso a una revisione che in rete non esiste più. La
+   rev confonde «un mio ciclo più recente ha già adottato» con «la rete è
+   tornata indietro»; il numero di giro distingue le due cose senza guardare i
+   dati.
+3. **La scena che perde un incasso ha QUATTRO condizioni, non tre**, e senza la
+   quarta il collaudo misura un dettaglio invece di un incasso: la vendita
+   battuta nel frattempo deve anche **non riuscire a partire da sola**, se no
+   si spedisce col proprio ciclo e il taglio del ciclo lento non la trova più.
+   Misurato due volte (sabotaggio 10): togliendo quella riga, §1 resta rossa ma
+   le due asserzioni che parlano di **soldi** diventano verdi col difetto
+   dentro.
+4. **Il freno che serve qui non è quello di `protocollotest`**: quello tiene
+   appesa la `set` *prima* del commit, qui serve il contrario (committa e poi
+   tieni appesa la **risposta**) e servono **due attese insieme**, rilasciabili
+   nell'ordine scelto — `__frenaDopo`, `__appese`, `__rilascia(rev)`,
+   `__rilasciaMale(rev)` in `collaudi/sorpassatotest.mjs`. Con un resolver
+   scalare il secondo arrivato sovrascrive il primo e il ciclo lento resta
+   appeso **per sempre**, senza nessun segnale.
+
+E `collaudi/sabotaggi-gen621.mjs` sa fare due cose in più della macchina di
+gen-6.20: `file` sabota il **banco** (e lo rimette a posto sempre) e
+`sorgenteGit` costruisce il pacchetto da una **revisione passata**, che è
+l'unico modo di dimostrare che una riga del banco è portante.
+
 ## Cosa NON c'è nel repo, ed è voluto
 
 - `stato-vero.json`, `stato-vero-conv.json`, `topologia-vera.json`: dati veri,
@@ -618,13 +667,18 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    sezione «La ricevuta di consegna» qui sotto prima di toccare qualunque cosa
    che scriva sullo stato, perché tre delle sue lezioni valgono per chiunque
    lavori su quella strada.
-9. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+9. ~~Il taglio posizionale~~: **fatto, online da gen-6.21**
+   (`collaudi/sorpassatotest.mjs`, 10 rossi → tutti verdi, 11 sabotaggi con due
+   aperti). Resta aperta la voce **`scorciatoia-vecchia`**, che è la sua
+   vicina di casa e non si spedisce finché non si trova come farla diventare
+   rossa.
+10. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-10. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+11. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)

@@ -152,6 +152,9 @@ const CHIAVE = "scp:stato:v1";
    scorciatoia che quando si rompe smette di far vedere le novita' sarebbe
    peggio del peso che toglie. */
 const CHIAVE_REV = "scp:rev:v1";
+/* l'ultimo numero che HO scritto sulla spia: serve a non farla scendere
+   (gen-6.21, vedi scriviRemoto) */
+let spiaScritta = 0;
 const MAX_GIRI_MAGRI = 10;        /* dopo dieci giri leggeri, uno pieno comunque */
 /* ── DA QUANTO E' CONFERMATA UNA LISTA (gen-6.15) ──
    La soglia oltre la quale l'eta' di una lista smette di essere
@@ -218,7 +221,26 @@ async function scriviRemoto(stato) {
        porta uno: {ok:true} (la forma vera, app_kv_set.sql:70), true secco e
        l'eco {key,value,shared} passano tutte e tre — provate una per una. */
     if (typeof r === "object" && (r.error || r.data?.error || r.code)) return false;
-    try { await window.storage.set(CHIAVE_REV, String(stato.rev || 0), true); } catch {}
+    /* ── LA SPIA NON TORNA INDIETRO (gen-6.21) ──
+       Questa riga sta DOPO lo stato e su una chiave che il cancello del server
+       non protegge (app_kv_set.sql guarda solo scp:stato:v1). Un ciclo di
+       salvataggio rimasto appeso oltre i dodici secondi del watchdog rientra
+       quando un altro ha gia' scritto, e qui riscriveva il PROPRIO numero, piu'
+       basso: da quel momento il poll di ogni telefono fermo a quella revisione
+       cade nel giro magro e non chiede piu' la lista per dieci giri, cioe'
+       26-35 secondi — ed e' cieco esattamente sui telefoni a cui manca
+       l'ultima vendita. Si scrive solo se il numero SALE, e si timbra solo
+       dopo che la scrittura e' andata a buon fine.
+       LIMITE DICHIARATO: questa memoria e' MIA, quindi ferma solo le mie
+       scritture all'indietro. La spia e' globale e un altro dispositivo puo'
+       sempre riscriverla piu' bassa: la cura completa e' un cancello su quella
+       chiave dentro il server, cioe' il pavimento del traffico. */
+    if ((stato.rev || 0) > spiaScritta) {
+      try {
+        await window.storage.set(CHIAVE_REV, String(stato.rev || 0), true);
+        spiaScritta = stato.rev || 0;
+      } catch {}
+    }
     return true;
   } catch { return false; }
 }
@@ -697,7 +719,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.20";
+const VERSIONE = "gen-6.21";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -16581,6 +16603,15 @@ export default function App() {
   const baseRef = useRef(null);              // ultimo stato remoto confermato
   const codaRef = useRef([]);                // mutazioni in attesa di invio
   const inSyncRef = useRef(false);
+  /* ── IL NUMERO DI GIRO (gen-6.21) ──
+     Il watchdog qui sotto lascia partire un SECONDO ciclo di salvataggio
+     quando il primo e' appeso da piu' di dodici secondi: e' giusto, se no un
+     telefono con la rete impantanata non salverebbe piu' niente. Ma quando il
+     ciclo lento rientra si comportava come se fosse l'ultimo — rimetteva la
+     propria base vecchia, ci ricostruiva sopra la vista, azzerava il semaforo
+     e riapriva il rubinetto. Questo contatore serve a una domanda sola, e la
+     risposta si sa senza guardare i dati: «sono ancora io l'ultimo?». */
+  const giroRef = useRef(0);
   const riproveRef = useRef(0);
   const conflittiRef = useRef(0);            // quante volte di fila ha vinto un altro
   const offlineRef = useRef(false);
@@ -16754,6 +16785,7 @@ export default function App() {
     if (inSyncRef.current && Date.now() - inSyncRef.current < 12000) return;
     if (modalitaRef.current !== "condivisa" || !codaRef.current.length) { inSyncRef.current = 0; return; }
     inSyncRef.current = Date.now();
+    const mio = ++giroRef.current;
     try {
       const letto = await leggiRemoto();
       /* «> 1» e non «> 0», ed e' deliberato: uno stato appena seminato ha
@@ -16811,6 +16843,20 @@ export default function App() {
          vorrebbe dire chiedere alla vendita se e' arrivata. */
       if (remoto && !stantia) cernitaConsegnate(remoto);
       const inviate = codaRef.current.length;
+      /* ── LE VOCI CHE PARTONO SI CONTANO PER NOME (gen-6.21) ──
+         «inviate» e' una LUNGHEZZA, e al ritorno serviva a tagliare la coda
+         per POSIZIONE. Fra la partenza e il ritorno c'e' un await, e con due
+         cicli che convivono la coda in mezzo cambia: il ciclo lento tagliava
+         un numero di posizioni calcolato su una coda gia' accorciata
+         dall'altro, e le voci che cadevano erano le PIU' NUOVE — gli scontrini
+         battuti nel frattempo. Misurato in collaudi/sorpassatotest.mjs §1: la
+         giornata si ferma a due vendite su tre, senza una riga e col pallino
+         verde.
+         La fotografia si prende QUI, dove nasce «inviate», e non piu' in
+         basso accanto al timbro: il ramo della scorciatoia (poche righe sotto)
+         la userebbe prima che sia dichiarata, e sarebbe un ReferenceError in
+         una strada che si percorre tutti i giorni. */
+      const partite = codaRef.current.slice(0, inviate);
       /* In rete ci sono gia' TUTTE le modifiche che ho in coda: la scrittura
          di prima era arrivata, si era persa solo la risposta. Qui non si
          riscrive niente — riscrivere vorrebbe dire riapplicarle sopra a se
@@ -16820,8 +16866,16 @@ export default function App() {
          (e' la vista che sto mostrando), e ripiegarci sopra vorrebbe dire
          buttare via il lavoro credendolo gia' salvato. */
       if (remoto && !nuoveInCoda(base)) {
-        codaRef.current = codaRef.current.slice(inviate);
+        /* stessa forma del taglio di sotto, e qui e' una scelta di
+           leggibilita' e non una riparazione: fra «inviate» e questa riga non
+           c'e' nessun await, quindi «partite» e' tutta la coda e le due forme
+           sono identiche. Si scrive uguale perche' la regola sia UNA, e chi
+           legge non debba ricordarsi quale dei due rami e' quello al sicuro. */
+        codaRef.current = codaRef.current.filter((m) => !partite.includes(m));
         specchiaCoda();
+        /* e un ciclo sorpassato si ferma qui: ha tolto le sue voci, e tutto
+           quello che viene dopo e' roba da ultimo arrivato (vedi giroRef) */
+        if (mio !== giroRef.current) return;
         baseRef.current = base; statoRef.current = base; setStato(base);
         riproveRef.current = 0; conflittiRef.current = 0;
         /* ultimaRete si timbra anche QUI, e non e' un di piu' (gen-6.15).
@@ -16892,9 +16946,22 @@ export default function App() {
           throw Object.assign(new Error("ha salvato prima un altro telefono"), { conflitto: true });
         throw new Error("scrittura non riuscita");
       }
-      conflittiRef.current = 0;
-      codaRef.current = codaRef.current.slice(inviate);
+      codaRef.current = codaRef.current.filter((m) => !partite.includes(m));
       specchiaCoda();                          // salvate: lo specchio si accorcia con la coda
+      /* ── UN CICLO SORPASSATO NON COMANDA PIU' (gen-6.21) ──
+         Ha fatto il suo mestiere: la sua scrittura e' atterrata e le sue voci
+         sono uscite dalla coda. Tutto quello che viene dopo parla di ADESSO —
+         qual e' la base, cosa si vede a schermo, che colore ha il pallino,
+         quando parte il prossimo giro — e di adesso sa qualcosa solo l'ultimo
+         ciclo. Prima di questa riga il ciclo lento rimetteva una base piu'
+         vecchia, ci ricostruiva sopra la vista, scriveva «ok» e con pianifica
+         faceva partire un TERZO ciclo mentre il secondo era ancora in volo
+         (misurato in sorpassatotest §2: tre ingressi nella scrittura dove ne
+         bastano due).
+         E NON si azzera inSyncRef: il guinzaglio del watchdog e' dell'ultimo
+         ciclo, non di questo. */
+      if (mio !== giroRef.current) return;
+      conflittiRef.current = 0;
       baseRef.current = nuovo;
       const vista = codaRef.current.length ? applicaCoda(nuovo) : nuovo;
       statoRef.current = vista; setStato(vista);
@@ -16904,6 +16971,12 @@ export default function App() {
       inSyncRef.current = 0;
       if (codaRef.current.length) pianifica(80); else setSync("ok");
     } catch (e) {
+      /* un ciclo sorpassato non parla nemmeno quando fallisce: il semaforo, il
+         conto delle riprove e il prossimo appuntamento sono dell'ultimo ciclo,
+         che e' ancora in volo e sa piu' cose di lui (gen-6.21). La coda qui
+         non si tocca in nessuno dei due casi, quindi non c'e' niente da
+         rimettere a posto. */
+      if (mio !== giroRef.current) return;
       inSyncRef.current = 0;
       /* IL CONFLITTO NON PUO' DURARE PER SEMPRE (gen-6.07). Il ramo qui sotto
          esce PRIMA del contatore delle riprove e prima dell'offline, e
@@ -17346,13 +17419,18 @@ export default function App() {
        Qui il rimedio e' un no detto a voce, non un salvataggio in piu': chi
        ripristina un backup lo fa da fermo, e aspettare che il pallino torni
        verde costa dieci secondi — mentre una serata di incassi non torna. */
-    const inFila = codaRef.current.filter((m) => m.tipo).length;
+    const inFila = codaRef.current.length;
     if (inFila > 0) {
-      /* si continua a contare OGNI m.tipo, e non solo quelli che portano
-         soldi: due righe sotto c'e' «codaRef.current = [m]», UN'ASSEGNAZIONE
-         che butta la coda. Filtrare qui riaprirebbe di proposito il buco che
-         gen-6.10 ha chiuso per le spunte di cucina. Cambia solo il
-         SOSTANTIVO, che e' l'unica cosa che era sbagliata. */
+      /* SI CONTA TUTTA LA CODA, e non piu' solo le voci con un tipo
+         (gen-6.21). Due righe sotto c'e' «codaRef.current = [m]»,
+         UN'ASSEGNAZIONE che butta TUTTO: anche le mutazioni a closure — una
+         evasione, una produzione, un conteggio, la riga stessa delle ferme —
+         che non hanno tipo e non stanno sul disco, quindi sparirebbero senza
+         lasciare niente da nessuna parte. La guardia era piu' stretta del
+         danno che previene, ed e' un difetto vecchio quanto gen-6.10: quella
+         generazione aveva chiuso il buco per le vendite e le spunte, non per
+         il resto. Il sostantivo dice gia' «modifiche», quindi chi ripristina
+         legge la stessa frase di prima. */
       mostraToast(inFila === 1
         ? "Non ripristino: c'è 1 modifica ancora da salvare. Aspetta che il pallino in alto torni verde."
         : `Non ripristino: ci sono ${inFila} modifiche ancora da salvare. Aspetta che il pallino in alto torni verde.`,
