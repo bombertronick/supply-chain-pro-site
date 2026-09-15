@@ -1,4 +1,17 @@
 DISEGNO DI RECORD — LA FINESTRA CIECA DELL'EXACTLY-ONCE (9 settembre)
+
+>>> ATTENZIONE, 15 settembre: QUESTO DISEGNO, SPEDITO COM'E' SCRITTO, PERDE SOLDI.
+>>> E' stato rimesso sotto processo contro il codice di gen-6.19 (otto generazioni
+>>> dopo): quattro ricognizioni sul file vivo, sei lenti d'accusa indipendenti,
+>>> uno scettico per lente col mandato di demolirle. 33 accuse, 14 ALTE,
+>>> ZERO confutate. Due perdite di incasso raggiungibili, un aggancio senza
+>>> nessun collaudo, e un sabotaggio che ordina di rimettere in produzione un
+>>> difetto gia' riparato a gen-6.14.
+>>> TUTTI I NUMERI DI RIGA QUI SOTTO SONO DI gen-6.11 E SONO SPOSTATI.
+>>> LA CORREZIONE DI RECORD STA IN FONDO, sotto «LA CORREZIONE DEL 15 SETTEMBRE»:
+>>> e' quella che si spedisce. Questo testo resta perche' le ragioni della gara
+>>> (perche' l'orizzonte cade, perche' il righello unico cade, perche' il
+>>> protocollo vince) sono ancora giuste e sono il motivo per cui si fa cosi'.
 3 rimedi indipendenti, 5 demolitori, controprova incrociata su ogni accusa.
 25 accuse scritte, 20 hanno retto: soldi-persi 8, soldi-doppi 6,
 non-collaudabile 4, dati-corrotti 1, ordini-persi 1.
@@ -1461,3 +1474,255 @@ RIMEDIO: Il rimedio proposto dall'accusa (un collaudo con 60 voci che pretende s
 IL COLLAUDO, con una riga in piu' di quella chiesta dall'accusa. `Array.from({length: 60})` nel seme della coda, orizzonte recente, tutte timbrate. Si pretende: (a) il numero scritto nello storico coincide con `JSON.parse(localStorage.getItem("scp:coda-ferma:v1")).length`; (b) l'IMPORTO nello storico e' quello di tutte e 60, non solo delle salvate; (c) — ed e' la riga che l'accusa non chiede — il caso ACCUMULATO: sei parcheggi consecutivi da dieci voci, perche' `gia` non viene mai azzerato da nessuno (nessun `removeItem` su CHIAVE_FERMA in tutto app.jsx) e il tetto morde anche senza una serata da 60. Quest'ultimo e' lo scenario ordinario, non quello drammatico, ed e' quello che decide se il cancello si puo' accendere.
 
 E UNA PRECISAZIONE SUL PREREQUISITO. La scheda in Sistema che il piano dichiara come blocco al rilascio va scritta contro il DISCO piu' il contatore degli sfratti, se no mostrera' 50 voci mentre lo storico ne annuncia 55 e la scheda diventera' essa stessa la prova del difetto invece della sua cura.
+
+==============================================================================
+==============================================================================
+
+LA CORREZIONE DEL 15 SETTEMBRE — quello che si spedisce davvero
+
+COME E' STATA FATTA. Il disegno qui sopra e' del 9 settembre e descrive gen-6.11.
+Da allora sono uscite gen-6.12, 6.13, 6.14, 6.15, 6.16, 6.17, 6.18 e 6.19: il
+file e' passato da ~16.200 a ~17.100 righe, e' nato un quarto esecutore, e' nata
+la guardia del guscio, e' nata la mappa «telefoni», MAX_APPLICATE e' salito a
+1200 e l'ordinamento delle vendite e' stato spedito. Prima di scrivere una riga
+ho rimesso il disegno sotto processo CONTRO IL CODICE DI OGGI: quattro
+ricognizioni sul file vivo (la coda, le tre strade d'avvio, la strada della rete,
+i banchi), sei lenti d'accusa indipendenti (soldi-persi, soldi-doppi,
+non-collaudabile, avvio-rotto, flotta-mista, interazioni-nuove) e uno scettico
+per lente col mandato di demolirle. Regola di ferro: ogni accusa doveva nominare
+una riga LETTA OGGI, con il testo.
+ESITO: 33 accuse, 14 ALTE, ZERO confutate. Il disegno di sopra, spedito com'e'
+scritto, PERDE SOLDI in due modi indipendenti e raggiungibili.
+
+------------------------------------------------------------------------------
+LE DUE PERDITE, e sono tutte e due nella parte che il disegno chiamava «la
+dimostrazione».
+
+(A) IL CONTATORE MISURA LA COSA SBAGLIATA [SP-1, ALTA, retta].
+La tessera 6 costruisce il numero su `ultimaAtterrataRef`, aggiornato «solo dopo
+un successo» accanto a `baseRef.current = nuovo` (oggi app.jsx:16669). Ma lo slot
+IN RETE avanza a ogni ATTERRAGGIO, compresi quelli la cui risposta si e' persa —
+che e' l'unico caso per cui la ricevuta esiste. Percorso completo, un telefono,
+un caricamento, nessun ciclo sovrapposto:
+  · base.rev 800, ultimoAtterrata 0, coda [V1]. Prot = max(800,0)+1 = 801; si
+    timbra V1, si specchia, si spedisce. Il server COMMITTA (app_kv_set.sql:68-69):
+    in rete rev 801 e scritture[M] = 801. La risposta si perde: window.storage.set
+    lancia, si cade nel catch di app.jsx:223, scriviRemoto torna false.
+  · app.jsx:221 (la spia scp:rev:v1) sta DOPO la set che ha lanciato: revRemota a
+    16661 risponde ancora 800, la condizione di 16662 e' falsa, si esce da 16664.
+    La coda non si tocca — giusto — ma ultimaAtterrataRef resta 0 e baseRef resta
+    a 800.
+  · Si batte V2. Giro 2 con lettura in cache (dichiarata misurata in produzione,
+    commento app.jsx:16941-16945): remoto.rev 800. La tessera 7 non scatta
+    (800 < 800 e' falso). Prot = max(800,0)+1 = 801 di nuovo, timbrato su V2.
+  · Giro 3, lettura fresca: scritture[M] = 801 >= 801. V2 e' dichiarata
+    consegnata ed esce dalla coda e dal disco. Non e' mai partita.
+DANNO: un incasso vero sparisce senza una riga nelle ferme, senza un avviso, con
+il pallino che torna verde. E OGGI, senza la tessera, V2 NON si perde: nuoveInCoda
+(16519-16522) conta V2 perche' il suo logId non e' in base.applicate, la
+scorciatoia di 16627 non scatta e la scrittura parte. La ricevuta cosi' com'e'
+sarebbe una REGRESSIONE.
+CURA: il ref non misura «l'ultima atterrata» — non e' conoscibile. Misura
+«l'ultimo numero che ho stampato». Si chiama `ultimoProtRef`, si aggiorna PRIMA
+dell'await, insieme al timbro. Sbagliare in alto tiene la voce in coda (innocuo);
+sbagliare in basso costa un incasso.
+
+(B) LA RICEVUTA SI COSTRUISCE DALLA LETTURA E NON DALLA BOZZA [FM-1, ALTA, retta].
+La tessera 6 scrive `nuovo.scritture = sfoltisciScritture({ ...(base.scritture ||
+{}), [mitt]: nuovo.rev })`, cioe' parte da `base` — la lettura di rete viva — e
+gira DOPO `const nuovo = applicaCoda(base)` (oggi app.jsx:16648). Se dentro la
+coda c'e' un RIPRISTINO, la sua fn cancella ogni chiave della bozza (oggi
+app.jsx:17080-17081) e rimette il backup: `vendite` e `applicate` tornano
+indietro, ma la riga della tessera 6 rimette sopra la mappa VIVA e lo slot
+sopravvive al ripristino.
+  · Telefono A batte S, la scrittura atterra, la risposta si perde: la coda non
+    si accorcia, in rete restano S, il suo logId in applicate e lo slot di A.
+  · Dal telefono B il titolare ripristina il punto di stamattina. La guardia di
+    17056 conta solo la coda di B, che e' vuota: passa. S sparisce da `vendite` e
+    da `applicate`; lo slot di A no.
+  · A rilegge: slot >= prot, S esce dalla coda e dal disco. S non e' piu' da
+    nessuna parte.
+DANNO: identico ad (A), e di nuovo OGGI non succede — nuoveInCoda legge
+`base.applicate`, che il ripristino ha riportato indietro, quindi la coda si
+rigioca sopra lo stato ripristinato e S torna in rete.
+CURA, e va scritta come INVARIANTE e non come caso: «la ricevuta certifica i dati
+che stanno in QUESTA bozza, quindi si costruisce solo dalla bozza che verra'
+scritta, mai dalla lettura che l'ha preceduta» -> `{ ...(nuovo.scritture || {}) }`.
+Piu' l'igiene a 17081 (`s.scritture = {}` accanto a `s.telefoni = tel`), che da
+sola NON chiude niente e va scritta come igiene, o il prossimo ripara meta' e
+crede di aver finito.
+
+------------------------------------------------------------------------------
+LA TERZA CORREZIONE, che semplifica invece di aggiungere [SP-5 + IN-5 + NC-1 +
+NC-2, tutte in piedi].
+
+LA TESSERA 7 NON DEVE LANCIARE. Cosi' com'e' scritta crea una trappola che oggi
+non esiste: se la rev in rete SCENDE per davvero (database ricostruito, riga di
+scp:stato:v1 cancellata, seme nuovo che nasce con rev 1 ad app.jsx:304 e passa il
+cancello perche' non c'e' niente contro cui confrontare), ogni sincronizza lancia,
+si finisce su «offline» con backoff fino a 8 s, e niente riabbassa baseRef: il
+tablet non scrive piu' per tutta la serata e la coda finisce nello steccato delle
+48 ore, cioe' in una chiave senza lettori. Oggi, senza la tessera, lo stesso
+telefono scrive revBase 1 su una rete a rev 1, il cancello accetta e la situazione
+si cura da sola.
+Ed e' anche CIECA sul guscio: gen-6.16 mette in baseRef un guscio marcato quando
+la lettura fallisce (app.jsx:16986-16987), un guscio non ha rev, quindi
+`baseRef.current?.rev || 0` vale 0 e la condizione non puo' accendersi. Lo dice il
+file stesso due righe sopra, a 16593-16594.
+CURA: riparato il prot (A), la lettura stantia non regge piu' i soldi — regge solo
+la FRESCHEZZA DEGLI SLOT. Quindi diventa una bandiera che spegne la sola cosa che
+ne dipende, e il pavimento prende tutti e due gli ancoraggi:
+  const pav = Math.max(baseRef.current?.rev || 0, ultimoProtRef.current || 0);
+  const stantia = !!remoto && (remoto.rev || 0) < pav;
+  ...
+  if (remoto && !stantia) cernitaConsegnate(remoto);
+La scrittura si costruisce come oggi sulla base letta: decide il cancello del
+server, che e' il suo mestiere, e il rifiuto resta classificato «conflitto» a
+16662 con la riprova corta — il caso comune torna nel ramo studiato per lui.
+
+------------------------------------------------------------------------------
+IL MITTENTE: DUE GRANDEZZE CONFUSE [FM-4 + SD-2, in piedi].
+
+La tessera 1 sceglie il mittente per CARICAMENTO con una ragione giusta (due
+schede della stessa origine condividono CHIAVE_CODA e non si vedono fra loro:
+zero BroadcastChannel, zero navigator.locks, zero storage-event in tutto il file).
+Ma il contro-controllo 10 giustifica i sessanta slot con «cresce con i telefoni,
+che sono cinque»: nessuno ha contato i caricamenti. E l'ordine di sfratto e'
+AVVERSO proprio al caso della tessera — `sfoltisciScritture` ordina per rev
+decrescente, quindi il primo a uscire e' il mittente che tace da piu' tempo, cioe'
+il telefono spento con una vendita in coda, che e' l'unico caso in cui la ricevuta
+serve davvero.
+CURA: il dispositivo va nella CHIAVE, non nel valore, e si cambia la potatura
+invece del mittente.
+  const caricamentoRef = useRef(uid("c"));
+  const mittRef = useRef((idDispositivo() || "anon") + "·" + caricamentoRef.current);
+`consegnata` non cambia di una riga (restano due numeri da confrontare); due
+schede hanno due slot e nessuna cancella l'altra; in navigazione privata
+idDispositivo() torna null (app.jsx:731) e si degrada al mittente puro, cioe' alla
+via 4, cioe' al comportamento di oggi. E la potatura tiene PRIMA gli slot del
+proprio dispositivo, poi riempie per rev decrescente: il tetto smette di mordere
+esattamente dove serve.
+
+------------------------------------------------------------------------------
+QUATTRO COSE CHE IL DISEGNO DICHIARA COLLAUDATE E NON LO SONO.
+
+1. L'AGGANCIO 5(c) NON HA NESSUN COLLAUDO [AV-1 + NC-3, ALTE, rette]. Il §1 dei
+   collaudi prescrive di copiare l'intestatura di gen607test, cioe' window.auth.
+   Con window.auth l'IIFE esce al ramo sicuro (oggi app.jsx:16851 -> 16863) e il
+   ramo classico (16880-16891), dove va l'aggancio, NON viene MAI eseguito. Tutte
+   e quattordici le sezioni misurano 5(b) e 5(a). Contato oggi: 111 file
+   *test.mjs, 7 con window.auth, 93 senza; dei 93 i soli che seminano scp:coda:v1
+   sono gen605test:418 e esauritotest:134, e nessuno dei due semina `scritture` ne'
+   mitt/prot — quindi `consegnata` esce alla prima riga e la cernita toglie zero.
+   Togliere la riga di 5(c) lascia verde TUTTO. Nessuno dei 14 sabotaggi la tocca.
+   CURA: UN SOLO corpo di §1 parametrizzato sul contesto, chiamato DUE volte, con
+   e senza window.auth, usando l'`apri(st0, profili, nome, pin, larghezza, coda)`
+   che esiste gia' in esauritotest.mjs:128-148 (semina scp:coda:v1 dentro
+   addInitScript, su origine http vera). Piu' il sabotaggio nuovo: «cancellare
+   cernitaConsegnate(s) dal ramo classico -> rossa quella sezione e SOLO quella».
+
+2. §6 MISURA LA META' SBAGLIATA DEL RISCHIO [NC-4, ALTA, retta]. La prima meta'
+   legge scp:coda:v1 A CICLO FINITO, quindi e' soddisfatta da QUALUNQUE posizione
+   del timbro che venga eseguita — compresa quella subito DOPO l'await nel ramo di
+   fallimento, che e' esattamente la posizione che il disegno dichiara sbagliata.
+   E il sabotaggio 2 arrossisce per il motivo sbagliato: spostando specchiaCoda
+   nel solo ramo di successo, con __perdiRisposta quel ramo non gira proprio.
+   CURA: serve un quarto attrezzo, e NON serve uccidere la pagina ne' passare da
+   Node. Il freno si scrive DENTRO la pagina, nella forma delle bandiere di
+   gen605test:130-135: `window.__frena()` fa restituire alla set su CHIAVE una
+   promise trattenuta, `window.__rilascia()` la risolve, e un contatore di ingressi
+   dice quando la set e' ENTRATA. §6a: si frena, si batte, si aspetta il contatore,
+   e DALLA STESSA PAGINA VIVA si legge scp:coda:v1 pretendendo mitt e prot —
+   il ciclo e' dimostrabilmente fermo dentro l'await. Sabotaggio 2 riscritto:
+   «spostare timbro+specchiaCoda dopo l'await in TUTTI E DUE i rami -> rossa §6a».
+
+3. IL SABOTAGGIO 1 NON PUO' ARROSSIRE §1 [NC-6, retta]. §1 semina mitt e prot
+   direttamente sul disco; il ritrovamento (16816-16843) filtra solo per tipo e
+   per eta' e li porta in coda intatti; la cernita 5(b) toglie la voce dentro
+   entra() prima che nessun ciclo di scrittura parta. Il `for` del timbro non
+   viene eseguito NEMMENO UNA VOLTA in tutta la sezione.
+   CURA: sabotaggio 1 -> «rossa §6 (e §6a)», e §1 guadagna una seconda meta' che
+   il timbro lo esercita: rete morta, si batte uno scontrino NUOVO dalla pagina, si
+   legge scp:coda:v1 e si pretende che il `mitt` sia lo stesso per tutte le voci di
+   quel caricamento, che il `prot` sia maggiore della rev in rete, e soprattutto
+   che quel mitt sia DIVERSO da quello del seme — e' quest'ultima che dimostra che
+   il numero l'ha messo l'app e non il banco.
+
+4. IL SABOTAGGIO 14 PREMIA IL DIFETTO [NC-5, retta]. La regola 2 dei collaudi
+   pretende `rete.vendite.length === 300`; il sabotaggio 14 ordina di seminarne
+   299 e dichiara «non deve cambiare niente». Le due non possono valere insieme, e
+   l'asserzione non si limita a rompersi: si INVERTE. Con 299 e la tessera montata
+   la voce e' consegnata, la coda si svuota, sincronizza esce senza scrivere e
+   `length === 300` e' ROSSA sul codice riparato; su gen-6.11 la voce si rigioca,
+   299+1 fa 300 e la stessa riga e' VERDE sul codice rotto.
+   CURA: separare i due mestieri. La FEDELTA' DELLA SCENA si prova sul SEME, prima
+   che la pagina parta (`seme.vendite.length === n` e ogni t dentro ORE_VENDITE).
+   L'ESITO DEL PROTOCOLLO si prova su fatti indipendenti dal numero: l'id della
+   voce NON compare in rete.vendite, il suo logId NON compare in rete.applicate, e
+   min(t) di rete.vendite e' piu' recente del t della voce in coda.
+
+------------------------------------------------------------------------------
+IL SABOTAGGIO 8 RIMETTE IN PRODUZIONE UN DIFETTO GIA' RIPARATO [IN-2, ALTA, retta].
+
+La TESSERA 0 e' online da gen-6.14: il codice e' a app.jsx:927-928 e 984-985, la
+lapide a 908-926, il rosso in collaudi/sfrattotest.mjs. Il disegno la presenta
+ancora come primo passo, senza data e senza «gia' fatto»; chi comincia
+dall'inizio non trova la riga 794, arriva al SABOTAGGIO 8 e, eseguendolo alla
+lettera, riscrive in app.jsx il difetto che gen-6.14 ha chiuso e misurato (68 euro
+di giornata gonfiata, magazzino sceso due volte, con UN client solo).
+CURA: TESSERA 0 -> una riga sola che dice dov'e' finita. §11 NON si cancella — il
+suo seme fa girare la RICEVUTA dentro la scena dello sfratto, cosa che sfrattotest
+non puo' fare — ma si ri-intesta da «il rosso della tessera 0» a «la ricevuta non
+riapre l'invariante dello sfratto», verde oggi e verde dopo. SABOTAGGIO 8 ->
+«togliere il .sort da 928 deve arrossire sfrattotest, e NON deve arrossire §11».
+
+------------------------------------------------------------------------------
+LE FERME DICONO UNA COSA CHE PUO' ESSERE FALSA [SD-5, retta].
+
+Lo steccato d'eta' (16833-16835) vive nel ritrovamento, SOPRA il bivio: taglia
+prima che qualunque slot sia consultabile, e il limite 4 del disegno ha ragione.
+Ma l'ANNUNCIO gira molto piu' tardi, in entra() (17013-17027), e la sua guardia
+pretende gia' `letto`: lo stato di rete e' in mano. Cosi' la frase entra nello
+storico CONDIVISO dichiarando «NON sono state rispedite, vanno controllate a mano»
+per voci che il testimone nuovo dimostrerebbe atterrate. E' la stessa classe di
+«bugia su carta» che gen-6.07 e la tessera 9 trattano gia' come un difetto.
+CURA: sopra 17013 ogni voce di fermeRef passa dalla stessa `consegnata(s, m)` e la
+frase si spacca in due gruppi — «N gia' risultano in rete: NON ribatterle» e «N da
+controllare a mano (euro X)» — con gli euro calcolati SOLO sul secondo. E la stessa
+cernita rilegge CHIAVE_FERMA e ne toglie le dimostrate: quella chiave ha zero
+lettori e `.slice(-50)` butta le piu' vecchie, quindi una voce dimostrata
+consegnata ci resterebbe per sempre.
+
+------------------------------------------------------------------------------
+DUE COSE PICCOLE, E UNA CHE NON SI PAGA.
+
+· cernitaConsegnate assegna `codaRef.current = ...filter(...)` PRIMA di chiamare
+  specchiaCoda: se qualcosa lanciasse in mezzo, il catch tornerebbe 0 su una coda
+  gia' potata — «zero tolte» con lo specchio rimasto lungo. Si calcola l'array in
+  una const, si chiama specchiaCoda, e si assegna. [AV-2, ridimensionata ma vera]
+· La guardia del guscio va DENTRO cernitaConsegnate (`if (base.__guscio ||
+  base.__prelogin) return 0;`), stessa disciplina di 16616: rende impossibile che
+  un futuro passaggio a `base` giudichi su un guscio, ed e' collaudabile con la
+  famiglia di §9. [NC-2]
+· NON si paga una sezione di Playwright per sabotare `consegnata` facendola
+  lanciare: e' un ramo irraggiungibile (la funzione e' pura, guardata su tutte le
+  forme, e lavora su valori usciti da JSON.parse), e una sezione verde su un ramo
+  irraggiungibile e' esattamente il collaudo che il sabotaggio 14 insegna a
+  rifiutare. Si scrive il contatore nel catch, che costa due righe. [AV-2]
+
+------------------------------------------------------------------------------
+IL REGALO: UNA PERDITA CHE ESISTE OGGI E CHE LA CERNITA CHIUDE GRATIS.
+
+Il watchdog di app.jsx:16584 esce solo finche' sono passati meno di 12 secondi
+dall'inizio del ciclo in corso: oltre i 12 s un secondo sincronizza parte mentre
+il primo e' ancora appeso sull'await di 16655. Ciascuno fotografa il proprio
+`inviate` (16618) e al ritorno esegue il proprio `slice(inviate)` (16667). Se il
+ciclo lento ritorna per ultimo, taglia un numero di POSIZIONI calcolato su una
+coda che nel frattempo e' gia' stata accorciata dall'altro: le voci tagliate sono
+quelle nuove. E' una perdita di vendite possibile OGGI, indipendente dal difetto
+#40, e la cernita per IDENTITA' la chiude senza costi. Va scritta nel disegno come
+secondo beneficio, non come nota a pie' di pagina — e va dichiarato che la cura
+completa e' un'altra (fotografare le voci in partenza per riferimento:
+`const partite = codaRef.current.slice(0, inviate);` prima dell'await e
+`codaRef.current = codaRef.current.filter((m) => !partite.includes(m));` al
+successo), perche' il taglio posizionale resta anche con la ricevuta montata.
