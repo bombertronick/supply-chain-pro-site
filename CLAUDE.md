@@ -89,7 +89,7 @@ commit.
 | `roadmap.html` | la lista dei lavori **in prosa, per l'utente** — è la SORGENTE; `roadmap.md` si genera con `node strumenti/roadmap-md.mjs` |
 | `progetti/*.md` | i disegni di record, con l'esito della demolizione |
 | `CONSEGNA.md` | **documento storico** (1 agosto, era gen-5.73): utile per la storia, superato sul protocollo |
-| `collaudi/` | 113 banchi + i file di sabotaggio; `corri.mjs` li raccoglie tutti per nome |
+| `collaudi/` | 115 banchi + i file di sabotaggio; `corri.mjs` li raccoglie tutti per nome |
 | `strumenti/` | la catena di rilascio (`sql_diff` → `sql_spezza` → `sql_lotti`), la dispensa, l'artefatto |
 
 Fuori dal repository, nel `kv_store`: **la dispensa** (`ctx:v1:*`, il contesto

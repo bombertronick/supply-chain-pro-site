@@ -454,6 +454,48 @@ gen-6.20: `file` sabota il **banco** (e lo rimette a posto sempre) e
 `sorgenteGit` costruisce il pacchetto da una **revisione passata**, che è
 l'unico modo di dimostrare che una riga del banco è portante.
 
+## IL RAMO PREDEFINITO È FERMO AL 1° AGOSTO — e nessuno se n'era accorto
+
+**Verificato il 16 settembre, con `git ls-tree origin/main` e con l'API di
+GitHub. Non è una supposizione.**
+
+`origin/main` è a `2edbf21`, **1 agosto 2026**, e NON contiene:
+
+| file | cos'è | c'è su main? |
+|---|---|---|
+| `CLAUDE.md` | la bussola per chi arriva | **no** |
+| `PASSAGGIO.md` | questo documento | **no** |
+| `memoria.json` | lo storico per la macchina | **no** |
+| `.github/workflows/collaudi.yml` | il censimento notturno | **no** |
+
+Tutto il lavoro di sei settimane vive su `claude/supabase-app-improvements-5hx3ge`
+e non è mai stato fuso. Tre conseguenze, tutte misurate:
+
+1. **IL CENSIMENTO NOTTURNO NON È MAI PARTITO.** GitHub fa scattare `schedule`
+   **solo dal ramo predefinito**, e lì il file non c'è. Prova:
+   `list_workflow_runs` filtrato su `event=schedule` → **`total_count: 0`**. Le
+   114 esecuzioni che esistono sono **tutte** `event=push`, cioè partite dal
+   ramo. Il file di quel workflow si apre con: *«i collaudi partono solo quando
+   li lancio io — ed è esattamente per questo che tre erano rimasti rotti per
+   mesi senza che nessuno se ne accorgesse»*. Quella riparazione **non ha mai
+   funzionato**, e a dirlo non è stato nessun rosso: nessuno l'aveva chiesto.
+2. **CHI ARRIVA NON TROVA NIENTE.** Una sessione nuova che clona il ramo
+   predefinito non ha bussola, non ha passaggio, non ha memoria: ha il codice di
+   sei settimane fa e `CONSEGNA.md`, che è dell'era gen-5.73.
+3. **LA VETRINA PUBBLICA** (`index.html`, servita da GitHub Pages con
+   `.nojekyll`) si fermava a «Gen 4 · Analisi e tracciabilità» e non nominava
+   mai gen-6: ventuno generazioni, la Cassa, le comande, il cliente col suo
+   ordine, di cui non diceva una parola. Corretta sul ramo — ma finché non si
+   fonde, il pubblico vede ancora Gen 4.
+
+**QUESTA È UNA DECISIONE DI VALERIO, NON MIA**: fondere su `main` è un gesto
+verso l'esterno su un repository pubblico, e la regola di casa dice che su
+`main` non si spinge senza permesso esplicito. Il giorno che si fonde, la prova
+che ha funzionato si misura da sola: `event=schedule` passa da `0` a un numero.
+
+**Finché non è fusa, qualsiasi cosa scritta qui dentro vale solo per chi sa già
+che deve guardare su questo ramo.**
+
 ## I due cancelli nuovi, e la rete che avevo perso (16 settembre)
 
 Una ricognizione a cinque letture indipendenti sul repository vivo ha contato

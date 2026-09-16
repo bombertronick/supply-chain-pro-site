@@ -185,5 +185,40 @@ const banchi = readdirSync(dirColl).filter((f) => /test\.mjs$/.test(f) && !["nav
 ok(banchi.length > 0, `${banchi.length} banchi sul disco`);
 ok(banchi.includes("coerenzatest.mjs"), "e questo file è fra quelli che il censimento raccoglie");
 
+/* ═══ 9. LA BUSSOLA DICE IL VERO ANCHE DI SE STESSA ═══
+   CLAUDE.md è il primo documento che legge chi arriva, e dichiara dei numeri
+   sul repository. Un numero scritto a mano in un documento invecchia a ogni
+   generazione: il conto dei banchi è passato da 108 a 115 in cinque giorni.
+   O si genera, o si mette un controllo — qui si mette un controllo. */
+console.log("\n— 9. la bussola dice il vero anche di se stessa —");
+if (c_e("CLAUDE.md")) {
+  const C = leggi("CLAUDE.md");
+  const dichiarati = (C.match(/(\d+) banchi/) || [])[1];
+  ok(!!dichiarati, `CLAUDE.md dichiara quanti banchi ci sono${dichiarati ? ` (${dichiarati})` : ""}`);
+  if (dichiarati) ok(+dichiarati === banchi.length,
+    `e il numero è quello vero (dice ${dichiarati}, sul disco ${banchi.length})`);
+}
+
+/* ═══ 10. LA VETRINA PUBBLICA NON RACCONTA UN'ALTRA APPLICAZIONE ═══
+   index.html è la faccia pubblica del progetto (GitHub Pages, .nojekyll). Non
+   è un documento interno: è quello che vede chiunque arrivi. Il 16 settembre
+   si fermava a «Gen 4 · Analisi e tracciabilità» e non nominava mai gen-6,
+   mentre in cucina girava gen-6.21 — ventuno generazioni dopo, con la Cassa,
+   le comande, il cliente e il suo ordine, di cui non diceva una parola. */
+console.log("\n— 10. la vetrina pubblica non racconta un'altra applicazione —");
+if (c_e("index.html")) {
+  const V = leggi("index.html");
+  const serieVera = +(VERO.ver || "gen-0.0").split("-")[1].split(".")[0];
+  const generazioni = [...V.matchAll(/<b>Gen (\d+)\s*·/g)].map((m) => +m[1]);
+  const piuAlta = generazioni.length ? Math.max(...generazioni) : 0;
+  ok(piuAlta >= serieVera,
+    `il percorso arriva almeno alla serie che gira davvero (vetrina: Gen ${piuAlta}, in cucina: serie ${serieVera})`);
+  const PAROLE = { quattro: 4, cinque: 5, sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10 };
+  const mNum = V.match(/\b(Quattro|Cinque|Sei|Sette|Otto|Nove|Dieci) generazioni\b/i);
+  ok(!mNum || PAROLE[mNum[1].toLowerCase()] === generazioni.length,
+    mNum ? `e il conto a parole combacia con le voci elencate (dice «${mNum[1]}», le voci sono ${generazioni.length})`
+         : "e non dichiara un conto a parole che possa invecchiare");
+}
+
 console.log(`\n${ko ? "!! " + ko + " rosse" : "tutto verde"} — ${ko ? "coerenza ROTTA" : "i documenti dicono quello che dice la sorgente"}`);
 process.exit(ko ? 1 : 0);

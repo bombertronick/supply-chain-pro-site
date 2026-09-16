@@ -13,7 +13,7 @@
    file vero e lo rimettono a posto — qui non serve nemmeno rimetterlo.
 
    Uso: node sabotaggi-coerenza.mjs [numero]   (senza numero: tutti) */
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, cpSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, cpSync, readdirSync } from "fs";
 import { execFileSync } from "child_process";
 import path from "path";
 
@@ -39,10 +39,16 @@ function alberoIntegro() {
   mkdirSync(path.join(BASE, "app"), { recursive: true });
   mkdirSync(path.join(BASE, "collaudi"), { recursive: true });
   mkdirSync(path.join(BASE, "strumenti"), { recursive: true });
-  for (const f of ["PASSAGGIO.md", "CONSEGNA.md", "README.md", "memoria.json", "roadmap.html", "CLAUDE.md"])
+  for (const f of ["PASSAGGIO.md", "CONSEGNA.md", "README.md", "memoria.json", "roadmap.html", "CLAUDE.md", "index.html"])
     if (existsSync(path.join(RAD, f))) cpSync(path.join(RAD, f), path.join(BASE, f));
   cpSync(path.join(RAD, "app", "app.jsx"), path.join(BASE, "app", "app.jsx"));
   cpSync(path.join(QUI, "coerenzatest.mjs"), path.join(BASE, "collaudi", "coerenzatest.mjs"));
+  /* §9 conta i banchi sul disco: nell'albero finto ce ne sarebbe UNO, e il
+     controcontrollo nascerebbe rosso per un non-difetto — cioe' la trappola che
+     questa casa ha gia' pagato due volte. Si copiano i NOMI di tutti i banchi
+     come file vuoti: il conto torna e non si trascina dentro nessun codice. */
+  for (const f of readdirSync(QUI).filter((x) => /test\.mjs$/.test(x) && x !== "coerenzatest.mjs"))
+    writeFileSync(path.join(BASE, "collaudi", f), "");
   const sql = path.join(RAD, "strumenti", TAG + ".sql");
   if (existsSync(sql)) cpSync(sql, path.join(BASE, "strumenti", TAG + ".sql"));
 }
@@ -74,7 +80,15 @@ const SABOTAGGI = [
 
   { n: 5, nome: "in memoria.json → chiusi[0] la frase «PRODUZIONE» ha la md5 sbagliata",
     attesa: "§2 rossa. E' IL SABOTAGGIO CHE CONTA DI PIU': memoriatest §5 confronta questa frase con online.md5, cioe' DUE COPIE SCRITTE DALLA STESSA MANO, e resta verde se sbagliano insieme. Qui si confronta con la sorgente",
-    fai: () => { const m = JSON.parse(leggi("memoria.json")); m.chiusi[0].cosa = m.chiusi[0].cosa.replace(MD5, storpia(MD5)); scrivi("memoria.json", JSON.stringify(m, null, 1)); } },
+    /* NON chiusi[0]: dal 16 settembre in testa ci sono i lavori di soli
+       collaudi, che la frase «PRODUZIONE» non ce l'hanno. Va colpito l'ultimo
+       lavoro SPEDITO, che e' quello che §2 legge davvero — e infatti al primo
+       giro dopo quel cambio questo sabotaggio e' uscito MUTO. Un sabotaggio che
+       colpisce il posto sbagliato assolve la guardia senza averla provata. */
+    fai: () => { const m = JSON.parse(leggi("memoria.json"));
+                 const v = m.chiusi.find((g) => !g.soloCollaudi);
+                 v.cosa = v.cosa.replace(MD5, storpia(MD5));
+                 scrivi("memoria.json", JSON.stringify(m, null, 1)); } },
 
   { n: 6, nome: "la roadmap dice che in cucina gira un'altra generazione",
     attesa: "§2 rossa su «In cucina» — e' il documento che legge l'utente",
@@ -109,6 +123,20 @@ const SABOTAGGI = [
   { n: 13, nome: "la bussola indica il repository superato",
     attesa: "§7 rosse TRE volte (manda a PASSAGGIO, nomina app/app.jsx, non nomina src/app.jsx): e' il modo in cui il difetto tornerebbe da solo, con un CLAUDE.md che esiste ma manda nel posto sbagliato",
     fai: () => scrivi("CLAUDE.md", "# Supply Chain Pro\n\nTutta l'app vive in src/app.jsx (~3.700 righe).\n") },
+
+  { n: 14, nome: "la bussola dichiara un numero di banchi sbagliato",
+    attesa: "§9 rossa: un numero scritto a mano in un documento invecchia a ogni generazione — questo e' passato da 108 a 115 in cinque giorni",
+    fai: () => { const t = leggi("CLAUDE.md"); const m = t.match(/(\d+) banchi/);
+                 scrivi("CLAUDE.md", t.replace(m[0], (+m[1] + 7) + " banchi")); } },
+
+  { n: 15, nome: "la vetrina pubblica torna a fermarsi a una serie vecchia",
+    attesa: "§10 rossa: e' la faccia pubblica del progetto, e il 16 settembre si fermava a «Gen 4» mentre in cucina girava gen-6.21 — ventuno generazioni dopo",
+    fai: () => { const t = leggi("index.html");
+                 scrivi("index.html", t.replace(/<div class="gen"><b>Gen [56] ·[\s\S]*?<\/div>\n?/g, "")); } },
+
+  { n: 16, nome: "il conto a parole della vetrina non combacia piu' con le voci",
+    attesa: "§10 rossa: «Sei generazioni» sopra un elenco che ne ha altre e' il modo in cui quella frase e' invecchiata la prima volta",
+    fai: () => sostituisci("index.html", "Sei generazioni di sviluppo", "Nove generazioni di sviluppo") },
 ];
 
 const quale = process.argv[2] ? +process.argv[2] : null;
