@@ -1,0 +1,57 @@
+      <Foglio aperto={menu} titolo="Gestione rapida" onChiudi={() => setMenu(false)}>
+        {/* ── TRE GRUPPI, E LE STESSE IDENTICHE PAROLE DELLA RICERCA ──
+            Prima era una fila piatta di sei voci in ordine di quando le ho
+            scritte, e per trovarne una bisognava leggerle tutte. Adesso sono
+            in tre gruppi con l'intestazione: si aggiunge, si sposta, si
+            regolano i livelli. Un elenco di sei cose senza titoli è una lista;
+            con i titoli è un pannello di comando.
+
+            I nomi non sono scritti qui: arrivano da AZIONI tramite nomeAzione,
+            la stessa tabella che risponde alla lente della ricerca. Quello che
+            si legge cercando è parola per parola quello che si legge qui.
+
+            E le voci che hanno bisogno di prodotti non spariscono più quando il
+            magazzino è vuoto: restano al loro posto, spente, e dicono perché.
+            Una funzione che sparisce è una funzione da ricordare a memoria —
+            ed è esattamente la fatica che questo lavoro doveva togliere. */}
+        <div className="flex flex-col gap-3">
+          {[
+            { g: "Aggiungere", voci: [
+              { k: "mag-aggiungi", ic: Boxes, d: "Tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true) },
+              { k: "mag-copia", ic: Copy, d: "La stessa lista, con gli stessi livelli", on: () => setCopia(true) },
+            ] },
+            { g: "Spostare", voci: [
+              { k: "mag-sposta", ic: ArrowLeftRight, d: "In un altro magazzino, oppure togli e basta", on: () => setSposta(true), serveRoba: true },
+              { k: "mag-trasf", ic: ArrowLeftRight, d: "Solo le quantità, verso un altro magazzino", on: () => setTrasf(true), serveRoba: true },
+            ] },
+            { g: "Livelli", voci: [
+              { k: "mag-par", ic: Ruler, d: "La soglia prevista, anche in Gastronorm", on: () => setParMulti(true), serveRoba: true },
+              { k: "mag-soglie", ic: TrendingUp, d: "Feriale e weekend, su tanti prodotti insieme", on: () => setSoglie(true), serveRoba: true },
+            ] },
+          ].map((gruppo) => (
+            <div key={gruppo.g} className="flex flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>{gruppo.g}</span>
+              {gruppo.voci.map((a) => {
+                const spenta = !!a.serveRoba && mag.articoli.length === 0;
+                return (
+                  <button key={a.k} type="button" data-azione={a.k}
+                    onClick={() => {
+                      if (spenta) { mostraToast("Questo magazzino è ancora vuoto: prima aggiungi dei prodotti", "avviso"); return; }
+                      setMenu(false); a.on();
+                    }}
+                    className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left"
+                    style={{ background: spenta ? "#F4F5F8" : "#F7F9FE", border: `1.5px solid ${T.bordo}`, opacity: spenta ? 0.66 : 1 }}>
+                    <span className="rounded-xl p-2.5 shrink-0" style={{ background: spenta ? "#ECEEF3" : "#EAF0FE", color: spenta ? T.tenue : T.blu }}><a.ic size={18} /></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="font-extrabold block" style={{ color: spenta ? T.dim : T.ink }}>{nomeAzione(a.k)}</span>
+                      <span className="text-xs" style={{ color: T.dim }}>{spenta ? "Serve almeno un prodotto qui dentro" : a.d}</span>
+                    </span>
+                    <ChevronRight size={18} style={{ color: T.tenue }} />
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </Foglio>
+

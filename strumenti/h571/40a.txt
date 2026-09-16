@@ -1,0 +1,1 @@
+"Il pulsante «Gestione rapida» raccoglie SEI scorciatoie, non quattro: aggiungi più prodotti insieme, copia da un altro magazzino, sposta o rimuovi in blocco, livello previsto in blocco, soglie per giorno, trasferisci scorte."

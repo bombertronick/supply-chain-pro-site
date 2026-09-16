@@ -33,16 +33,83 @@ const largo = await p.evaluate(() => innerWidth);
 ok(largo === 360, `la pagina si impagina alla larghezza vera del telefono (${largo}px)`);
 await p.waitForTimeout(400);
 
+/* ── IL RIQUADRO «DOVE SIAMO ADESSO» ──
+   Questa pagina non e' solo un menu' di lavori: e' la memoria fra una
+   conversazione e l'altra, e quel riquadro e' la parte che si legge per prima
+   quando si riparte da zero. Un riquadro rimasto indietro e' peggio di uno
+   assente: si riprende il lavoro da una versione che in cucina non c'e' piu'.
+   Percio' qui non si controlla che «ci sia», si controlla che sia AGGANCIATO
+   al resto: la versione che dichiara in cucina dev'essere raccontata anche
+   fra le cose gia' fatte. Aggiornare l'uno e dimenticare l'altro diventa
+   rosso. */
+const stato = await p.evaluate(() => {
+  const box = document.querySelector(".stato");
+  if (!box) return null;
+  const dt = [...box.querySelectorAll("dt")].map((x) => x.textContent.trim());
+  /* 01/09: terzo banco con la famiglia «gen-5» inchiodata (dopo memoriatest e
+     roadmap-md): col passaggio a gen-6 diceva «nessuna versione in cucina»
+     su una roadmap che la nominava benissimo. La famiglia non e' un dato
+     del collaudo: qualunque gen-N.NN. */
+  const gen = (box.textContent.match(/gen-\d+\.\d+/) || [])[0] || null;
+  const fatte = [...document.querySelectorAll("details .dentro")]
+    .map((x) => x.textContent).join(" ");
+  return { dt, gen, raccontata: gen ? fatte.includes(gen) : false };
+});
+ok(stato !== null, "in cima c'e' il riquadro «dove siamo adesso»");
+ok(stato && stato.dt.length >= 4,
+  `e dice tutte e quattro le cose: cosa gira, cosa e' stato fatto, cosa aspetta me, dove si riparte (${stato?.dt.length})`);
+ok(!!stato?.gen, `nomina la versione che gira davvero in cucina (${stato?.gen || "nessuna"})`);
+ok(stato?.raccontata,
+  `e quella versione e' raccontata anche fra le cose gia' fatte — il riquadro non e' rimasto indietro`);
+
 const voci = p.locator(".voce");
 const n = await voci.count();
-const dichiarati = await p.evaluate(() => {
-  const m = document.querySelector(".apertura").textContent.match(/(\w+) modifiche possibili/);
-  const parole = { Una:1, Due:2, Tre:3, Quattro:4, Cinque:5, Sei:6, Sette:7, Otto:8,
-    Nove:9, Dieci:10, Undici:11, Dodici:12, Tredici:13 };
-  return parole[m?.[1]] ?? null;
+/* Dal 2 agosto le voci stanno in due elenchi — i difetti trovati dal consiglio
+   e le migliorie — ma la numerazione resta una sola, perche' chi sceglie
+   ragiona per priorita', non per riquadro. Il controllo che conta e' che i
+   numeri scritti a parole in cima siano ancora veri: e' il punto in cui una
+   pagina come questa mente per prima, aggiungendo una voce e lasciando la
+   frase di ieri. */
+const conteggi = await p.evaluate(() => {
+  /* il numero puo' capitare a inizio frase o in mezzo: si confronta minuscolo,
+     se no un «sei» perfettamente italiano diventa un falso allarme */
+  /* «nessuno» e' il modo in cui questa pagina scrive lo zero, ed e' quello
+     giusto: «restano zero difetti» non lo direbbe nessuno (31/08/2026). */
+  const parole = { nessuno:0, nessuna:0, nessun:0, zero:0,
+    una:1, uno:1, due:2, tre:3, quattro:4, cinque:5, sei:6, sette:7, otto:8,
+    nove:9, dieci:10, undici:11, dodici:12, tredici:13 };
+  const num = (t) => parole[(t || "").toLowerCase()] ?? null;
+  /* 02/09: gli schemi cercano frasi con gli spazi dentro («non ne resta
+     nessuno») e l'HTML va a capo dove capita: un a-capo fra «ne» e «resta»
+     ha fatto diventare rossa questa pagina per una riscrittura del tutto
+     legittima. E' la stessa famiglia della trappola del maiuscolo CSS: si
+     confronta il testo NORMALIZZATO, non quello impaginato. */
+  const testo = document.querySelector(".apertura").textContent.replace(/\s+/g, " ");
+  /* Il controllo e' sul NUMERO, non su come e' scritta la frase: la frase
+     d'apertura si riscrive a ogni generazione ed e' giusto che si riscriva.
+     La prima versione di questi due schemi era incollata a una frase precisa
+     («ne restano quattro veri») e il 4 agosto e' diventata rossa per una
+     riscrittura del tutto legittima — un rosso che non voleva dire niente e
+     che, preso alla lettera, avrebbe spinto a piegare il testo allo schema
+     invece del contrario. Adesso si aggancia solo alla parola che conta. */
+  return {
+    /* due forme legittime, e non si sceglie fra loro: «restano N difetti»
+       quando ce ne sono, «di difetti non ne resta nessuno» quando sono zero —
+       li' il numero sta DOPO la parola, non prima (31/08/2026). */
+    difetti: { detti: [/restan[oa][^.]*?(\w+)\s+difett/i, /difett[^.]*?non ne rest\w*\s+(\w+)/i]
+                 .map((r) => num(testo.match(r)?.[1])).find((v) => v !== null) ?? null,
+               contati: document.querySelectorAll("#lista-difetti .voce").length },
+    altro:   { detti: num(testo.match(/(\w+)\s+(?:modifiche|migliorie)/i)?.[1]),
+               contati: document.querySelectorAll("#lista-altro .voce").length },
+  };
 });
 ok(n >= 2, `ci sono lavori da scegliere (${n})`);
-ok(dichiarati === n, `il testo in cima dice il numero giusto (dichiara ${dichiarati}, ce ne sono ${n})`);
+ok(conteggi.difetti.contati + conteggi.altro.contati === n,
+  `ogni voce sta in uno dei due elenchi, nessuna fuori (${conteggi.difetti.contati}+${conteggi.altro.contati} di ${n})`);
+ok(conteggi.difetti.detti === conteggi.difetti.contati,
+  `il testo in cima dice quanti sono i difetti (dice ${conteggi.difetti.detti}, ce ne sono ${conteggi.difetti.contati})`);
+ok(conteggi.altro.detti === conteggi.altro.contati,
+  `e quante sono le migliorie (dice ${conteggi.altro.detti}, ce ne sono ${conteggi.altro.contati})`);
 ok((await p.locator("#copia").isDisabled()), "senza scelte il tasto Copia è spento");
 ok(/Nessuna scelta/.test(await p.locator("#conteggio").innerText()), "e il conteggio lo dice");
 await p.screenshot({ path: "rm-1-partenza.png", fullPage: true });

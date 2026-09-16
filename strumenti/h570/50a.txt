@@ -1,0 +1,3 @@
+          Ti dice <b style={{ color: T.ink }}>in quali magazzini sta</b>, quanto ce n'è,
+          se è sotto il livello previsto e chi lo fornisce. Cerca fra i magazzini che
+          puoi vedere tu.

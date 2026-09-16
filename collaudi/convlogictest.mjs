@@ -85,13 +85,22 @@ console.log("\n— quello che viaggia —");
 const GG = 86400000;
 const mv = (t, causale, delta) => ({ id: "x" + t + causale + delta, t, causale, delta, magId: "m1", prodottoId: "p1" });
 
-/* la cucina vera: ~62 movimenti al giorno, di cui ~2 uscite. Simulo 70 giorni. */
+/* ── LO SCENARIO ERA ROVESCIATO, E IL VERDE NON VALEVA NIENTE ──
+   Segnalato dal consiglio del 2 agosto e verificato coi numeri veri il 3:
+   qui c'era scritto «~62 movimenti al giorno, di cui ~2 uscite», e su quella
+   base il tetto mancante sulle uscite non poteva saltare fuori — due uscite
+   al giorno non arrivano a nessun tetto nemmeno in dieci anni. Era verde per
+   il motivo sbagliato.
+   Misurato sullo stato in produzione: 390 movimenti in sei giorni, 140 dei
+   quali uscite. Cioe' 65 al giorno, di cui 23 uscite: il 36%, non il 3%.
+   Lo scenario adesso e' quello. */
 const finti = [];
 for (let g = 69; g >= 0; g--) {
   const t0 = Date.now() - g * GG;
-  for (let i = 0; i < 60; i++) finti.push(mv(t0 - i * 1000, "carico", +5));
-  finti.push(mv(t0 - 61000, "conteggio", -3));
-  finti.push(mv(t0 - 62000, "prelievo", -2));
+  for (let i = 0; i < 42; i++) finti.push(mv(t0 - i * 1000, "carico", +5));
+  for (let i = 0; i < 21; i++) finti.push(mv(t0 - 100000 - i * 1000, "conteggio", -3));
+  finti.push(mv(t0 - 200000, "prelievo", -2));
+  finti.push(mv(t0 - 201000, "evasione", -1));
 }
 finti.sort((a, b) => b.t - a.t);           // come li tiene l'app: il più nuovo in testa
 const dopo = L.sfoltisciMov(finti);
@@ -102,7 +111,27 @@ const giorniUscite = new Set(uscite.map((m) => Math.floor(m.t / GG))).size;
 ok(altri === L.MAX_ALTRI_MOV, `i movimenti ordinari si fermano al tetto (${altri})`);
 ok(giorniUscite >= 55 && giorniUscite <= 57,
   `le uscite coprono davvero ${giorniUscite} giorni: le soglie hanno di che parlare`);
-ok(uscite.length === giorniUscite * 2, `e sono tutte lì, nessuna persa (${uscite.length})`);
+ok(uscite.length === giorniUscite * 23, `e sono tutte lì, nessuna persa (${uscite.length})`);
+/* col ritmo vero (23 uscite al giorno × 56 giorni ≈ 1300) il parapetto NON
+   deve toccare niente: se mordesse qui, le soglie perderebbero settimane */
+ok(uscite.length < L.MAX_USCITE_MOV,
+  `e il tetto delle uscite non entra in gioco al ritmo normale (${uscite.length} sotto ${L.MAX_USCITE_MOV})`);
+
+/* ── E IL PARAPETTO C'È DAVVERO, PER LA GIORNATA STORTA ──
+   Un inventario che tocca ogni articolo scrive centinaia di uscite in un
+   giorno solo. Prima non le fermava niente: sulle uscite c'era un limite di
+   eta' e nessuno di numero. */
+const valanga = [];
+for (let g = 20; g >= 0; g--) {
+  const t0 = Date.now() - g * GG;
+  for (let i = 0; i < 300; i++) valanga.push(mv(t0 - i * 1000, "conteggio", -1));
+}
+valanga.sort((a, b) => b.t - a.t);
+const dopoValanga = L.sfoltisciMov(valanga).filter((m) => L.USCITE_STORICO.has(m.causale) && m.delta < 0);
+ok(dopoValanga.length === L.MAX_USCITE_MOV,
+  `con 6300 uscite in tre settimane il tetto si fa sentire e ne restano ${dopoValanga.length}`);
+ok(dopoValanga[0].t >= dopoValanga[dopoValanga.length - 1].t,
+  "e quelle che restano sono le piu' recenti, non le prime capitate");
 ok(uscite.every((m, i) => i === 0 || uscite[i - 1].t >= m.t), "l'ordine dal più recente resta");
 
 /* la prova che conta: col vecchio tetto unico a 400 quanti giorni di uscite

@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { apriServer } from "./servi.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·" + p, "utf8").digest("hex");
 let ko = 0; const ok = (c, m) => { console.log((c ? "  ok  " : "  KO  ") + m); if (!c) ko++; };
@@ -35,10 +36,22 @@ seed.movimenti = [
   ...sabati.map((t) => mv(t, A3, -10)),        // 3 sabati, ma in linea col previsto
 ];
 
-const URL = "file://" + path.resolve("index.html");
+/* SERVITO SU HTTP, NON APERTO DA DISCO (5 settembre 2026). Questo collaudo
+   fa vivere lo stato attraverso un ricaricamento (o fra due pagine) usando
+   localStorage, e su file:// Chromium tratta l'origine come OPACA: ogni pagina
+   puo' ricevere un'archiviazione SUA. Nel censimento di gen-6.06 pin2test e'
+   uscita rossa esattamente per questo — il secondo telefono guardava un altro
+   magazzino — e da sola passava tre volte su tre. Un'origine vera toglie di
+   mezzo la domanda. Vedi servi.mjs. */
+const srv = await apriServer();
+const URL = srv.url;
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
 const ctx = await b.newContext({ viewport: { width: 1280, height: 950 } });
-await ctx.addInitScript((s) => {
+/* 31/08/2026 — lo script di init gira anche sull'about:blank che Playwright
+   apre prima del goto: origine opaca, leggere localStorage tira SecurityError.
+   L'app è a posto (in app.jsx i localStorage sono tutti in try/catch): qui
+   l'errore si vedeva solo perché ctx.on("page") lo sente in tempo. */
+await ctx.addInitScript((s) => { try {
   if (!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1", s);
   localStorage.setItem("scp:tour:v1", "1");
   window.storage = {
@@ -46,7 +59,7 @@ await ctx.addInitScript((s) => {
     async set(k, v) { localStorage.setItem("db:" + k, v); return true; },
     async delete(k) { localStorage.removeItem("db:" + k); return true; },
   };
-}, JSON.stringify(seed));
+} catch {} }, JSON.stringify(seed));
 const errs = []; ctx.on("page", (pg) => pg.on("pageerror", (e) => errs.push(e.message)));
 const p = await ctx.newPage();
 const digita = async (pin) => { for (const d of pin) { await p.getByRole("button", { name: d, exact: true }).first().click(); await p.waitForTimeout(170); } await p.waitForTimeout(1600); };
@@ -87,7 +100,8 @@ await p.screenshot({ path: "soglie-2-applicata.png", fullPage: true });
 /* un operatore la legge ma non la può applicare */
 await p.evaluate(() => localStorage.removeItem("db:scp:stato:v1"));
 const ctx2 = await b.newContext({ viewport: { width: 1280, height: 950 } });
-await ctx2.addInitScript((s) => {
+await ctx2.addInitScript((s) => { try {
+  /* stessa mina dell'init sopra: disinnescata insieme (31/08/2026) */
   localStorage.setItem("db:scp:stato:v1", s);
   localStorage.setItem("scp:tour:v1", "1");
   window.storage = {
@@ -95,7 +109,7 @@ await ctx2.addInitScript((s) => {
     async set(k, v) { localStorage.setItem("db:" + k, v); return true; },
     async delete(k) { localStorage.removeItem("db:" + k); return true; },
   };
-}, JSON.stringify(seed));
+} catch {} }, JSON.stringify(seed));
 const p2 = await ctx2.newPage();
 await p2.goto(URL); await p2.waitForTimeout(1600);
 await p2.getByText("Op", { exact: true }).first().click(); await p2.waitForTimeout(400);
@@ -114,5 +128,6 @@ await ctx2.close();
 
 ok(errs.length === 0, "nessun errore JS" + (errs.length ? " → " + errs[0] : ""));
 await b.close();
+await srv.chiudi();
 console.log(ko ? `\n${ko} controlli falliti` : "\ntutti i controlli passati");
 process.exit(ko ? 1 : 0);

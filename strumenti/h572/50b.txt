@@ -1,0 +1,13 @@
+    /* Da gen-5.72 l'intestazione sta SOPRA i fogli, perche' la lente dev'essere
+       raggiungibile anche da qui dentro. Conseguenza misurata, non immaginata:
+       su un portatile 1440×760 un foglio alto partiva a 30px e il suo TITOLO
+       finiva sotto l'intestazione.
+       La fascia libera la fa «sc-foglio» nel foglio di stile qui sopra, non una
+       classe di Tailwind: il banco di prova usa un CSS precompilato e il
+       caricatore di produzione non e' leggibile da qui — una classe nuova
+       poteva esserci in un posto e non nell'altro. Il nostro CSS sta dentro il
+       codice e vale in tutti e due. */
+    <div className="sc-foglio fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      style={{ background: "rgba(20,28,55,.4)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className={`sc-su w-full ${larga ? "md:max-w-2xl" : "md:max-w-md"} max-h-[92vh] overflow-y-auto sc-scroll rounded-t-3xl md:rounded-3xl p-5 md:p-6`}

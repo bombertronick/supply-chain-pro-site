@@ -2,3 +2,40 @@ node_modules/
 collaudi/bundle.js
 *.png
 collaudi/.censimento-in-corso
+
+# I dump dello stato VERO di produzione: nomi prodotti, fornitori, ordini,
+# giacenze. Questo repository e' PUBBLICO — non ci vanno. Sette collaudi li
+# leggono (catalogotest, conv551test, convtest, gen552test, mappatest,
+# pesotest, ripristinotest): senza, quei sette non partono. Si rigenerano
+# esportando da Gestione → Sistema → Backup e rinominando il file.
+collaudi/stato-vero.json
+collaudi/stato-vero-conv.json
+collaudi/topologia-vera.json
+
+# Prodotti della costruzione: si rifanno da soli a ogni «node build.mjs».
+# tw.css in particolare NON va salvato: e' stato fermo dal 30 luglio al 2
+# agosto e nessuno se n'e' accorto — un foglio di stile vecchio fa misurare
+# ai collaudi una pagina diversa da quella vera.
+collaudi/tw.css
+collaudi/app-under-test.jsx
+collaudi/rossi/
+# Le librerie di logica: costruite dal sorgente in prova a ogni «node build.mjs».
+# Erano ferme al 29 luglio e cinque collaudi provavano codice che non esisteva
+# piu'. Sono prodotti, non sorgenti: i sorgenti sono i mk*.mjs.
+collaudi/*.cjs
+collaudi/*-lib-src.jsx
+
+# Il banco di prova crea qui un collegamento a node_modules: la riga
+# «node_modules/» sopra prende le CARTELLE, non i collegamenti, e il 4 agosto
+# uno di questi e' finito dentro un commit.
+collaudi/node_modules
+.gara/
+
+# I pezzi in cui si spezza un rilascio: si rifanno da soli con
+# «node strumenti/sql_spezza.mjs <tag>.sql». Il .sql invece SI salva — e' il
+# documento di cosa e' stato spedito in produzione, e va riletto anni dopo.
+# ovunque, non solo sotto strumenti/: il 12 settembre sql_diff ha scritto
+# gen616.sql nella RADICE e i pezzi sono finiti in un commit — la regola
+# copriva il posto, non la cosa.
+*-pezzi/
+*-lotti/

@@ -20,8 +20,24 @@
      4. SPIEGATA — il « ? » deve dire qualcosa su QUESTA schermata, non una
         frase generica buona per tutte.
 
-   Il passaggio 3 e' quello che vale di piu': e' l'unico che avrebbe preso il
-   difetto di stamattina, ed e' l'unico che nessun altro collaudo faceva. */
+   Il passaggio 3 e' quello che vale di piu', ed e' l'unico che nessun altro
+   collaudo faceva in modo sistematico.
+
+   CORREZIONE DEL 2 AGOSTO, dal consiglio di revisione. Qui c'era scritto che il
+   passaggio 3 «e' l'unico che avrebbe preso il difetto di stamattina». Non e'
+   vero, ed e' il tipo di frase che fa smettere di cercare: quel difetto stava
+   dentro «Gestione rapida», che e' una SCHEDA, e questo giro non ne apriva
+   nessuna delle ~40 che esistono. L'hanno preso bulk2test.mjs e
+   lentesempretest.mjs.
+
+   CHIUSO IL 4 AGOSTO. C'e' il passaggio 3d: sul telefono, dopo aver misurato
+   la schermata di fondo, si aprono le schede che quella schermata sa aprire e
+   si rimette lo stesso dito al centro dei tasti che stanno DENTRO. Le schede
+   non si possono elencare — non esiste un registro — quindi si scoprono
+   premendo, con tre paletti spiegati sopra la funzione. Il piu' importante e'
+   il pavimento: se il giro apre meno di SOGLIA_SCHEDE schede diventa rosso
+   lui, perche' «zero tasti morti nelle schede» e «non ho guardato dentro
+   nessuna scheda» si somigliano troppo. */
 import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
@@ -39,17 +55,106 @@ const scena = () => {
   const sedeLab = s.sedi.find((x) => x.tipo === "laboratorio") || s.sedi[0];
   s.profili = [
     { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-    { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6", pinHash: hash("2222") },
-    { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF", pinHash: hash("3333") },
+    /* CORREZIONI E ORDINI, MA NIENTE STRUTTURA, di proposito (30 agosto,
+       gen-5.95). La prima stesura gli dava tutti e tre gli interruttori e il
+       pavimento e' passato da 9/9 a 7/9: «Rettifica giacenza» e «Trasferisci
+       le scorte» non si aprivano piu'. Misurato, non dedotto: quelle due
+       porte esistono SOLO a permesso «rettifica» (la matita di riga e il
+       bottone «Trasferisci scorte» stanno dietro permesso==="rettifica";
+       chi ha «pieno» passa da Gestione rapida, che e' un livello piu' in
+       fondo di dove il giro preme). Con la struttura l'operatore diventa
+       «pieno» dappertutto e quelle porte non esistono per NESSUNO dei tre
+       profili. Quindi: l'operatore e' quello a meta' strada — corregge ma
+       non modella — e le schede da «pieno» (Gestione rapida, Aggiungi
+       articolo) le coprono l'admin e il laboratorio. Il pavimento dei
+       profili tutti SPENTI lo difende autorizzazionitest.mjs, coi
+       controcontrolli. */
+    { id: "pr-o", nome: "Operatore", ruolo: "operatore", sedeId: sedeOp.id, colore: "#3B82F6",
+      correzioni: true, ordini: true, cassa: true, pinHash: hash("2222") },
+    /* AUTORIZZATO ALLA STRUTTURA, di proposito. Da gen-5.94 un laboratorio
+       senza la spunta non vede piu' «Gestione rapida», «Aggiungi articolo» e
+       la matita — ed e' GIUSTO cosi': lo dimostra essenzialetest.mjs, coi
+       controcontrolli. Il giro invece ha il compito opposto: entrare in
+       TUTTE le schede del pavimento, quindi il suo laboratorio e' quello
+       autorizzato. Quando gen-5.94 e' andata online questo profilo era
+       ancora senza spunta e il pavimento e' passato da 9/9 a 8/9: il rosso
+       diceva la verita' — la scheda non era piu' raggiungibile da nessuno
+       dei tre profili del banco. */
+    { id: "pr-l", nome: "Laboratorio", ruolo: "laboratorio", sedeId: sedeLab.id, colore: "#22B8CF",
+      struttura: true, correzioni: true, ordini: true, pinHash: hash("3333") },
+  ];
+
+  /* ── LE SITUAZIONI CHE FANNO ESISTERE LE SCHEDE (4 agosto) ──
+     Scoperto estendendo il giro alle schede: quattro delle otto che il
+     consiglio aveva nominato non si aprivano non perche' il giro non ci
+     provasse, ma perche' NON ESISTEVANO. Il banco di prova partiva con zero
+     richieste, zero ordini e zero preparati, quindi «Evadi richiesta»,
+     «Ricezione merce» e «Ho prodotto» non avevano niente da mostrare e il
+     tasto per aprirle non veniva nemmeno disegnato.
+     E' un pezzo di storia che vale la pena tenere: per anni si sarebbe potuto
+     dire «i collaudi coprono l'app» guardando un numero, mentre i tre giri
+     dove passa la merce vera non venivano mai fatti. Un banco di prova che
+     parte da un magazzino perfetto non prova il lavoro, prova la calma. */
+  const linea = s.magazzini.find((m) => m.tipo === "linea-lab") || s.magazzini.find((m) => m.tipo.startsWith("linea"));
+  const prep = s.prodotti[0];
+  prep.preparato = true;
+  prep.ricetta = { resa: 10, uomResa: prep.uomBase,
+    ingredienti: [{ prodottoId: s.prodotti[5].id, uomId: s.prodotti[5].uomBase, qty: 2 }] };
+  const magLab = s.magazzini.find((m) => m.tipo === "laboratorio");
+  if (magLab && !(magLab.articoli || []).some((a) => a.prodottoId === prep.id))
+    magLab.articoli = [{ prodottoId: prep.id, uomId: prep.uomBase, qty: 40, par: 0 }, ...(magLab.articoli || [])];
+
+  /* una richiesta in attesa → il laboratorio ha «Evadi richiesta» */
+  s.richieste = [{ id: "ric-prova", t: Date.now(), daSedeId: sedeOp.id, aSedeLabId: sedeLab.id,
+    daMagazzinoId: linea?.id, magNome: linea?.nome || "Linea", prodottoId: prep.id,
+    qty: 4, uomId: prep.uomBase, qtyLinea: 4, uomLineaId: prep.uomBase,
+    stato: "in-attesa", creataDa: "banco di prova" }];
+
+  /* una riga gia' ordinata → chi compra ha «Ricezione merce» */
+  s.ordini = [{ id: "ord-prova", t: Date.now(), tOrdine: Date.now(), tipo: "diretto",
+    sedeId: sedeOp.id, prodottoId: s.prodotti[3].id, fornitoreId: s.fornitori?.[0]?.id || null,
+    qty: 6, uomId: s.prodotti[3].uomBase, stato: "ordinato" }];
+
+  /* un listino con una voce semplice e una con variante → la Cassa ha la
+     griglia vera da misurare, non lo stato vuoto (stessa lezione delle
+     quattro schede che «non si aprivano perche' non esistevano») */
+  s.listino = [
+    { id: "li-giro1", nome: "Voce di prova", gruppo: "Banco", prezzo: 4, attivo: true, varianti: [],
+      distinta: [{ prodottoId: s.prodotti[5].id, qty: 0.2, uomId: s.prodotti[5].uomBase }] },
+    { id: "li-giro2", nome: "Voce con variante", gruppo: "Banco", prezzo: 6, attivo: true,
+      varianti: [{ id: "va-giro", nome: "Grande", delta: 1 }], distinta: [] },
   ];
   return s;
 };
 
-/* le schermate come le dichiara l'app, ruolo per ruolo */
-const GESTIONE = ["Catalogo", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili", "Accessi", "Sistema"];
+/* le schermate come le dichiara l'app, ruolo per ruolo.
+
+   QUESTO ELENCO E' SCRITTO A MANO DI PROPOSITO: e' il pavimento, cioe' la
+   promessa di cosa dev'essere raggiungibile. Se lo ricavassi dall'app,
+   misurerei l'app con sé stessa e una schermata sparita non farebbe rosso.
+
+   MA UN ELENCO A MANO INVECCHIA IN SILENZIO, e me l'ha dimostrato subito:
+   gen-5.92 ha aggiunto «Memoria» sotto Gestione e il giro non l'avrebbe mai
+   aperta — schermata nuova, zero controlli, e nessun rosso a dirmelo. Quindi
+   l'elenco resta a mano, e accanto c'e' un controllo (§0) che lo confronta
+   con quello che l'app mette davvero nel menu: se ne compare una che qui non
+   c'e', diventa rosso e va aggiunta a mano dopo averla guardata. */
+/* «Informazioni» e' di gen-5.99 (la carta d'identita': versione, assistenza,
+   limiti dichiarati): il §0 e' diventato rosso da solo, come promesso qui
+   sopra, e la voce entra nell'elenco DOPO averla guardata (01/09). */
+const GESTIONE = ["Catalogo", "Listino", "Analisi", "Storico", "Storico ordini", "Sedi", "Profili",
+  "Accessi", "Sistema", "Memoria", "Informazioni"];
+/* L'OPERATORE DEL GIRO HA ANCHE «cassa» (31 agosto, gen-5.96): la Cassa
+   scavalca la Plancia in barra — cinque posti, misurati — quindi la sua
+   barra qui sotto porta «Cassa» e la Plancia del giro resta coperta da
+   admin e laboratorio. Il pavimento della Cassa per chi NON ce l'ha lo
+   difende cassatest.mjs §1, coi contro-controlli. DICHIARATO, NON
+   DIMENTICATO: la variante «Plancia con sole correzioni» (una stanza sola)
+   con questo scambio esce dal giro del dito — la difende
+   autorizzazionitest.mjs §3, che ne misura le superfici una per una. */
 const RUOLI = [
   { nome: "Admin", pin: "1234", barra: ["Home", "Magazzini", "Plancia", "Ordini"], gestione: GESTIONE },
-  { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Plancia", "Ordini"], gestione: [] },
+  { nome: "Operatore", pin: "2222", barra: ["Home", "Conteggi", "Magazzini", "Cassa", "Ordini"], gestione: [] },
   { nome: "Laboratorio", pin: "3333", barra: ["Home", "Richieste", "Magazzini", "Plancia", "Ordini"], gestione: [] },
 ];
 
@@ -75,6 +180,27 @@ const entra = async (r, w, h) => {
   return { p, ctx };
 };
 
+/* Quello che l'app mette DAVVERO sotto «Gestione», letto dal menu aperto.
+   Serve solo a confrontarlo col pavimento scritto a mano: non lo sostituisce. */
+const scopriGestione = async (p) => {
+  const menu = p.locator("nav:visible, aside:visible");
+  const g = menu.getByText("Gestione", { exact: true });
+  if (!(await g.count())) return [];
+  await g.first().click();
+  await p.waitForTimeout(900);
+  /* Le voci sono i riquadri della schermata di Gestione, e ognuno e' fatto di
+     due righe: il nome e la spiegazione sotto. Serve la PRIMA RIGA, che e'
+     anche il nome con cui vaiA la cerca.
+     Va letta con innerText, non con textContent: misurato, textContent le
+     attacca senza andare a capo («MemoriaQuello che Claude deve…») e il
+     filtro sulla lunghezza le buttava via tutte — la mia prima versione
+     tornava una lista vuota, cioe' un controllo sempre verde. */
+  const voci = await p.evaluate(() => [...document.querySelectorAll("main button")]
+    .map((b) => (b.innerText || "").split("\n")[0].trim())
+    .filter((t) => t && t.length < 30));
+  return [...new Set(voci)];
+};
+
 /* ── L'ATTREZZO DEL PASSAGGIO 3, seconda versione ──
 
    La prima versione diceva 36 tasti morti su 632. Erano TUTTI falsi, e per due
@@ -94,9 +220,9 @@ const entra = async (r, w, h) => {
       finisce quando una persona vera scorre per premerlo.
 
    Verificato: con queste due correzioni i 36 diventano 0. */
-const tastiMorti = async (p) => {
+const tastiMorti = async (p, radice) => {
   const morti = []; let provati = 0;
-  for (const el of await p.getByRole("button").all()) {
+  for (const el of await (radice || p).getByRole("button").all()) {
     if (!(await el.isVisible().catch(() => false))) continue;
     await el.evaluate((n) => n.scrollIntoView({ block: "center" })).catch(() => {});
     await p.waitForTimeout(50);
@@ -151,8 +277,234 @@ const ultimoRaggiungibile = async (p) => {
 const sborda = (p) => p.evaluate(() =>
   Math.round(document.documentElement.scrollWidth - document.documentElement.clientWidth));
 
+/* ── PASSAGGIO 3 TER: LO STESSO DITO, DENTRO LE SCHEDE (4 agosto) ──
+
+   Il consiglio del 2 agosto ha trovato il buco piu' grosso di questo file: il
+   dito al centro di ogni tasto si metteva sulle 44 schermate di FONDO e su
+   ZERO delle circa quaranta schede che si aprono sopra — Gestione rapida,
+   Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione
+   merce, Evadi richiesta, Importa CSV. E' li' dentro che sta il lavoro vero,
+   ed e' li' dentro che stava il difetto del 31 luglio.
+
+   Le schede non si possono elencare: non esiste un registro, sono pezzi che
+   compaiono quando servono. Quindi si scoprono premendo — si prova un tasto e
+   si guarda se e' comparso un foglio. Tre cose rendono la cosa sicura invece
+   che avventata:
+
+   1. NON SI TOCCA QUELLO CHE DISTRUGGE. Rimuovi, Elimina, Azzera, Esci e
+      compagnia restano fuori: qui si sta misurando dove cade il dito, non si
+      sta provando cosa succede. (Lo stato e' finto e monouso, quindi il
+      rischio non e' perdere dati: e' che un tasto distruttivo cambi la pagina
+      sotto e faccia misurare un'altra cosa da quella che credo.)
+   2. SE UN TASTO NON APRE NIENTE, SI TORNA INDIETRO. Puo' aver cambiato
+      schermata, aperto una tendina, spuntato una casella: si rinaviga e si
+      riprende, se no da li' in poi si misura una pagina che non c'entra.
+   3. C'E' UN PAVIMENTO. Alla fine si pretende di aver aperto almeno un certo
+      numero di schede. Senza, il giorno che questa scoperta smettesse di
+      funzionare — una classe rinominata, un foglio fatto in un altro modo —
+      il rapporto direbbe «zero tasti morti nelle schede» ed e' esattamente
+      la frase che questo passaggio nasce per non far piu' dire. Zero schede
+      aperte e zero difetti trovati si somigliano troppo. */
+const NON_TOCCARE = /rimuovi|elimin|cancell|azzer|svuot|esci|disconnett|ripristin|conferma tutto|archivi|scarica|esporta|invia|whatsapp|tutto arrivato/i;
+/* questi non aprono niente, chiudono: provarli fa solo perdere il posto */
+const NON_APRONO = /^(chiudi|annulla|indietro|ok|salva|salva e chiudi)$/i;
+const MAX_TENTATIVI = 14;       // tasti provati sulla schermata di fondo
+const MAX_TENTATIVI_DENTRO = 11; // e dentro una scheda gia aperta: «Gestione rapida» sta in fondo
+const MAX_PROF = 2;             // due livelli: e' li' che stanno quelle vere
+
+/* IL PAVIMENTO, E PERCHE' E' FATTO DI NOMI E NON DI UN NUMERO.
+   La prima versione di questo passaggio pretendeva «almeno 12 schede aperte»,
+   e ne apriva 20: verde. Ma erano le schede sbagliate — Nuova sede, Nuovo
+   profilo, Modifica magazzino. Delle OTTO che il consiglio aveva nominato ne
+   prendeva UNA. Il motivo e' strutturale: le altre sette si aprono DENTRO
+   un'altra scheda (il dettaglio del magazzino, la riga di un ordine), e una
+   scoperta che si ferma al primo livello non puo' raggiungerle, per quanti
+   tentativi le si diano.
+   Un numero non se ne sarebbe mai accorto. Un elenco di nomi si'. Se domani
+   una di queste si sposta o cambia nome, questo diventa rosso e chiede conto —
+   che e' esattamente quello che serve, perche' e' li' dentro che sta il
+   lavoro vero e ci stava il difetto del 31 luglio. */
+/* Provare i tasti nell'ordine in cui capitano non basta: dentro il dettaglio
+   di un magazzino i primi undici sono tutti tasti di riga (Storico, Scarto,
+   Modifica di ogni articolo) e «Gestione rapida» resta sempre fuori dal
+   tetto. Alzare il tetto costerebbe minuti e non garantirebbe niente.
+   Quindi chi assomiglia a una porta importante si prova PER PRIMO. Non e' un
+   elenco di passi scritti a mano — la scoperta resta generica e trova anche
+   quello che non ho previsto — e' solo un ordine di precedenza. */
+/* «cambia» sta qui dal 6 agosto, ed e' il caso piu' istruttivo dei tre.
+   «Evadi richiesta» non si apre da un tasto che si chiama come lei: si apre da
+   uno scritto «Cambia». Nessuna regola generica poteva indovinarlo, ed e'
+   proprio per questo che ci va messo A MANO: la scoperta automatica trova
+   quello che si chiama come quello che fa, e le porte che portano un altro
+   nome le trova solo chi le ha viste. Il rischio dichiarato era «vorrebbe dire
+   premere ogni Cambia dell'app»: e' solo una precedenza, non un tasto in piu',
+   e il tetto sui tentativi resta quello di prima. */
+const PRIMA_QUESTI = /gestione rapida|ho prodotto|da produrre|evadi|cambia|ricezione|merce arrivat|importa|trasferi|inventario/i;
+/* ── E DUE LIVELLI DI PRECEDENZA, NON UNO (6 agosto) ──
+   Una precedenza sola non bastava, e il rapporto del giro completo ha detto
+   perche'. Dentro il magazzino del laboratorio ci sono DECINE di tasti «Ho
+   prodotto X», uno per preparato: tutti hanno la stessa precedenza, e
+   l'ordinamento e' stabile, quindi restano nell'ordine in cui stanno a
+   schermo. Si mangiano tutti e undici i tentativi, e «Gestione rapida» — che
+   e' UNA sola e sta in fondo alla scheda — non veniva mai provata.
+   Non era «il permesso e' sbagliato nel banco di prova», come avevo scritto:
+   il permesso c'era (il laboratorio ha «pieno» su casa sua, e l'admin su
+   tutto). Era una porta sola che perdeva la fila contro trenta porte uguali.
+   Quindi: le porte che esistono UNA VOLTA SOLA per schermata passano davanti
+   a quelle che si ripetono riga per riga. */
+const PORTE_UNICHE = /gestione rapida|inventario|importa|assegna|copia da|da produrre/i;
+const SCHEDE_CHE_CONTANO = ["Rettifica giacenza", "Registra scarto", "Ricezione merce",
+  "Trasferisci le scorte", "Importa catalogo CSV", "Inventario guidato",
+  /* Le ultime tre sono entrate il 6 agosto, ed erano quelle del consiglio. Da
+     qui in poi sono un pavimento come le altre: se una si sposta o cambia
+     nome, questo diventa rosso e chiede conto. */
+  "Gestione rapida", "Ho prodotto", "Evadi richiesta"];
+
+/* ── LE TRE CHE MANCAVANO, E I TRE MOTIVI SBAGLIATI CHE AVEVO SCRITTO ──
+   Qui sotto c'erano tre spiegazioni di perche' non si raggiungevano. Erano
+   tutte e tre sbagliate, e vale la pena tenerne il conto: una spiegazione
+   plausibile scritta in un collaudo manda il prossimo a cercare dalla parte
+   sbagliata, e ci resta per mesi.
+
+   · «Gestione rapida» — avevo scritto «nel banco di prova i magazzini danno
+     permesso rettifica». Falso: l'admin ha «pieno» su tutto e il laboratorio
+     su casa sua. Il motivo vero e' che il giro provava le PASTIGLIE DELLE
+     SEDI, che non aprono niente ma filtrano l'elenco; da li' in poi lavorava
+     su una lista piu' corta senza accorgersene, perche' la schermata era
+     ancora «Magazzini». Il «Magazzino Laboratorio» sta nella sede portuense e
+     spariva dopo che il giro aveva premuto «fm» — ed e' l'unico magazzino
+     dove quel profilo ha il permesso pieno, cioe' l'unico posto dove quella
+     scheda esiste per lui.
+   · «Ho prodotto» — avevo scritto «il tetto sui magazzini finisce prima».
+     Falso: si e' aperta da sola quando gen-5.87 le ha messo una porta nelle
+     Richieste, per tutt'altra ragione.
+   · «Evadi richiesta» — questo era giusto: si apre da un tasto scritto
+     «Cambia», e nessuna regola generica poteva indovinarlo.
+
+   La regola che resta: un limite si spiega solo dopo averlo MISURATO. Le tre
+   deduzioni di sopra suonavano tutte ragionevoli, e sono cadute alla prima
+   sonda che stampava cosa vede il giro davvero. */
+const NON_ANCORA = [];
+
+const etichettaDi = async (el) => ((await el.getAttribute("aria-label").catch(() => null))
+  || (await el.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+
+/* prova a chiudere la scheda piu' in alto e restituisce quante ne restano */
+const chiudiScheda = async (p) => {
+  for (const nome of ["Chiudi", "Annulla"]) {
+    const x = p.locator(".sc-foglio").last().getByRole("button", { name: nome, exact: true });
+    if (await x.count().catch(() => 0)) {
+      await x.first().click().catch(() => {});
+      await p.waitForTimeout(420);
+      return await p.locator(".sc-foglio").count();
+    }
+  }
+  await p.keyboard.press("Escape").catch(() => {});
+  await p.waitForTimeout(420);
+  return await p.locator(".sc-foglio").count();
+};
+
+const giroSchede = async (p, r, dove, out, prof = 1) => {
+  const partenza = await p.locator(".sc-foglio").count();
+  /* getByRole e non locator("button"): meta' delle cose che si premono in
+     questa app NON sono <button>, sono riquadri con role="button" — e le
+     schede che contano si aprono proprio da quelli. La prima versione di
+     questo giro usava il selettore CSS e per questo non riusciva nemmeno ad
+     aprire il dettaglio di un magazzino, cioe' la porta di Gestione rapida,
+     Rettifica, Scarto e Ho prodotto. */
+  const tasti = () => (prof === 1 ? p.locator("main") : p.locator(".sc-foglio").nth(partenza - 1))
+    .getByRole("button");
+  /* prima si guarda cosa c'e', poi si decide in che ordine provarlo */
+  const tutti = await tasti().count().catch(() => 0);
+  const lista = [];
+  for (let i = 0; i < tutti; i++) {
+    const el = tasti().nth(i);
+    if (!(await el.isVisible().catch(() => false))) continue;
+    const e = await etichettaDi(el);
+    if (!e || NON_APRONO.test(e) || NON_TOCCARE.test(e)) continue;
+    if (lista.some((x) => x.e === e)) continue;
+    lista.push({ i, e, pri: PORTE_UNICHE.test(e) ? 0 : PRIMA_QUESTI.test(e) ? 1 : 2 });
+  }
+  lista.sort((a, b) => a.pri - b.pri);
+  for (const { i, e } of lista.slice(0, prof === 1 ? MAX_TENTATIVI : MAX_TENTATIVI_DENTRO)) {
+    /* ── SI TORNA A CERCARE PER NOME, NON PER POSTO (6 agosto) ──
+       Qui c'era scritto «si ri-cerca per indice a ogni giro», e non bastava:
+       l'indice si rilegge, ma l'ELENCO e' stato fatto una volta sola all'inizio,
+       e fra un'apertura e l'altra la schermata si ricostruisce. I riquadri dei
+       magazzini portano scritto quante cose hanno sotto scorta: quel numero
+       cambia mentre il giro lavora, le schede si riordinano, e al turno numero
+       sette sotto l'indice sette c'e' un altro tasto.
+       Cosi' il «Magazzino Laboratorio» — che nell'elenco C'ERA, in settima
+       posizione su nove — non veniva mai aperto. Ed e' l'unico magazzino dove
+       quel profilo ha il permesso pieno, cioe' l'unico posto in cui «Gestione
+       rapida» esiste. Tre motivi scritti da me su questa scheda, tutti e tre
+       sbagliati: non era il permesso, non era la precedenza, era l'indirizzo.
+       Adesso l'indice e' solo un suggerimento: se sotto non c'e' piu' quello
+       che avevo elencato, lo ricerco per nome. */
+    let cand = tasti().nth(i);
+    const oraQui = await etichettaDi(cand).catch(() => "");
+    if (oraQui !== e) {
+      const n2 = await tasti().count().catch(() => 0);
+      let trovato = null;
+      for (let k = 0; k < n2; k++) {
+        const c2 = tasti().nth(k);
+        if (!(await c2.isVisible().catch(() => false))) continue;
+        if ((await etichettaDi(c2).catch(() => "")) === e) { trovato = c2; break; }
+      }
+      if (!trovato) continue;   // e' sparito davvero: non e' un difetto, e' la pagina che e' cambiata
+      cand = trovato;
+    }
+    if (!(await cand.isVisible().catch(() => false))) continue;
+    await cand.click({ timeout: 2500 }).catch(() => {});
+    await p.waitForTimeout(420);
+    const ora = await p.locator(".sc-foglio").count();
+    if (ora < partenza) return;            // ha chiuso la scheda da cui stavo guardando
+    if (ora === partenza) {
+      /* ── NON APRIVA NIENTE: MA PUO' AVER CAMBIATO LA LISTA (6 agosto) ──
+         Alcuni di questi non sono tasti, sono FILTRI. Nei Magazzini ci sono le
+         pastiglie delle sedi: premendo «fm» la schermata resta la stessa ma
+         mostra solo i magazzini di quella sede. Il giro le premeva e tirava
+         dritto, e da li' in poi lavorava su un elenco piu' corto — senza
+         accorgersene, perche' la schermata era ancora «Magazzini».
+         Cosi' il «Magazzino Laboratorio», che sta nella sede portuense,
+         spariva dopo che il giro aveva premuto «fm». Ed e' l'unico magazzino
+         dove quel profilo ha il permesso pieno, cioe' l'unico posto dove
+         «Gestione rapida» esiste per lui: e' per questo che quella scheda non
+         si e' mai aperta, in nessuno dei tre giri.
+         Adesso, dopo un tasto che non apre niente, si rimette la vista su
+         tutto prima di continuare. */
+      if (prof === 1) {
+        try { await vaiA(p, dove, 900); } catch {}
+        const tutte = p.locator('main').getByRole('button', { name: /^Tutt[ei] /i }).first();
+        if (await tutte.count().catch(() => 0)) {
+          await tutte.click({ timeout: 1500 }).catch(() => {});
+          await p.waitForTimeout(350);
+        }
+      }
+      continue;
+    }
+    out.aperte++;
+    const foglio = p.locator(".sc-foglio").nth(ora - 1);
+    const titolo = ((await foglio.innerText().catch(() => "")).split("\n")[0] || e).slice(0, 40).trim();
+    out.nomi.push(titolo);
+    const { morti } = await tastiMorti(p, foglio);
+    for (const m of morti) out.morti.push(`${r.nome}/${dove}/«${titolo}»: «${m.eti}» → lo prende: ${m.suo}`);
+    const extra = await sborda(p);
+    if (extra > 1) out.sbordano.push(`${r.nome}/${dove}/«${titolo}» (+${extra}px)`);
+    if (prof < MAX_PROF) await giroSchede(p, r, dove, out, prof + 1);
+    let giri = 0;
+    while ((await p.locator(".sc-foglio").count()) > partenza && giri++ < 4) await chiudiScheda(p);
+    if ((await p.locator(".sc-foglio").count()) > partenza) {
+      out.bloccate.push(`${r.nome}/${dove}/«${titolo}» non si chiude`);
+      if (prof === 1) { try { await vaiA(p, dove, 900); } catch {} }
+      return;
+    }
+  }
+};
+
 /* ═══════════════════════════════════════════════════════════════════ */
-const riepilogo = { schermate: 0, tasti: 0, morti: 0, senzaAiuto: [], vuote: [], sbordano: [], sepolti: [] };
+const riepilogo = { schermate: 0, tasti: 0, morti: 0, senzaAiuto: [], vuote: [], sbordano: [], sepolti: [],
+  schede: 0, mortiSchede: [], schedeBloccate: [], nomiSchede: [] };
 
 for (const r of RUOLI) {
   console.log(`\n══════ ${r.nome.toUpperCase()} ══════`);
@@ -160,6 +512,19 @@ for (const r of RUOLI) {
     console.log(`\n— ${come} ${w}×${h} —`);
     const { p, ctx } = await entra(r, w, h);
     const tappe = [...r.barra, ...r.gestione];
+
+    /* ── §0. IL PAVIMENTO COPRE TUTTO QUELLO CHE L'APP OFFRE DAVVERO ──
+       Non sostituisce l'elenco scritto a mano: lo difende dall'invecchiare.
+       Una schermata nuova sotto Gestione fa rosso qui, e a quel punto la
+       aggiungo sopra dopo averla guardata — invece di scoprire fra un mese
+       che il giro non ci e' mai entrato. */
+    if (r.gestione.length) {
+      const offerte = await scopriGestione(p);
+      const scoperte = offerte.filter((x) => !r.gestione.includes(x));
+      ok(scoperte.length === 0, scoperte.length
+        ? `NUOVE SCHERMATE SOTTO GESTIONE CHE IL GIRO NON APRE: ${scoperte.join(", ")} — vanno aggiunte a GESTIONE`
+        : `il pavimento copre tutte le ${offerte.length} voci che l'app mette sotto Gestione`);
+    }
 
     for (const dove of tappe) {
       let arrivato = true;
@@ -190,6 +555,17 @@ for (const r of RUOLI) {
       if (come === "telefono") {
         const u = await ultimoRaggiungibile(p);
         if (!u.ok) riepilogo.sepolti.push(`${r.nome}/${dove}: «${u.eti}» ${u.motivo}`);
+
+        /* 3d. e lo stesso dito DENTRO le schede che questa schermata apre */
+        const sch = { aperte: 0, morti: [], sbordano: [], bloccate: [], nomi: [] };
+        await giroSchede(p, r, dove, sch);
+        riepilogo.schede += sch.aperte;
+        riepilogo.nomiSchede.push(...sch.nomi);
+        riepilogo.mortiSchede.push(...sch.morti);
+        riepilogo.sbordano.push(...sch.sbordano);
+        riepilogo.schedeBloccate.push(...sch.bloccate);
+        if (sch.aperte) console.log(`  ··  «${dove}»: ${sch.aperte} schede aperte e misurate dentro`);
+        if (sch.morti.length) { console.log(`  KO  «${dove}»: ${sch.morti.length} tasti morti DENTRO le schede`); ko++; }
       }
     }
 
@@ -227,6 +603,22 @@ ok(riepilogo.sbordano.length === 0, `schermate che sbordano a destra: ${riepilog
   + (riepilogo.sbordano.length ? " → " + riepilogo.sbordano.slice(0, 6).join(", ") : ""));
 ok(riepilogo.sepolti.length === 0, `tasti sepolti sotto la barra in basso: ${riepilogo.sepolti.length}`
   + (riepilogo.sepolti.length ? " → " + riepilogo.sepolti.slice(0, 5).join(" · ") : ""));
+console.log(`schede aperte:      ${riepilogo.schede} (${[...new Set(riepilogo.nomiSchede)].length} diverse)`);
+/* i nomi si stampano sempre: e' l'unico modo, per chi legge il rapporto la
+   mattina dopo, di sapere DOVE ha guardato questo giro e dove no */
+console.log(`   dentro: ${[...new Set(riepilogo.nomiSchede)].join(" · ")}`);
+const viste = [...new Set(riepilogo.nomiSchede)];
+const mancanti = SCHEDE_CHE_CONTANO.filter((n) => !viste.some((v) => v.toLowerCase().startsWith(n.toLowerCase())));
+for (const n of NON_ANCORA)
+  if (!viste.some((v) => v.toLowerCase().startsWith(n.toLowerCase())))
+    console.log(`  ··  «${n}» ancora fuori portata — il motivo sta accanto a NON_ANCORA, in cima al file`);
+ok(mancanti.length === 0,
+  `il giro entra nelle schede dove sta il lavoro vero (${SCHEDE_CHE_CONTANO.length - mancanti.length}/${SCHEDE_CHE_CONTANO.length})`
+  + (mancanti.length ? ` — NON raggiunte: ${mancanti.join(", ")}. Finche' non ci entra, «zero tasti morti nelle schede» non vuol dire niente.` : ""));
+ok(riepilogo.mortiSchede.length === 0, `tasti morti dentro le schede: ${riepilogo.mortiSchede.length}`
+  + (riepilogo.mortiSchede.length ? " → " + riepilogo.mortiSchede.slice(0, 5).join(" · ") : ""));
+ok(riepilogo.schedeBloccate.length === 0, `schede che non si chiudono: ${riepilogo.schedeBloccate.length}`
+  + (riepilogo.schedeBloccate.length ? " → " + riepilogo.schedeBloccate.slice(0, 5).join(" · ") : ""));
 ok(riepilogo.senzaAiuto.length === 0, `schermate senza un aiuto che le nomini: ${riepilogo.senzaAiuto.length}`
   + (riepilogo.senzaAiuto.length ? " → " + riepilogo.senzaAiuto.join(", ") : ""));
 ok(errs.length === 0, `errori di pagina: ${errs.length}` + (errs.length ? " → " + errs[0] : ""));

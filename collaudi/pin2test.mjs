@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 import { vaiA } from "./navtest.mjs";
+import { apriServer } from "./servi.mjs";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(existsSync);
 const hash = (p) => crypto.createHash("sha256").update("scp·"+p,"utf8").digest("hex");
 let ko = 0; const ok = (c,m) => { console.log((c?"  ok  ":"  KO  ")+m); if(!c) ko++; };
@@ -12,13 +13,23 @@ seed.profili = [
   {...seed.profili[1], id:"pr-gigi", nome:"Gigi", ruolo:"laboratorio",
    sedeId:seed.sedi.find(s=>s.tipo==="laboratorio")?.id, pinHash:hash("1111")},
 ];
-const URL = "file://" + path.resolve("index.html");
+/* SERVITO SU HTTP, NON APERTO DA DISCO (5 settembre 2026). Questo collaudo
+   fa vivere lo stato attraverso un ricaricamento (o fra due pagine) usando
+   localStorage, e su file:// Chromium tratta l'origine come OPACA: ogni pagina
+   puo' ricevere un'archiviazione SUA. Nel censimento di gen-6.06 pin2test e'
+   uscita rossa esattamente per questo — il secondo telefono guardava un altro
+   magazzino — e da sola passava tre volte su tre. Un'origine vera toglie di
+   mezzo la domanda. Vedi servi.mjs. */
+const srv = await apriServer();
+const URL = srv.url;
 const b = await chromium.launch({executablePath:exe,args:["--no-sandbox"]});
 const ctx = await b.newContext({viewport:{width:1280,height:950}});
-const init = (s) => { if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s);
+/* 31/08/2026 — try/catch sull'init: sull'about:blank pre-goto l'origine è
+   opaca e localStorage tira SecurityError (stessa mina di pin535/soglie). */
+const init = (s) => { try { if(!localStorage.getItem("db:scp:stato:v1")) localStorage.setItem("db:scp:stato:v1",s);
   localStorage.setItem("scp:tour:v1","1");
   window.storage={async get(k){const v=localStorage.getItem("db:"+k);return v==null?null:{value:v}},
-    async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}}; };
+    async set(k,v){localStorage.setItem("db:"+k,v);return true},async delete(k){localStorage.removeItem("db:"+k);return true}}; } catch {} };
 await ctx.addInitScript(init, JSON.stringify(seed));
 const errs = []; ctx.on("page", pg => pg.on("pageerror", e => errs.push(e.message)));
 
@@ -66,10 +77,32 @@ ok(!!pino, "il profilo «Pino» è stato creato");
 ok(pino?.pinHash === hash("5555"), "«Pino» ha in archivio il PIN che ha messo l'admin");
 
 /* ── B: Gigi, sul telefono rimasto aperto, prova il PIN NUOVO ── */
-await B.bringToFront(); await B.waitForTimeout(6000);   // il poller allinea ogni ~3s
+/* ── PERCHE' ANCHE QUESTO PUNTO ERA CAPRICCIOSO ──
+   Qui c'era «aspetta 6 secondi, tanto il poller allinea ogni 3». Da solo
+   bastava; dentro il censimento, con decine di browser che si contendono la
+   macchina, il poller arriva quando arriva — e il collaudo diventava rosso a
+   caso. Il 2 agosto e' successo, e l'output conservato dei rossi ha detto
+   esattamente questo: B vedeva ancora «Admin | Gigi» e non «Pino».
+   Adesso non si aspetta un TEMPO, si aspetta il FATTO: B e' allineato quando
+   in elenco compare «Pino», che un attimo prima non c'era. */
+await B.bringToFront();
+/* sonda del 31/08/2026 (triage): PRIMA di aspettare, si stampa cosa vede B
+   davvero — così un rosso qui dice DOVE guardare invece di far dedurre */
+console.log("   B stato:", JSON.stringify(await B.evaluate(() => ({
+  hidden: document.hidden, vis: document.visibilityState,
+  haStorage: !!window.storage,
+  profili: (JSON.parse(localStorage.getItem("db:scp:stato:v1"))||{}).profili?.map(p=>p.nome),
+  rev: (JSON.parse(localStorage.getItem("db:scp:stato:v1"))||{}).rev,
+  spia: localStorage.getItem("db:scp:rev:v1"),
+}))));
+console.log("   errori JS finora:", errs.join(" · ") || "nessuno");
+await B.getByText("Pino", { exact: false }).first().waitFor({ state: "visible", timeout: 30000 });
 console.log("   B vede:", (await B.locator("body").innerText()).replace(/\n/g," | ").slice(0,320));
 await B.getByText("Gigi",{exact:false}).first().click(); await B.waitForTimeout(400);
-await digita(B,"9999"); await B.waitForTimeout(1800);
+await digita(B,"9999");
+/* e anche l'ingresso si aspetta per quello che e', non per quanto dura */
+await B.getByText(/Buongiorno|Buonasera|Buon pomeriggio|Plancia/i).first()
+  .waitFor({ state: "visible", timeout: 30000 }).catch(() => {});
 ok(await dentro(B), "dispositivo B: Gigi entra col PIN nuovo senza ricaricare l'app");
 await B.screenshot({path:"pin2-B.png"});
 
@@ -84,14 +117,29 @@ await C.goto(URL);
    no — e il collaudo diventava rosso a caso. E' il peggior tipo di rosso:
    insegna a non fidarsi del rosso. Adesso aspetta che «Pino» ci sia davvero,
    fino a mezzo minuto, e riparte appena compare. */
-await C.getByText("Pino", { exact: false }).first().waitFor({ state: "visible", timeout: 30000 });
+/* 01/09/2026 — la mezz'ora di attesa non bastava ancora: nel censimento di
+   gen-5.99 questa riga e' scaduta a 30s (da sola, subito dopo, verde) e —
+   peggio del rosso — ha ucciso il file con un'eccezione non gestita,
+   portandosi via i due controlli che restavano e stampando uno stack di
+   node al posto di un motivo leggibile. Un banco lento deve CONTARE un
+   rosso, non morire: attesa a 60s e, se non compare, si dice quale passo
+   non e' stato provato. */
+await C.getByText("Pino", { exact: false }).first()
+  .waitFor({ state: "visible", timeout: 60000 }).catch(() => {});
 console.log("   C vede:", (await C.locator("body").innerText()).replace(/\n/g," | ").slice(0,320));
-await C.getByText("Pino",{exact:false}).first().click(); await C.waitForTimeout(400);
-await digita(C,"5555"); await C.waitForTimeout(1800);
-ok(await dentro(C), "dispositivo C: «Pino» entra col PIN messo dall'admin");
+const cVedePino = (await C.getByText("Pino",{exact:false}).count()) > 0;
+ok(cVedePino, "dispositivo C: il telefono appena aperto trova «Pino» nella lista");
+if (cVedePino) {
+  await C.getByText("Pino",{exact:false}).first().click(); await C.waitForTimeout(400);
+  await digita(C,"5555"); await C.waitForTimeout(1800);
+  ok(await dentro(C), "dispositivo C: «Pino» entra col PIN messo dall'admin");
+} else {
+  ok(false, "dispositivo C: l'ingresso col PIN nuovo non e' stato provato (la lista non ha mai mostrato «Pino»)");
+}
 await C.screenshot({path:"pin2-C.png"});
 
 ok(errs.length===0, "nessun errore JS" + (errs.length?" → "+errs[0]:""));
 await b.close();
+await srv.chiudi();
 console.log(ko ? `\n${ko} controlli falliti` : "\ntutti i controlli passati");
 process.exit(ko?1:0);

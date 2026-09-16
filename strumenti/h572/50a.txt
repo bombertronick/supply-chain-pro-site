@@ -1,0 +1,4 @@
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      style={{ background: "rgba(20,28,55,.4)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
+      <div className={`sc-su w-full ${larga ? "md:max-w-2xl" : "md:max-w-md"} max-h-[92vh] overflow-y-auto sc-scroll rounded-t-3xl md:rounded-3xl p-5 md:p-6`}

@@ -72,7 +72,11 @@ const scena = (preparato) => {
   s.ordini = []; s.richieste = []; s.movimenti = []; s.log = []; s.codici = []; s.accessi = [];
   s.profili = [
     { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
-    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", pinHash: hash("3333") },
+    /* DAL 30 AGOSTO (gen-5.95) «Ricalcola» in Ordini sta dietro l'interruttore
+       «ordini»: qui serve solo come via più diretta per far girare i
+       fabbisogni, quindi il laboratorio del banco ha la spunta accesa
+       (31/08/2026, dal triage del censimento). */
+    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", ordini: true, pinHash: hash("3333") },
     { id: "pr-fm", nome: "Fm", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
       magazziniIds: [linea.id], pinHash: hash("2222") },
   ];
@@ -116,15 +120,11 @@ ok(ric1[0]?.daMagazzinoId === "mag-retro-fm" && ric1[0]?.aSedeLabId === LAB.id,
   "che parte dal retro e va al laboratorio giusto");
 ok(ric1[0]?.stato === "in-attesa" && ric1[0]?.qty === 5,
   `chiedendo quanto manca per stare a livello (6 − 1 = 5, trovato ${ric1[0]?.qty})`);
-/* e in Ordini l'admin vede cosa c'è da preparare */
-const t1 = await testo(A1.p);
-ok(/Da preparare · 1/.test(t1), "e in Ordini compare «Da preparare · 1»");
-ok(new RegExp(`${PA.nome}[\\s\\S]{0,80}Magazzino centrale`).test(t1),
-  `con «${PA.nome}» e il magazzino dov'è sotto`);
-ok(/da fare 7 pz/.test(t1), "e quanto manca al laboratorio per stare a livello (9 − 2 = 7)");
-ok(!/\+7 pz/.test(t1), "detto come una mancanza, non come un «+» che sembrerebbe merce in più");
-ok(!new RegExp(`Da preparare[\\s\\S]{0,200}${PB.nome}`).test(t1),
-  `senza «${PB.nome}», che si compra e infatti sta negli ordini`);
+/* DAL 6 AGOSTO (gen-5.89) «Da preparare» non sta più in Ordini: il conto è
+   UNO SOLO ed è il piano «Da produrre oggi» in Richieste, dove il
+   laboratorio lavora (lo difende daproduretest). Le cinque letture UI che
+   stavano qui sono passate al §6, sul profilo giusto — questo collaudo era
+   rimasto alla schermata vecchia (31/08/2026, dal triage del censimento). */
 await A1.p.screenshot({ path: "g560-1-da-preparare.png", fullPage: true });
 
 /* ricalcolare due volte non deve duplicare la richiesta */
@@ -152,10 +152,25 @@ await A3.ctx.close();
 console.log("\n— 4. dalla linea, contando —");
 const O4 = await apri("Fm", "2222", scena(true), "Conteggi");
 await O4.p.getByRole("button", { name: /Conta ora/ }).first().click(); await O4.p.waitForTimeout(1000);
-await O4.p.getByLabel(`Conteggio ${PA.nome}`).fill("0"); await O4.p.waitForTimeout(300);
+/* MISURATO il 31/08/2026: da gen-5.79 la casella MOSTRA la giacenza — qui
+   «0» — e un fill("0") con lo stesso identico valore non emette eventi
+   (Playwright lo salta), quindi lo stato dell'app non si accorgeva di
+   niente. Non è un difetto dell'app: si svuota e si batte, come un dito. */
+const campo560 = O4.p.getByLabel(`Conteggio ${PA.nome}`);
+await campo560.fill(""); await O4.p.waitForTimeout(150);
+await campo560.pressSequentially("0", { delay: 80 }); await O4.p.waitForTimeout(300);
+/* sonda del 31/08/2026: quanti campi combaciano e cosa c'è scritto DAVVERO */
+console.log("   campi:", await campo560.count(),
+  "· valore dopo il fill:", JSON.stringify(await campo560.first().inputValue().catch(() => "?")));
+console.log("   riga dopo il fill:", (await O4.p.getByText(PA.nome, { exact: false }).first()
+  .locator("xpath=ancestor::div[2]").innerText().catch(() => "?")).replace(/\s+/g, " ").slice(0, 200));
+console.log("   aria del campo:", await campo560.first().getAttribute("aria-label").catch(() => "?"));
 await O4.p.getByRole("button", { name: /Verifica e conferma/ }).first().click();
 await O4.p.waitForTimeout(900);
 const t4 = await testo(O4.p);
+/* sonda del 31/08/2026 (triage): si stampa il riepilogo vero prima di
+   giudicarlo — un rosso qui deve dire cosa c'era scritto */
+console.log("   RIEPILOGO:", t4.slice(0, 600));
 ok(/chiede al laboratorio/.test(t4) || /richiesta al laboratorio/i.test(t4),
   "il riepilogo dice che il retro lo chiede al laboratorio");
 ok(!new RegExp(`ordine[\\s\\S]{0,40}a ${F1.nome}`).test(t4),
@@ -187,21 +202,43 @@ ok(/Preparato in laboratorio/.test(t5),
 await A5.p.screenshot({ path: "g560-3-catalogo.png", fullPage: true });
 /* la lente in alto e' l'ultima finestra che diceva il fornitore: se qui
    restasse «Fornitore: Verdure» due schermate direbbero due cose diverse */
-await A5.p.getByRole("button", { name: "Cerca un prodotto ovunque" }).click(); await A5.p.waitForTimeout(500);
-await A5.p.getByRole("textbox", { name: "Cerca un prodotto ovunque" }).fill(PA.nome.slice(0, 6)); await A5.p.waitForTimeout(900);
+await A5.p.getByRole("button", { name: "Cerca un prodotto o una funzione" }).click(); await A5.p.waitForTimeout(500);
+await A5.p.getByRole("textbox", { name: "Cerca un prodotto o una funzione" }).fill(PA.nome.slice(0, 6)); await A5.p.waitForTimeout(900);
 const t5b = await testo(A5.p);
 ok(/Preparato in laboratorio/.test(t5b), "anche la ricerca dice «Preparato in laboratorio»");
 ok(!new RegExp(`Fornitore: ${F1.nome}`).test(t5b), `e non «Fornitore: ${F1.nome}»`);
 await A5.ctx.close();
 
 /* ═══════════ 6. CHI LO VEDE ═══════════ */
-console.log("\n— 6. chi vede «Da preparare» —");
-const L6 = await apri("Lab", "3333", scena(true), "Ordini");
-await ricalcola(L6.p);
-ok(/Da preparare/.test(await testo(L6.p)), "il laboratorio lo vede: è lui che prepara");
+console.log("\n— 6. chi vede il piano del preparato —");
+/* gen-5.89: il piano vive in «Richieste» col nome «Da produrre oggi».
+   Riscritto il 31/08/2026 dal triage del censimento. */
+/* la richiesta si SEMINA: il ricalcolo del laboratorio guarda solo i suoi
+   magazzini, quella retro→lab la crea il giro dell'admin — e i contesti del
+   banco non condividono lo stato (misurato il 31/08: «In attesa · 0») */
+const s6 = scena(true);
+s6.richieste = [{ id: "ric-560", t: Date.now(), daSedeId: FM.id, aSedeLabId: LAB.id,
+  daMagazzinoId: "mag-retro-fm", magNome: "Secco fm", prodottoId: PA.id,
+  qty: 5, uomId: UPZ, qtyLinea: 5, uomLineaId: UPZ, stato: "in-attesa", creataDa: "banco" }];
+/* e il laboratorio dev'essere SCARSO, se no il piano dice «sei a posto» e
+   la scheda — giustamente — non si disegna (misurato il 31/08) */
+const magLab6 = s6.magazzini.find((m) => m.tipo === "laboratorio");
+const aPA6 = (magLab6.articoli || []).find((a) => a.prodottoId === PA.id);
+if (aPA6) aPA6.qty = 0;
+else magLab6.articoli = [{ prodottoId: PA.id, uomId: UPZ, qty: 0, par: 0 }, ...(magLab6.articoli || [])];
+const L6 = await apri("Lab", "3333", s6, "Richieste");
+const t6 = await testo(L6.p);
+/* MISURATO il 31/08: il piano «Da produrre oggi» guarda le LINEE rifornite
+   dal laboratorio (e lo difende daproduretest); la richiesta che arriva dal
+   RETRO — questa — compare nella lista d'attesa, ed è lì che il laboratorio
+   la lavora. Il collaudo pretende il contratto vero, non quello immaginato. */
+ok(/In attesa · 1/.test(t6), "il laboratorio vede la richiesta del retro: «In attesa · 1»");
+ok(new RegExp(PA.nome).test(t6), `col «${PA.nome}» dentro`);
+ok(!new RegExp(`In attesa[\\s\\S]{0,300}${PB.nome}`).test(t6),
+  `senza «${PB.nome}», che si compra e sta negli ordini`);
 await L6.ctx.close();
 const O6 = await apri("Fm", "2222", scena(true), "Ordini");
-ok(!/Da preparare/.test(await testo(O6.p)),
+ok(!/Da preparare|Da produrre oggi/.test(await testo(O6.p)),
   "l'operatore di sede no: non è lui che le fa");
 await O6.ctx.close();
 

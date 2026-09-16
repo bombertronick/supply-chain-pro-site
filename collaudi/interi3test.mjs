@@ -144,9 +144,20 @@ const leggi = (p) => p.evaluate(async () => JSON.parse((await window.storage.get
   await p.getByRole("button", { name: /Conferma tutto/ }).click(); await p.waitForTimeout(1200);
   const s = await leggi(p);
   const lin = s.magazzini.find((m) => m.id === "m-lin").articoli[0];
-  const nuova = s.richieste.find((r) => r.id !== "ric-1");
+  /* Da gen-5.76 non si guarda piu' se e' nata una riga NUOVA: la linea aveva
+     gia' una richiesta in attesa (ric-1, seminata qui sopra) e ricontando si
+     aggiorna quella invece di affiancargliene una seconda. Prima ne restavano
+     due per lo stesso prodotto dalla stessa linea, il laboratorio le serviva
+     entrambe e arrivava il doppio — era il difetto n.4 del consiglio.
+     Quindi qui si guarda LA richiesta aperta, qualunque id abbia, e si
+     controlla anche che sia una sola: e' il controllo che prima mancava. */
+  const aperte = s.richieste.filter((r) => r.stato === "in-attesa"
+    && r.prodottoId === "BUF" && r.daMagazzinoId === "m-lin");
+  const nuova = aperte[0];
   chk("la giacenza salvata è intera", lin.qty === 2, `linea ${lin.qty} pz`);
-  chk("la richiesta creata è di 2 conf intere", nuova && nuova.qty === 2 && nuova.uomId === "u-conf",
+  chk("di richieste aperte per la linea ce n'è una sola", aperte.length === 1,
+    `${aperte.length} aperte`);
+  chk("la richiesta al laboratorio è di 2 conf intere", nuova && nuova.qty === 2 && nuova.uomId === "u-conf",
     nuova ? `${nuova.qty} ${nuova.uomId}` : "nessuna richiesta");
   chk("il fabbisogno vero della linea resta 6 pz", nuova && Math.abs(nuova.qtyLinea - 6) < 1e-9,
     nuova ? `qtyLinea ${nuova.qtyLinea}` : "-");

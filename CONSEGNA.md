@@ -1,5 +1,22 @@
 # Supply Chain Pro — documento di consegna
 
+> ## DOCUMENTO STORICO — scritto per gen-5.73, non descrive il presente
+>
+> Vale come **storia** e come racconto di perché certe cose sono fatte così.
+> **Non vale come istruzioni.** Quello che qui è superato, e dove sta la verità
+> di oggi:
+>
+> | cosa | qui dice | oggi |
+> |---|---|---|
+> | copia di lavoro | allineata a gen-5.73 | `app/app.jsx`, generazione corrente in `PASSAGGIO.md` |
+> | `app:jsx:meta` | `{"len": …, "ver": "gen-5.NN"}` | stessa forma, valore vero in `PASSAGGIO.md` |
+> | protocollo di rilascio (sez. 2) | coppie scritte a mano in `strumenti/h5NN/`, `genNNN_pairs.mjs`, `sql_deploy.mjs` | `sql_diff.mjs` → `sql_spezza.mjs` → `sql_lotti.mjs`, un lotto per chiamata `execute_sql` |
+> | censimento | numeri dell'era gen-5 | riga per generazione in `PASSAGGIO.md` |
+>
+> **Il documento di riferimento è `PASSAGGIO.md`**, e la bussola per chi arriva
+> è `CLAUDE.md`. Questo cartello è tenuto onesto da `collaudi/coerenzatest.mjs`
+> §6: un documento può parlare del passato, ma deve dirlo.
+
 *Scritto il 1 agosto 2026, alla fine di una giornata di lavoro, perché fino a
 oggi tutto quello che sta in questo repository esisteva solo in una cartella
 temporanea legata a una singola sessione. L'app era al sicuro; la rete di
@@ -36,7 +53,7 @@ Il canale per scrivere è **solo** l'esecuzione SQL via MCP su Supabase
 bloccate dal proxy: non è un ostacolo da aggirare, è la regola della rete.
 
 `app/app.jsx` in questo repository è **la copia di lavoro**, allineata a
-gen-5.69. La verità resta il database.
+gen-5.73. La verità resta il database.
 
 ---
 
@@ -73,6 +90,42 @@ provato in locale.
 8. **Aggiorna `meta`** (len + ver), **cancella i pezzi tmp**, **rileggi** con
    `app_bootstrap()` e verifica che `len` dichiarata = lunghezza vera.
 
+> **Da gen-5.71 i passi 5–8 non si scrivono più a mano.**
+> `strumenti/sql_deploy.mjs <vecchio.jsx> <hNNN> <nuovo.jsx> <tag>` verifica
+> l'unicità delle ancore, l'assenza di sovrapposizioni e la ricostruzione
+> locale, e poi **genera l'SQL completo** — backup, tessere, cancello md5,
+> UPDATE condizionato, meta, pulizia. Le coordinate le contava una persona
+> leggendo un elenco, ed è esattamente lì che il 30 luglio un pezzo è partito
+> lungo un byte in meno.
+
+### `sql_diff.mjs` — e le due cose che ha reso impossibili
+
+`strumenti/sql_diff.mjs <vecchio.jsx> <nuovo.jsx> <tag> <ver>` fa lo stesso
+lavoro **senza coppie scritte a mano**: le zone che cambiano le trova `diff`.
+
+Serve quando fra la produzione e l'ultima versione ci sono più generazioni:
+gen-5.70 e gen-5.71 erano tutte e due pronte, ma **gen-5.70 non l'ha mai vista
+nessuno**. Passarci sopra avrebbe significato toccare la produzione due volte
+per niente. Una sola scrittura, da gen-5.69 a gen-5.71.
+
+Due protezioni che vengono da altrettanti sbagli veri:
+
+1. **I pezzi di testo viaggiano in base64.** Il 2 agosto un pezzo conteneva
+   `/[̀-ͯ]/` — la sequenza che in JavaScript indica gli accenti da
+   togliere. Nel passaggio verso il server quella sequenza è diventata il
+   *carattere* vero: il pezzo salvato era 10 caratteri più corto di quello
+   provato in locale. **Il cancello md5 l'ha preso prima che si scrivesse
+   qualcosa**, ma il modo di non correre il rischio è un altro: il base64 è
+   fatto di sole lettere e numeri, e non c'è niente dentro che qualcuno possa
+   interpretare per strada.
+2. **La `meta` si aggiorna solo se il sorgente è davvero cambiato.**
+   `... and (select md5(value) from kv_store where key='app:jsx:src') = '<md5
+   nuova>'`. Senza, un UPDATE che non ha scritto niente lascerebbe una
+   lunghezza dichiarata diversa da quella vera — ed è il caso esatto in cui il
+   caricatore rifiuta di partire e **l'app non si apre più**. Con questa
+   condizione l'intero file si può eseguire in un colpo solo: se il cancello
+   non si apre, non cambia niente da nessuna parte.
+
 > `app_bootstrap()` restituisce `meta` come **stringa** JSON: va convertita con
 > `(b.j->>'meta')::jsonb`, se no i confronti falliscono in silenzio.
 
@@ -80,7 +133,7 @@ provato in locale.
 
 ## 3. I collaudi
 
-61 file in `collaudi/`, **1076 controlli veri**. Girano con Chromium senza rete:
+63 file in `collaudi/`, **1172 controlli veri**. Girano con Chromium senza rete:
 l'app viene compilata in un pacchetto locale e i dati sono finti.
 
 ```bash
@@ -91,7 +144,7 @@ node corri.mjs --censimento    # li fa girare TUTTI, senza fermarsi
 node corri.mjs nometest.mjs    # uno solo
 ```
 
-**Tre esiti, non due.** `verde`, `ROSSA` e **`MUTA`**. Un file che gira, esce
+**Tre esiti diventati quattro.** `verde`, `ROSSA` e **`MUTA`**. Un file che gira, esce
 pulito e non stampa nemmeno un controllo non prova niente: per mesi ne ho
 contati diversi come verdi. Chiamarli col loro nome è metà del valore.
 
@@ -100,6 +153,35 @@ contati diversi come verdi. Chiamarli col loro nome è metà del valore.
 ho invalidato tre censimenti ricostruendo il pacchetto mentre giravano: i file
 provati prima e quelli dopo avevano visto due versioni diverse. Non è una
 distrazione da ricordare, è una possibilità da togliere.*
+
+**QUATTRO esiti, non tre.** Al `verde` / `ROSSA` / `MUTA` si è aggiunto
+**`SALTA`**: la suite non è partita perché le manca un file di dati che in
+questo repository non c'è (vedi sotto). *Un rosso che non è un difetto è la
+cosa peggiore da mettere in un rapporto automatico: insegna a ignorare i
+rossi.* Le saltate non contano come difetto e non spariscono dal conto.
+
+**L'output dei rossi si conserva** in `collaudi/rossi/<nome>.txt`, e le ultime
+25 righe di ognuno finiscono nel riassunto. *Era una lacuna dichiarata: di una
+suite che cade solo sotto carico non si riusciva a sapere quale controllo fosse
+caduto. Con il censimento che gira di notte da solo non era più una scomodità —
+senza, il rapporto della mattina dice «rossa» e nessuno può farci niente.*
+*E la prima volta che è servito davvero è stato subito.* Nel censimento di
+gen-5.73 `pin2test` è caduto: l'output conservato ha mostrato **quale**
+controllo e **perché** — il dispositivo B vedeva ancora `Admin | Gigi` e non
+`Pino`, cioè l'allineamento non era ancora arrivato. Lì c'era scritto «aspetta
+6 secondi, tanto il poller allinea ogni 3». Adesso non aspetta un tempo,
+**aspetta il fatto**: che «Pino» compaia. Restano da sistemare allo stesso modo
+`pintest` e `pin535test`.
+
+**Sette collaudi vengono saltati su un clone appena fatto**, e non è una
+dimenticanza. `catalogotest`, `conv551test`, `convtest`, `gen552test`,
+`mappatest`, `pesotest` e `ripristinotest` leggono `stato-vero.json`,
+`stato-vero-conv.json` e `topologia-vera.json`: sono **i dati veri di
+produzione** — nomi dei prodotti, fornitori, ordini, giacenze. **Questo
+repository è pubblico**, quindi quei tre file stanno nel `.gitignore` e non ci
+entrano. Si rigenerano esportando da *Gestione → Sistema → Backup* e
+rinominando il file. Senza, `corri.mjs` li dichiara `SALTA` con il nome del
+file mancante — non rossi.
 
 **Ogni collaudo si spiega da solo.** In cima a ognuno c'è un commento che dice
 quale difetto ha preso e perché quel controllo esiste. Leggeteli: valgono più
@@ -110,12 +192,76 @@ I tre che contano di più:
 - **`generaletest.mjs`** — il giro completo: 44 schermate × 3 ruoli × 2 schermi.
   Verifica che ogni schermata si raggiunga, che non sia vuota, che non sbordi, e
   soprattutto che **ogni tasto che si vede si possa premere davvero** (mette il
-  dito al centro e guarda chi se lo prende). È l'unico che avrebbe preso il
-  difetto peggiore del 31 luglio.
+  dito al centro e guarda chi se lo prende).
+  **Limite da sapere, trovato dal consiglio del 2 agosto:** gira sulle 44
+  schermate e su **zero** delle ~40 schede che si aprono sopra (Gestione rapida,
+  Rettifica giacenza, Trasferimento, Registra scarto, Ho prodotto, Ricezione
+  merce, Evadi richiesta, Importa CSV). Fino al 2 agosto qui c'era scritto che
+  era «l'unico che avrebbe preso il difetto peggiore del 31 luglio»: **non è
+  vero**, quel difetto stava dentro una scheda che questo giro non apre mai, e
+  l'hanno preso `bulk2test.mjs` e `lentesempretest.mjs`. Estenderlo alle schede
+  è nella roadmap.
 - **`bulk2test.mjs`** — quel difetto: in «Gestione rapida» tre voci su sei si
   vedevano benissimo e il dito ci passava attraverso.
 - **`reporttest.mjs`** — le due porte da cui esce testo diretto a un fornitore.
   Controlla che un preparato non ci entri *e* che una riga «lab» ci resti.
+- **`inviaggiotest.mjs`** — la merce già ordinata non si riordina. Va letto per i
+  suoi **controcontrolli**, non per la prova principale: sottrarre quello che è
+  in viaggio è facile, sottrarre troppo è facilissimo, e in una cucina non
+  ordinare abbastanza è peggio che ordinare due volte. Sette dei tredici
+  controlli servono solo a escludere che l'app abbia semplicemente smesso di
+  ordinare — merce ricevuta che non si sottrae, differenza chiesta quando il
+  viaggio non copre tutto, riga chiusa che fa tornare il fabbisogno, riga
+  dimenticata che scade dopo sette giorni.
+
+### Girano da soli, ogni notte
+
+`.github/workflows/collaudi.yml` — ogni notte alle **03:10 UTC**, a ogni push
+su `main` o su un ramo `claude/**` che tocchi `app/` o `collaudi/`, e a mano
+dalla scheda *Actions*. Se qualcosa diventa rosso **GitHub manda una mail al
+proprietario del repository**: è quello il rapporto della mattina dopo.
+L'output dei rossi resta scaricabile per 30 giorni.
+
+**Cosa prova, e cosa no.** Prova `app/app.jsx`, cioè la copia che sta qui — non
+quella online. La produzione sta in un database, e raggiungerla da un workflow
+vorrebbe dire mettere una chiave in un repository pubblico: non si fa. Le due
+copie coincidono perché **ogni rilascio le allinea nello stesso commit**; se un
+giorno non coincidessero, il posto dove accorgersene è il rilascio.
+
+**I primi due giri, per memoria.** Il primo è andato **rosso**, e ha trovato
+due file mai salvati — da cui la scoperta delle librerie congelate qui sopra.
+Il secondo: **55 verdi (976 controlli veri) · 0 mute · 0 rosse · 7 saltate**, in
+26 minuti, più veloce del contenitore in cui lavoro. *`pintest`, `pin2test` e
+`pin535test` — le tre dichiarate fragili sotto carico — sono verdi anche lì:
+quella fragilità non si è riprodotta, e non le ho toccate.*
+
+> **GitHub spegne i lavori a orario dopo 60 giorni senza attività sul
+> repository, e non lo dice.** Se per due mesi non si tocca niente, il
+> censimento notturno smette di partire. Si riaccende dalla scheda *Actions*.
+
+### Perché la costruzione rifà tutto quello che è costruito
+
+`build.mjs` rigenera **tre cose** dal sorgente in prova, a ogni pacchetto, e se
+una fallisce **si ferma** invece di costruirne uno zoppo:
+
+1. il pacchetto dell'app (`bundle.js`);
+2. il foglio di stile (`tw.css`);
+3. le **sei librerie di logica** (`*.cjs`) che cinque collaudi chiamano
+   direttamente, senza passare dalle schermate.
+
+*Perché tutte e tre. Il 2 agosto ho scoperto che le ultime due erano prodotti
+congelati: `tw.css` era del 30 luglio, le librerie del 29. Ogni classe grafica
+scritta dopo quella data nel banco di prova **non c'era**, e le librerie non
+conoscevano né `calcoloProduzione` né `AZIONI` — per nove giorni cinque
+collaudi hanno chiamato la logica di allora e dato verde su codice che non
+esisteva più. **Erano verdi per il motivo sbagliato.** Rigenerate dal codice di
+oggi passano tutte e cinque, quindi non stavano coprendo uno scostamento vero;
+ma il verde non valeva niente lo stesso.*
+
+`tw.css`, `*.cjs`, `*-lib-src.jsx`, `app-under-test.jsx`, `bundle.js` e
+`rossi/` stanno nel `.gitignore`. **Un prodotto della costruzione salvato è un
+prodotto che invecchia** — e invecchia in silenzio, che è la parte peggiore. I
+sorgenti sono i `mk*.mjs`, e quelli sì che vanno salvati.
 
 **Attenzione a `navtest.mjs`**: esporta `vaiA(p, dove)`, che sa che da gen-5.52
 Catalogo, Analisi, Storico, Sedi, Profili, Accessi e Sistema stanno sotto
@@ -126,8 +272,7 @@ rossi senza che l'app abbia niente che non va.
 
 ## 4. Cos'è online adesso
 
-**gen-5.69** è **costruita e collaudata ma NON ancora online.** L'ultima in
-produzione è **gen-5.68**.
+**In produzione: gen-5.73.** Censimento completo verde prima di ogni rilascio.
 
 | versione | cosa |
 |---|---|
@@ -135,16 +280,69 @@ produzione è **gen-5.68**.
 | gen-5.66 | marcare in blocco chi fa un prodotto · **e le due porte verso il fornitore che non ordinano più fuori i preparati** |
 | gen-5.67 | il tutorial: 9 guide che mancavano, il tasto del « ? » che non dice più «Guida di "Home"» |
 | gen-5.68 | **le ricette**: il gesto «Ho prodotto» che scala gli ingredienti |
-| gen-5.69 | **pronta, non online**: «In quali magazzini sta» dalla riga del prodotto |
+| gen-5.69 | «In quali magazzini sta» dalla riga del prodotto, e l'avviso dei prodotti orfani che porta il rimedio con sé |
+| gen-5.70 | **la lente 🔍 trova anche le funzioni**: 25 voci, cercabili con la parola che userebbe una persona |
+| gen-5.71 | **«Gestione rapida» diventa un pannello a tre gruppi**, con le stesse identiche parole della ricerca |
+| gen-5.72 | **la lente si raggiunge sempre**, anche con una scheda aperta — e i salti dalla lente chiudono quello che avevi aperto |
+| gen-5.73 | la fascia libera **anche sul telefono** (la scheda non si taglia più) · **«Da mandare adesso» diviso per categoria**, laboratorio compreso |
 
-**Rimasto da fare, richiesto e non fatto:**
+### Le ultime due, e perché sono una cosa sola
 
-- **B** — la ricerca 🔍 deve trovare anche **le funzioni**, non solo i prodotti.
-  Scrivi «sposta» e ti porta a «Sposta o rimuovi prodotti». È la risposta alla
-  frase: *«devo poter fare tutto senza dovermi ricordare in che parte dell'app
-  ho quella funzionalità»*.
-- **C** — «Gestione rapida» riordinata a gruppi (*Aggiungere · Spostare ·
-  Livelli*), con le stesse parole che usa la ricerca.
+Nascono da una frase: *«devo poter fare tutto senza dovermi ricordare in che
+parte dell'app ho quella determinata funzionalità che mi serve; un centro di
+comando si chiama tale quando controlla tutte le sue periferiche»*.
+
+Il conto le dava ragione: **mettere un prodotto in un magazzino si poteva fare
+in quattro modi, con quattro nomi diversi, in tre schermate.** Spostare i tasti
+non sarebbe bastato.
+
+**gen-5.70** — la tabella `AZIONI` (25 voci). Ognuna porta delle *parole*: come
+la cercherebbe una persona, non come si chiama nel menù. Chi ha in testa «devo
+togliere della roba» scrive «togli», non «Sposta o rimuovi prodotti». La
+ricerca ignora gli accenti (`senzaAccenti`) e **filtra per ruolo**: un operatore
+non trova porte che poi non può aprire.
+
+**gen-5.71** — il menù non riscrive più i nomi delle sue voci: li prende da
+`AZIONI` con `nomeAzione(k)`, e anche i **titoli dei fogli** che si aprono.
+Prima erano tre stringhe diverse per la stessa cosa. Adesso è una sola, e
+`collaudi/gestionerapidatest.mjs` §2 lo **prova senza scriverla**: legge il nome
+dal menù e poi lo cerca con la lente. Se qualcuno domani lo cambia in un posto
+solo, diventa rosso da solo.
+
+> **Il prezzo del posto sullo schermo, e il collaudo che lo fa pagare.**
+> Dando alle voci i nomi lunghi della ricerca, i titoli sono andati a capo e
+> l'ultima voce è finita sotto il bordo di un telefono 390×844. Si vedeva solo
+> scorrendo. I nomi sono stati accorciati fino a farceli stare tutti e sei, e
+> **§5 di `gestionerapidatest` boccia se una settima voce, o un nome più lungo,
+> rifà sbordare il pannello.** Su schermi da 360px il foglio scorre ancora: lì
+> non ci stanno, ed è dichiarato invece che scoperto per caso.
+
+### gen-5.72 — la lente si raggiunge sempre, e le due trappole per arrivarci
+
+Il difetto che gen-5.71 aveva trovato e lasciato aperto: l'intestazione con la
+lente stava **sotto** i `Foglio` (`fixed inset-0 z-50`), quindi per cercare
+qualcosa bisognava prima chiudere quello che si stava facendo.
+
+**Trappola 1 — dove va messo lo z-index.** Il primo tentativo l'ho messo sul
+*tasto* della lente, e non è servito a niente. L'intestazione ha
+`backdropFilter`, e **`backdrop-filter` crea un contesto di impilamento**: lo
+z-index di un figlio resta prigioniero lì dentro e non si confronta con i
+fogli. Va alzata **l'intestazione intera** — `position:relative; zIndex:60`,
+sopra i fogli (50) e sotto il tutorial (80).
+
+**Trappola 2 — il prezzo, misurato e non immaginato.** Con l'intestazione
+sopra, su un portatile **1440×760** un foglio alto partiva a 30px e il suo
+**titolo** finiva coperto. Da `md` in su i fogli lasciano libera quella fascia
+via `.sc-foglio` — **CSS nostro, dentro il codice, non una classe Tailwind
+nuova**: il banco di prova usa un CSS precompilato e il caricatore di
+produzione non è leggibile da qui, quindi una classe nuova poteva esserci in un
+posto e non nell'altro. `lentesempretest` §6 tiene ferma la fascia.
+
+**Il pezzo che non si vedeva.** Saltare dalla lente a una funzione della
+sezione in cui si è *già* non cambiava la chiave del contenuto: la scheda
+restava davanti e il tocco sembrava andato a vuoto. Un contatore (`giro`) sale
+a ogni salto fatto dalla lente e rimonta il contenuto; la navigazione normale
+non lo tocca. **Una promessa mantenuta a metà è peggio di una non fatta.**
 
 ---
 
@@ -158,12 +356,13 @@ tiene ferma una funzione che è già costruita e collaudata.
 | **Le dosi delle ricette** | La macchina c'è e funziona. Senza «quanta farina in una breccola» non scala niente. Basta **una sola ricetta** per provare il giro intero. |
 | **Da quale magazzino escono gli ingredienti** | Oggi: un magazzino della stessa sede che ce l'ha, preferendo chi ne ha abbastanza — e la schermata lo scrive prima di applicare. Se in cucina funziona diversamente, cambia solo quella preferenza. |
 | **Quali prodotti li fa il laboratorio** | In catalogo sono **zero**. Finché è zero, tutto il lavoro sui preparati è in piedi ma non tocca niente. Si marcano in blocco: Catalogo → Prodotti → Modifica in blocco → «Chi lo fa». |
-| **Il PIN dell'admin** | È ancora quello di partenza. Va cambiato. (Non è scritto qui, e non deve esserlo.) |
+| **Il PIN dell'admin** ⚠️ | È ancora quello di partenza, ed è **la cosa più urgente di questa tabella**. Non perché sia scritto qui — non lo è — ma perché **questo repository è pubblico** e i collaudi, per funzionare, contengono in chiaro i PIN dimostrativi. Finché quello vero coincide con quello dimostrativo, chi trova il repository trova la porta aperta. Va cambiato dall'app, oggi. |
 | **12 righe d'ordine finte** | Righe di tipo `lab` in stato «ricevuto» per cose che il laboratorio si fa da sé: acquisti mai avvenuti. Si possono cancellare. |
 | **I prezzi** | 0 prodotti su 102 ce l'hanno. Senza, «quanto vale la merce» salta le righe e lo dichiara. |
 | **34 conversioni stimate** | L'app le tiene marcate come stime. Vanno pesate. |
-| **7 prodotti in nessun magazzino** | Nessuno li conta, non entrano in nessun ordine. Da gen-5.69 si sistemano dal Catalogo. |
+| **7 prodotti in nessun magazzino** | Nessuno li conta, non entrano in nessun ordine. Da gen-5.69 si sistemano dal Catalogo, senza cambiare schermata. |
 | **Duplicati** | fiori di zucca ×2, pecorino, grana, peperoni, basilico, carta forno. |
+| **Quanto dura un ordine «in viaggio»** | Da gen-5.74 l'app non riordina quello che è già partito, ma **si fida di una riga «ordinato» per sette giorni** e poi torna a chiedere. Il numero l'ho scelto io: serve perché nessuno obbliga a registrare una consegna, e una dimenticanza zittirebbe quel prodotto per sempre. Se i fornitori sono più lenti, si cambia `GIORNI_IN_VIAGGIO` — sta in un posto solo. |
 
 ---
 
@@ -182,3 +381,28 @@ contrario.** `bulk2test` era rosso da mesi e l'avevo messo da parte dando la
 colpa a lui, dopo quattro tentativi. Aveva ragione: c'era un difetto vero, e
 grosso. Lo stesso giorno `roadmaptest` ha trovato una parentesi che avevo
 dimenticato io. Due volte su due il collaudo aveva ragione e io torto.
+
+**«Ha ragione lui» non vuol dire «è colpa dell'app».** Il censimento di
+gen-5.71 è uscito con **tre rosse**, e le tre risposte erano tre cose diverse:
+
+| rossa | cos'era |
+|---|---|
+| `bulk3test` | cercava un nome di voce che avevo cambiato io — difetto **del collaudo**, causato dalla modifica |
+| `gen560test` | l'etichetta della lente cambiata a metà: tasto e campo dicevano due cose diverse — difetto **dell'app**, corretto nell'app |
+| `gen552test` | la stessa etichetta, **più** un secondo rosso che non c'entrava niente |
+
+Il secondo rosso di `gen552test` merita di essere raccontato. Il file seminava
+un evento a *«adesso meno tre ore»* e lo chiamava **oggi**. Il censimento è
+capitato all'1:37 di notte: tre ore prima era **ieri**. Non l'aveva mai preso
+nessuno perché non era mai girato a quell'ora.
+
+**Come l'ho dimostrato, invece di dedurlo:** ho ripreso il collaudo nella
+versione *precedente alle mie modifiche* e l'ho fatto girare contro
+**gen-5.69, cioè quello che era online in quel momento**. Stesso rosso, stesso
+numero. Se non l'avessi fatto, avrei potuto passare ore a cercare nella mia
+modifica un difetto che stava altrove.
+
+*Adesso i tempi di quel file sono ancorati alla mezzanotte di oggi, non a
+«adesso meno qualcosa»: quello che deve essere di oggi lo è a qualunque ora si
+giri.* **Un collaudo che dipende dall'ora è peggio di un collaudo che manca:
+manda a cercare un difetto che non c'è.**

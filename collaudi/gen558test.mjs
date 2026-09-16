@@ -67,9 +67,14 @@ const scena = (ordini, prezzi = {}) => {
   s.richieste = []; s.movimenti = []; s.log = []; s.codici = []; s.accessi = [];
   s.profili = [
     { id: "pr-admin", nome: "Admin", ruolo: "admin", colore: "#8A63F4", pinHash: hash("1234") },
+    /* DAL 30 AGOSTO (gen-5.95) i tre tasti in cima a «Ordini» — Storico,
+       Ricalcola, Report — stanno dietro l'interruttore «ordini»: qui si prova
+       CHI VEDE QUALI RIGHE nello storico, non il pavimento del mestiere puro,
+       quindi operatore e laboratorio hanno la spunta accesa. Ricevere la
+       merce resta a tutti e non passa da qui (31/08/2026, dal triage). */
     { id: "pr-fm", nome: "Fm", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-      magazziniIds: [retro.id], pinHash: hash("2222") },
-    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", pinHash: hash("3333") },
+      ordini: true, magazziniIds: [retro.id], pinHash: hash("2222") },
+    { id: "pr-lab", nome: "Lab", ruolo: "laboratorio", sedeId: LAB.id, colore: "#22B8CF", ordini: true, pinHash: hash("3333") },
   ];
   return s;
 };

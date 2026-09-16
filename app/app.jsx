@@ -6,7 +6,10 @@ import {
   Store, ShieldCheck, ArrowLeft, Database, Copy, Upload, Download,
   RotateCcw, History, Save, CheckCheck, KeyRound, UserPlus, Send, Clock,
   BarChart3, TrendingUp, ArrowLeftRight, FileSpreadsheet, PackageCheck, Search, PackageMinus,
-  Minus, Gauge, Zap, Gamepad2,
+  /* niente joypad: l'icona da videogioco sulla Plancia diceva «giocattolo»
+     a chi valutava l'app — la Plancia e' un cruscotto, l'icona e' Gauge
+     (gen-5.99, dal giudizio del gruppo misto) */
+  Minus, Gauge, Zap,
 } from "lucide-react";
 
 /* ═══════════════ SUPPLY CHAIN PRO · Gen 1 ═══════════════
@@ -58,6 +61,25 @@ html,body,#root{height:100%;height:100dvh}
 .sc-fade{animation:scFade .4s ease}
 .sc-pop{animation:scPop .3s ease backwards}
 .sc-su{animation:scSu .38s cubic-bezier(.2,.9,.3,1) backwards}
+/* Da md in su i fogli lasciano libera la fascia dell'intestazione, che da
+   gen-5.72 sta sopra di loro. Sul telefono non serve: li' il foglio e' ancorato
+   in basso e parte gia' sotto. */
+/* La fascia dell'intestazione resta libera a QUALUNQUE larghezza. Da gen-5.72
+   l'intestazione sta sopra i fogli, e sul telefono le avevo lasciato solo tre
+   pixel di margine: 68 contro 65, misurati in un browser senza barre. Sul
+   telefono vero — con la barra dell'indirizzo e la tacca — quei tre pixel non
+   ci sono, e il titolo della scheda finiva sotto l'intestazione. Segnalato con
+   una fotografia, non trovato da me.
+   L'altezza massima adesso e' il 100% del riquadro GIA' scontato della fascia,
+   non una percentuale di vh: sul telefono vh conta anche la parte coperta
+   dalla barra del browser, ed e' proprio li' che il conto sbagliava.
+   La fascia e' 5rem, non 4,2: con 4,2 il margine tornava a essere di due pixel,
+   e un margine di due pixel non e' un margine. */
+.sc-foglio{padding-top:calc(5rem + env(safe-area-inset-top))}
+.sc-foglio>.sc-su{max-height:100%}
+@media (min-width:768px){
+  .sc-foglio{padding-bottom:2rem}
+}
 .sc-shake{animation:scShake .4s ease}
 .sc-gira{animation:scGira 1.2s linear infinite}
 .sc-conta{animation:scConta .34s cubic-bezier(.3,1.4,.5,1) both}
@@ -111,6 +133,49 @@ const TIPI_MAG = {
    remoto e applica la mutazione sul più recente (rev crescente):
    la finestra di conflitto si riduce a pochi ms.              */
 const CHIAVE = "scp:stato:v1";
+/* ─────────── LA SPIA LEGGERA ───────────
+   Difetto n.6 del consiglio del 2 agosto: «lo storico dei movimenti viaggia
+   intero ogni tre secondi». Guardando il ciclo, il peso non era il vero
+   problema: il problema era che ogni telefono riscaricava lo stato INTERO
+   ogni tre secondi anche quando non era cambiato niente, e solo dopo
+   confrontava il numero di revisione. Misurato il 3 agosto sui dati veri:
+   169 KB di stato, di cui 81 KB di soli movimenti — cioe' quasi la meta' — e
+   quel pacchetto partiva venti volte al minuto per ogni telefono acceso. Fa
+   piu' di un giga e mezzo di dati mobili per turno, per persona.
+   Adesso accanto allo stato c'e' una chiave che contiene SOLO il numero di
+   revisione, venti byte. Il ciclo chiede quella; lo stato intero si scarica
+   solo quando c'e' davvero qualcosa di nuovo.
+   Due cose che tengono in piedi la cosa anche quando va storta: la spia si
+   scrive DOPO lo stato — se fallisce, gli altri telefoni non perdono niente,
+   perche' comunque ogni dieci giri si fa una lettura piena — e se la spia non
+   c'e' o non si legge, si torna esattamente al comportamento di prima. Una
+   scorciatoia che quando si rompe smette di far vedere le novita' sarebbe
+   peggio del peso che toglie. */
+const CHIAVE_REV = "scp:rev:v1";
+/* l'ultimo numero che HO scritto sulla spia: serve a non farla scendere
+   (gen-6.21, vedi scriviRemoto) */
+let spiaScritta = 0;
+const MAX_GIRI_MAGRI = 10;        /* dopo dieci giri leggeri, uno pieno comunque */
+/* ── DA QUANTO E' CONFERMATA UNA LISTA (gen-6.15) ──
+   La soglia oltre la quale l'eta' di una lista smette di essere
+   informazione e diventa un avviso.
+   L'ETA' SI CONTA DALL'ULTIMA LETTURA PIENA, non dall'ultimo giro del poll,
+   e la differenza e' tutto. Un giro magro prova solo che scp:rev:v1
+   risponde: la lista non viene nemmeno chiesta. Contarlo come contatto
+   avrebbe fatto dire «confermata adesso» al tablet ripreso in mano dopo
+   venti minuti di schermo spento — il risveglio fa un giro magro — cioe'
+   una bugia nell'istante di rischio massimo.
+   DA DOVE VIENE IL NUMERO, E COSA NON E'. In salute, fra due letture piene
+   passano fino a MAX_GIRI_MAGRI giri magri: ~35 s, piu' i 12 s del watchdog
+   che sblocca un ciclo appeso. Sopra quello, qualcosa non sta arrivando.
+   Ma NON e' un tetto garantito dal codice: giriMagri si azzera PRIMA della
+   lettura, quindi una lettura piena fallita rimette il telefono in regime
+   magro per altri dieci giri. E' una soglia DICHIARATA — «oltre questo
+   tempo la lista puo' essere ferma» — non una promessa. Il tetto vero si
+   otterrebbe spostando quell'azzeramento, ma quella e' la museruola, cioe'
+   il PASSO 4 del pavimento, non questo giro. */
+const POLL_MAX_MS = 3500;
+const SOGLIA_VISTA_FERMA = MAX_GIRI_MAGRI * POLL_MAX_MS + 12000;
 const haStorage = () => typeof window !== "undefined" && !!window.storage;
 
 async function leggiRemoto() {
@@ -119,10 +184,64 @@ async function leggiRemoto() {
     return r && r.value ? JSON.parse(r.value) : null;
   } catch { return null; }
 }
+async function revRemota() {
+  try {
+    const r = await window.storage.get(CHIAVE_REV, true);
+    const n = r && r.value != null ? Number(r.value) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
 async function scriviRemoto(stato) {
   try {
+    /* il battito si timbra QUI perche' qui passano TUTTE le scritture, non
+       solo quelle che nascono da una mutazione: la prima stesura lo metteva
+       accanto a «nuovo.rev» dentro sincronizza, dichiarando che fosse
+       l'unico punto — e non lo e', il seed del primo avvio scrive da un'altra
+       parte. L'esito sarebbe stato al contrario del senso comune: seed
+       riuscito = documento senza battito, seed fallito = documento timbrato
+       dal ripiego. (gen-6.15) */
+    stato.telefoni = battito(stato.telefoni, stato.rev);
     const r = await window.storage.set(CHIAVE, JSON.stringify(stato), true);
-    return !!r;
+    if (!r) return false;
+    /* ── UNA RISPOSTA CHE PORTA UN ERRORE NON E' UN SALVATAGGIO (gen-6.07) ──
+       Il server rifiuta in DUE modi e nessuno dei due e' un valore falso:
+       app_kv_set.sql:41 RITORNA json_build_object('error','auth') quando la
+       sessione e' scaduta, e le righe 61-64 SOLLEVANO 40001 sul conflitto fra
+       due casse — il rifiuto quotidiano, non quello raro. In mezzo c'e' il
+       caricatore, che non sta nel repository e non si puo' leggere: puo'
+       consegnare il json nudo, incartarlo come fa supabase-js
+       ({data:{...},error:null}) o passare il corpo di PostgREST ({code,...}).
+       Il controllo qui sopra guarda solo il falsy, e un oggetto e' truthy:
+       questa funzione tornava TRUE. Chi chiama credeva salvato, tagliava la
+       coda e specchiaCoda cancellava scp:coda:v1 dal telefono — le vendite
+       sparivano da tutte e due le parti, in silenzio.
+       MISURATO dal banco su tutte e tre le forme: «SPARITA, il telefono
+       l'ha cancellata». Non era teoria.
+       Tre nomi perche' le forme sono tre, e nessuna di quelle del SUCCESSO ne
+       porta uno: {ok:true} (la forma vera, app_kv_set.sql:70), true secco e
+       l'eco {key,value,shared} passano tutte e tre — provate una per una. */
+    if (typeof r === "object" && (r.error || r.data?.error || r.code)) return false;
+    /* ── LA SPIA NON TORNA INDIETRO (gen-6.21) ──
+       Questa riga sta DOPO lo stato e su una chiave che il cancello del server
+       non protegge (app_kv_set.sql guarda solo scp:stato:v1). Un ciclo di
+       salvataggio rimasto appeso oltre i dodici secondi del watchdog rientra
+       quando un altro ha gia' scritto, e qui riscriveva il PROPRIO numero, piu'
+       basso: da quel momento il poll di ogni telefono fermo a quella revisione
+       cade nel giro magro e non chiede piu' la lista per dieci giri, cioe'
+       26-35 secondi — ed e' cieco esattamente sui telefoni a cui manca
+       l'ultima vendita. Si scrive solo se il numero SALE, e si timbra solo
+       dopo che la scrittura e' andata a buon fine.
+       LIMITE DICHIARATO: questa memoria e' MIA, quindi ferma solo le mie
+       scritture all'indietro. La spia e' globale e un altro dispositivo puo'
+       sempre riscriverla piu' bassa: la cura completa e' un cancello su quella
+       chiave dentro il server, cioe' il pavimento del traffico. */
+    if ((stato.rev || 0) > spiaScritta) {
+      try {
+        await window.storage.set(CHIAVE_REV, String(stato.rev || 0), true);
+        spiaScritta = stato.rev || 0;
+      } catch {}
+    }
+    return true;
   } catch { return false; }
 }
 
@@ -308,6 +427,42 @@ const parOggi = (a) => {
 };
 const sottoScorta = (m) => m.articoli.filter((a) => a.qty < parOggi(a)).length;
 
+/* ── L'ORDINE DELLE LISTE (gen-5.93) ──
+   Chiesto da Valerio: «quando seleziono un prodotto tra le scelte ho bisogno
+   di vedere le scelte con una visualizzazione ordinata». Misurato prima di
+   correggere: NESSUN punto di scelta ordinava — ogni lista usciva nell'ordine
+   in cui i prodotti erano stati creati, che per chi legge e' il caso.
+   La regola, una sola per tutta l'app:
+   · i PRODOTTI in alfabeto italiano (localeCompare "it"), dentro i gruppi di
+     categoria dove i gruppi ci sono;
+   · i MAGAZZINI per sede (nell'ordine di stato.sedi) e per nome;
+   · le CATEGORIE restano nell'ordine di stato.categorie: quello e' una scelta
+     di chi le ha create, usata identica in tutta l'app — alfabetizzarla
+     romperebbe un ordine voluto. Le unita' di misura restano com'erano per lo
+     stesso motivo: poche, e in un ordine abituale. */
+const perNomeIt = (a, b) => (a?.nome || "").localeCompare(b?.nome || "", "it", { sensitivity: "base" });
+const ordinaPerNome = (lista) => [...lista].sort(perNomeIt);
+const articoliPerNome = (stato, arts) => [...arts].sort((x, y) =>
+  (trova(stato.prodotti, x.prodottoId)?.nome || "").localeCompare(
+    trova(stato.prodotti, y.prodottoId)?.nome || "", "it", { sensitivity: "base" }));
+const magazziniPerSede = (stato, mags) => [...mags].sort((a, b) =>
+  stato.sedi.findIndex((x) => x.id === a.sedeId) - stato.sedi.findIndex((x) => x.id === b.sedeId)
+  || perNomeIt(a, b));
+/* per le tendine di prodotti: gruppi per categoria (optgroup nativi, che il
+   telefono mostra come intestazioni), alfabeto dentro ogni gruppo */
+function gruppiProdotto(stato, prodotti) {
+  const byCat = {};
+  for (const p of prodotti) (byCat[p.categoriaId] = byCat[p.categoriaId] || []).push(p);
+  const gruppi = [];
+  for (const c of stato.categorie) if (byCat[c.id]) {
+    gruppi.push({ nome: c.nome, opzioni: ordinaPerNome(byCat[c.id]).map((x) => ({ id: x.id, nome: x.nome })) });
+    delete byCat[c.id];
+  }
+  const resto = Object.values(byCat).flat();
+  if (resto.length) gruppi.push({ nome: "Senza categoria", opzioni: ordinaPerNome(resto).map((x) => ({ id: x.id, nome: x.nome })) });
+  return gruppi;
+}
+
 /* raggruppa articoli per categoria merceologica, nell'ordine di stato.categorie */
 function perCategoria(stato, arts) {
   const byCat = {};
@@ -316,8 +471,8 @@ function perCategoria(stato, arts) {
     (byCat[cid] = byCat[cid] || []).push(a);
   }
   const gruppi = [];
-  for (const c of stato.categorie) if (byCat[c.id]) gruppi.push({ cat: c, arts: byCat[c.id] });
-  if (byCat["_"]) gruppi.push({ cat: null, arts: byCat["_"] });
+  for (const c of stato.categorie) if (byCat[c.id]) gruppi.push({ cat: c, arts: articoliPerNome(stato, byCat[c.id]) });
+  if (byCat["_"]) gruppi.push({ cat: null, arts: articoliPerNome(stato, byCat["_"]) });
   return gruppi;
 }
 function IntestaCat({ cat, n }) {
@@ -358,6 +513,17 @@ const CAUSALI = {
   plancia: { nome: "Plancia rapida", colore: T.ciano },
   produzione: { nome: "Prodotto in laboratorio", colore: T.verde },
   consumo: { nome: "Usato per produrre", colore: T.ambra },
+  /* gen-5.96: lo scarico da vendita in cassa. NON sta in USCITE_STORICO, di
+     proposito e con i numeri: a 100 scontrini al giorno sono ~250 uscite/dì,
+     il tetto delle 2000 si riempirebbe in 8 giorni buttando via proprio i
+     conteggi e i prelievi che nutrono le soglie consigliate (che per parlare
+     devono vedere due volte lo stesso giorno della settimana). Le vendite
+     hanno il loro secchio in sfoltisciMov, e le soglie per ora NON le
+     vedono: e' dichiarato, non dimenticato. */
+  vendita: { nome: "Vendita in cassa", colore: T.blu },
+  /* gen-5.97: il rientro merce di uno storno. Delta positivo, quindi cade nel
+     secchio «altri»: gli storni sono rari per costruzione (motivo + PIN). */
+  storno: { nome: "Storno di vendita", colore: T.rosso },
 };
 /* I movimenti non servono tutti alla stessa cosa, e trattarli allo stesso
    modo costava caro due volte.
@@ -371,17 +537,70 @@ const CAUSALI = {
    buttava via proprio lo storico delle uscite, che così non arrivava MAI a
    vedere due volte lo stesso giorno. Le soglie consigliate non potevano
    accendersi nemmeno in teoria.
-   Ora i tetti sono due, e siccome le uscite sono meno del 3% del traffico,
-   tenerne otto settimane costa meno di quanto costava il tetto unico. */
+   Ora i tetti sono due.
+
+   ── CORREZIONE DEL 3 AGOSTO, con i numeri veri sotto gli occhi ──
+   Qui c'era scritto che «le uscite sono meno del 3% del traffico». Non e'
+   vero, ed e' il tipo di frase che fa dormire tranquilli sul conto sbagliato.
+   Misurato sullo stato in produzione: 390 movimenti in sei giorni, di cui
+   140 uscite — il 36%, e i soli conteggi sono il 25%. A quel ritmo, in otto
+   settimane, le uscite diventano circa milletrecento righe.
+   Sulle uscite non c'era NESSUN tetto di numero, solo di eta'. In una
+   giornata storta — un inventario che tocca ogni articolo — se ne scrivono
+   quante ne vuole senza che niente le fermi. Adesso un tetto c'e', ma alto
+   apposta: a duemila non tocca il funzionamento normale (milletrecento), e
+   morde solo il caso patologico. Non e' un modo per far dimagrire il
+   pacchetto — quello si e' fatto altrove, con la spia leggera qui sopra — e'
+   un parapetto perche' una cosa senza limite prima o poi lo trova da sola.
+   Il numero non si abbassa senza guardare le soglie consigliate: sotto le
+   otto settimane smettono di vedere due volte lo stesso giorno e tacciono. */
 const SETT_USCITE = 56;          // giorni di storico uscite che servono alle soglie
 const MAX_ALTRI_MOV = 250;       // il resto: quanto basta a storico e grafico
+const MAX_USCITE_MOV = 2000;     // parapetto: sopra il fabbisogno vero (~1300)
+const GIORNI_MOV_VENDITA = 14;   // al kardex e al grafico bastano; le soglie non le usano
+const MAX_MOV_VENDITA = 600;     // ~100 scontrini/di' × 2,5 righe × qualche giorno
+/* Quante modifiche gia' registrate lo stato si ricorda (gen-5.81). Serve a
+   non contare due volte un salvataggio arrivato di cui si e' persa la
+   risposta. Non puo' crescere senza tetto, se no diventa il peso che a
+   gen-5.77 abbiamo tolto dal traffico.
+   ── PERCHE' MILLEDUECENTO E NON PIU' TRECENTO (gen-6.12) ──
+   Il tetto di 300 prometteva «un turno intero di lavoro di tutta la rete».
+   Il volume di PROGETTO, dal numero dato da Valerio (piu' di 100 ordini nei
+   giorni di punta: una vendita, una spunta per postazione, conteggi e
+   storni), fa ~350-450 scritture al giorno: un nome scadeva in meno di un
+   giorno. E' una stima, non una misura: in produzione il 9 settembre si e'
+   misurato il PESO (300 nomi = 5.700 caratteri, 19 l'uno), non il ritmo —
+   l'app e' in rodaggio, 14 vendite in tutto e una ventina di scritture al
+   giorno, e il difetto non e' mai scattato. Il tetto sale prima che serva.
+   Ma la coda ritrovata
+   rigioca al buio ogni voce piu' giovane di ORE_VENDITE (48 ore), fidandosi
+   che almeno un testimone sia ancora vivo — e l'altro testimone, la riga in
+   s.vendite, muore anche lui a 300 righe (MAX_VENDITE). Fra le due morti e
+   le 48 ore restava una finestra in cui uno scontrino inviato con la
+   risposta persa veniva ribattuto di nascosto. MISURATO dal banco
+   (testimonitest, gen-6.11): giornata a 138 € invece di 120, magazzino
+   sceso due volte, una riga di storico in piu'.
+   A 1200 nomi un nome vive tre giorni a 400 scritture al giorno, e regge
+   fino a 600 al giorno prima di scendere sotto le 48 ore: la premessa dello
+   steccato torna vera. Il peso, dal dato misurato: 19 caratteri a nome,
+   300 nomi erano 5.700 caratteri, 1200 sono 22.800, cioe' +17.100
+   su uno stato di ~320.000 (+5%). E' il prezzo dichiarato di una promessa
+   mantenuta. Se il traffico raddoppia si alza il tetto, non si stringe lo
+   steccato; la cura definitiva e' la ricevuta di consegna
+   (progetti/finestra-cieca.md), che non dipende da nessun tetto. */
+const MAX_APPLICATE = 1200;
 function sfoltisciMov(lista) {
   const limite = Date.now() - SETT_USCITE * 86400000;
+  const limiteVen = Date.now() - GIORNI_MOV_VENDITA * 86400000;
   const out = [];
-  let altri = 0;
+  let altri = 0, uscite = 0, vendite = 0;
   for (const mv of lista) {
     if (USCITE_STORICO.has(mv.causale) && mv.delta < 0) {
-      if (mv.t >= limite) out.push(mv);
+      if (mv.t >= limite && uscite < MAX_USCITE_MOV) { out.push(mv); uscite++; }
+    } else if (mv.causale === "vendita") {
+      /* il secchio della cassa (gen-5.96): dentro il tetto delle uscite le
+         vendite avrebbero affogato i conteggi in otto giorni */
+      if (mv.t >= limiteVen && vendite < MAX_MOV_VENDITA) { out.push(mv); vendite++; }
     } else if (altri < MAX_ALTRI_MOV) { out.push(mv); altri++; }
   }
   return out;
@@ -441,6 +660,754 @@ function sfoltisciOrdini(lista) {
     return tenute.has(o.id);
   });
 }
+/* ── LA POTATURA DELLE RICHIESTE (gen-6.10) ──
+   Erano l'UNICA collezione che cresceva senza fine e senza nessuno che la
+   potasse. Il numero, misurato sulla produzione l'8 settembre e non stimato:
+   lo stato che viaggia INTERO a ogni salvataggio verso ogni telefono acceso
+   pesava 321.140 caratteri, e 147 richieste su 155 erano CHIUSE e piu'
+   vecchie di 21 giorni — 63.306 caratteri, il 19,7% di tutto, che nessuna
+   schermata dell'app legge piu': la lista dello Storico tiene le chiuse per
+   sette giorni, la card «evase7» una settimana, il grafico dell'Analisi
+   quattordici giorni.
+   E' sfoltisciOrdini copiato con dentro le sue quattro lezioni, che sono
+   quattro trappole gia' pagate una volta: (a) quello che ASPETTA non si tocca
+   mai — una richiesta non evasa e' lavoro, non archivio; (b) una riga senza
+   data si tiene, perche' non sapere quanti anni ha non e' un motivo per
+   buttarla; (c) la finestra si conta dall'ULTIMA cosa successa alla riga (una
+   richiesta nata cinquanta giorni fa ed evasa ieri e' roba di ieri); (d) il
+   tetto toglie le piu' VECCHIE PER DATA, non le ultime dell'array — l'ordine
+   di una lista non e' garantito.
+   PERCHE' 21 E NON 7: il lettore piu' esigente guarda 14 giorni e conta per
+   data di NASCITA, mentre qui si ragiona per data di CHIUSURA. Le due date
+   non coincidono, quindi la finestra della potatura dev'essere piu' larga di
+   quella del lettore piu' largo, con margine. */
+const GIORNI_RICHIESTE = 21;
+const MAX_RICHIESTE_CHIUSE = 120;
+const dataRichiesta = (r) => r.tEvasione || r.t || 0;
+function sfoltisciRichieste(lista) {
+  const limite = Date.now() - GIORNI_RICHIESTE * 86400000;
+  const tutte = (lista || []).filter(Boolean);
+  const chiuse = tutte.filter((r) => r.stato !== "in-attesa" && dataRichiesta(r))
+    .sort((a, b) => dataRichiesta(b) - dataRichiesta(a));
+  const tenute = new Set(chiuse.slice(0, MAX_RICHIESTE_CHIUSE).map((r) => r.id));
+  return tutte.filter((r) => {
+    if (r.stato === "in-attesa") return true;
+    const t = dataRichiesta(r);
+    if (!t) return true;
+    if (t < limite) return false;
+    return tenute.has(r.id);
+  });
+}
+/* ─────────── LA CASSA (gen-5.96) ───────────
+   La catena chiesta da Valerio il 31 agosto: cliente → cassa → scarico →
+   riordino. Le regole, decise nel piano e qui incise:
+   · le vendite NON si cancellano mai (lo storno, quando arrivera', sara' una
+     riga contraria — mai una gomma);
+   · lo scarico esce SEMPRE dal magazzino di cassa designato della sede,
+     anche sotto zero: il negativo al banco e' informazione vera («hai
+     venduto piu' di quanto risulta: conta»), il fallback su un altro
+     magazzino sarebbe una bugia che falsifica il riordino due volte;
+   · tetti dal giorno uno: lo stato viaggia INTERO a ogni scrittura (~170KB)
+     e una riga di vendita pesa ~570 byte — senza tetto le vendite sarebbero
+     la prima collezione della storia dell'app a crescere di 100+ righe al
+     giorno. I totali sopravvivono in s.giornate; per la contabilita' lunga
+     c'e' l'export CSV in Sistema, come per gli ordini.
+   LIMITE DICHIARATO nel piano: bene fino a ~100 scontrini al giorno su una
+   cassa sola. Oltre, la cura vera e' una chiave kv separata con append lato
+   server (decisione in roadmap), non un tetto piu' furbo qui. */
+/* LA VERSIONE DICHIARATA (gen-5.99): la legge la scheda «Informazioni».
+   SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
+   direbbe una bugia proprio nella schermata nata per dire la verita'.
+   (Regola scritta anche in memoria.json.) */
+const VERSIONE = "gen-6.21";
+/* ── IL BATTITO DI VERSIONE (gen-6.15) ──
+   L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
+   servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
+   quando capita: il telefono del titolare puo' saltare tre versioni in un
+   colpo, il tablet della cassa in kiosk puo' restare indietro tre
+   settimane. Finche' non si sa QUANTI sono indietro, «il difetto e' chiuso»
+   vale solo per la parte di flotta che ha ricaricato.
+   Qui ogni dispositivo che SCRIVE lascia il suo numero di versione, la
+   revisione a cui l'ha lasciato e l'ora. Il costo sta scritto sotto, in
+   caratteri veri: in questo giro la moneta e' il byte e una promessa senza
+   numero non e' controllabile da nessuno.
+   DUE COSE CHE QUESTA LISTA NON SA, e che vanno scritte dove si legge: chi
+   apre l'app e non salva mai non compare, e un dispositivo assente non e'
+   «aggiornato», e' «non lo so». La scheda in Sistema lo dice.
+   L'ID SI RISOLVE UNA VOLTA SOLA PER CARICAMENTO, e se lo storage rifiuta
+   (navigazione privata su un tablet di sala non e' un caso di scuola) il
+   battito si SALTA invece di inventare un id nuovo a ogni salvataggio:
+   dieci scontrini di quel solo telefono basterebbero a sfrattare dalla
+   lista tutti gli altri — e siccome «assente = non aggiornato», la scheda
+   accuserebbe di essere indietro proprio i telefoni aggiornati. Meglio un
+   assente onesto che dieci fantasmi che sfrattano i presenti. */
+const MAX_TELEFONI = 10;
+const CHIAVE_DISP = "scp:disp:v1";
+let idDisp;
+function idDispositivo() {
+  if (idDisp !== undefined) return idDisp;
+  try {
+    let v = localStorage.getItem(CHIAVE_DISP);
+    if (!v) { v = uid("d"); localStorage.setItem(CHIAVE_DISP, v); }
+    idDisp = v;
+  } catch { idDisp = null; }
+  return idDisp;
+}
+/* La mappa si legge SEMPRE da qui, mai a mano. «...s» in normalizza lascia
+   passare qualunque forma arrivi da fuori, e da fuori si arriva davvero:
+   «Importa JSON» accetta un testo incollato e valida tre array, non questo
+   campo. Un «telefoni»: null farebbe esplodere Object.entries e sbiancare
+   proprio VistaSistema, cioe' la schermata da cui si ripara un backup
+   sbagliato. Stessa difesa che il disegno della ricevuta pretende per la
+   sua mappa gemella. */
+const telefoniDi = (s) => {
+  const m = s && s.telefoni;
+  if (!m || typeof m !== "object" || Array.isArray(m)) return {};
+  const buone = Object.entries(m).filter(([, r]) => r && typeof r === "object" && typeof r.v === "string");
+  return Object.fromEntries(buone);
+};
+/* SI POTA PER «r», NON PER L'OROLOGIO. «t» e' Date.now() del telefono che
+   scrive: la stessa grandezza che questo file ha gia' dichiarato
+   inaffidabile, ed e' il motivo per cui rev ha smesso di essere un orologio
+   ed e' diventata un contatore. Con la potatura per t, un tablet con la data
+   avanti si inchioda in cima e sfratta righe vere, e tempoFa su un t nel
+   futuro stampa «adesso» per sempre — cioe' dichiara aggiornato proprio chi
+   non salva da una settimana, il verso vietato. «r» e' la revisione dello
+   stato: un contatore monotono garantito dal cancello del server, uguale
+   per tutti. «t» resta solo come ETICHETTA leggibile, e chi la stampa ha un
+   ramo esplicito per l'orologio avanti.
+   IL COSTO, MISURATO, perche' in questo giro la moneta e' il byte: una riga
+   sta in ~56 caratteri, dieci righe piu' il campo ~590 — lo +0,2% su uno
+   stato che il 9 settembre ne misurava 292.621. */
+function battito(tel, rev) {
+  const id = idDispositivo();
+  if (!id) return telefoniDi({ telefoni: tel });
+  const righe = Object.entries({ ...telefoniDi({ telefoni: tel }), [id]: { v: VERSIONE, r: rev || 0, t: Date.now() } })
+    .sort((a, b) => (b[1].r || 0) - (a[1].r || 0))
+    .slice(0, MAX_TELEFONI);
+  return Object.fromEntries(righe);
+}
+const ORE_VENDITE = 48;          // lo storno realistico e' «lo scontrino di ieri sera»
+const MAX_VENDITE = 300;         // parapetto sul numero, oltre che sull'eta'
+const MAX_GIORNATE_SEDE = 90;    // tre mesi di totali per sede: ~13KB, sostenibili
+/* ── LA RICEVUTA DI CONSEGNA (gen-6.20) ──
+   Quanti mittenti si ricordano (~1,2 KB su uno stato di ~300) e quanti slot
+   restano in corsia preferenziale al MIO dispositivo. I due numeri sono
+   diversi apposta: il tetto grande serve alla flotta, quello piccolo a me. */
+const MAX_SCRITTURE = 60;
+const MAX_MIEI = 8;
+/* ── LA RUBRICA (gen-6.08) ──
+   Trecento e non mille. Un cliente pesa ~110 caratteri e lo stato INTERO
+   viaggia a ogni salvataggio: mille clienti sarebbero 110KB su uno stato che
+   oggi ne misura 286 — il 38% in piu' addosso al problema del traffico che
+   e' gia' il collo di bottiglia numero uno. Trecento sono ~33KB, e sono la
+   rubrica VIVA di una pizzeria: si potano i piu' vecchi per data d'ultimo
+   ordine, quindi chi ordina ogni settimana non esce mai. Chi e' uscito non
+   e' perduto: il suo nome resta scritto sugli scontrini del CSV, e alla
+   prossima telefonata si ribatte il numero. */
+const MAX_CLIENTI = 300;
+const giornoDi = (t) => { const d = new Date(t);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+/* il magazzino da cui esce quello che si vende: quello designato sulla sede,
+   o la prima linea della sede — dove sta fisicamente il banco */
+function magCassaDi(stato, sedeId) {
+  const sede = trova(stato.sedi, sedeId);
+  const scelto = sede?.cassaMagId && stato.magazzini.find((m) => m.id === sede.cassaMagId && m.sedeId === sedeId);
+  return scelto
+    || stato.magazzini.find((m) => m.sedeId === sedeId && m.tipo.startsWith("linea"))
+    || stato.magazzini.find((m) => m.sedeId === sedeId)
+    || null;
+}
+/* Da «ho battuto queste voci» a «cosa esce, e da dove». NON tocca niente,
+   come calcoloProduzione: prepara righe ridotte a id+numeri. Quello che non
+   si puo' scalare (articolo assente dal magazzino di cassa, conversione
+   mancante) finisce in `problemi` e NON produce righe: la vendita passa
+   comunque — un banco non si ferma sullo stock — ma il buco resta scritto
+   sulla riga, non nascosto. */
+function calcoloScarico(stato, righeCarrello, sedeId) {
+  const out = { righe: [], problemi: [], magId: null };
+  const mag = magCassaDi(stato, sedeId);
+  if (!mag) { out.problemi.push("Questa sede non ha un magazzino di cassa: niente scarico."); return out; }
+  out.magId = mag.id;
+  const somme = new Map();
+  for (const rc of righeCarrello) {
+    for (const ing of rc.distinta || []) {
+      const ip = trova(stato.prodotti, ing.prodottoId);
+      if (!ip) { out.problemi.push("Un prodotto della distinta non è più a catalogo: la voce di listino o l'aggiunta va rivista."); continue; }
+      const a = (mag.articoli || []).find((x) => x.prodottoId === ing.prodottoId);
+      if (!a) { out.problemi.push(`«${ip.nome}» non è nel magazzino di cassa «${mag.nome}»: non lo scalo.`); continue; }
+      const serve = (+ing.qty || 0) * rc.qty;
+      const q = a.uomId === ing.uomId ? serve : converti(ip, serve, ing.uomId, a.uomId);
+      if (q == null) { out.problemi.push(`Manca la conversione di «${ip.nome}» verso l'unità della casella: non lo scalo.`); continue; }
+      const k = ing.prodottoId;
+      somme.set(k, { prodottoId: ing.prodottoId, magId: mag.id, uomId: a.uomId,
+        quanto: +(((somme.get(k)?.quanto) || 0) + q).toFixed(4) });
+    }
+  }
+  out.righe = [...somme.values()].filter((r) => r.quanto > 1e-9);
+  return out;
+}
+function sfoltisciVendite(lista) {
+  const limite = Date.now() - ORE_VENDITE * 3600000;
+  return (lista || []).filter((v) => v && v.t >= limite)
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
+}
+/* ══════════ LA RICEVUTA DI CONSEGNA (gen-6.20) ══════════
+   IL DIFETTO CHE CHIUDE. Quando la rete fa le bizze, una vendita resta in coda
+   e si rigioca. Per sapere se era gia' arrivata, fino a ieri l'app la CERCAVA
+   in liste potate: s.applicate (MAX_APPLICATE) e s.vendite (MAX_VENDITE piu'
+   48 ore). Nelle serate piene quelle liste si consumano, il telefono non sa
+   piu', rigioca, e lo scontrino si conta DUE VOLTE nel totale della giornata.
+   Da qui in avanti ogni scrittura parte con un numero di protocollo e lo stato
+   porta una mappa {mittente: ultima rev sua}: al ritorno il telefono legge il
+   PROPRIO slot, e se copre il numero stampato la voce e' DIMOSTRATA
+   consegnata. Niente orologi, niente liste potate, nessun tetto da tarare.
+   Le due funzioni sono PURE e stanno qui fuori apposta: si provano nude in
+   collaudi/protopurotest.mjs, dove la tabella di verita' completa costa un
+   secondo invece di venti minuti di browser. */
+/* un valore di slot e' un numero o una stringa numerica, e basta: Number(null)
+   fa 0 e Number("") fa 0, cioe' due modi silenziosi di inventare una ricevuta
+   che nessuno ha stampato */
+const numSlot = (r) => {
+  const n = (typeof r === "number" || (typeof r === "string" && r.trim() !== "")) ? Number(r) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+/* SI POTA PER VALORE, NON PER DATA. La rev e' un contatore monotono garantito
+   dal cancello (strumenti/server/app_kv_set.sql), e questa e' l'unica potatura
+   del file che non dipende dall'orologio di un telefono.
+   E LA CORSIA PREFERENZIALE NON E' UN VEZZO: con la sola rev decrescente il
+   primo slot a uscire e' il mittente che tace da piu' tempo — cioe' il telefono
+   spento con una vendita in coda, che e' l'UNICO caso in cui la ricevuta serve
+   davvero. L'ordine di sfratto era avverso proprio al caso della tessera. Il
+   dispositivo sta nella CHIAVE (<dispositivo>·<caricamento>), quindi tenere i
+   miei e' una riga sola; in navigazione privata idDispositivo() torna null, non
+   c'e' nessuna corsia, e si degrada al comportamento senza ricevuta.
+   Se uno slot esce lo stesso, il codice non sbaglia: torna a non sapere, e chi
+   non sa fa quello che faceva prima della 6.20. */
+function sfoltisciScritture(mappa, mio) {
+  if (!mappa || typeof mappa !== "object" || Array.isArray(mappa)) return {};
+  const righe = Object.entries(mappa)
+    /* «__proto__» non entra MAI: «"__proto__" in {}» e' vero, e una mappa che
+       se lo porta dietro e' una mappa che puo' autocertificare una voce
+       corrotta arrivata dal disco */
+    .filter(([k]) => k !== "__proto__")
+    .map(([k, r]) => [k, numSlot(r)])
+    .filter(([, r]) => r != null)
+    .sort((a, b) => b[1] - a[1]);
+  const dispositivo = String(mio || "").split("·")[0];
+  const miei = dispositivo
+    ? righe.filter(([k]) => k.split("·")[0] === dispositivo).slice(0, MAX_MIEI)
+    : [];
+  const presi = new Set(miei.map(([k]) => k));
+  const resto = righe.filter(([k]) => !presi.has(k)).slice(0, Math.max(0, MAX_SCRITTURE - miei.length));
+  return Object.fromEntries([...miei, ...resto]);
+}
+/* IL VERDETTO. QUATTRO VIE, e la quarta e' quella che rende la tessera
+   reversibile:
+   1. prot c'e' e lo slot del MIO mittente e' >= prot -> CONSEGNATA, certezza;
+   2. prot c'e' e lo slot dice meno -> NON consegnata, si rigioca, certezza;
+   3. prot non c'e' (mai passata da una spedizione: e' lo scontrino battuto due
+      minuti fa) -> si rigioca, certezza. E' la trappola che si chiudeva
+      ragionando sull'eta': qui non serve nessuna eta';
+   4. slot assente (mappa nuova, sfrattata, telefono a gen-6.19) -> NON SI SA,
+      e allora si fa esattamente quello che faceva il codice prima: steccato
+      d'eta' piu' le due guardie sul dato. Mai peggio di prima, mai un
+      parcheggio inventato.
+   hasOwnProperty e non «in», per la stessa ragione scritta sopra. */
+function consegnata(base, m) {
+  const prot = m ? numSlot(m.prot) : null;
+  if (!m || !m.mitt || prot == null) return false;
+  const map = base && base.scritture;
+  if (!map || typeof map !== "object" || Array.isArray(map)) return false;
+  if (!Object.prototype.hasOwnProperty.call(map, m.mitt)) return false;
+  const r = numSlot(map[m.mitt]);
+  return r != null && r >= prot;
+}
+/* IL NUMERO E' LA CHIAVE, MA SI SCRIVE IN CINQUE MODI (gen-6.08).
+   «340 111 0002», «3401110002», «+39 340 1110002», «0039 3401110002» sono lo
+   stesso cliente, e chi sta al banco li batte come gli vengono. Senza questa
+   riduzione la rubrica si riempirebbe di gemelli e la ricerca per telefono —
+   che e' il gesto vero, «pronto, sono il numero…» — non troverebbe niente.
+   Lo zero iniziale dei fissi NON si toglie: 06 e' parte del numero, e togliere
+   uno zero da «06 1234567» lo confonderebbe con un cellulare. */
+const telNorm = (t) => {
+  let d = String(t || "").replace(/\D/g, "");
+  if (d.startsWith("0039")) d = d.slice(4);
+  if (d.length > 10 && d.startsWith("39")) d = d.slice(2);
+  return d;
+};
+/* si potano i piu' vecchi PER ULTIMO ORDINE, non per data d'iscrizione: chi
+   ordina ogni venerdi' da due anni deve restare, chi ha ordinato una volta a
+   marzo puo' uscire */
+function sfoltisciClienti(lista) {
+  return (lista || []).filter(Boolean)
+    .sort((a, b) => (b.ultimo || b.t || 0) - (a.ultimo || a.t || 0)).slice(0, MAX_CLIENTI);
+}
+/* filtro puro come sfoltisciOrdini: il tetto e' PER SEDE, se no con due sedi
+   i novanta giorni diventerebbero quarantacinque */
+function sfoltisciGiornate(lista) {
+  const perSede = new Map();
+  const ordinate = (lista || []).filter(Boolean).sort((a, b) => (b.giorno < a.giorno ? -1 : 1));
+  return ordinate.filter((g) => {
+    const n = perSede.get(g.sedeId) || 0;
+    if (n >= MAX_GIORNATE_SEDE) return false;
+    perSede.set(g.sedeId, n + 1);
+    return true;
+  });
+}
+/* L'applicazione vera, gemella di applicaProduzione: SOLO id e numeri, gia'
+   calcolati fuori — id della vendita COMPRESO, perche' questa closure viene
+   rieseguita a ogni riallineamento della coda e un uid() qui dentro
+   diventerebbe una vendita nuova a ogni replay. Lo scarico non ha clamp:
+   sul replay dopo un conflitto la scelta e' comunque stantia, e il negativo
+   e' il precedente dichiarato di applicaProduzione. La giornata si aggiorna
+   QUI DENTRO, cosi' l'exactly-once del logId copre vendita e totale insieme. */
+function applicaVendita(s, v) {
+  /* ── LO STESSO SCONTRINO UNA VOLTA SOLA (gen-6.07) ──
+     Il paracadute contro i doppioni era uno solo: il logId in s.applicate, con
+     un tetto di 300 nomi (allora). Il commento accanto al tetto prometteva «un turno
+     intero di lavoro di tutta la rete»: a cento scontrini con due casse sono
+     duecento vendite piu' storni e spunte, e il tetto si consuma in una
+     serata. Da li' in poi il nome e' scaduto, e una vendita ARRIVATA di cui si
+     era persa la risposta, riprovata piu' tardi, veniva applicata di nuovo.
+     MISURATO dal banco prima della riparazione: due righe in rete, giornata a
+     13 € invece di 6,50, magazzino sceso di due.
+     Questa guardia non dipende da nessun tetto: guarda il DATO.
+     Torna false quando non fa niente, e il chiamante lo usa per non scrivere
+     una riga di storico per un lavoro mai avvenuto. */
+  if ((s.vendite || []).some((x) => x && x.id === v.id)) return false;
+  /* ── IL TELEFONO NON ENTRA NELLA VENDITA (gen-6.08) ──
+     `cliReg` viaggia nel dato della mutazione — quindi anche nella coda sul
+     telefono di chi ha battuto, che e' lo stesso telefono su cui il numero
+     e' stato appena scritto — ma si STACCA qui e finisce solo in rubrica.
+     Dentro s.vendite resta `cli`, che porta id, nome, modo e fascia: quattro
+     campi, nessun dato personale. La ragione non e' pudore: s.vendite e' la
+     collezione che esce nel CSV e che viaggia intera a ogni salvataggio verso
+     tutti i telefoni della rete, comprese le postazioni di cucina. Il
+     telefono lo legge chi apre la rubrica, dove sta una volta sola.
+     Lo storno NON tocca la rubrica: un ordine sbagliato non cancella un
+     cliente, e il contatore che scende di uno non serve a nessuno. */
+  const { cliReg, ...vend } = v;
+  if (cliReg && telNorm(cliReg.tel)) {
+    const chiave = telNorm(cliReg.tel);
+    const gia = (s.clienti || []).find((c) => telNorm(c.tel) === chiave);
+    if (gia) {
+      if (cliReg.nome) gia.nome = cliReg.nome;
+      if (cliReg.via) gia.via = cliReg.via;
+      if (cliReg.geo) gia.geo = cliReg.geo;
+      gia.ultimo = v.t;
+      gia.n = (gia.n || 0) + 1;
+    } else {
+      s.clienti = [{ id: cliReg.id, nome: cliReg.nome || "", tel: cliReg.tel,
+        ...(cliReg.via ? { via: cliReg.via } : {}),
+        ...(cliReg.geo ? { geo: cliReg.geo } : {}), t: v.t, ultimo: v.t, n: 1 }, ...(s.clienti || [])];
+    }
+    s.clienti = sfoltisciClienti(s.clienti);
+  }
+  /* ── SI ORDINA PRIMA DI TAGLIARE, E NON E' UN VEZZO (gen-6.14) ──
+     Il taglio a MAX_VENDITE morde per POSIZIONE, cioe' la coda dell'array:
+     con la lista ordinata per t decrescente esce la riga piu' vecchia. Ma la
+     riga nuova viene ANTEPOSTA col suo t vecchio (vedi sotto), quindi finche'
+     l'ordinamento non comprendeva anche lei bastava rigiocare una vendita
+     vecchia per sfrattare una riga PIU' RECENTE — che da quel momento non
+     aveva piu' nessun testimone, e la guardia qui sopra tornava cieca su una
+     vendita che nessun altro ricordava. MISURATO dal banco (sfrattotest, su
+     gen-6.13): coda [V di 36 ore, W di 20 ore gia' arrivata], lista piena con
+     W la piu' vecchia; il rigioco di V sfratta W, W viene riapplicata dentro
+     lo STESSO applicaCoda, e la giornata sale di 68 € con un client solo.
+     La riga nuova continua a NON passare dal filtro d'eta' — una vendita
+     rimasta in coda piu' di 48 ore va applicata E vista (gen-5.96) — e il
+     filtro esce anche dalle righe vecchie: lo rifanno comunque i tre blocchi
+     di potatura a ogni scrittura. L'unica cosa che cambia e' QUALE riga viene
+     sfrattata: sempre la piu' vecchia, mai una piu' recente di quelle che
+     restano. Le righe senza t si scartano: l'ordinamento non saprebbe dove
+     metterle, e una riga senza data non e' comunque leggibile da nessuna
+     schermata. */
+  s.vendite = [{ ...vend, stato: "registrata" }, ...(s.vendite || []).filter((v) => v && typeof v.t === "number")]
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
+  for (const r of v.scarico || []) {
+    const mm = trova(s.magazzini, r.magId);
+    const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
+    if (!aa) continue;
+    aa.qty = +(aa.qty - r.quanto).toFixed(4);
+    registraMov(s, { magId: mm.id, prodottoId: r.prodottoId, uomId: aa.uomId, delta: -r.quanto,
+      dopo: aa.qty, causale: "vendita", chi: v.chi });
+  }
+  const idG = v.giorno + "|" + v.sedeId;
+  let g = (s.giornate || []).find((x) => x.id === idG);
+  if (!g) {
+    g = { id: idG, giorno: v.giorno, sedeId: v.sedeId, totale: 0, nVendite: 0, nStorni: 0,
+      metodi: { contanti: 0, carta: 0, altro: 0 } };
+    s.giornate = [g, ...(s.giornate || [])];
+  }
+  g.totale = +(g.totale + v.totale).toFixed(2);
+  g.nVendite += 1;
+  g.metodi[v.metodo] = +((g.metodi[v.metodo] || 0) + v.totale).toFixed(2);
+  s.giornate = sfoltisciGiornate(s.giornate);
+  return true;
+}
+/* Lo storno (gen-5.97): MAI una gomma — una riga contraria che ripristina le
+   giacenze dallo snapshot e lascia l'originale marcata. La guardia sullo
+   stato sta DENTRO la closure, come in applicaEvasione: due telefoni che
+   stornano lo stesso scontrino non devono ripristinare due volte. I salti
+   (magazzino sparito nel frattempo) si CONTANO sulla riga contraria invece
+   di sparire: un fatto per un lavoro non fatto e' la bugia peggiore. La
+   giornata decrementata e' quella del giorno DELLA VENDITA, non di oggi.
+   Torna false quando non fa niente (gen-6.12), come applicaVendita: senza,
+   applicaCoda scriveva «Storno di 6,50 €» nello storico per uno storno mai
+   avvenuto — la stessa bugia su carta chiusa a gen-6.07 per la vendita. */
+function applicaStorno(s, d) {
+  const orig = (s.vendite || []).find((v) => v.id === d.origId);
+  if (!orig || orig.stato !== "registrata") return false;
+  orig.stato = "stornata";
+  orig.stornoId = d.stornoId;
+  let salti = 0;
+  for (const r of orig.scarico || []) {
+    const mm = trova(s.magazzini, r.magId);
+    const aa = mm && (mm.articoli || []).find((x) => x.prodottoId === r.prodottoId);
+    if (!aa) { salti++; continue; }
+    aa.qty = +(aa.qty + r.quanto).toFixed(4);
+    registraMov(s, { magId: mm.id, prodottoId: r.prodottoId, uomId: aa.uomId, delta: r.quanto,
+      dopo: aa.qty, causale: "storno", chi: d.chi, rif: d.motivo });
+  }
+  const contro = { id: d.stornoId, t: d.t, giorno: orig.giorno, sedeId: orig.sedeId, chi: d.chi,
+    stato: "storno", origId: orig.id, motivo: d.motivo, autorizzataDa: d.autorizzataDa,
+    righe: (orig.righe || []).map((x) => ({ ...x })), totale: -orig.totale, metodo: orig.metodo,
+    scarico: [], ...(salti ? { nonRipristinate: salti } : {}) };
+  /* stesso ordinamento della vendita (gen-6.14). Qui e' cintura e non
+     bretelle: la riga contraria porta t = d.t = adesso (lo scrive storna
+     prima di mandare la mutazione) e applicaStorno esce se l'originale non e'
+     piu' in lista, quindi non puo' mai essere lei la piu' vecchia. Resta
+     perche' le due righe che rifanno s.vendite devono dire la stessa cosa: la
+     prossima che si aggiunge non deve poter nascere storta. */
+  s.vendite = [contro, ...(s.vendite || []).filter((v) => v && typeof v.t === "number")]
+    .sort((a, b) => b.t - a.t).slice(0, MAX_VENDITE);
+  const idG = orig.giorno + "|" + orig.sedeId;
+  let g = (s.giornate || []).find((x) => x.id === idG);
+  if (!g) {
+    g = { id: idG, giorno: orig.giorno, sedeId: orig.sedeId, totale: 0, nVendite: 0, nStorni: 0,
+      metodi: { contanti: 0, carta: 0, altro: 0 } };
+    s.giornate = [g, ...(s.giornate || [])];
+  }
+  g.totale = +(g.totale - orig.totale).toFixed(2);
+  g.nStorni += 1;
+  g.metodi[orig.metodo] = +((g.metodi[orig.metodo] || 0) - orig.totale).toFixed(2);
+  s.giornate = sfoltisciGiornate(s.giornate);
+}
+/* Il report di giornata (gen-5.97): totali per metodo e SCORPORO IVA per
+   aliquota — informativo, calcolato sul dettaglio ancora in stato (48 ore).
+   Gli storni entrano col segno meno, cosi' una vendita stornata fa zero. */
+/* i numeri del report, PURI e in un posto solo: li usano sia il testo da
+   copiare sia le righe a schermo — due calcoli separati divergerebbero al
+   primo ritocco (gen-5.99) */
+function datiGiornata(stato, sedeId, giorno) {
+  const sede = trova(stato.sedi, sedeId);
+  const g = (stato.giornate || []).find((x) => x.id === giorno + "|" + sedeId);
+  const righeGiorno = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === giorno);
+  const perAliquota = new Map();
+  for (const v of righeGiorno) {
+    const segno = v.stato === "storno" ? -1 : 1;
+    for (const r of v.righe || []) {
+      const k = r.aliquota != null ? r.aliquota : "—";
+      perAliquota.set(k, +(((perAliquota.get(k) || 0) + segno * r.qty * r.prezzo)).toFixed(2));
+    }
+  }
+  const aliquote = [...perAliquota.entries()].filter(([, v]) => Math.abs(v) > 1e-9)
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    .map(([k, lordo]) => {
+      if (k === "—") return { k, lordo, imponibile: null, imposta: null };
+      const imponibile = +(lordo / (1 + k / 100)).toFixed(2);
+      return { k, lordo, imponibile, imposta: +(lordo - imponibile).toFixed(2) };
+    });
+  return { sede, g, aliquote };
+}
+function testoGiornata(stato, sedeId, giorno) {
+  const { sede, g, aliquote } = datiGiornata(stato, sedeId, giorno);
+  const out = [];
+  out.push(`${(sede?.nome || "Sede").toUpperCase()} · ${new Date().toLocaleDateString("it-IT")}`);
+  out.push(`Totale: ${fmtEuro(g?.totale || 0)} · ${g?.nVendite || 0} vendite · ${g?.nStorni || 0} storni`);
+  out.push(`Contanti ${fmtEuro(g?.metodi?.contanti || 0)} · Carta ${fmtEuro(g?.metodi?.carta || 0)} · Altro ${fmtEuro(g?.metodi?.altro || 0)}`);
+  if (aliquote.length) {
+    out.push("");
+    out.push("Scorporo IVA · informativo, sul dettaglio delle ultime 48 ore:");
+    for (const a of aliquote) {
+      if (a.k === "—") { out.push(`Senza aliquota: lordo ${fmtEuro(a.lordo)}`); continue; }
+      out.push(`IVA ${a.k}%: lordo ${fmtEuro(a.lordo)} · imponibile ${fmtEuro(a.imponibile)} · imposta ${fmtEuro(a.imposta)}`);
+    }
+  }
+  out.push("");
+  out.push("Lo scontrino fiscale resta al registratore telematico: questo report serve a cassa e magazzino.");
+  return out.join("\n");
+}
+
+/* ─────────── LE COMANDE (gen-5.98) ───────────
+   Chiesto da Valerio il 31 agosto, parole sue: «dalla cassa l'ordine viene
+   visualizzato dalle postazioni produttive di appartenenza; se chi fa i
+   fritti fa anche i dolci, deve poterlo vedere». Disegno vinto in giudizio
+   a tre lenti (traffico, replay, cucina), unanime:
+   LA COMANDA E' LA VENDITA — nessuna seconda collezione. Cosi' storno,
+   sfoltimento (48h/300), replay, dedup e guardie di stato proteggono le
+   comande per costruzione, senza una seconda verita' da sincronizzare.
+   · il GRUPPO si congela sulla riga alla battuta, come nome/prezzo/aliquota:
+     risalire da voceId al listino e' fragile (la voce cambia o sparisce, e
+     la Conferma del Listino promette che le vendite battute non cambiano);
+   · le POSTAZIONI (s.postazioni) sono configurazione di VISTA: abbinano
+     gruppi per nome, si disegnano nel Listino, e ridisegnarle non tocca MAI
+     i dati battuti — v.fatte e' per NOME GRUPPO, un fatto eterno («i Fritti
+     delle 12:41 li ha spuntati Marco»), non per postazioneId;
+   · la SPUNTA e' UNA per scontrino-per-postazione: sul canale che spedisce
+     lo stato intero (~170KB) a ogni scrittura, la spunta per piatto
+     triplicherebbe le scritture (bocciata col veto in giudizio). Anche
+     cosi' le comande RADDOPPIANO le scritture del giorno: il limite dei
+     ~100 scontrini/giorno diventa ~50 equivalenti — dichiarato in roadmap,
+     con la cura (chiave kv separata, append lato server) come prerequisito
+     alla crescita;
+   · un gruppo che NESSUNA postazione della sede reclama e' di TUTTI: righe
+     «senza postazione» su ogni schermo — mai un piatto invisibile;
+   · niente quinto interruttore: guardare lo schermo e spuntare quello che
+     esce e' MESTIERE (regola «resta a tutti»); resta scritto CHI ha
+     spuntato, il lucchetto no (muta non autorizza lato server, limite
+     dichiarato). NON e' un buzzer: la card arriva col ritardo del giro
+     (~3-5s a schermo acceso, MAI a schermo spento) e non suona. */
+/* UN solo ripiego per il gruppo vuoto in tutta l'app: prima «Altro» viveva
+   in Cassa e «Senza gruppo» nel Listino — due nomi per lo stesso vuoto sono
+   due gruppi diversi, e le comande smistano per nome */
+const gruppoDi = (v) => ((v?.gruppo || "").trim()) || "Altro";
+/* la chiave con cui i gruppi si confrontano: il listino e' testo libero e
+   «Pizze» e «pizze » sono la stessa pizzeria (riusa senzaAccenti) */
+const chiaveGruppo = (g) => senzaAccenti((g || "").trim());
+/* ── QUALE GRUPPO E' APERTO QUANDO ARRIVI (gen-6.19) ──
+   NON il piu' battuto. L'ordine per battute (in VistaCassa) e' un ordine di
+   TITOLI e si spegne da solo: le vendite durano 48 ore (ORE_VENDITE), quindi
+   il mercoledi' di riapertura, dopo le ferie, dopo un ripristino o al primo
+   servizio di un listino nuovo «battute» e' vuoto e decide a.localeCompare —
+   cioe' l'alfabeto, cioe' DOLCI prima di PIZZE. La margherita liscia e' il
+   90% delle battute del sabato e non puo' dipendere da una classifica che si
+   azzera da sola.
+   E c'e' di peggio: le vendite cambiano MENTRE si batte. applicaVendita
+   infila lo scontrino appena incassato in testa a s.vendite e il poll porta
+   dentro quelli dell'altra cassa ogni 2,6-3,5 s: con l'apertura appesa alle
+   battute, incassare un tiramisu' riaprirebbe la cassa sui DOLCI — cioe'
+   esattamente il tocco in piu' che questa generazione esiste per togliere.
+   Si guarda il LISTINO, che non si azzera e lo cambia solo un Admin: vince il
+   gruppo con PIU' VOCI (in produzione Pizze, 20 su 26). E' anche la scommessa
+   giusta sotto ignoranza: la cella che verra' toccata sta piu' probabilmente
+   nel cassetto piu' grande.
+   A parita' vince chi compare PRIMA nel listino: e' un ordine scritto da una
+   persona, mentre l'alfabeto e' un caso. «Altro» non parte mai aperto se non
+   e' l'unico gruppo che esiste — stessa ragione gia' scritta sull'ordine dei
+   titoli: e' il ripieno delle voci senza gruppo, non un gruppo scelto. */
+const gruppoDiPartenza = (voci) => {
+  const n = new Map();
+  for (const v of voci || []) {
+    const g = gruppoDi(v);
+    if (!n.has(g)) n.set(g, { g, quante: 0, primo: n.size });
+    n.get(g).quante++;
+  }
+  const tutti = [...n.values()];
+  const veri = tutti.filter((x) => x.g !== "Altro");
+  return (veri.length ? veri : tutti)
+    .sort((a, b) => b.quante - a.quante || a.primo - b.primo)[0]?.g ?? null;
+};
+/* LE AGGIUNTE (gen-6.02): «la pizza piu' broccoletti, patate e salsiccia».
+   Sono un CATALOGO riusabile (s.aggiunte), non un campo della voce: i
+   broccoletti valgono per TUTTE le pizze, e riscriverli su venti voci e' il
+   lavoro che nessuno fa. L'abbinamento e' PER GRUPPO — la stessa chiave con
+   cui le postazioni smistano le comande — quindi «pizze» e «Pizze» sono la
+   stessa pizzeria. Differenza dalla VARIANTE, in una riga: la variante e'
+   «che formato» (una sola, cambia solo il prezzo, vive dentro la voce);
+   l'aggiunta e' «cosa ci metti sopra» (quante vuoi, ha prezzo suo e una sua
+   distinta di magazzino, vive nel catalogo). Le due convivono sulla stessa
+   riga: «Panino + Maxi + Salsiccia». */
+/* ── L'ORDINE DEGLI INGREDIENTI, in un comparatore solo (gen-6.18) ──
+   Alfabeto, ma le ESAURITE in fondo: il dito cerca quello che puo' mettere.
+   Un comparatore solo perche' i posti che ordinano sono TRE — aggiunteDi,
+   aggiunteTutte e perCategoria, che ri-ordina ogni gruppo per nome e
+   cancellerebbe in silenzio qualunque criterio arrivato da monte. */
+const ordineAgg = (a, b) => (!!a.esaurito - !!b.esaurito) || a.nome.localeCompare(b.nome, "it");
+const aggiunteDi = (stato, gruppo) => {
+  const g = chiaveGruppo(gruppo);
+  return (stato.aggiunte || [])
+    .filter((a) => a.attivo !== false && (a.gruppi || []).some((x) => chiaveGruppo(x) === g))
+    .sort(ordineAgg);
+};
+/* il suffisso che compone il nome della riga: lo scriviamo NOI, sempre con
+   lo stesso separatore della variante, cosi' un telefono gen-6.01 che non
+   sa cosa sia un'aggiunta stampa comunque «Margherita + Broccoletti» */
+const suffissoAgg = (agg) => ((agg || []).length ? " + " + agg.map((a) => a.nome).join(" + ") : "");
+/* e il nome BASE si ricava togliendo esattamente quel suffisso: se non
+   combacia (riga di un telefono vecchio, voce ribattezzata) resta il nome
+   intero — mai un buco al posto del piatto */
+const nomeBase = (r) => { const x = suffissoAgg(r.agg); return x && r.nome.endsWith(x) ? r.nome.slice(0, -x.length) : r.nome; };
+/* L'ORDINE DEI SUFFISSI, deciso qui una volta per tutte (gen-6.03).
+   nomeBase toglie dalla coda ESATTAMENTE suffissoAgg. Quindi qualunque
+   suffisso futuro di SOTTRAZIONE («Boscaiola senza Funghi») va messo PRIMA
+   di quello delle aggiunte:  voce + variante + suffissoVia + suffissoAgg.
+   Cosi' quello che resta in mano a un telefono fermo a gen-6.01 e' una
+   frase intera e non un moncone. Scritto adesso, mentre si sa perche'. */
+/* tutte le aggiunte accese, senza gruppo: sono i chip della fascia quando
+   nessuna riga e' viva e l'ingrediente aspetta il piatto che nasce dopo.
+   Ordine alfabetico QUI (e' un selettore puro); al banco la vista lo
+   riordina per battute, come gia' fa coi gruppi. */
+const aggiunteTutte = (stato) => (stato.aggiunte || [])
+  .filter((a) => a.attivo !== false)
+  .sort(ordineAgg);
+/* ── LA CATEGORIA DELL'AGGIUNTA SI LEGGE DAL MAGAZZINO (gen-6.17) ──
+   Parole di Valerio: «le aggiunte sono sempre gli ingredienti presenti nel
+   magazzino o frigo con i quali si preparano le pietanze, quindi non dovrei
+   neanche riscriverle e categorizzarle perche' l'ho gia' fatto».
+   Ha ragione: la categoria c'e' gia', sta sul PRODOTTO del catalogo. Se
+   l'aggiunta ha una distinta, la sua categoria si deduce da li'.
+   QUELLA SCRITTA A MANO VINCE, sempre: e' una scelta esplicita di chi sta al
+   banco, la distinta e' il ripiego. Il contrario butterebbe via il lavoro di
+   chi l'ha scritta — ed e' il motivo per cui il campo libero resta.
+   Si ferma al PRIMO prodotto che una categoria ce l'ha: una distinta di
+   farina + mozzarella + sale non ha «una» categoria, e inventarne una media
+   sarebbe peggio che dire «Altro».
+   Stringa vuota = nessuna: chi chiama decide se diventa «Altro». */
+const categoriaAgg = (stato, a) => {
+  const scritta = (a?.categoria || "").trim();
+  if (scritta) return scritta;
+  for (const d of a?.distinta || []) {
+    const prod = trova(stato.prodotti || [], d.prodottoId);
+    const cat = prod && trova(stato.categorie || [], prod.categoriaId);
+    const nome = (cat?.nome || "").trim();
+    if (nome) return nome;
+  }
+  return "";
+};
+/* «Boscaiola» e' un nome che vale per mozzarella+funghi+salsiccia: al banco
+   si legge il NOME, questa riga dice di cosa e' fatto (gen-6.03, parole di
+   Valerio). Sta sul LISTINO, non sulla riga battuta: sulla riga costerebbe
+   45 byte per riga per 48 ore, sul listino si paga una volta.
+   NON si ricava dalla distinta: la distinta e' fatta di farina, lievito,
+   sale e «Mozzarella fiordilatte secchio 3 kg» — leggerla al cliente come
+   «cosa c'e' nella boscaiola» sarebbe una mezza verita', e questa app non
+   le stampa. Campo vuoto = non si mostra niente: un vuoto e' onesto. */
+const dentroDi = (stato, voceId) =>
+  ((trova(stato.listino || [], voceId) || {}).dentro || "").trim();
+/* IL CONTO DELLE COMPOSIZIONI (gen-6.04, riparazione di un mio difetto).
+   In gen-6.03 avevo detto a Valerio che le voci senza composizione sono
+   marcate in ambra. Era vero a meta': la marcatura per-card compare solo
+   dove c'e' gia' una DISTINTA, quindi una pizza senza distinta non veniva
+   segnalata e chi scorreva il Listino se la perdeva.
+   La cura NON e' marcare tutto: scrivere «composizione da scrivere» sopra
+   l'Acqua vorrebbe dire far indovinare all'app quali voci ne hanno bisogno,
+   e l'app non lo sa. Sa dire soltanto DOVE SEI ARRIVATO, e questo conta
+   tutte le voci — quelle con la distinta e quelle senza. Quali meritino una
+   composizione lo decide chi fa le pizze. Derivato, mai salvato. */
+const conteggioDentro = (voci) => {
+  const tot = (voci || []).length;
+  const fatte = (voci || []).filter((v) => (v.dentro || "").trim()).length;
+  return { fatte, tot, senza: tot - fatte };
+};
+/* la finestra della vista comande e' per ORA, non per giorno di calendario:
+   giornoDi taglierebbe a mezzanotte la coda di una pizzeria in servizio */
+const ORE_COMANDE = 12;
+/* La spunta di cucina, gemella di applicaStorno: pura su (s, d) — d viene
+   TUTTO da fuori (niente id da generare qui dentro) — con la guardia di
+   stato come primo atto: su vendita stornata o gia' sfoltita la spunta
+   muore in silenzio, ed e' giusto cosi'. d.togli e' il tocco sbagliato.
+   «Rieseguita sul replay scrive gli stessi valori: idempotente nei fatti»
+   c'era scritto qui fino a gen-6.19, ed era vero rispetto a se' stessa e falso
+   rispetto allo STATO: fra la battuta e il rigioco il mondo cambia, e un altro
+   schermo puo' aver gia' lavorato. La guardia sull'ora sta qui sotto.
+   E L'ASIMMETRIA CHE RESTA, dichiarata invece che pagata: la guardia chiude il
+   verso «una spunta vecchia non cancella lavoro recente», non il rovescio —
+   dopo un «Riporta in coda» legittimo la riga non c'e' piu' (delete), quindi un
+   «Fatto» vecchio rigiocato la fa rinascere. Chiuderlo vorrebbe dire una lapide
+   { t, chi, tolto: 1 } invece di una cancellazione, cioe' un campo in piu' per
+   ogni gruppo spuntato su una collezione che viaggia INTERA a ogni salvataggio,
+   su un'app il cui collo di bottiglia numero uno e' il traffico. Il limite e'
+   tenuto visibile da protocollotest §14b, che il giorno della lapide diventera'
+   rosso apposta.
+   Torna false quando non fa niente (gen-6.12): la spunta non ha descr,
+   quindi oggi nessuna riga di storico dipende da questo — ma l'esecutore
+   che riferisce e' la regola, e il prossimo descr non deve trovarla rotta. */
+function applicaComanda(s, d) {
+  const v = (s.vendite || []).find((x) => x.id === d.venditaId);
+  if (!v || v.stato !== "registrata") return false;
+  const f = { ...(v.fatte || {}) };
+  let cambiato = false;
+  for (const g of d.gruppi || []) {
+    const p = f[g];
+    /* ── UNA SPUNTA PIU' VECCHIA NON CANCELLA LAVORO PIU' RECENTE (gen-6.20) ──
+       Senza questa riga i due rami qui sotto sono un last-write-wins in cui
+       vince l'ULTIMO RIGIOCATO, e d.t e' congelato al momento del dito: un
+       «Riporta in coda» battuto al buio alle 20:05 e rigiocato alle 23:10
+       cancellava una spunta delle 20:20 fatta da un ALTRO schermo sulla stessa
+       postazione (la sedia e' del dispositivo), la comanda riappariva in coda e
+       uscivano due pizze gia' consegnate. Misurato in protocollotest §14. */
+    if (p && typeof p.t === "number" && typeof d.t === "number" && p.t >= d.t) continue;
+    if (d.togli) { if (p) { delete f[g]; cambiato = true; } }
+    else { f[g] = { t: d.t, chi: d.chi }; cambiato = true; }
+  }
+  if (!cambiato) return false;
+  v.fatte = f;
+  return true;
+}
+/* ── «STASERA E' FINITO» (gen-6.18, parole di Valerio del 13 settembre: la
+     cassa «puo' scegliere gli ingredienti disponibili, e quelli esauriti») ──
+   E' la CASSA che lo dichiara, non il magazzino che lo deduce da una
+   giacenza: la bufala puo' essere a 3 kg ed essere finita perche' e' caduta.
+   Percio' `esaurito` e' un campo suo, e non si ricava da niente.
+   DIVERSO da `attivo`: quello e' l'admin che la toglie dal menu per sempre.
+
+   PERCHE' UN ESECUTORE E NON UNA CLOSURE. E' un gesto DI SERVIZIO, fatto
+   proprio nel momento in cui la rete piu' facilmente non c'e', e la coda di
+   muta() vive solo nella memoria della pagina. Come vendita, storno e spunta,
+   viaggia come DATO e sopravvive al ricaricamento.
+
+   LO STECCATO D'ETA', E PERCHE' STA QUI DENTRO. Gli altri tre esecutori hanno
+   un testimone che rende innocuo il rigioco stantio (una vendita gia' in
+   s.vendite, una vendita non piu' «registrata»). Questo scrive un valore
+   ASSOLUTO, e un valore assoluto **non puo' sapere di essere vecchio**: senza
+   steccato, un segno messo venerdi' sera e rimasto in coda tornerebbe a
+   riscrivere il sabato mattina — con la merce arrivata e il frigo pieno.
+   Un compare-and-set non basta, e l'ho provato: il campo e' BOOLEANO, quindi
+   «era disponibile → lo segno → qualcuno lo rimette disponibile → rigioco»
+   trova lo stesso valore di partenza e passa. E' un ABA da manuale.
+   Sta QUI e non nel ritrovamento perche' l'esecutore e' l'unico punto per cui
+   passano tutte le strade: il ritrovamento, applicaCoda a ogni giro, e la
+   riapplicazione dopo ogni lettura remota.
+   UNA DURATA E NON IL GIORNO DI CALENDARIO: con giornoDi un segno messo alle
+   23:50 e ancora in coda alle 00:01 sparirebbe sotto le dita di chi lo ha
+   appena messo, e una pizzeria in servizio a mezzanotte e' la norma. Sei ore
+   coprono un servizio intero senza arrivare al giorno dopo.
+   IL VERSO IN CUI SBAGLIA E' QUELLO GIUSTO: scartare lascia l'ingrediente
+   DISPONIBILE. Fra «potrei vendere una cosa finita» — e chi sta al banco se
+   ne accorge e la risegna — e «blocco la vendita di una cosa che c'e'», che
+   e' un incasso perso in silenzio, si sbaglia dalla parte che una persona
+   vede. */
+const ORE_ESAURITO = 6;
+function applicaEsaurito(s, d) {
+  if (d.t && Date.now() - d.t > ORE_ESAURITO * 3600000) return false;
+  const a = (s.aggiunte || []).find((x) => x.id === d.id);
+  /* niente da fare = niente riga di storico (la regola di gen-6.15). E' anche
+     quello che fa convergere due casse che segnano insieme: la seconda trova
+     gia' il valore e esce, invece di ribaltarlo come farebbe un toggle. */
+  if (!a || !!a.esaurito === !!d.val) return false;
+  if (d.val) a.esaurito = true; else delete a.esaurito;
+}
+/* ── IL REGISTRO DELLE MUTAZIONI SALVABILI (gen-6.05) ──
+   La coda di muta() contiene FUNZIONI, e una funzione non si salva su
+   disco. Finche' e' cosi', tutto quello che e' in attesa di invio vive
+   SOLO nella memoria della pagina: un ricaricamento, un blocco, o il
+   sistema che sospende la scheda, e sparisce senza un avviso. In servizio
+   normale la finestra e' di un secondo; quando la rete cade, e la coda
+   accumula tutto il periodo di buio, e' una serata di incassi.
+   Queste tre sono le uniche che portano SOLDI E ORDINI, e sono gia' pure
+   su dati semplici — il codice sopra lo dice a voce alta, e il call-site
+   della vendita porta gia' il commento «TUTTO calcolato fuori da muta, id
+   compreso». Quindi si accodano come DATI e sopravvivono al riavvio.
+   Tutto il resto resta closure: e' configurazione, si rifa' a mano, e
+   fingere di salvarla sarebbe peggio che dire che non si salva. */
+const ESECUTORI = { vendita: applicaVendita, storno: applicaStorno, spunta: applicaComanda,
+  esaurito: applicaEsaurito };
+const CHIAVE_CODA = "scp:coda:v1";
+/* dove finisce quello che e' troppo vecchio per rigiocarsi da solo (gen-6.07) */
+const CHIAVE_FERMA = "scp:coda-ferma:v1";
+
 const numCsv = (n) => String(n ?? "").replace(".", ",");
 const dataIt = (t) => new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 function scaricaCsv(nomeFile, righe) {
@@ -507,7 +1474,7 @@ function parseCsvTesto(testo) {
    fa upsert dei prodotti per ID o nome). Ritorna un resoconto per l'anteprima.
    È puro rispetto a «s»: eseguibile su una copia per la sola anteprima. */
 function applicaCatalogoCsv(s, testo) {
-  const rep = { aggiornati: 0, creati: 0, catNuove: [], fornNuovi: [], unitaNuove: [], errori: [] };
+  const rep = { aggiornati: 0, creati: 0, catNuove: [], fornNuovi: [], unitaNuove: [], errori: [], nonToccati: [] };
   const righe = parseCsvTesto(testo);
   if (righe.length < 2) { rep.errori.push("Nessuna riga dati (serve intestazione + almeno un prodotto)"); return rep; }
   const norm = (x) => String(x || "").trim().toLowerCase();
@@ -549,45 +1516,85 @@ function applicaCatalogoCsv(s, testo) {
     s.fornitori.push(f); rep.fornNuovi.push(f.nome); return f.id;
   };
 
+  /* ── UNA COLONNA CHE NON C'È NON È UNA COLONNA VUOTA ──
+     Difetto n.3 del consiglio del 2 agosto. Un listino a due colonne
+     (Nome; Prezzo) è un file legittimo — anzi, è esattamente quello che si
+     ottiene ripulendo in Excel un export dell'app, cioè quello che questo
+     pannello invita a fare. Prima ogni prodotto toccato da un file così
+     perdeva l'unità base, TUTTE le conversioni, la categoria e il fornitore,
+     e l'anteprima diceva tranquillamente «1 aggiornato, 0 errori». Da quel
+     momento 4 buste di grana valevano 4 teglie invece di 12: prelievi,
+     richieste e righe d'ordine uscivano tutti col numero sbagliato, e il
+     magazzino continuava a mostrare numeri credibili che non volevano più
+     dire niente. E non si torna indietro — lo storico fotografa le caselle
+     dei magazzini, non i prodotti: serve un ripristino da backup.
+
+     Da qui in poi vale una regola sola: SI SCRIVE SOLO QUELLO CHE IL FILE
+     DICHIARA. Su un prodotto nuovo i valori di partenza ci vogliono — non c'è
+     niente da rovinare — su uno che esiste già no.
+
+     Restano fuori da questa regola due cose, e le dico invece di lasciarle
+     intendere: una colonna che C'È ma con la casella vuota resta autorevole
+     (vuol dire «questo prodotto non ha conversioni», non «non lo so»), e il
+     prezzo si comporta come si è sempre comportato — una casella vuota lo
+     lascia com'è. L'unica eccezione è «UdM base»: una casella vuota lì non
+     può voler dire «nessuna unità», perché ogni prodotto ne ha una, quindi si
+     tiene quella di adesso e lo si scrive negli avvisi. */
+  const NOTE = [[cCat, "categoria"], [cForn, "fornitore"], [cBase, "unità base"],
+    [cConv, "conversioni"], [cPrezzo, "prezzo"], [cLav, "unità di lavorazione"],
+    [cFlab, "unità fornitore lab"], [cFdir, "unità fornitore diretto"]];
+  rep.nonToccati = NOTE.filter(([c]) => c < 0).map(([, n]) => n);
+
   for (let ri = 1; ri < righe.length; ri++) {
     const r = righe[ri];
     const nome = (cNome >= 0 ? r[cNome] : "").trim();
     if (!nome) { rep.errori.push(`Riga ${ri + 1}: nome mancante, saltata`); continue; }
     const idRiga = cID >= 0 ? (r[cID] || "").trim() : "";
+    /* chi si sta aggiornando va saputo PRIMA di decidere cosa scrivere: è
+       tutta la differenza fra «metti il valore di partenza» e «non toccare» */
+    let esist = idRiga ? trova(s.prodotti, idRiga) : null;
+    if (!esist) esist = perNome(s.prodotti, nome);
+
     const baseSim = (cBase >= 0 ? r[cBase] : "").trim();
+    if (cBase >= 0 && !baseSim && esist)
+      rep.errori.push(`Riga ${ri + 1}: «UdM base» vuota, tengo quella di adesso`);
+    /* serve comunque per leggere le conversioni e le altre unità, anche
+       quando non va riscritta */
     const uomBase = baseSim ? creaUnita(baseSim)
-      : (s.unita.find((u) => u.simbolo === "pz")?.id || s.unita[0]?.id);
-    const conv = {};
-    if (cConv >= 0 && r[cConv]) {
-      for (const pezzo of String(r[cConv]).split("|")) {
-        const mm = pezzo.match(/^\s*(.+?)\s*[=:]\s*(.+?)\s*$/);
-        if (!mm) continue;
-        const f = num(mm[2]);
-        if (f == null || f <= 0) continue;
-        const uu = creaUnita(mm[1]);
-        if (uu !== uomBase) conv[uu] = f;
+      : (esist?.uomBase || s.unita.find((u) => u.simbolo === "pz")?.id || s.unita[0]?.id);
+
+    const dati = { nome };
+    if (baseSim || !esist) dati.uomBase = uomBase;
+    if (cConv >= 0) {
+      const conv = {};
+      if (r[cConv]) {
+        for (const pezzo of String(r[cConv]).split("|")) {
+          const mm = pezzo.match(/^\s*(.+?)\s*[=:]\s*(.+?)\s*$/);
+          if (!mm) continue;
+          const f = num(mm[2]);
+          if (f == null || f <= 0) continue;
+          const uu = creaUnita(mm[1]);
+          if (uu !== uomBase) conv[uu] = f;
+        }
       }
-    }
-    const ctx = [uomBase, ...Object.keys(conv)];
+      dati.conv = conv;
+    } else if (!esist) dati.conv = {};
+    if (cCat >= 0 || !esist) dati.categoriaId = idCategoria(cCat >= 0 ? r[cCat] : "");
+    if (cForn >= 0 || !esist) dati.fornitoreId = idFornitore(cForn >= 0 ? r[cForn] : "");
+
+    const ctx = [uomBase, ...Object.keys(dati.conv || esist?.conv || {})];
     const ctxSim = (val, def) => {
       const sim = (val || "").trim();
       if (!sim) return def;
       const u = unitaDaSimbolo(sim);
       return u && ctx.includes(u.id) ? u.id : def;
     };
-    const dati = {
-      nome,
-      categoriaId: idCategoria(cCat >= 0 ? r[cCat] : ""),
-      fornitoreId: idFornitore(cForn >= 0 ? r[cForn] : ""),
-      uomBase, conv,
-      uomLavorazione: ctxSim(cLav >= 0 ? r[cLav] : "", uomBase),
-      uomFornitore: ctxSim(cFlab >= 0 ? r[cFlab] : "", uomBase),
-      uomFornitoreDiretto: ctxSim(cFdir >= 0 ? r[cFdir] : "", uomBase),
-    };
+    if (cLav >= 0 || !esist) dati.uomLavorazione = ctxSim(cLav >= 0 ? r[cLav] : "", uomBase);
+    if (cFlab >= 0 || !esist) dati.uomFornitore = ctxSim(cFlab >= 0 ? r[cFlab] : "", uomBase);
+    if (cFdir >= 0 || !esist) dati.uomFornitoreDiretto = ctxSim(cFdir >= 0 ? r[cFdir] : "", uomBase);
+
     const prezzo = cPrezzo >= 0 ? num(r[cPrezzo]) : null;
     if (prezzo != null && prezzo >= 0) dati.prezzo = prezzo;
-    let esist = idRiga ? trova(s.prodotti, idRiga) : null;
-    if (!esist) esist = perNome(s.prodotti, nome);
     if (esist) { Object.assign(esist, dati); rep.aggiornati++; }
     else { s.prodotti.push({ id: uid("p"), ...dati }); rep.creati++; }
   }
@@ -652,7 +1659,9 @@ function Scheda({ children, className = "", style, onClick }) {
 }
 function Bottone({ figli, children, variante = "primario", icona: I, onClick, disabilitato, className = "", piccolo }) {
   const stili = {
-    primario: { background: T.grad, color: "#fff", border: "none", boxShadow: "0 10px 22px -10px rgba(110,100,244,.55)" },
+    /* T.blu PIENO, non il gradiente: sui bottoni il viola-fucsia diceva
+       «template», e il colore d'azione dell'app e' il blu (gen-5.99) */
+    primario: { background: T.blu, color: "#fff", border: "none", boxShadow: "0 10px 22px -10px rgba(61,125,234,.5)" },
     tonale: { background: "#EAF0FE", color: T.blu, border: "none" },
     fantasma: { background: "transparent", color: T.dim, border: `1px solid ${T.bordo}` },
     pericolo: { background: "#FCE9EE", color: T.rosso, border: "none" },
@@ -685,7 +1694,7 @@ function Campo({ label, valore, onCambia, tipo = "text", placeholder, suggerimen
     </label>
   );
 }
-function Selettore({ label, valore, onCambia, opzioni, placeholder = "Seleziona…" }) {
+function Selettore({ label, valore, onCambia, opzioni, gruppi, placeholder = "Seleziona…" }) {
   return (
     <label className="block">
       <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>{label}</span>
@@ -693,7 +1702,12 @@ function Selettore({ label, valore, onCambia, opzioni, placeholder = "Seleziona�
         className="w-full rounded-2xl px-4 py-3 text-base font-semibold appearance-none"
         style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}`, color: valore ? T.ink : T.tenue }}>
         <option value="" disabled>{placeholder}</option>
-        {opzioni.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        {gruppi
+          ? gruppi.map((g) => (
+              <optgroup key={g.nome} label={g.nome}>
+                {g.opzioni.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </optgroup>))
+          : (opzioni || []).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
       </select>
     </label>
   );
@@ -735,7 +1749,16 @@ function Vuoto({ icona: I = Boxes, titolo, testo, azione }) {
 function Foglio({ aperto, titolo, onChiudi, children, larga }) {
   if (!aperto) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+    /* Da gen-5.72 l'intestazione sta SOPRA i fogli, perche' la lente dev'essere
+       raggiungibile anche da qui dentro. Conseguenza misurata, non immaginata:
+       su un portatile 1440×760 un foglio alto partiva a 30px e il suo TITOLO
+       finiva sotto l'intestazione.
+       La fascia libera la fa «sc-foglio» nel foglio di stile qui sopra, non una
+       classe di Tailwind: il banco di prova usa un CSS precompilato e il
+       caricatore di produzione non e' leggibile da qui — una classe nuova
+       poteva esserci in un posto e non nell'altro. Il nostro CSS sta dentro il
+       codice e vale in tutti e due. */
+    <div className="sc-foglio fixed inset-0 z-50 flex items-end md:items-center justify-center"
       style={{ background: "rgba(20,28,55,.4)", backdropFilter: "blur(4px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onChiudi(); }}>
       <div className={`sc-su w-full ${larga ? "md:max-w-2xl" : "md:max-w-md"} max-h-[92vh] overflow-y-auto sc-scroll rounded-t-3xl md:rounded-3xl p-5 md:p-6`}
@@ -796,8 +1819,46 @@ function InArrivo({ titolo, gen, testo }) {
   );
 }
 
+/* ─────────── SPIEGA: L'AIUTO CHE SI RICHIUDE (gen-5.95) ───────────
+   Un testo d'aiuto che non si puo' togliere insegna a non leggere niente:
+   chi conta due volte al giorno attraversava 400 caratteri di istruzioni
+   gia' imparate, due volte al giorno, per sempre. Aperto la prima volta;
+   richiuso resta richiuso SU QUESTO DISPOSITIVO (come il tour), e al posto
+   suo resta una pastiglia col titolo — che e' anche la strada per riaprirlo.
+   Se localStorage manca (navigazione privata), resta sempre aperto: meglio
+   ripetere che sparire. Lo stato si rilegge nell'inizializzatore, quindi il
+   rimontaggio della vista a ogni navigazione non riapre niente.
+   NON si usa per: avvisi che portano DATI (offline, righe mancanti),
+   conferme, form. Si richiude solo cio' che, una volta imparato, non serve
+   piu'. */
+const AIUTI_K = "scp:aiuti:v1";
+const aiutoChiuso = (id) => { try { return (JSON.parse(localStorage.getItem(AIUTI_K)) || {})[id] === 1; } catch { return false; } };
+const aiutoScrivi = (id, chiuso) => { try {
+  const v = JSON.parse(localStorage.getItem(AIUTI_K)) || {};
+  v[id] = chiuso ? 1 : 0; localStorage.setItem(AIUTI_K, JSON.stringify(v));
+} catch {} };
+function Spiega({ id, titolo = "Come funziona", colore = T.blu, sfondo = "#EFF4FE", icona: I = Sparkles, children }) {
+  const [chiuso, setChiuso] = useState(() => aiutoChiuso(id));
+  const cambia = () => setChiuso((c) => { aiutoScrivi(id, !c); return !c; });
+  if (chiuso) return (
+    <button type="button" onClick={cambia} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 mb-3 text-xs font-bold"
+      style={{ background: sfondo, color: colore }}>
+      <I size={13} /> {titolo}
+    </button>
+  );
+  return (
+    <div className="rounded-2xl px-3.5 py-3 mb-3 flex items-start gap-2.5"
+      style={{ background: sfondo, border: `1px solid ${T.bordo}` }}>
+      <I size={16} style={{ color: colore }} className="mt-0.5 shrink-0" />
+      <div className="flex-1 text-sm min-w-0" style={{ color: T.ink }}>{children}</div>
+      <button type="button" onClick={cambia} aria-label={`Chiudi l'aiuto: ${titolo}`}
+        className="rounded-full p-2 shrink-0" style={{ background: "#fff", color: T.dim }}><X size={14} /></button>
+    </div>
+  );
+}
+
 /* ─────────── ACCESSO · PROFILI + PIN ─────────── */
-function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
+function SchermataLogin({ stato, sync, daSalvare = 0, muta, onEntra, auth }) {
   const [vista, setVista] = useState("profili"); // profili | codice | richiesta | attesa
   const [sel, setSel] = useState(null);
   const [pin, setPin] = useState("");
@@ -923,12 +1984,45 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
         </div>
         <h1 className="text-3xl md:text-4xl font-extrabold" style={{ color: T.ink }}>Supply Chain Pro</h1>
         <p className="text-sm max-w-sm" style={{ color: T.dim }}>
-          Rifornimenti multi-sede in tempo reale: linee, retro, laboratorio e ordini fornitori.
+          Magazzino, cassa e comande per la tua rete: linee, retro, laboratorio e ordini fornitori.
         </p>
       </div>
 
       {vista === "profili" && !sel && (
         <div className="sc-fade w-full max-w-md flex flex-col gap-3 pb-10">
+          {/* ── QUELLO CHE ASPETTA, DETTO PRIMA DI ENTRARE (gen-6.06) ──
+              Se il telefono si e' spento con delle vendite ancora da mandare,
+              chi lo riprende in mano deve saperlo SUBITO — non dopo il login,
+              e non solo dalla pastiglia in alto che qui nemmeno esiste (la
+              barra vive dentro Struttura, che prima dell'accesso non c'e').
+              Senza questa riga il ritrovamento funziona ma resta invisibile
+              finche' qualcuno non entra, e un telefono lasciato sul bancone
+              sembra a posto mentre tiene fermi dei soldi.
+              Dice anche COSA fare, perche' l'informazione da sola non basta:
+              partono da sole appena qualcuno entra. */}
+          {daSalvare > 0 && (
+            <Scheda className="p-4" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55` }}>
+              {/* il marcatore sta QUI e non su Scheda: Scheda non inoltra gli
+                  attributi che non conosce, quindi li' sarebbe sparito dal
+                  documento — e un collaudo che cerca un marcatore assente non
+                  distingue «il cartello non c'e'» da «il cartello non e'
+                  marcato». Trovato dal banco, non da me. */}
+              <div className="flex items-start gap-3" data-da-salvare={daSalvare}>
+                <CloudOff size={18} style={{ color: T.ambra }} className="mt-0.5 shrink-0" />
+                <div className="text-sm" style={{ color: T.ink }}>
+                  {/* «modifica» e non «vendita» (gen-6.18): da gen-6.10 la
+                      coda porta anche le spunte di cucina, e da gen-6.18 gli
+                      ingredienti esauriti. Chiamarle tutte vendite faceva
+                      cercare un incasso che non c'era mai stato. */}
+                  <b>{daSalvare === 1 ? "1 modifica da salvare" : `${daSalvare} modifiche da salvare`}</b>
+                  {" "}su questo telefono: erano in attesa quando l'app si è chiusa.
+                  <span className="block text-xs mt-0.5" style={{ color: T.dim }}>
+                    Non si perdono e non si contano due volte: partono da sole appena entri.
+                  </span>
+                </div>
+              </div>
+            </Scheda>
+          )}
           {stato.avvisoDemo && !(stato.codici || []).length && (
             <Scheda className="p-4" style={{ background: "#F1EDFE", border: "1px solid #DCD2FA" }}>
               <div className="flex items-start gap-3">
@@ -974,7 +2068,7 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
           <p className="text-xs text-center mt-3 leading-relaxed" style={{ color: T.tenue }}>
             {sync === "locale"
               ? "Archiviazione condivisa non disponibile: i dati resteranno solo su questo dispositivo."
-              : "Accesso su invito · i dati sono sincronizzati in tempo reale fra gli utenti autorizzati."}
+              : "Accesso su invito · i dati si allineano da soli, in qualche secondo, fra i telefoni autorizzati."}
           </p>
         </div>
       )}
@@ -1049,7 +2143,7 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
           <div className="text-center">
             <div className="text-xl font-extrabold" style={{ color: T.ink }}>Richiedi l'accesso</div>
             <p className="text-sm mt-1" style={{ color: T.dim }}>
-              L'amministratore vedrà i tuoi dati in tempo reale e potrà approvarti.
+              L'amministratore vedrà la tua richiesta e potrà approvarti.
             </p>
           </div>
           <Campo label="Il tuo nome" valore={nome} onCambia={setNome} placeholder="Es. Luca" autoFocus />
@@ -1123,7 +2217,12 @@ function SchermataLogin({ stato, sync, muta, onEntra, auth }) {
 }
 
 /* ─────────── STRUTTURA · NAVIGAZIONE ─────────── */
-function SincroChip({ sync }) {
+/* QUANTE NE MANCANO, non solo «c'e' qualcosa che non va» (gen-6.05).
+   «Riconnessione…» e' vero ma non dice la cosa che serve al cassiere: che
+   ha delle VENDITE non ancora salvate, e quante. Con la coda che adesso
+   sopravvive al riavvio, quel numero e' una promessa mantenibile — prima
+   sarebbe stata una bugia, perche' al ricaricamento sparivano davvero. */
+function SincroChip({ sync, daSalvare = 0 }) {
   const cfg = {
     ok: [Cloud, T.verde, "Sincronizzato"],
     salvataggio: [RefreshCw, T.blu, "Salvataggio…"],
@@ -1131,13 +2230,27 @@ function SincroChip({ sync }) {
     locale: [CloudOff, T.tenue, "Solo locale"],
     init: [RefreshCw, T.tenue, "…"],
   }[sync] || [Cloud, T.tenue, ""];
-  const [I, col, testo] = cfg;
+  const [I, col, testo0] = cfg;
+  const testo = daSalvare > 0
+    ? `${daSalvare} da salvare`
+    : testo0;
+  const col2 = daSalvare > 0 ? T.ambra : col;
+  /* ── LA SPIA SI VEDE ANCHE SUL TELEFONO (gen-5.91) ──
+     Qui c'era «hidden sm:inline-flex»: la pastiglia spariva sotto i 640px,
+     cioe' su OGNI telefono — proprio i dispositivi su cui si conta in
+     cantina, dove la rete non c'e'. Chi lavorava non aveva nessun modo di
+     sapere che stava salvando solo in locale.
+     Sul telefono resta nascosta quando va tutto bene, perche' «Sincronizzato»
+     tutto il giorno diventa arredamento e non lo legge piu' nessuno; compare
+     quando c'e' qualcosa da sapere, e in quel caso la si vede eccome. */
+  const daSapere = sync !== "ok" && sync !== "init";
   return (
-    <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"
-      style={{ color: col, background: `${col}16` }}>
+    <span className={(daSapere || daSalvare > 0 ? "inline-flex" : "hidden sm:inline-flex")
+      + " items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"}
+      style={{ color: col2, background: `${col2}16` }}>
       <I size={13} className={sync === "salvataggio" ? "sc-gira" : ""} />
       {testo}
-      {sync === "ok" && <span className="w-1.5 h-1.5 rounded-full" style={{ background: col, animation: "scPulsa 2s ease-in-out infinite" }} />}
+      {sync === "ok" && daSalvare === 0 && <span className="w-1.5 h-1.5 rounded-full" style={{ background: col2, animation: "scPulsa 2s ease-in-out infinite" }} />}
     </span>
   );
 }
@@ -1150,6 +2263,9 @@ const GUIDA_NAV = {
   ordini: "Cosa ordinare, cosa è stato ordinato e cosa è arrivato. Da qui invii l'ordine (anche su WhatsApp) e registri la merce.",
   richieste: "Le richieste che le linee mandano al laboratorio: le evadi indicando quanto invii davvero.",
   plancia: "La rete a colpo d'occhio: chi rifornisce chi, cosa contiene ogni magazzino e cosa gli manca. Da qui si lavora anche su più magazzini insieme.",
+  cassa: "Le vendite al cliente: tocchi le voci del listino, incassi, e il magazzino di cassa si scarica da solo secondo la distinta di ogni voce.",
+  comande: "Gli scontrini battuti in Cassa, smistati alla postazione che li produce: chi cucina spunta quello che esce.",
+  listino: "Le voci che compaiono in Cassa: nome, prezzo di vendita, varianti e la distinta di cosa scalare dal magazzino a ogni vendita.",
   catalogo: "L'anagrafica di tutta la rete: prodotti, categorie, fornitori, unità e prezzi. Qui c'è «Modifica in blocco», che cambia anche chi fa un prodotto: il laboratorio o un fornitore.",
   analisi: "Numeri e tendenze: copertura scorte, consumi, soglie consigliate dai dati veri e valore della merce ferma.",
   storico: "Tutto quello che è stato fatto, in ordine di tempo, con il tasto per riportare le cose com'erano.",
@@ -1158,12 +2274,13 @@ const GUIDA_NAV = {
   profili: "Le persone che accedono, con ruolo e magazzini assegnati.",
   accessi: "Inviti e richieste di primo accesso: generi i codici per far entrare nuove persone.",
   sistema: "Backup, punti di ripristino, export dei dati e stato della sincronizzazione.",
+  informazioni: "La carta d'identità dell'app: quale versione gira, come si aggiorna, a chi chiedere aiuto e i limiti dichiarati.",
 };
 const GUIDA_SEZIONE = {
   magazzini: [
     { titolo: "I magazzini", testo: "Ogni scheda è un magazzino (linea, retro o laboratorio). Toccala per aprirlo e vederne i prodotti." },
     { illustra: "riga", titolo: "Dentro il magazzino", testo: "Ogni riga è un prodotto con livello previsto e quantità. La matita lo modifica, il cestino lo toglie, l'orologio mostra lo storico." },
-    { illustra: "gestione", titolo: "Gestione rapida", testo: "Il pulsante «Gestione rapida» raccoglie SEI scorciatoie, non quattro: aggiungi più prodotti insieme, copia da un altro magazzino, sposta o rimuovi in blocco, livello previsto in blocco, soglie per giorno, trasferisci scorte." },
+    { illustra: "gestione", titolo: "Gestione rapida", testo: "Il pulsante «Gestione rapida» è il pannello di comando del magazzino, diviso in tre gruppi. AGGIUNGERE: aggiungi più prodotti, oppure copia da un altro magazzino. SPOSTARE: sposta o rimuovi prodotti, trasferisci le scorte. LIVELLI: livello previsto in blocco, soglie per giorno. Sono gli stessi nomi che trovi cercando con la lente in alto." },
     { titolo: "Assegna a più magazzini", testo: "In alto nella lista, «Assegna a più magazzini» mette gli stessi prodotti in più magazzini in una volta sola." },
   ],
   ordini: [
@@ -1186,6 +2303,25 @@ const GUIDA_SEZIONE = {
   richieste: [
     { titolo: "Le richieste dalla linea", testo: "Qui arrivano le richieste che le linee mandano al laboratorio quando sono sotto scorta." },
     { titolo: "Evadi la richiesta", testo: "Indichi quanto invii davvero: la linea si carica esattamente di quello e, se mandi meno, la richiesta resta aperta per il resto." },
+  ],
+  comande: [
+    { titolo: "La tua postazione", testo: "In alto scegli a quale postazione ti siedi (anche più di una: chi fa i fritti stasera può fare anche i dolci). Se un Admin te ne ha assegnate nel profilo, uno schermo nuovo parte già da quelle; appena tocchi qui comanda questo schermo, e «Torna alle mie postazioni» rimette la scelta del profilo. Vedi solo le postazioni della tua sede." },
+    { titolo: "La coda", testo: "Ogni card è uno scontrino: vedi solo la TUA parte, col numero da chiamare e da quanto aspetta. La più vecchia sta in cima. «Fatto» dice che la tua parte è uscita; un tocco in «Fatte» la riporta in coda se hai sbagliato." },
+    { titolo: "Il ritardo e lo storno", testo: "La comanda arriva col giro dell'app: qualche secondo a schermo ACCESO — a schermo spento non arriva niente, quindi il tablet di postazione resta acceso sull'app. Uno scontrino stornato resta a schermo barrato in rosso col motivo, finché non tocchi «Vista»." },
+  ],
+  cassa: [
+    { titolo: "La Cassa", testo: "Tocchi una voce e finisce nel conto; se ha varianti scegli quale. «Incassa» chiude il conto con il metodo di pagamento. I gruppi sono pulsanti: tocchi PIZZE, FRITTI o DOLCI e si apre il suo gruppo. All'arrivo è aperto il più grande del listino. Sul pulsante di un gruppo chiuso leggi quante ne hai già battute; il prezzo e gli ingredienti si vedono aprendolo." },
+    { titolo: "Le aggiunte: «la pizza più broccoletti»", testo: "In basso c'è la fascia degli ingredienti, e l'ordine non conta. Se hai già battuto il piatto, la fascia dice «Su: Margherita» e il tocco sull'ingrediente ci va sopra. Se non hai battuto niente, l'ingrediente resta IN MANO e lo prende il primo piatto che tocchi. Per cambiare bersaglio tocca il nome di un'altra riga («Lavora su…»), per liberarlo «Stacca». Vale per UNA: da due margherite ne resta una liscia e nasce «Margherita + Broccoletti». Si disfa dove hai sbagliato: lo stesso ingrediente per toglierlo, la × accanto alla riga, «Lascia» per svuotare la mano." },
+    { titolo: "Il cliente: asporto, consegna, e per che ora", testo: "In cima alla Cassa c'è una pastiglia che dice «Banco»: al bancone non la tocchi mai e batti come sempre. Quando suona il telefono la apri e scegli «Asporto» o «Consegna». Il numero è la chiave: battine anche solo le ultime cifre e se il cliente ha già ordinato compare lì sotto — un tocco e nome, telefono e via si riempiono da soli. Il nome è obbligatorio (in cucina è quello che si legge sul sacchetto) e per la consegna lo è anche la via, con «Vedi sulla mappa» che te la apre PRIMA di prometterla. «Per le» è l'ora richiesta: i tastini «fra 15′» la scrivono da soli. La rubrica tiene i 300 clienti che hanno ordinato più di recente, e telefono e indirizzo NON escono mai nel CSV." },
+    { titolo: "Ultime vendite, storni e resto", testo: "Nella riga «Oggi», «Ultime vendite» mostra gli scontrini delle ultime 48 ore — quello di ieri sera compreso, col giorno scritto accanto all'ora: tocchi una riga per stornarla (motivo obbligatorio, e il PIN di un Admin se non lo sei). Con i contanti, nel foglio d'incasso scrivi quanto ti hanno dato e leggi il resto: è solo un aiuto, non si registra da nessuna parte." },
+    { titolo: "Il magazzino si scarica da solo", testo: "Ogni voce del listino sa cosa consuma: alla vendita l'app scala il magazzino di cassa della sede. Se il numero va sotto zero non è un errore: significa «hai venduto più di quanto risultava» — è un invito a contare." },
+    { titolo: "Niente scontrino fiscale", testo: "Quello lo fa il registratore telematico, come sempre. Qui la vendita serve al magazzino, ai riordini e ai totali di giornata." },
+  ],
+  listino: [
+    { titolo: "Le voci di vendita", testo: "Una voce di listino non è un prodotto di magazzino: una «Margherita» scala farina, mozzarella e pomodoro. Nome, gruppo e prezzo sono quelli che il banco vede in Cassa." },
+    { titolo: "La distinta", testo: "Per ogni voce dici cosa esce dal magazzino a ogni vendita, e in che unità. Una voce senza distinta si vende comunque: semplicemente non scala niente." },
+    { titolo: "Varianti, aggiunte e IVA", testo: "Le varianti sono il FORMATO: una sola per riga, cambia solo il prezzo («Maxi +1,50»), e in Cassa si legge il suo nome sulla cella. Le aggiunte sono quello che ci metti SOPRA: quante ne vuoi, ognuna col suo prezzo e i suoi ingredienti che escono dal magazzino, e valgono per interi gruppi del listino (tutte le Pizze). Si creano nella scheda «Aggiunte» qui sopra. L'aliquota è quella della voce, aggiunte comprese, ed è solo informativa: lo scontrino fiscale resta al registratore telematico." },
+    { titolo: "«Cosa c'è dentro»: il nome corto e la sua composizione", testo: "«Boscaiola» è un nome che vale per mozzarella, funghi e salsiccia. Nel campo «Cosa c'è dentro» scrivi quegli ingredienti come li dici al cliente: in Cassa si legge il NOME grande e sotto, in piccolo, la composizione — così rispondi a «cosa c'è nella boscaiola?» senza toccare niente. In cucina compare fra il piatto e le aggiunte, e ogni schermo può nasconderla. «Prendi dalla distinta» te li copia dal magazzino, poi li accorci a mano: la distinta parla di farina e di secchi da tre chili, il cliente no. Non scala niente: lo scarico resta la Distinta." },
   ],
   /* Le nove qui sotto non c'erano. Nove schermate su quattordici aprivano il
      « ? » su una scheda sola, e la Plancia — che è una voce della barra, non
@@ -1240,7 +2376,7 @@ function passiPanoramica(NAV) {
     { illustra: "conteggio", titolo: "1 · Conta", testo: "Inserisci quello che vedi in magazzino: l'app lo confronta col livello previsto del giorno e calcola in automatico quanto manca." },
     ...(ha("magazzini") ? [{ sel: `[data-tour="nav-magazzini"]`, attendi: true, titolo: "Prova tu!", testo: "Tocca «Magazzini» qui evidenziato per aprirli davvero. (Se preferisci, puoi saltare questo passo.)" }] : []),
     { illustra: "riga", titolo: "Dentro un magazzino", testo: "Ogni riga è un prodotto con livello previsto e quantità. La matita modifica, il cestino toglie, l'orologio mostra lo storico." },
-    { illustra: "gestione", titolo: "Le azioni veloci", testo: "Il tasto «Gestione rapida» raccoglie tutto ciò che fai in blocco: aggiungere più prodotti, copiare da un altro magazzino, spostare/rimuovere, soglie per giorno." },
+    { illustra: "gestione", titolo: "Le azioni veloci", testo: "Il tasto «Gestione rapida» raccoglie tutto quello che si fa in blocco, in tre gruppi: Aggiungere, Spostare, Livelli. Le voci che hanno bisogno di prodotti restano visibili anche quando il magazzino è vuoto, spente, e dicono perché." },
     { illustra: "arrivo", titolo: "2 · Ordina  ·  3 · Ricevi", testo: "In «Ordini» premi «Tutto ordinato» e invii al fornitore (anche su WhatsApp). All'arrivo, «Tutto arrivato» carica i magazzini con la quantità reale." },
     { sel: `[data-tour="aiuto"]`, titolo: "Rivedi quando vuoi", testo: "Trovi questa guida — e la guida di ogni singola sezione — toccando il « ? » qui in alto. Buon lavoro!" },
   ];
@@ -1688,6 +2824,79 @@ function magazziniVisti(stato, profilo) {
 function puoModificare(profilo, m) {
   return !!m && (profilo.ruolo === "admin" || m.sedeId === profilo.sedeId);
 }
+/* ── LA STRUTTURA SI TOCCA SOLO CON L'AUTORIZZAZIONE (gen-5.94) ──
+   Chiesto da Valerio: «a regime questi 2 profili dovranno solo vedere
+   quello che devono fare, non dovranno modificare magazzini senza
+   autorizzazione». STRUTTURA vuol dire la forma del magazzino: aggiungere,
+   modificare o rimuovere articoli, soglie, livelli previsti, unita',
+   spostare in blocco. Il LAVORO DI TUTTI I GIORNI — contare, rettificare
+   una giacenza, scartare, trasferire scorte, produrre, evadere, ricevere —
+   NON passa da qui e resta a tutti, come prima.
+   L'autorizzazione e' un interruttore sul profilo (campo «struttura»),
+   che l'admin accende da Gestione › Profili. Un profilo vecchio non ha il
+   campo, quindi parte SENZA autorizzazione: e' il verso giusto del
+   default — la sicurezza non deve dipendere dal ricordarsi di spegnere. */
+function puoStruttura(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.struttura;
+}
+/* ── TRE INTERRUTTORI, gen-5.95. Chiesto da Valerio: «le modifiche e la
+   gestione generale va lasciata all'admin, gli altri profili possono
+   essere autorizzati ma non e' scontato».
+   · struttura  = la forma del magazzino (gen-5.94, invariato)
+   · correzioni = i numeri: rettifica, scarto, trasferisci, inventario,
+                  comandi quantita' in Plancia, annulla, ripristino
+   · ordini     = il ciclo d'acquisto: ricalcola, segna ordinato, rimuovi
+                  riga, report e testi da mandare, storico ordini
+   Il MESTIERE — contare, evadere, produrre, scrivere le dosi, RICEVERE la
+   merce — non passa da qui e resta a tutti.
+   LA STRUTTURA COMPRENDE LE CORREZIONI: e' una scala, non tre assi — chi
+   puo' cambiare la forma puo' a maggior ragione correggere i numeri; il
+   contrario produrrebbe schermate a meta' (Soglie senza Riempi).
+   Un profilo vecchio non ha i campi: parte tutto spento.
+   LIMITE DICHIARATO: muta() non autorizza niente lato server — questi
+   muri sono interfaccia. Vale per tutta l'app, da sempre, e va sanato al
+   livello giusto (il server), non qui. */
+function puoCorreggere(profilo) {
+  return puoStruttura(profilo) || !!profilo?.correzioni;
+}
+function puoOrdinare(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.ordini;
+}
+/* il QUARTO interruttore (gen-5.96): battere in cassa e' mestiere DI CHI STA
+   IN CASSA, non di tutti — e non e' compreso in nessuno degli altri tre:
+   vendere non da' correzioni, ne' ordini, ne' struttura, e viceversa. */
+function puoCassa(profilo) {
+  return profilo?.ruolo === "admin" || !!profilo?.cassa;
+}
+/* ── CHI STA SOLO IN CASSA (gen-6.17, parole di Valerio del 13 settembre:
+     «la cassa ancora vede le altre sezioni che non le interessano» e «la
+     cassa puo' solo utilizzare le funzionalita' della cassa») ──
+   E' un INTERRUTTORE, non una deduzione. La tentazione era scriverlo come
+   «ha cassa e non ha ne' correzioni ne' struttura»: sembra gratis perche'
+   oggi descrive esattamente l'unico profilo di cassa che esiste. Ma sarebbe
+   una regola dedotta da un'ASSENZA, e il giorno che un admin assegna una
+   linea al cassiere — o accende «cassa» a un magazziniere — quella persona
+   si troverebbe senza Conteggi senza che nessuno abbia spento niente.
+   Qui struttura, correzioni, ordini e cassa sono TUTTI interruttori
+   espliciti: l'admin decide, l'app non indovina. Questo e' il quinto.
+   Pretende «cassa»: una barra fatta di sole voci della Cassa, addosso a chi
+   in Cassa non puo' entrare, sarebbe una porta su un muro. */
+function soloCassa(profilo) {
+  return profilo?.ruolo !== "admin" && !!profilo?.soloCassa && puoCassa(profilo);
+}
+/* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
+   Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
+   specialita' di ruolo che resta e' che il laboratorio e' competente solo
+   sui magazzini di tipo laboratorio. */
+function permessoSu(profilo, m) {
+  if (!m) return "lettura";
+  if (profilo.ruolo === "admin") return "pieno";
+  if (m.sedeId !== profilo.sedeId) return "lettura";
+  if (profilo.ruolo === "laboratorio" && m.tipo !== "laboratorio") return "lettura";
+  if (puoStruttura(profilo)) return "pieno";
+  if (puoCorreggere(profilo)) return "rettifica";
+  return "lettura";
+}
 /* le linee che questo magazzino laboratorio rifornisce davvero */
 function lineeDelLab(stato, mag) {
   if (!mag || mag.tipo !== "laboratorio") return [];
@@ -2122,7 +3331,7 @@ function PlanciaRete({ stato, mags, sel, onSelMag, onApri, onSelSotto, onScegli 
             <p className="text-xs mb-1" style={{ color: T.ambra }}>Nessun collegamento configurato per questo magazzino.</p>
           )}
           <div className="flex gap-2 mt-2">
-            <Bottone piccolo icona={Gamepad2} onClick={() => onApri(magF.id)}>Apri</Bottone>
+            <Bottone piccolo icona={Gauge} onClick={() => onApri(magF.id)}>Apri</Bottone>
             <Bottone piccolo variante="tonale" icona={Check} onClick={() => onSelMag(magF)}>Seleziona tutto</Bottone>
           </div>
         </div>
@@ -2135,14 +3344,16 @@ function PlanciaRete({ stato, mags, sel, onSelMag, onApri, onSelSotto, onScegli 
             </span>
           ))}
         </div>
-        <p className="text-xs px-1" style={{ color: T.dim }}>
-          Sotto al nome di ogni riquadro c'è scritto <b>da chi riceve la merce</b>, e le strade sono due,
-          separate. Il <b>laboratorio</b> rifornisce le linee collegate a lui, anche di un'altra sede: per
-          questo il suo nome resta scritto sotto al riquadro pure quando in mappa non compare. I
-          <b>magazzini retro</b> — secco e bevande — non passano dal laboratorio: si riforniscono dal
-          fornitore della propria sede, e da lì servono le linee che attingono alla loro scorta. Tocca un
-          magazzino per accendere il suo percorso, toccalo di nuovo per aprirlo; la casellina lo seleziona tutto.
-        </p>
+        <Spiega id="plancia-rete" titolo="Come si legge la mappa">
+          <p className="text-xs" style={{ color: T.dim }}>
+            Sotto al nome di ogni riquadro c'è scritto <b>da chi riceve la merce</b>, e le strade sono due,
+            separate. Il <b>laboratorio</b> rifornisce le linee collegate a lui, anche di un'altra sede: per
+            questo il suo nome resta scritto sotto al riquadro pure quando in mappa non compare. I
+            <b>magazzini retro</b> — secco e bevande — non passano dal laboratorio: si riforniscono dal
+            fornitore della propria sede, e da lì servono le linee che attingono alla loro scorta. Tocca un
+            magazzino per accendere il suo percorso, toccalo di nuovo per aprirlo; la casellina lo seleziona tutto.
+          </p>
+        </Spiega>
       </>)}
     </div>
   );
@@ -2265,7 +3476,7 @@ function PlanciaStruttura({ stato, mags, sel, onArt, onSelMag, onSelSede, onSelL
                           <span className="block mt-1.5"><Barra pieno={pieno} /></span>
                         </button>
                         <button onClick={() => onApri(m.id)} aria-label={`Apri ${m.nome}`} className="rounded-xl p-2 shrink-0"
-                          style={{ background: "#EAF0FE", color: T.blu }}><Gamepad2 size={15} /></button>
+                          style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={15} /></button>
                         <button onClick={() => cambia(`m${m.id}`)} aria-label="Espandi" className="shrink-0"><Freccia aperto={apM} /></button>
                       </div>
 
@@ -2342,11 +3553,13 @@ function PlanciaStruttura({ stato, mags, sel, onArt, onSelMag, onSelSede, onSelL
           </div>
         );
       })}
-      <p className="text-xs px-1" style={{ color: T.dim }}>
-        Le caselline seguono l'albero: sede, magazzino, categoria. Quella mezza piena dice che dentro
-        c'è già una parte selezionata. I segmenti sotto il nome della sede sono i suoi magazzini: uno per
-        uno, quanto sono pieni.
-      </p>
+      <Spiega id="plancia-struttura" titolo="Come si legge l'albero">
+        <p className="text-xs" style={{ color: T.dim }}>
+          Le caselline seguono l'albero: sede, magazzino, categoria. Quella mezza piena dice che dentro
+          c'è già una parte selezionata. I segmenti sotto il nome della sede sono i suoi magazzini: uno per
+          uno, quanto sono pieni.
+        </p>
+      </Spiega>
     </div>
   );
 }
@@ -2414,7 +3627,7 @@ function PlanciaCaselle({ stato, mag, mags, sel, toccati, onArt, onStep, onMagCa
   return (
     <div className="flex flex-col gap-3">
       <Selettore label="Magazzino" valore={mag.id} onCambia={onMagCambia}
-        opzioni={mags.map((m) => ({ id: m.id, nome: m.nome }))} />
+        opzioni={magazziniPerSede(stato, mags).map((m) => ({ id: m.id, nome: m.nome }))} />
 
       <div className="rounded-3xl p-4 relative overflow-hidden" style={{ background: T.grad, color: "#fff", boxShadow: "0 16px 40px -18px rgba(80,60,180,.7)" }}>
         <div className="absolute inset-y-0 pointer-events-none" style={{ left: 0, width: "45%",
@@ -2593,7 +3806,7 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
   return (
     <div className="flex flex-col gap-3">
       <Selettore label="Magazzino" valore={mag.id} onCambia={onMagCambia}
-        opzioni={mags.map((m) => ({ id: m.id, nome: m.nome }))} />
+        opzioni={magazziniPerSede(stato, mags).map((m) => ({ id: m.id, nome: m.nome }))} />
 
       <div className="flex gap-1.5 flex-wrap items-center">
         <button onClick={() => setSoloSel(!soloSelOk)} disabled={!nSel}
@@ -2720,7 +3933,7 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
 
         {gFocus ? (
           <button onClick={() => onColonna(gFocus, nSel > 0)} className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3"
-            style={{ background: T.grad, color: "#fff", textAlign: "left", boxShadow: "0 12px 30px -14px rgba(80,60,180,.7)" }}>
+            style={{ background: T.blu, color: "#fff", textAlign: "left", boxShadow: "0 12px 30px -14px rgba(61,125,234,.6)" }}>
             <TrendingUp size={18} />
             <span className="flex-1 min-w-0">
               <span className="font-extrabold block">
@@ -2733,12 +3946,14 @@ function PlanciaSettimana({ stato, mag, mags, sel, toccati, onMagCambia, onSelLi
             <ChevronRight size={18} />
           </button>
         ) : (
-          <p className="text-xs px-1" style={{ color: T.dim }}>
-            La riga chiara in alto è tutto il magazzino giorno per giorno, e ogni categoria ha la sua anche a gruppo
-            chiuso: la colonna più alta è il giorno che pesa di più, e il numero accanto all'etichetta è il totale di
-            tutta la settimana. Tocca una riga per la settimana di quel prodotto, una lettera in alto per mettere a
-            fuoco un giorno, la casellina per prendere tutta la categoria.
-          </p>
+          <Spiega id="plancia-settimana" titolo="Come si legge la settimana">
+            <p className="text-xs" style={{ color: T.dim }}>
+              La riga chiara in alto è tutto il magazzino giorno per giorno, e ogni categoria ha la sua anche a gruppo
+              chiuso: la colonna più alta è il giorno che pesa di più, e il numero accanto all'etichetta è il totale di
+              tutta la settimana. Tocca una riga per la settimana di quel prodotto, una lettera in alto per mettere a
+              fuoco un giorno, la casellina per prendere tutta la categoria.
+            </p>
+          </Spiega>
         )}
       </>)}
     </div>
@@ -2750,9 +3965,18 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   const mags = magazziniVisti(stato, profilo);
   /* le caselle che non sono tue si vedono ma non si selezionano: così tutti
      gli strumenti di gruppo restano al sicuro senza doverli toccare uno a uno */
-  const mioMag = (mid) => puoModificare(profilo, trova(stato.magazzini, mid));
+  /* «scrivibile» e' la scala nuova: per la Plancia basta non essere in
+     sola lettura — quantita' con «correzioni», forma con «struttura» */
+  const scrivibile = (m) => permessoSu(profilo, m) !== "lettura";
+  const mioMag = (mid) => scrivibile(trova(stato.magazzini, mid));
   const nonTuo = () => mostraToast("Questo magazzino è di una sede che rifornisci: lo vedi, non lo modifichi", "errore");
-  const [tab, setTab] = useState("rete");
+  /* senza «struttura» la Plancia e' UNA stanza: le Caselle, dove si lavora
+     sulle quantita'. Rete/Struttura/Settimana sono lettura della forma e
+     comandi di forma — e la Settimana per un non autorizzato era fatta di
+     righe che sembravano tappabili e non facevano NIENTE (gen-5.95). */
+  const soloCaselle = !puoStruttura(profilo);
+  const [tabScelta, setTab] = useState(soloCaselle ? "caselle" : "rete");
+  const tab = soloCaselle ? "caselle" : tabScelta;
   const [magId, setMagId] = useState(null);
   const [sel, setSel] = useState(() => new Set());
   const [azione, setAzione] = useState(null);   // giacenza | soglia | unita | sposta | giorni
@@ -2769,14 +3993,14 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   /* aprendo le Caselle si parte da un magazzino tuo: per il laboratorio le
      linee rifornite ci sono, ma non è lì che deve mettere le mani per primo */
   const magCorr = trova(stato.magazzini, magId)
-    || mags.find((m) => puoModificare(profilo, m)) || mags[0] || null;
+    || mags.find((m) => scrivibile(m)) || mags[0] || null;
 
   const apri = (id) => { setMagId(id); setTab("caselle"); };
   const selSotto = () => {
     vibra(10);
     const n = new Set();
     for (const m of mags) {
-      if (!puoModificare(profilo, m)) continue;
+      if (!scrivibile(m)) continue;
       for (const a of m.articoli) if (a.qty < parOggi(a)) n.add(chiaveArt(m.id, a.prodottoId));
     }
     setSel(n);
@@ -2788,7 +4012,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     setSel((s) => { const n = new Set(s); const k = chiaveArt(mid, pid); n.has(k) ? n.delete(k) : n.add(k); return n; });
   };
   const toggleMag = (m) => {
-    if (!puoModificare(profilo, m)) return nonTuo();
+    if (!scrivibile(m)) return nonTuo();
     vibra(8);
     setSel((s) => {
       const n = new Set(s); const st = statoSelMag(m, s);
@@ -2827,6 +4051,8 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
     mostraToast(`${chiavi.length} caselle selezionate`);
   };
   const step = (mid, pid, d) => {
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore");
     if (!mioMag(mid)) return nonTuo();
     vibra(8); muta((s) => {
     const m = trova(s.magazzini, mid); const a = m?.articoli.find((x) => x.prodottoId === pid); if (!a) return;
@@ -2852,13 +4078,22 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   };
   const tornaIndietro = () => {
     if (!annulla || !annulla.length) return;
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore");
+    /* par, unita' e livelli per giorno sono forma: chi non la tocca in
+       avanti non la tocca nemmeno all'indietro — per lui non sono mai
+       cambiati, quindi non si perde niente. Deciso FUORI da muta(). */
+    const conStruttura = puoStruttura(profilo);
     muta((s) => {
       for (const v of annulla) {
         const m = trova(s.magazzini, v.mid); const a = m?.articoli.find((x) => x.prodottoId === v.pid);
-        if (!a) continue;
+        if (!a || !scrivibile(m)) continue;
         const delta = v.qty - a.qty;
-        a.qty = v.qty; a.par = v.par; a.uomId = v.uomId;
-        if (v.parGiorni) a.parGiorni = { ...v.parGiorni }; else delete a.parGiorni;
+        a.qty = v.qty;
+        if (conStruttura) {
+          a.par = v.par; a.uomId = v.uomId;
+          if (v.parGiorni) a.parGiorni = { ...v.parGiorni }; else delete a.parGiorni;
+        }
         if (Math.abs(delta) > 1e-9) registraMov(s, { magId: v.mid, prodottoId: v.pid, uomId: a.uomId, delta, dopo: v.qty, causale: "plancia", chi: profilo?.nome, rif: "annullamento" });
       }
     }, `Annullata l'ultima modifica su ${annulla.length} caselle`);
@@ -2876,37 +4111,82 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   };
   useEffect(() => () => { if (timerTocco.current) clearTimeout(timerTocco.current); }, []);
 
+  /* ── QUANTE NE TOCCA DAVVERO (gen-5.85) ──
+     Il muro dei permessi c'e' e tiene: dentro muta() le caselle che non sono
+     tue vengono saltate. Ma il messaggio e la riga di storico si costruivano
+     su sel.size, cioe' su quante ne avevi SELEZIONATE. Risultato: un profilo
+     Laboratorio spuntava tutta la sede, premeva, vedeva il verde e il lampo,
+     e nello storico restava scritto per sempre «Riempite 90 caselle». Sul
+     magazzino non si era mosso niente.
+     Un'app che dice «fatto» per un lavoro che non ha fatto e' peggio di
+     un'app che lo rifiuta: chi legge lo storico non ha modo di accorgersene,
+     e chi ha premuto va via convinto.
+     Il conto si fa QUI e non dentro muta(): quel pezzo puo' essere rieseguito
+     quando la coda si riallinea col server, e un contatore li' dentro
+     conterebbe due volte. */
+  const tocacabili = () => [...sel].filter((k) => {
+    const [mid, pid] = k.split("|");
+    const m = trova(stato.magazzini, mid);
+    return !!m && scrivibile(m) && (m.articoli || []).some((x) => x.prodottoId === pid);
+  });
+
+  const AZIONI_STRUTTURA = new Set(["soglia", "giorni", "ungiorno", "interi", "unita", "sposta", "rimuovi"]);
   const applicaSel = (fn, msg) => {
+    /* il muro rifatto dentro l'esecutore, non solo sui tasti: un tasto
+       nascosto non e' un permesso negato */
+    if (!puoCorreggere(profilo))
+      { mostraToast("Per correggere le quantita' serve l'autorizzazione dell'admin (Profili)", "errore"); return false; }
+    if (AZIONI_STRUTTURA.has(azione) && !puoStruttura(profilo))
+      { mostraToast("Per soglie e articoli serve l'autorizzazione dell'admin (Profili)", "errore"); return false; }
     if (!sel.size) { mostraToast("Seleziona prima qualcosa", "errore"); return false; }
+    const mie = tocacabili();
+    if (!mie.length) {
+      mostraToast(sel.size === 1
+        ? "Questa casella non c'è più o non è tua: non è cambiato niente"
+        : `Nessuna di queste ${sel.size} caselle si può toccare: non è cambiato niente`, "errore");
+      return false;
+    }
+    const fuori = sel.size - mie.length;
+    const testo = typeof msg === "function" ? msg(mie.length) : msg;
     setAnnulla(istantanea());
     segnalaTocco();
     muta((s) => {
       for (const k of sel) {
         const [mid, pid] = k.split("|");
         /* secondo controllo, non fidarsi di una selezione vecchia */
-        const m = trova(s.magazzini, mid); if (!m || !puoModificare(profilo, m)) continue;
+        const m = trova(s.magazzini, mid); if (!m || !scrivibile(m)) continue;
         const a = m.articoli.find((x) => x.prodottoId === pid); if (!a) continue;
         fn(s, m, a);
       }
-    }, msg);
-    mostraToast(msg);
+    /* «saltate» e non «non sono tue»: il motivo puo' essere il permesso, ma
+       anche che nel frattempo un altro telefono ha tolto quell'articolo. Un
+       messaggio che nomina la causa sbagliata manda a cercare dalla parte
+       sbagliata, ed e' lo stesso errore del numero gonfiato. */
+    }, fuori ? `${testo} · ${fuori} saltate` : testo);
+    mostraToast(fuori
+      ? `${testo} · ${fuori} saltate: non ci sono più o non sono tue`
+      : testo, fuori ? "avviso" : "ok");
     return true;
   };
   const riempi = () => {
     const ok = applicaSel((s, m, a) => {
       const p = parOggi(a); const delta = p - a.qty; a.qty = p;
       registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: p, causale: "plancia", chi: profilo?.nome });
-    }, `Riempite ${sel.size} caselle al livello previsto`);
+    }, (n) => `Riempite ${n} caselle al livello previsto`);
     if (ok) { vibra(24); setColpo((c) => c + 1); }
   };
-  /* rimette a numeri interi giacenza, soglia e livelli per giorno: e' la
-     correzione dei prodotti che si spediscono solo interi */
+  /* rimette a numeri interi la giacenza — e, SOLO per chi ha la struttura,
+     anche soglia e livelli per giorno: quelli sono forma del magazzino, e
+     prima di gen-5.95 questo comando li riscriveva pur stando nel gruppo
+     Quantita', aperto a tutti. La decisione si prende QUI FUORI, una volta:
+     dentro muta() il blocco puo' essere rieseguito alla riconciliazione. */
   const arrotonda = () => {
+    const conStruttura = puoStruttura(profilo);
     const ok = applicaSel((s, m, a) => {
       const prima = a.qty;
       a.qty = Math.max(0, Math.round(a.qty || 0));
-      if (a.par != null) a.par = Math.max(0, Math.round(a.par));
-      if (a.parGiorni) {
+      if (conStruttura && a.par != null) a.par = Math.max(0, Math.round(a.par));
+      if (conStruttura && a.parGiorni) {
         const pg = {};
         for (const d in a.parGiorni) pg[d] = Math.max(0, Math.round(a.parGiorni[d] || 0));
         a.parGiorni = pg;
@@ -2914,24 +4194,38 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       const delta = a.qty - prima;
       if (Math.abs(delta) > 1e-9) registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId,
         delta, dopo: a.qty, causale: "plancia", chi: profilo?.nome, rif: "arrotondamento" });
-    }, `Arrotondate ${sel.size} caselle a numeri interi`);
+    }, (q) => `Arrotondate ${q} caselle a numeri interi`);
     if (ok) vibra(16);
   };
   const azzera = () => {
     const ok = applicaSel((s, m, a) => {
       const delta = -a.qty; a.qty = 0;
       registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: 0, causale: "plancia", chi: profilo?.nome });
-    }, `Azzerate ${sel.size} caselle`);
+    }, (q) => `Azzerate ${q} caselle`);
     if (ok) vibra(16);
   };
   const spostaVerso = (destId) => {
-    const n = sel.size;
+    /* stesso conto vero: qui pero' contano DUE permessi — quello sui
+       magazzini di partenza e quello sulla destinazione. Se la destinazione
+       non e' tua non si sposta niente, ed e' bene dirlo invece di annunciare
+       uno spostamento che non e' avvenuto. */
+    const dest = trova(stato.magazzini, destId);
+    if (!dest || !scrivibile(dest)) {
+      mostraToast("Quel magazzino non è tuo: non è stato spostato niente", "errore");
+      setAzione(null); setVal(""); return;
+    }
+    const mie = tocacabili().filter((k) => k.split("|")[0] !== destId);
+    if (!mie.length) {
+      mostraToast("Nessuno di questi articoli si può spostare: non c'è più o non è tuo", "errore");
+      setAzione(null); setVal(""); return;
+    }
+    const n = mie.length, fuori = sel.size - n;
     muta((s) => {
-      const mD = trova(s.magazzini, destId); if (!mD || !puoModificare(profilo, mD)) return;
+      const mD = trova(s.magazzini, destId); if (!mD || !scrivibile(mD)) return;
       for (const k of sel) {
         const [mid, pid] = k.split("|");
         if (mid === destId) continue;
-        const mO = trova(s.magazzini, mid); if (!mO || !puoModificare(profilo, mO)) continue;
+        const mO = trova(s.magazzini, mid); if (!mO || !scrivibile(mO)) continue;
         const a = mO.articoli.find((x) => x.prodottoId === pid); if (!a) continue;
         const prod = trova(s.prodotti, pid);
         const ex = mD.articoli.find((x) => x.prodottoId === pid);
@@ -2946,8 +4240,9 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         if (a.qty > 0) registraMov(s, { magId: mid, prodottoId: pid, uomId: a.uomId, delta: -a.qty, dopo: 0, causale: "trasferimento", chi: profilo?.nome, rif: `a «${mD.nome}»` });
         mO.articoli = mO.articoli.filter((x) => x.prodottoId !== pid);
       }
-    }, `${n} prodotti spostati`);
-    mostraToast(`${n} prodotti spostati`);
+    }, fuori ? `${n} prodotti spostati · ${fuori} saltati` : `${n} prodotti spostati`);
+    mostraToast(fuori ? `${n} spostati · ${fuori} saltati: non ci sono più, non sono tuoi o erano già lì`
+      : `${n} prodotti spostati`, fuori ? "avviso" : "ok");
     /* lo spostamento cambia la struttura: la vecchia fotografia non vale piu,
        meglio togliere l'annulla che offrirebbe un ripristino sbagliato */
     setAnnulla(null); setSel(new Set());
@@ -2959,11 +4254,11 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       if (azione === "giacenza") applicaSel((s, m, a) => {
         const delta = n - a.qty; a.qty = n;
         registraMov(s, { magId: m.id, prodottoId: a.prodottoId, uomId: a.uomId, delta, dopo: n, causale: "plancia", chi: profilo?.nome });
-      }, `Giacenza a ${fmtQ(n)} su ${sel.size} caselle`);
-      else applicaSel((s, m, a) => { a.par = n; }, `Livello previsto a ${fmtQ(n)} su ${sel.size} caselle`);
+      }, (q) => `Giacenza a ${fmtQ(n)} su ${q} caselle`);
+      else applicaSel((s, m, a) => { a.par = n; }, (q) => `Livello previsto a ${fmtQ(n)} su ${q} caselle`);
     } else if (azione === "unita") {
       if (!val) return mostraToast("Scegli un'unità", "errore");
-      applicaSel((s, m, a) => { a.uomId = val; }, `Unità aggiornata su ${sel.size} caselle`);
+      applicaSel((s, m, a) => { a.uomId = val; }, (q) => `Unità aggiornata su ${q} caselle`);
     } else if (azione === "sposta") {
       if (!val) return mostraToast("Scegli il magazzino di destinazione", "errore");
       spostaVerso(val);
@@ -2978,7 +4273,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         pg[d] = n; alcuno = true;
       }
       applicaSel((s, m, a) => { if (alcuno) a.parGiorni = { ...pg }; else delete a.parGiorni; },
-        alcuno ? `Livelli per giorno su ${sel.size} caselle` : `Tolto il per-giorno su ${sel.size} caselle`);
+        (q) => (alcuno ? `Livelli per giorno su ${q} caselle` : `Tolto il per-giorno su ${q} caselle`));
     } else if (azione === "ungiorno") {
       const n = num(val); if (n == null || n < 0) return mostraToast("Inserisci un numero valido", "errore");
       if (vuoleInteri && !eIntero(n)) return mostraToast("Nella selezione ci sono prodotti da spedire interi: usa un numero intero", "errore");
@@ -2987,25 +4282,35 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
         /* se il prodotto non aveva il per-giorno, gli altri giorni partono dal livello base */
         if (!a.parGiorni) for (const [dd] of GIORNI) pg[dd] = a.par;
         pg[giorno] = n; a.parGiorni = pg;
-      }, `${NOMI_GIORNI[giorno]} a ${fmtQ(n)} su ${sel.size} caselle`);
+      }, (q) => `${NOMI_GIORNI[giorno]} a ${fmtQ(n)} su ${q} caselle`);
     } else if (azione === "rimuovi") {
-      const quante = sel.size, dove = magsSel.size;
+      /* stesso conto vero di applicaSel: «rimuovi» non passa di li' ma ha
+         esattamente lo stesso difetto — diceva quante ne avevi scelte. */
+      const mie = tocacabili();
+      if (!mie.length) {
+        mostraToast("Nessuno di questi articoli si può togliere: non c'è più o non è tuo", "errore");
+        setAzione(null); setVal(""); return;
+      }
+      const quante = mie.length, fuori = sel.size - quante;
+      const dove = new Set(mie.map((k) => k.split("|")[0])).size;
       /* togliArticolo porta via anche dalle linee rifornite, se il magazzino
          è un laboratorio: è la stessa regola del dettaglio magazzino */
       muta((s) => {
         for (const k of sel) {
           const [mid, pid] = k.split("|");
-          if (puoModificare(profilo, trova(s.magazzini, mid))) togliArticolo(s, mid, pid);
+          if (scrivibile(trova(s.magazzini, mid))) togliArticolo(s, mid, pid);
         }
-      }, `${quante} articoli rimossi da ${dove} magazzini`);
-      mostraToast(`${quante} articoli rimossi`);
+      }, fuori ? `${quante} articoli rimossi da ${dove} magazzini · ${fuori} saltati`
+        : `${quante} articoli rimossi da ${dove} magazzini`);
+      mostraToast(fuori ? `${quante} rimossi · ${fuori} saltati: non ci sono più o non sono tuoi`
+        : `${quante} articoli rimossi`, fuori ? "avviso" : "ok");
       /* la struttura è cambiata: la vecchia fotografia dell'annulla non vale più */
       setAnnulla(null); setSel(new Set());
     } else if (azione === "interi") {
       if (!val) return mostraToast("Scegli sì o no", "errore");
       const acceso = val === "si";
       applicaSel((s, m, a) => { const p = trova(s.prodotti, a.prodottoId); if (p) { if (acceso) p.soloInteri = true; else delete p.soloInteri; } },
-        acceso ? `${sel.size} prodotti da spedire solo interi` : `${sel.size} prodotti anche a frazioni`);
+        (q) => (acceso ? `${q} prodotti da spedire solo interi` : `${q} prodotti anche a frazioni`));
     }
     vibra(14);
     setAzione(null); setVal("");
@@ -3048,7 +4353,13 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       { ic: Trash2, t: "Rimuovi", on: () => setAzione("rimuovi"), rosso: true },
     ] },
   ];
-  const cmdGruppo = (GRUPPI.find((g) => g.id === gruppo) || GRUPPI[0]).cmd;
+  /* senza autorizzazione alla struttura resta la famiglia delle Quantita':
+     riempire, impostare giacenze, arrotondare, azzerare. Soglie e Articoli
+     (unita', sposta, rimuovi) sono forma del magazzino, non lavoro del
+     giorno. Il filtro sta QUI e non solo sulle pastiglie, cosi' anche
+     cmdGruppo non puo' finire su un comando negato. */
+  const GRUPPI_MIEI = puoStruttura(profilo) ? GRUPPI : GRUPPI.filter((g) => g.id === "quantita");
+  const cmdGruppo = (GRUPPI_MIEI.find((g) => g.id === gruppo) || GRUPPI_MIEI[0]).cmd;
   const titoloAz = { giacenza: "Imposta giacenza", soglia: "Imposta livello previsto", unita: "Cambia unità",
     sposta: "Sposta in un magazzino", giorni: "Livelli giorno per giorno", interi: "Prodotti da spedire interi",
     rimuovi: "Rimuovi gli articoli scelti",
@@ -3071,14 +4382,16 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
 
   return (
     <div>
-      <Intesta titolo="Plancia" sotto="La rete a colpo d'occhio: struttura, livelli e comandi in blocco"
-        azione={<Chip colore={T.viola} pieno>beta</Chip>} />
-      <div className="mb-4">
+      {/* il chip «beta» e' andato: una schermata usata in produzione da mesi
+          non e' una beta, e l'etichetta insegnava solo a diffidare */}
+      <Intesta titolo="Plancia" sotto={soloCaselle
+        ? "Le caselle del tuo magazzino: riempi, imposta, azzera"
+        : "La rete a colpo d'occhio: struttura, livelli e comandi in blocco"} />
+      {!soloCaselle && <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "rete", nome: "Rete" }, { id: "struttura", nome: "Struttura" },
           { id: "settimana", nome: "Settimana" }, { id: "caselle", nome: "Caselle" },
-        ]} />
-      </div>
+        ]} /></div>}
 
       {/* barra di contesto: resta in alto mentre scorri, così non perdi
           mai il punto in cui sei e cosa hai in mano */}
@@ -3108,8 +4421,10 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
           onSelSede={toggleSede} onSelLista={toggleLista} onApri={apri} />}
         {tab === "settimana" && <PlanciaSettimana stato={stato} mag={magCorr} mags={mags} sel={sel} toccati={toccati}
           onMagCambia={setMagId} onSelLista={toggleLista}
-          onRiga={(pid) => { const k = chiaveArt(magCorr.id, pid); setSel(new Set([k])); apriGiorni(k); }}
-          onColonna={(d, soloSel) => { if (!soloSel) setSel(new Set(magCorr.articoli.map((a) => chiaveArt(magCorr.id, a.prodottoId))));
+          onRiga={(pid) => { if (!puoStruttura(profilo)) return;
+            const k = chiaveArt(magCorr.id, pid); setSel(new Set([k])); apriGiorni(k); }}
+          onColonna={(d, soloSel) => { if (!puoStruttura(profilo)) return;
+            if (!soloSel) setSel(new Set(magCorr.articoli.map((a) => chiaveArt(magCorr.id, a.prodottoId))));
             setGiorno(d); setVal(""); setAzione("ungiorno"); }} />}
         {tab === "caselle" && <PlanciaCaselle stato={stato} mag={magCorr} mags={mags} sel={sel} toccati={toccati}
           onArt={toggleArt} onStep={step} onMagCambia={setMagId} onSelLista={toggleLista} passo={passo} onPasso={setPasso} />}
@@ -3129,7 +4444,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
       {volo && (
         <div key={volo.k} className="pointer-events-none fixed inset-x-0 flex justify-center" style={{ bottom: "calc(9.6rem + env(safe-area-inset-bottom))", zIndex: 45 }}>
           <span className="sc-vola rounded-full px-3.5 py-1.5 text-sm font-extrabold flex items-center gap-1.5"
-            style={{ background: T.grad, color: "#fff", boxShadow: "0 10px 26px -10px rgba(80,60,180,.75)" }}>
+            style={{ background: T.blu, color: "#fff", boxShadow: "0 10px 26px -10px rgba(61,125,234,.65)" }}>
             <Check size={15} />{volo.n} caselle
           </span>
         </div>
@@ -3147,7 +4462,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
               <button onClick={() => setSel(new Set())} className="text-xs font-bold" style={{ color: "#AEB8D8" }}>Deseleziona</button>
             </div>
             <div className="flex gap-1.5 px-1 pb-2">
-              {GRUPPI.map((g) => (
+              {GRUPPI_MIEI.map((g) => (
                 <button key={g.id} onClick={() => { vibra(6); setGruppo(g.id); }}
                   className="flex-1 rounded-full py-1.5 text-xs font-extrabold"
                   style={g.id === gruppo
@@ -3158,7 +4473,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
             <div key={gruppo} className="sc-fade flex gap-2 pb-1">
               {cmdGruppo.map((b, k) => (
                 <button key={k} onClick={b.on} className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 flex-1 min-w-0"
-                  style={{ background: b.forte ? T.grad : b.rosso ? "rgba(226,92,119,.22)" : "rgba(255,255,255,.1)",
+                  style={{ background: b.forte ? T.blu : b.rosso ? "rgba(226,92,119,.22)" : "rgba(255,255,255,.1)",
                     color: b.rosso ? "#FFC3CF" : "#fff" }}>
                   <b.ic size={18} /><span className="text-xs font-bold truncate w-full text-center">{b.t}</span>
                 </button>
@@ -3222,7 +4537,7 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
                vorrebbe dire far scegliere una cosa che poi viene rifiutata */
             <Selettore label="Magazzino di destinazione" valore={val} onCambia={setVal}
               opzioni={[{ id: "", nome: "— scegli —" },
-                ...mags.filter((m) => puoModificare(profilo, m)).map((m) => ({ id: m.id, nome: m.nome }))]} />
+                ...magazziniPerSede(stato, mags.filter((m) => scrivibile(m))).map((m) => ({ id: m.id, nome: m.nome }))]} />
           )}
           {azione === "rimuovi" && (() => {
             /* le linee che perderanno il prodotto perché nella selezione c'è un
@@ -3260,13 +4575,54 @@ function VistaPlancia({ stato, muta, mostraToast, profilo }) {
   );
 }
 
-function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }) {
-  const [vista, setVista] = useState("home");
+function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, mostraToast, ripristina, leggiDiag }) {
+  /* si calcola nel CORPO, a ogni render, e non in uno stato: «profilo» e'
+     derivato da stato.profili ed e' vivo, quindi un permesso acceso o spento
+     dall'admin arriva al poll dopo senza che nessuno ricarichi niente. */
+  const soloQui = soloCassa(profilo);
+  const [vista, setVista] = useState(soloQui ? "cassa" : "home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
   const [cerca, setCerca] = useState(false);    // ricerca globale dall'intestazione
+  /* ── QUANDO LA LENTE TI PORTA DA QUALCHE PARTE, QUELLO CHE AVEVI APERTO SI CHIUDE ──
+     La lente adesso si raggiunge anche con una scheda aperta. Ma «portarti» in
+     una sezione dove sei gia' non cambiava la chiave del contenuto, quindi la
+     scheda restava davanti e sembrava che il tocco fosse andato a vuoto: la
+     promessa mantenuta a meta' e' peggio di quella non fatta.
+     Questo contatore sale a ogni salto fatto DALLA LENTE, e cambiando la chiave
+     rimonta il contenuto — le schede aperte se ne vanno con lui. La navigazione
+     normale non lo tocca e si comporta esattamente come prima. */
+  const [giro, setGiro] = useState(0);
+  /* un salto e' per un viaggio solo: chi naviga senza dati AZZERA quelli
+     vecchi, cosi' il rientro in una schermata non riapre schede a sorpresa.
+     Si legge SOLO negli inizializzatori di useState (la key del contenuto
+     rimonta la vista a ogni cambio), mai in un effect. */
+  const [salto, setSalto] = useState(null);
+  /* ── LA POSTAZIONE CASSA (gen-6.11, parole di Valerio dell'8 settembre:
+       «ricorda di dare un'interfaccia cassa senza mescolarla ai magazzini») ──
+     Chi ha l'interruttore «cassa» si trovava sotto il pollice Conteggi ·
+     Magazzini · Ordini mentre batteva scontrini: la Cassa era una voce dentro
+     l'app del magazziniere. Adesso e' una STANZA — dentro, la barra e' la sua.
+     Entrarci vuol dire cominciare a BATTERE: se la stanza restasse quella di
+     prima, chi riapre la Cassa per fare uno scontrino si troverebbe davanti
+     la rubrica. Il reset sta dentro naviga() e non in un effect, cosi' vale
+     per la barra, per la lente e per qualunque altra porta si aggiunga. */
+  const [sezCassa, setSezCassa] = useState("battere");
+  const naviga = (v, dati) => { setSalto(dati || null); if (v === "cassa") setSezCassa("battere"); setVista(v); };
+  const vaiDallaLente = (v) => { setSalto(null); if (v === "cassa") setSezCassa("battere"); setVista(v); setGiro((g) => g + 1); };
+  /* ── LE TRE VOCI DELLA CASSA NAVIGANO (gen-6.17) ──
+     Fino a ieri chiamavano solo setSezCassa, e bastava: la barra della Cassa
+     esisteva solo DENTRO la Cassa, quindi «vista» era gia' giusta. Da oggi
+     per chi sta solo in cassa quella barra e' l'unica che ha, e una voce che
+     si accende senza portare da nessuna parte e' esattamente la «porta che
+     non apre niente» che questa casa vieta. Non passa da naviga() perche'
+     naviga("cassa") rimette sempre «battere», e mangerebbe la sezione
+     chiesta proprio da chi l'ha chiesta. */
+  const vaiInCassa = (s) => { setSalto(null); setVista("cassa"); setSezCassa(s); };
   const nRic = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId && r.stato === "in-attesa").length;
-  const nOrd = stato.ordini.filter((o) => o.stato === "da-ordinare" &&
+  /* il conto delle righe da ordinare accende il badge solo per chi il
+     ciclo d'acquisto ce l'ha: per gli altri e' un invito a una porta chiusa */
+  const nOrd = (puoOrdinare(profilo) ? stato.ordini : []).filter((o) => o.stato === "da-ordinare" &&
     (profilo.ruolo === "admin" ? true :
       profilo.ruolo === "laboratorio" ? o.tipo === "lab" && o.sedeId === profilo.sedeId :
       o.tipo === "diretto" && o.sedeId === profilo.sedeId)).length;
@@ -3286,11 +4642,34 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      L'icona è fra quelle già importate: aggiungerne una nuova vorrebbe dire
      scommettere sulla versione di lucide che il caricatore ha in produzione,
      e se il nome non esiste non si rompe l'icona, si rompe l'app. */
-  const NAV = {
+  /* ── LA BARRA DELLA CASSA, SCRITTA UNA VOLTA SOLA (gen-6.17) ──
+     La usano in due: chi sta solo in cassa (e' la sua barra, sempre) e
+     chiunque altro entri in Cassa (ce l'ha finche' resta li'). Scriverla due
+     volte vorrebbe dire che la prossima modifica ne cambia una sola.
+     TRE VOCI per chi sta solo in cassa, QUATTRO per gli altri, e la
+     differenza e' «Esci». Per gli altri «Esci» riporta a Home, che e' una
+     stanza che hanno. Chi sta solo in cassa una Home non ce l'ha: la sua
+     uscita e' il bottone che sta GIA' in intestazione, collaudato da sempre.
+     Una quarta voce «Esci dal profilo» qui sotto sarebbe due bottoni con lo
+     stesso nome sulla stessa schermata — una trappola per chi legge, e per i
+     banchi che lo cercano per nome — e a 360px si troncherebbe: la barra da'
+     81px a voce, e sedici caratteri in grassetto da 10,5px ne chiedono di
+     piu'. Le icone sono fra quelle gia' importate. */
+  const BARRA_CASSA = [
+    { id: "cassa-battere", nome: "Battere", icona: Store, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "battere", azione: () => vaiInCassa("battere") },
+    { id: "cassa-clienti", nome: "Clienti", icona: Users, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "clienti", azione: () => vaiInCassa("clienti") },
+    { id: "cassa-giornata", nome: "Giornata", icona: BarChart3, pronta: true,
+      attiva: vista === "cassa" && sezCassa === "giornata", azione: () => vaiInCassa("giornata") },
+    ...(soloQui ? [] : [{ id: "cassa-esci", nome: "Esci", icona: ArrowLeft, pronta: true,
+      attiva: false, azione: () => naviga("home") }]),
+  ];
+  const NAV = soloQui ? BARRA_CASSA : {
     admin: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
       { id: "altro", nome: "Gestione", icona: ShieldCheck, pronta: true, badge: nAcc },
     ],
@@ -3298,22 +4677,61 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "conteggi", nome: "Conteggi", icona: ClipboardList, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
     laboratorio: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "richieste", nome: "Richieste", icona: FlaskConical, pronta: true, badge: nRic },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
-      { id: "plancia", nome: "Plancia", icona: Gamepad2, pronta: true },
+      { id: "plancia", nome: "Plancia", icona: Gauge, pronta: true },
       { id: "ordini", nome: "Ordini", icona: Truck, pronta: true, badge: nOrd },
     ],
-  }[profilo.ruolo];
+  }[profilo.ruolo]
+    /* CASSA SCAVALCA PLANCIA (gen-5.96): la barra regge CINQUE voci, misurate
+       a gen-5.52 — una sesta rompe «Magazzini» a 360px. Chi ha l'interruttore
+       «cassa» durante il servizio sta in cassa, non alla Plancia: la Cassa ne
+       prende il posto in barra, e la Plancia resta raggiungibile dalla lente
+       per chi ha anche le correzioni. La barra dell'admin non cambia:
+       l'admin arriva in Cassa dalla lente. */
+    .map((v) => (v.id === "plancia" && profilo.ruolo !== "admin" && puoCassa(profilo)
+      ? { id: "cassa", nome: "Cassa", icona: Store, pronta: true } : v))
+    /* LE COMANDE PRENDONO IL POSTO VUOTO (gen-5.98): l'operatore senza
+       cassa ne' correzioni perdeva la Plancia dal filtro qui sotto e
+       restava con quattro voci — quel posto e' della cucina, che e'
+       esattamente chi guarda le comande tutto il servizio. Chi ha cassa
+       o correzioni tiene la sua voce e raggiunge le Comande dalla lente,
+       come l'admin; il laboratorio resta com'e'. */
+    .map((v) => (v.id === "plancia" && profilo.ruolo === "operatore"
+      && !puoCassa(profilo) && !puoCorreggere(profilo)
+      ? { id: "comande", nome: "Comande", icona: CheckCheck, pronta: true } : v))
+    /* la Plancia e' un cruscotto di comandi: senza «correzioni» ne'
+       «struttura» e' una sala macchine con le leve spente — meglio nessuna
+       porta che una porta su una stanza vuota (gen-5.95) */
+    .filter((v) => profilo.ruolo === "admin" || v.id !== "plancia" || puoCorreggere(profilo));
   const voceAttiva = NAV.find((n) => n.id === vista) || NAV[0];
+  /* Dentro la Cassa la barra e' quella della Cassa: non si toglie niente a
+     nessuno, si cambia stanza, e la porta di ritorno e' sempre lo stesso
+     tasto nello stesso posto. Per chi sta solo in cassa e' la barra di
+     sempre, anche nella schermata che dice che una sezione non e' sua —
+     cosi' da li' si torna a battere con un tocco invece che col logout. */
+  const NAV_QUI = (soloQui || vista === "cassa") ? BARRA_CASSA : NAV;
 
   /* primo accesso: avvia la panoramica una volta sola (per dispositivo) */
   useEffect(() => {
-    try { if (!localStorage.getItem("scp:tour:v1")) { setGuida(passiPanoramica(NAV)); localStorage.setItem("scp:tour:v1", "1"); } } catch {}
+    try {
+      /* per PROFILO, non per telefono: il secondo operatore sullo stesso
+         dispositivo di cucina non aveva mai visto il tour. La chiave vecchia
+         resta valida come «gia' visto», cosi' i telefoni esistenti non si
+         ributtano nel tour in massa (gen-5.95). */
+      const k = "scp:tour:v1:" + profilo.id;
+      /* a chi sta solo in cassa NON parte: la panoramica racconta Conta ·
+         Ordina · Ricevi, che e' il mestiere di un altro. La chiave si scrive
+         lo stesso, cosi' se un giorno cambia mestiere non gli parte addosso
+         un giro vecchio (gen-6.17). */
+      if (!soloQui && !localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
+      localStorage.setItem(k, "1");
+    } catch {}
   }, []);
   /* Le pagine dentro «Gestione» non sono voci della barra in basso, e
      voceAttiva ripiega sulla prima voce quando non trova la vista: la guida
@@ -3331,35 +4749,72 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
      guida del Catalogo o dello Storico. Un nome falso su un tasto è peggio di
      un nome assente: chi legge si fida e non lo tocca. */
   const sezioneQui = SEZIONI_ALTRO.find((s) => s.id === vista);
-  const nomeQui = sezioneQui?.nome || voceAttiva?.nome || "questa sezione";
-  const IconaQui = sezioneQui?.icona || voceAttiva?.icona;
+  /* le viste raggiungibili SENZA stare in barra ne' sotto Gestione: l'admin
+     in Cassa dalla lente, e chi ha cassa+correzioni in Plancia (lo swap di
+     gen-5.96 gliel'ha tolta dalla barra). Senza questa mappa il ripiego su
+     NAV[0] rimetteva «Guida di "Home"» su un tasto che non parla della Home —
+     misurato dalla revisione, ed e' esattamente la regressione che il
+     commento qui sopra dichiarava sanata. */
+  const FUORI_BARRA = { cassa: { nome: "Cassa", icona: Store }, plancia: { nome: "Plancia", icona: Gauge },
+    comande: { nome: "Comande", icona: CheckCheck } };
+  const fuori = !NAV.some((n) => n.id === vista) && FUORI_BARRA[vista];
+  const nomeQui = sezioneQui?.nome || fuori?.nome || voceAttiva?.nome || "questa sezione";
+  const IconaQui = sezioneQui?.icona || fuori?.icona || voceAttiva?.icona;
 
   const contenuto = () => {
-    if (vista === "home") return <HomeVista stato={stato} profilo={profilo} vaiA={setVista} muta={muta} mostraToast={mostraToast} />;
+    /* il gate difensivo (gen-5.95): finora le viste amministrative erano
+       protette solo dal fatto che nessun bottone ci portava — e due porte
+       lo smentivano (lo storico dalla Home, lo storico ordini da Ordini).
+       Un muro qui vale per ogni porta, comprese quelle di domani. */
+    const admin = profilo.ruolo === "admin";
+    const chiusa =
+      /* chi sta solo in cassa ha una stanza sola. La lente e il «?» sono gia'
+         filtrati; questo e' il muro di riserva, che vale anche per le porte
+         di domani — la stessa ragione per cui il gate esiste (gen-5.95). */
+      (soloQui && vista !== "cassa") ||
+      (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino", "informazioni"].includes(vista)) ||
+      (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
+      (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
+      (vista === "cassa" && !puoCassa(profilo)) ||
+      (vista === "conteggi" && profilo.ruolo === "laboratorio") ||
+      (vista === "richieste" && profilo.ruolo === "operatore");
+    if (chiusa) return <Scheda className="p-8"><Vuoto icona={ShieldCheck}
+      titolo="Questa sezione non è del tuo profilo"
+      testo="Serve un'autorizzazione che questo profilo non ha: la accende un Admin da Gestione, sezione Profili." /></Scheda>;
+    if (vista === "home") return <HomeVista stato={stato} profilo={profilo} vaiA={naviga} muta={muta} mostraToast={mostraToast} />;
     if (voceAttiva && !voceAttiva.pronta) return <InArrivo titolo={voceAttiva.nome} gen={voceAttiva.gen} />;
     if (vista === "catalogo") return <VistaCatalogo stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
-    if (vista === "magazzini") return <VistaMagazzini stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
+    if (vista === "magazzini") return <VistaMagazzini stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} salto={salto} />;
     if (vista === "plancia") return <VistaPlancia stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     if (vista === "analisi") return <VistaAnalisi stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
-    if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "conteggi") return <VistaConteggi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} sync={sync} />;
     if (vista === "richieste") return <VistaRichieste stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
-    if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={setVista} />;
+    if (vista === "ordini") return <VistaOrdini stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} vaiA={naviga} />;
+    if (vista === "cassa") return <VistaCassa stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} sez={sezCassa} vaiSez={setSezCassa} />;
+    /* le Comande NON stanno nella lista chiusa: guardare lo schermo e
+       spuntare quello che esce e' mestiere, come contare (gen-5.98) */
+    if (vista === "comande") return <VistaComande stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} mostraToast={mostraToast} leggiDiag={leggiDiag} sync={sync} />;
+    if (vista === "listino") return <VistaListino stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "accessi") return <VistaAccessi stato={stato} profilo={profilo} muta={muta} mostraToast={mostraToast} />;
+    if (vista === "memoria") return <VistaMemoria profilo={profilo} mostraToast={mostraToast} />;
+    if (vista === "informazioni") return <VistaInformazioni stato={stato} sync={sync} />;
     if (vista === "sistema") return <VistaSistema stato={stato} profilo={profilo} sync={sync} muta={muta}
-      mostraToast={mostraToast} ripristina={ripristina} />;
-    if (vista === "altro") return <VistaAltro stato={stato} vaiA={setVista} nAcc={nAcc} />;
+      mostraToast={mostraToast} ripristina={ripristina} leggiDiag={leggiDiag} />;
+    if (vista === "altro") return <VistaAltro stato={stato} vaiA={naviga} nAcc={nAcc} />;
     if (vista === "storico") return <VistaStorico stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />;
-    if (vista === "storico-ordini") return <VistaStoricoOrdini stato={stato} profilo={profilo} mostraToast={mostraToast} vaiA={setVista} />;
+    if (vista === "storico-ordini") return <VistaStoricoOrdini stato={stato} profilo={profilo} mostraToast={mostraToast} vaiA={naviga} />;
     if (vista === "sedi") return <VistaSedi stato={stato} muta={muta} mostraToast={mostraToast} />;
     if (vista === "profili") return <VistaProfili stato={stato} muta={muta} mostraToast={mostraToast} profilo={profilo} />;
     return <InArrivo titolo={vista} gen={3} />;
   };
 
   const VoceNav = ({ v, mobile }) => {
-    const attiva = vista === v.id;
+    /* una voce puo' portarsi la sua azione e il suo «acceso»: le tre stanze
+       della Cassa non cambiano vista, cambiano stanza dentro la stessa */
+    const attiva = v.attiva != null ? v.attiva : vista === v.id;
     const badge = v.badge || 0;
     return (
-      <button onClick={() => setVista(v.id)} data-tour={`nav-${v.id}`}
+      <button onClick={() => (v.azione ? v.azione() : naviga(v.id))} data-tour={`nav-${v.id}`}
         className={`flex ${mobile ? "flex-col flex-1 min-w-0 py-2 gap-0.5" : "flex-row w-full px-4 py-3 gap-3"} items-center rounded-2xl font-bold text-xs md:text-sm transition-all`}
         style={{
           color: attiva ? T.blu : T.dim,
@@ -3384,16 +4839,29 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
 
   return (
     <div className="relative z-10 h-full flex flex-col">
+      {/* ── L'INTESTAZIONE STA SOPRA LE SCHEDE ──
+          La lente e' qui dentro, e finche' l'intestazione stava sotto i Foglio
+          (fixed inset-0 z-50) per cercare qualcosa bisognava prima chiudere
+          quello che si stava facendo. «Da ogni schermata» era una parola di
+          troppo, e l'ho scoperto collaudando gen-5.71.
+
+          Attenzione a dove va messo lo z-index: il primo tentativo l'ho messo
+          sul TASTO della lente, e non e' servito a niente. Questa intestazione
+          ha backdropFilter, e backdrop-filter crea un contesto di
+          impilamento: lo z-index di un figlio resta prigioniero li' dentro e
+          non si confronta con i fogli. Va alzata l'intestazione intera.
+          60 sta sopra i fogli (50) e sotto il tutorial (80). */}
       <header className="flex items-center gap-3 px-4 md:px-6 py-3 shrink-0"
-        style={{ borderBottom: `1px solid ${T.bordo}`, background: "rgba(255,255,255,.75)", backdropFilter: "blur(14px)", paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}>
+        style={{ borderBottom: `1px solid ${T.bordo}`, background: "rgba(255,255,255,.75)", backdropFilter: "blur(14px)", paddingTop: "calc(0.75rem + env(safe-area-inset-top))", position: "relative", zIndex: 60 }}>
         <div className="rounded-2xl p-2" style={{ background: T.grad }}><Boxes size={18} color="#fff" /></div>
         <div className="min-w-0">
           <div className="font-extrabold leading-tight" style={{ color: T.ink }}>Supply Chain Pro</div>
-          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>Rete rifornimenti · tempo reale</div>
+          <div className="text-xs hidden sm:block" style={{ color: T.tenue }}>
+            {vista === "cassa" ? "Postazione cassa" : "Magazzino, cassa e comande"}</div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <SincroChip sync={sync} />
-          <button onClick={() => setCerca(true)} aria-label="Cerca un prodotto ovunque"
+          <SincroChip sync={sync} daSalvare={daSalvare} />
+          <button onClick={() => setCerca(true)} aria-label="Cerca un prodotto o una funzione"
             className="rounded-full flex items-center justify-center shrink-0"
             style={{ width: 36, height: 36, background: "#EAF0FE", color: T.blu }}>
             <Search size={17} />
@@ -3412,7 +4880,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
       <div className="flex flex-1 min-h-0">
         <aside className="hidden md:flex flex-col gap-1 w-56 shrink-0 p-4"
           style={{ borderRight: `1px solid ${T.bordo}` }}>
-          {NAV.map((v) => <VoceNav key={v.id} v={v} />)}
+          {NAV_QUI.map((v) => <VoceNav key={v.id} v={v} />)}
           <div className="mt-auto text-xs leading-relaxed p-2" style={{ color: T.tenue }}>
             Connesso come <b style={{ color: T.dim }}>{profilo.nome}</b><br />
             {RUOLI[profilo.ruolo].nome}{profilo.sedeId ? ` · ${trova(stato.sedi, profilo.sedeId)?.nome}` : ""}
@@ -3421,27 +4889,33 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
 
         <main className="flex-1 min-w-0 overflow-y-auto sc-scroll px-4 md:px-8 pt-5 md:pb-10"
           style={{ paddingBottom: "calc(7rem + env(safe-area-inset-bottom))" }}>
-          <div key={vista} className="sc-fade max-w-5xl mx-auto">{contenuto()}</div>
+          <div key={`${vista}#${giro}`} className="sc-fade max-w-5xl mx-auto">{contenuto()}</div>
         </main>
       </div>
 
       <nav aria-label="Navigazione principale"
         className="md:hidden fixed bottom-3 left-3 right-3 z-40 flex rounded-3xl px-1.5 py-1"
         style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(14px)", border: `1px solid ${T.bordo}`, boxShadow: "0 16px 40px -14px rgba(50,70,140,.35)", bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-        {NAV.map((v) => <VoceNav key={v.id} v={v} mobile />)}
+        {NAV_QUI.map((v) => <VoceNav key={v.id} v={v} mobile />)}
       </nav>
 
-      <Foglio aperto={cerca} titolo="Cerca un prodotto" onChiudi={() => setCerca(false)} larga>
+      <Foglio aperto={cerca} titolo="Cerca un prodotto o una funzione" onChiudi={() => setCerca(false)} larga>
         {cerca && <RicercaGlobale stato={stato} profilo={profilo}
-          onChiudi={() => setCerca(false)} vaiA={setVista} />}
+          onChiudi={() => setCerca(false)} vaiA={vaiDallaLente} />}
       </Foglio>
 
       <Foglio aperto={aiuto} titolo="Guida e tutorial" onChiudi={() => setAiuto(false)}>
         <div className="flex flex-col gap-2">
           <p className="text-sm mb-1" style={{ color: T.dim }}>Un aiuto veloce, quando vuoi. Puoi sempre saltarlo.</p>
-          <button onClick={() => { setAiuto(false); setVista("plancia"); }}
+          {/* a chi sta solo in cassa queste due non si offrono: la Plancia
+              e' una porta che il gate qui sopra gli chiude, e la Panoramica
+              racconta un mestiere che non e' il suo. Gli resta la guida
+              della sua stanza, che esce col nome giusto grazie a
+              FUORI_BARRA (gen-6.17). */}
+          {!soloQui && (<>
+          <button onClick={() => { setAiuto(false); naviga("plancia"); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
-            <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gamepad2 size={18} /></span>
+            <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></span>
             <span className="flex-1"><span className="font-extrabold block" style={{ color: T.ink }}>Plancia: la rete a colpo d'occhio</span>
               <span className="text-xs" style={{ color: T.dim }}>Come sono collegati i magazzini e cosa contiene ognuno, sui dati veri</span></span>
             <ChevronRight size={18} style={{ color: T.tenue }} />
@@ -3453,6 +4927,7 @@ function Struttura({ stato, profilo, muta, sync, esci, mostraToast, ripristina }
               <span className="text-xs" style={{ color: T.dim }}>Un giro guidato di tutte le sezioni dell'app</span></span>
             <ChevronRight size={18} style={{ color: T.tenue }} />
           </button>
+          </>)}
           <button onClick={() => { setAiuto(false); setGuida(guidaSezione(vista)); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
             <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><IconaQui size={18} /></span>
@@ -3496,6 +4971,64 @@ function fotoCaselle(s) {
       f[m.id + "|" + a.prodottoId] = [a.qty, a.par, a.uomId, a.parGiorni ? JSON.stringify(a.parGiorni) : 0];
   return f;
 }
+/* ── LA FOTOGRAFIA DEI PRODOTTI (gen-5.83) ──
+   fotoCaselle() guarda solo i magazzini, ed e' stato giusto finche' le
+   modifiche vere stavano li'. Ma «Modifica in blocco» tocca i PRODOTTI, e
+   quei campi non erano fotografati da nessuno: si premeva «Annulla», l'app
+   diceva di averlo fatto, e non cambiava niente. Un annulla che mente e'
+   peggio di un annulla che non c'e', perche' la gente ci conta e smette di
+   cercare.
+   Si fotografano solo i sette campi che una modifica in blocco puo' toccare,
+   e nella voce di storico finisce SOLO quello che e' cambiato davvero: lo
+   stato viaggia intero a ogni scrittura, e nel luglio scorso il suo peso e'
+   gia' stato un difetto vero. */
+function fotoProdotti(s) {
+  const f = {};
+  for (const p of s.prodotti || [])
+    f[p.id] = [p.categoriaId || "", p.fornitoreId || "", p.uomBase || "",
+      p.preparato ? 1 : 0, JSON.stringify(p.conv || {}),
+      JSON.stringify(p.convStim || []), p.soloInteri ? 1 : 0];
+  return f;
+}
+function differenzaProdotti(pri, dop) {
+  const c = [];
+  for (const k in pri) {
+    const X = pri[k], Y = dop[k];
+    if (!Y) continue;                    /* prodotto eliminato: se ne occupa altro */
+    if (X.some((v, i) => v !== Y[i])) c.push({ k, p: X, d: Y });
+  }
+  return c;
+}
+function applicaRipristinoProdotti(s, cambi) {
+  let n = 0;
+  for (const c of cambi || []) {
+    const p = trova(s.prodotti, c.k); if (!p) continue;
+    p.categoriaId = c.p[0] || undefined;
+    p.fornitoreId = c.p[1] || undefined;
+    if (c.p[2]) p.uomBase = c.p[2];
+    if (c.p[3]) p.preparato = true; else delete p.preparato;
+    try { p.conv = JSON.parse(c.p[4]); } catch { p.conv = {}; }
+    try { const st = JSON.parse(c.p[5]); if (st.length) p.convStim = st; else delete p.convStim; } catch {}
+    if (c.p[6]) p.soloInteri = true; else delete p.soloInteri;
+    n++;
+  }
+  return n;
+}
+/* la differenza sui prodotti, scritta in italiano */
+function dettaglioCambiProdotti(stato, cambi) {
+  const nomeCat = (id) => trova(stato.categorie, id)?.nome || "nessuna";
+  const nomeForn = (id) => trova(stato.fornitori, id)?.nome || "nessuno";
+  return (cambi || []).map((c) => {
+    const r = { prod: trova(stato.prodotti, c.k)?.nome || "prodotto eliminato", righe: [] };
+    if (c.p[0] !== c.d[0]) r.righe.push({ et: "categoria", da: nomeCat(c.p[0]), a: nomeCat(c.d[0]) });
+    if (c.p[1] !== c.d[1]) r.righe.push({ et: "fornitore", da: nomeForn(c.p[1]), a: nomeForn(c.d[1]) });
+    if (c.p[2] !== c.d[2]) r.righe.push({ et: "unità base", da: simboloU(stato, c.p[2]), a: simboloU(stato, c.d[2]) });
+    if (c.p[3] !== c.d[3]) r.righe.push({ et: "chi lo fa", da: c.p[3] ? "laboratorio" : "fornitore", a: c.d[3] ? "laboratorio" : "fornitore" });
+    if (c.p[4] !== c.d[4]) r.righe.push({ et: "conversioni", da: `${Object.keys(JSON.parse(c.p[4])).length}`, a: `${Object.keys(JSON.parse(c.d[4])).length}` });
+    if (c.p[6] !== c.d[6]) r.righe.push({ et: "mezze confezioni", da: c.p[6] ? "no" : "sì", a: c.d[6] ? "no" : "sì" });
+    return r;
+  });
+}
 function differenzaCaselle(pri, dop) {
   const c = [];
   for (const k in pri) {
@@ -3510,7 +5043,10 @@ function differenzaCaselle(pri, dop) {
 function voceLog(m, pri, dopoStato) {
   const v = { id: m.logId, t: m.t, chi: m.chi, msg: m.descr };
   if (!pri) return v;
-  const c = differenzaCaselle(pri, fotoCaselle(dopoStato));
+  const c = differenzaCaselle(pri.caselle || pri, fotoCaselle(dopoStato));
+  const cp = pri.prodotti ? differenzaProdotti(pri.prodotti, fotoProdotti(dopoStato)) : [];
+  if (cp.length && cp.length <= MAX_CAMBI) v.cambiP = cp;
+  else if (cp.length) v.tanteP = cp.length;
   if (!c.length) return v;
   if (c.length > MAX_CAMBI) { v.tante = c.length; return v; }
   v.cambi = c;
@@ -3945,14 +5481,24 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
 
   /* si ripristina solo quello che si potrebbe rifare a mano: se una casella
      è di una sede che non tocchi, il tasto non compare nemmeno */
-  const puoTornare = (e) => !!(e.cambi?.length && stato && muta && profilo
-    && e.cambi.every((c) => puoModificare(profilo, trova(stato.magazzini, c.k.split("|")[0]))));
+  /* I prodotti non hanno un magazzino a cui chiedere il permesso: il catalogo
+     lo tocca chi puo' toccarlo, ed e' un controllo che sta gia' sulla porta
+     della modifica in blocco. Qui si guarda solo che ci sia qualcosa da
+     disfare. */
+  const puoTornare = (e) => !!((e.cambi?.length || e.cambiP?.length) && stato && muta && profilo
+    && puoCorreggere(profilo)
+    /* i cambi al CATALOGO (cambiP) sono forma: prima non erano gatati affatto */
+    && (!e.cambiP?.length || puoStruttura(profilo))
+    && (e.cambi || []).every((c) => permessoSu(profilo, trova(stato.magazzini, c.k.split("|")[0])) !== "lettura"));
 
   const esegui = (e) => {
-    let n = 0;
-    muta((s) => { n = applicaRipristino(s, e.cambi); },
-      `Ripristinato: «${e.msg}» (${e.cambi.length} caselle riportate a prima)`);
-    mostraToast?.(`Ripristinate ${e.cambi.length} caselle`);
+    let n = 0, np = 0;
+    muta((s) => { n = applicaRipristino(s, e.cambi); np = applicaRipristinoProdotti(s, e.cambiP); },
+      `Ripristinato: «${e.msg}» (${e.cambi?.length || 0} caselle e ${e.cambiP?.length || 0} prodotti riportati a prima)`);
+    const pezzi = [];
+    if (e.cambi?.length) pezzi.push(`${e.cambi.length} caselle`);
+    if (e.cambiP?.length) pezzi.push(`${e.cambiP.length} prodotti`);
+    mostraToast?.(`Ripristinati: ${pezzi.join(" e ")}`);
     setChiedi(null); setApri(null);
   };
 
@@ -3962,6 +5508,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
       {log.slice(0, n).map((e, i) => {
         const aperto = apri === e.id;
         const dett = aperto && e.cambi ? dettaglioCambi(stato, e.cambi) : null;
+        const dettP = aperto && e.cambiP ? dettaglioCambiProdotti(stato, e.cambiP) : null;
         return (
         <li key={e.id} className="py-2"
           style={{ borderBottom: i < Math.min(n, log.length) - 1 ? `1px solid ${T.bordo}` : "none" }}>
@@ -3973,9 +5520,11 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                 {e.chi} · {tempoFa(e.t)}
                 {e.cambi && ` · ${e.cambi.length} caselle`}
                 {e.tante && ` · ${e.tante} caselle`}
+                {e.cambiP && ` · ${e.cambiP.length} prodotti`}
+                {e.tanteP && ` · ${e.tanteP} prodotti`}
               </div>
             </div>
-            {(e.cambi || e.tante) && stato && (
+            {(e.cambi || e.tante || e.cambiP || e.tanteP) && stato && (
               <button onClick={() => setApri(aperto ? null : e.id)}
                 className="rounded-full px-2.5 py-1 text-xs font-bold shrink-0"
                 style={{ background: aperto ? T.blu : "#EAF0FE", color: aperto ? "#fff" : T.blu }}>
@@ -3984,10 +5533,13 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
             )}
           </div>
 
-          {aperto && dett && (
+          {aperto && (dett || dettP) && (
             <div className="sc-fade mt-2 ml-4 rounded-2xl p-2.5" style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}` }}>
               <div className="flex flex-col gap-1.5" style={{ maxHeight: "40vh", overflowY: "auto" }}>
-                {dett.map((d, k) => (
+                {/* «|| []» non e' pignoleria: una modifica in blocco tocca solo i
+                    prodotti, quindi «dett» e' null e senza questo il pannello
+                    esplodeva lasciando la pagina bianca. Preso dal collaudo. */}
+                {(dett || []).map((d, k) => (
                   <div key={k} className="rounded-xl px-2.5 py-2" style={{ background: "#fff", border: `1px solid ${T.bordo}` }}>
                     <div className="text-xs font-extrabold truncate" style={{ color: T.ink }}>{d.prod}</div>
                     <div className="text-xs mb-1 truncate" style={{ color: T.tenue }}>{d.mag}</div>
@@ -3997,6 +5549,23 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                         <span className="font-extrabold" style={{ color: T.verde }}>{r.da}</span>
                         <span style={{ color: T.tenue }}>→</span>
                         <span className="font-extrabold" style={{ color: d.v === "tolta" ? T.rosso : T.ink }}>{r.a}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {/* e le modifiche ai PRODOTTI, che prima non si vedevano da
+                    nessuna parte: una modifica in blocco lasciava una riga di
+                    storico che diceva soltanto una data */}
+                {(dettP || []).map((d, k) => (
+                  <div key={"p" + k} className="rounded-xl px-2.5 py-2" style={{ background: "#fff", border: `1px solid ${T.bordo}` }}>
+                    <div className="text-xs font-extrabold truncate" style={{ color: T.ink }}>{d.prod}</div>
+                    <div className="text-xs mb-1 truncate" style={{ color: T.tenue }}>scheda del prodotto</div>
+                    {d.righe.map((r, j) => (
+                      <div key={j} className="flex items-center gap-1.5 text-xs">
+                        <span className="font-bold" style={{ color: T.tenue, minWidth: 84 }}>{r.et}</span>
+                        <span className="font-extrabold" style={{ color: T.verde }}>{r.da}</span>
+                        <span style={{ color: T.tenue }}>→</span>
+                        <span className="font-extrabold" style={{ color: T.ink }}>{r.a}</span>
                       </div>
                     ))}
                   </div>
@@ -4013,7 +5582,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
                   </p>}
             </div>
           )}
-          {aperto && !dett && (
+          {aperto && !dett && !dettP && (
             <p className="sc-fade mt-2 ml-4 text-xs" style={{ color: T.tenue }}>
               Il dettaglio di questa azione non è più conservato: si tengono le ultime {MAX_VOCI_CAMBI}, per non appesantire l'app.
             </p>
@@ -4022,7 +5591,7 @@ function LogLista({ log, n = 6, stato, muta, profilo, mostraToast }) {
       );})}
     </ul>
     <Conferma aperto={!!chiedi} titolo="Riportare tutto com'era?"
-      testo={chiedi ? `Le ${chiedi.cambi.length} caselle toccate da «${chiedi.msg}» tornano ai valori di prima. Anche questo ripristino finisce nello storico, quindi è a sua volta annullabile.` : ""}
+      testo={chiedi ? `${[chiedi.cambi?.length ? `${chiedi.cambi.length} caselle` : "", chiedi.cambiP?.length ? `${chiedi.cambiP.length} prodotti` : ""].filter(Boolean).join(" e ")} toccati da «${chiedi.msg}» tornano ai valori di prima. Anche questo ripristino finisce nello storico, quindi è a sua volta annullabile.` : ""}
       testoSi="Ripristina" onNo={() => setChiedi(null)} onSi={() => esegui(chiedi)} />
     </>
   );
@@ -4039,12 +5608,19 @@ function SchedaMagazzino({ m, stato, azione }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-extrabold truncate" style={{ color: T.ink }}>{m.nome}</div>
-          <div className="text-xs" style={{ color: T.dim }}>{meta.nome}</div>
+          {/* il nome BREVE del tipo: quello lungo doppiava il nome del
+              magazzino («Magazzino Laboratorio / Magazzino laboratorio»)
+              e sembrava stampato due volte per sbaglio (gen-5.99) */}
+          <div className="text-xs" style={{ color: T.dim }}>{meta.breve}</div>
         </div>
       </div>
       <div className="flex items-center gap-2 mt-3 flex-wrap">
         <Chip colore={T.dim}>{m.articoli.length} articoli</Chip>
-        {sotto > 0
+        {/* un bollino verde su un magazzino VUOTO e' una bugia: chi mente
+            sulle piccole cose... (Gigi, dal giudizio) (gen-5.99) */}
+        {m.articoli.length === 0
+          ? <Chip colore={T.tenue}>vuoto · da riempire</Chip>
+          : sotto > 0
           ? <Chip colore={T.ambra}><AlertTriangle size={11} /> {sotto} sotto scorta</Chip>
           : <Chip colore={T.verde}><Check size={11} /> A livello</Chip>}
       </div>
@@ -4107,6 +5683,8 @@ function AvvisiScorta({ stato, vaiA }) {
 const SEZIONI_ALTRO = [
   { id: "catalogo", nome: "Catalogo", icona: Package, col: "#8A63F4",
     sotto: "Prodotti, unità, categorie, fornitori, prezzi e conversioni" },
+  { id: "listino", nome: "Listino", icona: Tag, col: "#DB8A2E",
+    sotto: "Le voci della Cassa: prezzi, varianti, aggiunte, cosa c'è dentro e cosa scalano dal magazzino" },
   { id: "analisi", nome: "Analisi", icona: BarChart3, col: "#3D7DEA",
     sotto: "Consumi, valore della merce, soglie consigliate dai dati veri" },
   { id: "storico", nome: "Storico", icona: History, col: "#D96AC0",
@@ -4119,8 +5697,22 @@ const SEZIONI_ALTRO = [
     sotto: "Chi entra nell'app, con quale ruolo e su quali magazzini" },
   { id: "accessi", nome: "Accessi", icona: KeyRound, col: "#D94A66",
     sotto: "Inviti, richieste di accesso in attesa, codici" },
+  /* LA MEMORIA (gen-5.92). Chiesta da Valerio: «un'app che faccia da memoria
+     per te e per ogni contesto che desidero mantenere per te, e devi essere in
+     grado di poter interagire con questa app».
+     Sta qui dentro e non altrove per tre ragioni pratiche: ce l'ha gia' sul
+     telefono, e' gia' dietro il PIN, e parla gia' con lo stesso deposito da
+     cui io leggo. Un'app nuova avrebbe voluto dire un altro indirizzo, un
+     altro accesso e un altro posto in cui dimenticarsi le cose. */
+  { id: "memoria", nome: "Memoria", icona: Sparkles, col: "#6C7899",
+    sotto: "Quello che Claude deve ricordare fra una conversazione e l'altra" },
   { id: "sistema", nome: "Sistema", icona: Database, col: "#4F5D7C",
     sotto: "Backup, esportazioni, importazione del catalogo" },
+  /* la carta d'identita' (gen-5.99): versione, come si aggiorna, assistenza.
+     Un gestionale senza un posto che dica «cosa sono e chi chiamare» sembra
+     un progetto, non un prodotto (dal giudizio del gruppo). */
+  { id: "informazioni", nome: "Informazioni", icona: Cloud, col: "#3D7DEA",
+    sotto: "Versione, come si aggiorna, assistenza e limiti dichiarati" },
 ];
 function VistaAltro({ stato, vaiA, nAcc }) {
   return (
@@ -4154,9 +5746,162 @@ function VistaAltro({ stato, vaiA, nAcc }) {
    la si vuole da dentro qualunque schermata senza perdere il posto.
    Mostra solo i magazzini che quel profilo puo' vedere: un operatore non
    scopre le giacenze di un'altra sede passando da qui. */
+/* ═══════════ LA RICERCA TROVA ANCHE LE FUNZIONI ═══════════
+
+   Da una frase esatta: «devo poter fare tutto senza dovermi ricordare in che
+   parte dell'app ho quella determinata funzionalità che mi serve; un centro di
+   comando si chiama tale quando controlla tutte le sue periferiche».
+
+   Aveva ragione, e il conto lo dimostrava: mettere un prodotto in un magazzino
+   si poteva fare in quattro modi, con quattro nomi diversi, in tre schermate.
+   Chi cerca non poteva sapere quale.
+
+   La risposta non e' spostare i tasti — e' avere UN POSTO SOLO che li trova
+   tutti per nome, sempre lo stesso, raggiungibile da ogni schermata. Questa
+   lente qui e' quel posto.
+
+   Ogni voce porta delle PAROLE: come la cercherebbe una persona, non come si
+   chiama nel menu. Chi ha in testa «devo togliere della roba» scrive «togli»,
+   non «Sposta o rimuovi prodotti». Se una parola vi manca, aggiungetela: la
+   lista e' fatta per crescere. */
+const AZIONI = [
+  { n: "Aggiungi più prodotti", d: "magazzini", ic: Boxes, k: "mag-aggiungi",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["aggiungi", "prodotti", "inserire", "mettere", "nuovo", "blocco", "insieme"] },
+  { n: "In quali magazzini sta un prodotto", d: "catalogo", ic: Boxes,
+    c: "Catalogo → Prodotti → il tasto verde sulla riga",
+    p: ["magazzini", "assegnare", "assegna", "dove sta", "dove", "orfano", "nessun magazzino"] },
+  { n: "Sposta o rimuovi prodotti", d: "magazzini", ic: ArrowLeftRight, k: "mag-sposta",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["sposta", "spostare", "rimuovi", "rimuovere", "togli", "togliere", "muovi", "leva"] },
+  { n: "Trasferisci le scorte", d: "magazzini", ic: ArrowLeftRight, k: "mag-trasf",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["trasferisci", "trasferire", "scorte", "quantita", "porta", "sposta quantita"] },
+  { n: "Copia da un altro magazzino", d: "magazzini", ic: Copy, k: "mag-copia",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["copia", "copiare", "duplicare", "stessa lista", "uguale"] },
+  { n: "Soglie per giorno", d: "magazzini", ic: TrendingUp, k: "mag-soglie",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["soglie", "soglia", "giorno", "feriale", "weekend", "sabato", "domenica"] },
+  { n: "Livello previsto in blocco", d: "magazzini", ic: Ruler, k: "mag-par",
+    c: "Magazzini → apri un magazzino → Gestione rapida",
+    p: ["livello", "previsto", "par", "scorta", "blocco", "minimo"] },
+  { n: "Ho prodotto (scala gli ingredienti)", d: "magazzini", ic: FlaskConical,
+    c: "Magazzini → magazzino di laboratorio → tasto verde sulla riga",
+    p: ["prodotto", "produzione", "preparato", "fatto", "ricetta", "ingredienti", "laboratorio"] },
+  { n: "Le ricette: le dosi dei preparati", d: "catalogo", ic: FlaskConical,
+    c: "Catalogo → Prodotti → Ricette",
+    p: ["ricetta", "ricette", "dosi", "dose", "ingredienti", "quanto ci vuole"] },
+  { n: "Modifica in blocco: categoria, fornitore, chi lo fa", d: "catalogo", ic: Pencil,
+    c: "Catalogo → Prodotti → Modifica in blocco",
+    p: ["blocco", "categoria", "fornitore", "unita", "chi lo fa", "preparato", "tanti insieme"] },
+  { n: "Prezzi e conversioni dei prodotti", d: "catalogo", ic: Tag,
+    c: "Catalogo → Prodotti → matita",
+    p: ["prezzo", "prezzi", "costo", "conversione", "conversioni", "quanto costa"] },
+  { n: "Report ordine da mandare al fornitore", d: "ordini", ic: Truck, serve: "ordini",
+    c: "Ordini → Report ordine",
+    p: ["report", "ordine", "ordinare", "fornitore", "whatsapp", "mandare", "inviare"] },
+  { n: "Da mandare adesso (tutto, sede per sede)", d: "ordini", ic: Truck, serve: "ordini",
+    c: "Ordini → la scheda verde in cima",
+    p: ["mandare", "inviare", "whatsapp", "spedire", "adesso", "messaggio"] },
+  { n: "Registrare la merce arrivata", d: "ordini", ic: PackageCheck,
+    c: "Ordini → scheda «Ordinati» → Tutto arrivato",
+    p: ["arrivata", "arrivato", "ricevere", "ricevuto", "consegna", "carico", "bolla"] },
+  { n: "Contare quello che c'è", d: "conteggi", ic: ClipboardList,
+    c: "Conteggi",
+    p: ["contare", "conta", "conteggio", "inventario", "verifica", "quanto c'e"] },
+  { n: "Battere una vendita", d: "cassa", ic: Store,
+    c: "Cassa",
+    p: ["cassa", "vendita", "vendere", "battere", "scontrino", "incasso", "incassare", "cliente", "pos", "aggiunte", "extra", "broccoletti", "ingredienti", "in mano"] },
+  { n: "Le comande in cucina", d: "comande", ic: CheckCheck,
+    c: "Comande",
+    p: ["comande", "comanda", "cucina", "postazione", "postazioni", "friggitoria", "pizzeria", "schermo", "fatto", "uscita", "ordine del cliente"] },
+  { n: "Listino di cassa: prezzi di vendita", d: "listino", ic: Tag,
+    c: "Gestione → Listino",
+    p: ["listino", "prezzo di vendita", "prezzi", "vendita", "varianti", "iva", "aliquota", "aggiunte", "aggiunta", "extra", "ingrediente in più", "broccoletti", "salsiccia", "cosa c'è dentro", "composizione", "ingredienti", "boscaiola"] },
+  { n: "Copertura, consumi e valore della merce", d: "analisi", ic: TrendingUp,
+    c: "Gestione → Analisi",
+    p: ["analisi", "copertura", "consumi", "valore", "soldi", "quanto vale", "numeri"] },
+  { n: "Soglie consigliate dai consumi veri", d: "analisi", ic: Gauge,
+    c: "Gestione → Analisi",
+    p: ["soglie consigliate", "previsione", "fabbisogni", "consigli", "proposta"] },
+  { n: "Sprechi e scarti", d: "analisi", ic: PackageMinus,
+    c: "Gestione → Analisi",
+    p: ["spreco", "sprechi", "scarto", "scarti", "buttato", "perso"] },
+  { n: "Chi ha fatto cosa, e riportare indietro", d: "storico", ic: History,
+    c: "Gestione → Storico",
+    p: ["storico", "chi", "quando", "ripristina", "annulla", "torna indietro", "log"] },
+  { n: "Ordini fatti e conto per fornitore", d: "storico-ordini", ic: Truck,
+    c: "Gestione → Storico ordini",
+    p: ["storico ordini", "ordini vecchi", "conto", "quanto ho speso", "fornitore"] },
+  { n: "Sedi e quale laboratorio le rifornisce", d: "sedi", ic: Building2,
+    c: "Gestione → Sedi",
+    p: ["sede", "sedi", "laboratorio", "collegare", "rifornisce", "pizzeria"] },
+  { n: "Persone, ruoli e PIN", d: "profili", ic: Users,
+    c: "Gestione → Profili",
+    p: ["pin", "persone", "ruolo", "profilo", "profili", "chi entra", "password"] },
+  { n: "Inviti e richieste di accesso", d: "accessi", ic: KeyRound,
+    c: "Gestione → Accessi",
+    p: ["invito", "inviti", "codice", "accesso", "far entrare", "nuovo utente"] },
+  { n: "Backup, esportazioni e ripristino", d: "sistema", ic: Database,
+    c: "Gestione → Sistema",
+    p: ["backup", "esporta", "esportazione", "csv", "excel", "ripristino", "salvataggio", "importa"] },
+  { n: "Versione e assistenza", d: "informazioni", ic: Cloud,
+    c: "Gestione → Informazioni",
+    p: ["versione", "aggiornamento", "assistenza", "aiuto", "chi chiamare", "informazioni", "limiti"] },
+  { n: "La rete a colpo d'occhio", d: "plancia", ic: Gauge,
+    c: "Plancia",
+    p: ["plancia", "mappa", "rete", "colpo d'occhio", "collegamenti", "schema"] },
+];
+
+/* ── UNA VOCE SOLA, DUE POSTI ──
+   Il menù «Gestione rapida» non riscrive i nomi delle sue voci: li prende da
+   qui, dalla stessa tabella che risponde alla lente. Così quello che si legge
+   cercando è, parola per parola, quello che si legge nel menù — e non si può
+   scollare fra una versione e l'altra, perché il testo è scritto una volta
+   sola. Se un nome cambia, cambia in tutti e due i posti insieme. */
+const nomeAzione = (k) => (AZIONI.find((a) => a.k === k) || {}).n || "";
+
+/* Trova le funzioni che c'entrano con quello che è stato scritto. Cerca sia nel
+   nome sia nelle parole, e senza accenti: chi scrive di fretta scrive «unita»,
+   non «unità», e non deve essere punito per questo. */
+const senzaAccenti = (s) => (s || "").toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function azioniTrovate(profilo, q) {
+  const t = senzaAccenti(q).trim();
+  if (t.length < 2) return [];
+  /* un operatore non deve trovare porte che poi non può aprire */
+  const suo = (a) => {
+    if (profilo.ruolo === "admin") return true;
+    /* chi sta solo in cassa ha UNA porta, e la lente non gliene apre altre:
+       i filtri qui sotto coprono catalogo, conteggi, plancia, cassa e gli
+       ordini con «serve», ma NON i magazzini (ci arrivano per il ripiego
+       finale), NON le comande (true per tutti, apposta) e NON le voci degli
+       ordini senza «serve». Con la barra della Cassa fissa, ognuna di quelle
+       porte lo lascerebbe in una stanza che non e' sua (gen-6.17). */
+    if (soloCassa(profilo)) return a.d === "cassa";
+    if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino", "informazioni"].includes(a.d)) return false;
+    if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
+    if (a.d === "plancia") return puoCorreggere(profilo);
+    /* senza questa riga il ripiego finale mostrerebbe la porta della Cassa
+       anche a chi non puo' aprirla (gen-5.96) */
+    if (a.d === "cassa") return puoCassa(profilo);
+    /* esplicito, non per ripiego: le comande sono mestiere e si trovano
+       da ogni profilo (gen-5.98) */
+    if (a.d === "comande") return true;
+    if (a.serve === "ordini") return puoOrdinare(profilo);
+    return true;
+  };
+  return AZIONI.filter(suo).filter((a) =>
+    senzaAccenti(a.n).includes(t) || a.p.some((x) => senzaAccenti(x).includes(t) || t.includes(senzaAccenti(x))));
+}
+
 function righeRicerca(stato, profilo, q) {
   const testo = (q || "").trim().toLowerCase();
   if (testo.length < 2) return [];
+  /* e nemmeno le righe dei prodotti: ognuna porta un bottone che apre i
+     Magazzini, e un cassiere non ha domande di magazzino (gen-6.17) */
+  if (soloCassa(profilo)) return [];
   const mags = magazziniVisti(stato, profilo);
   const out = [];
   for (const p of stato.prodotti) {
@@ -4186,6 +5931,7 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
   const rif = useRef(null);
   useEffect(() => { const t = setTimeout(() => rif.current?.focus(), 120); return () => clearTimeout(t); }, []);
   const righe = righeRicerca(stato, profilo, q);
+  const azioni = azioniTrovate(profilo, q);
   const corto = q.trim().length > 0 && q.trim().length < 2;
 
   return (
@@ -4194,8 +5940,8 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
         style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
         <Search size={18} style={{ color: T.tenue }} />
         <input ref={rif} value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Scrivi un prodotto: guanciale, provola…"
-          aria-label="Cerca un prodotto ovunque"
+          placeholder="Un prodotto o una cosa da fare: guanciale, sposta, ordine…"
+          aria-label="Cerca un prodotto o una funzione"
           className="flex-1 min-w-0 bg-transparent outline-none text-base font-semibold"
           style={{ color: T.ink }} />
         {q && <button onClick={() => setQ("")} aria-label="Pulisci la ricerca"
@@ -4204,15 +5950,47 @@ function RicercaGlobale({ stato, profilo, onChiudi, vaiA }) {
 
       {!q.trim() && (
         <p className="text-sm" style={{ color: T.dim }}>
-          Ti dice <b style={{ color: T.ink }}>in quali magazzini sta</b>, quanto ce n'è,
-          se è sotto il livello previsto e chi lo fornisce. Cerca fra i magazzini che
-          puoi vedere tu.
+          Cerca <b style={{ color: T.ink }}>due cose insieme</b>. Un <b style={{ color: T.ink }}>prodotto</b>:
+          ti dice in quali magazzini sta, quanto ce n'è e se è sotto il livello previsto.
+          Oppure <b style={{ color: T.ink }}>una cosa da fare</b>: scrivi «sposta», «ordine»,
+          «soglie», «backup» e ti ci porta — senza doverti ricordare in che sezione sta.
         </p>
       )}
       {corto && <p className="text-sm" style={{ color: T.tenue }}>Scrivi almeno due lettere.</p>}
-      {q.trim().length >= 2 && righe.length === 0 && (
-        <Vuoto icona={Search} titolo="Nessun prodotto con questo nome"
-          testo="Controlla come è scritto a catalogo, oppure cerca solo un pezzo del nome." />
+
+      {/* LE FUNZIONI PRIMA DEI PRODOTTI.
+          Stanno in cima e non in fondo perche' chi scrive «sposta» sta cercando
+          un comando, non un prodotto che si chiama cosi'. Ogni riga dice anche
+          la strada per esteso: chi vuole impararla la impara, chi ha fretta
+          tocca e ci arriva. */}
+      {azioni.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>
+            {azioni.length === 1 ? "1 funzione" : `${azioni.length} funzioni`}
+          </span>
+          {azioni.slice(0, 6).map((a) => (
+            <button key={a.n} type="button" onClick={() => { onChiudi(); vaiA(a.d); }}
+              className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}>
+                <a.ic size={18} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="font-extrabold block" style={{ color: T.ink }}>{a.n}</span>
+                <span className="text-xs block" style={{ color: T.dim }}>{a.c}</span>
+              </span>
+              <ChevronRight size={18} style={{ color: T.tenue }} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length === 0 && (
+        <Vuoto icona={Search} titolo="Non trovo né un prodotto né una funzione"
+          testo="Prova con un pezzo del nome, o con la parola che useresti tu: «sposta», «ordine», «soglie», «backup»." />
+      )}
+      {q.trim().length >= 2 && righe.length === 0 && azioni.length > 0 && (
+        <p className="text-sm" style={{ color: T.tenue }}>Nessun prodotto con questo nome.</p>
       )}
 
       <div className="flex flex-col gap-2.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "62vh" }}>
@@ -4280,10 +6058,12 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
       <div>
         <Intesta titolo={`${saluto}, ${profilo.nome}`} sotto="Panoramica della rete e delle anagrafiche" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          <StatCard icona={Building2} colore={T.blu} label="Sedi in rete" valore={stato.sedi.length} />
+          {/* prima cio' che chiede AZIONE, poi l'anagrafica che non cambia
+              mai: l'occhio cade sulla prima carta (gen-5.99, giudizio) */}
+          <StatCard icona={AlertTriangle} colore={sottoTot ? T.ambra : T.verde} label="Articoli sotto scorta" valore={sottoTot} />
           <StatCard icona={Package} colore={T.viola} label="Prodotti a catalogo" valore={stato.prodotti.length} />
           <StatCard icona={Users} colore={T.ciano} label="Profili attivi" valore={stato.profili.length} />
-          <StatCard icona={AlertTriangle} colore={sottoTot ? T.ambra : T.verde} label="Articoli sotto scorta" valore={sottoTot} />
+          <StatCard icona={Building2} colore={T.blu} label="Sedi in rete" valore={stato.sedi.length} />
         </div>
         <AvvisiScorta stato={stato} vaiA={vaiA} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -4309,7 +6089,7 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
               ].map(([n, t]) => (
                 <li key={n} className="flex gap-2.5">
                   <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold text-white"
-                    style={{ background: T.grad }}>{n}</span>
+                    style={{ background: T.blu }}>{n}</span>
                   <span>{t}</span>
                 </li>
               ))}
@@ -4332,7 +6112,7 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
     return (
       <div>
         <Intesta titolo={`${saluto}, ${profilo.nome}`}
-          sotto={`Sede ${sede?.nome || "—"} · ${linee.length} linee assegnate · ${retro.length} retro`}
+          sotto={`Sede ${sede?.nome || "—"} · ${linee.length === 1 ? "1 linea assegnata" : `${linee.length} linee assegnate`} · ${retro.length} retro`}
           azione={<Bottone icona={ClipboardList} onClick={() => vaiA("conteggi")}>Inizia conteggio</Bottone>} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
           {miei.length === 0
@@ -4340,19 +6120,22 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
                 testo="Chiedi a un Admin di assegnarti i magazzini linea dalla sezione Profili." /></Scheda>
             : miei.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato}
                 azione={<Bottone variante="tonale" piccolo icona={Boxes}
-                  onClick={() => vaiA("magazzini")}>Apri in Magazzini</Bottone>} />)}
+                  onClick={() => vaiA("magazzini", { magId: m.id })}>Apri questo magazzino</Bottone>} />)}
         </div>
-        <Scheda className="p-5">
-          <div className="flex items-baseline justify-between gap-2 mb-2">
-            <span className="font-extrabold" style={{ color: T.ink }}>Attività recente</span>
-            <button onClick={() => vaiA("storico")}
-              className="text-xs font-extrabold rounded-full px-3 py-2 shrink-0"
-              style={{ background: "#EAF0FE", color: T.blu }}>
-              vedi tutto
-            </button>
-          </div>
-          <LogLista log={stato.log} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
-        </Scheda>
+        {/* il registro compare solo a chi puo' CORREGGERE (e' anche la via del
+            ripristino), e mostra i magazzini SUOI: prima era il log grezzo di
+            tutta l'azienda, e Marco leggeva i conteggi di un'altra sede.
+            Niente piu' porta sullo storico aziendale (gen-5.95). */}
+        {puoCorreggere(profilo) && (() => {
+          const idsMiei = new Set(magazziniVisti(stato, profilo).map((m) => m.id));
+          const logMiei = (stato.log || []).filter((e) => (e.cambi || []).some((c) => idsMiei.has(c.k.split("|")[0])));
+          return (
+            <Scheda className="p-5">
+              <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
+              <LogLista log={logMiei} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
+            </Scheda>
+          );
+        })()}
       </div>
     );
   }
@@ -4365,21 +6148,28 @@ function HomeVista({ stato, profilo, vaiA, muta, mostraToast }) {
   return (
     <div>
       <Intesta titolo={`${saluto}, ${profilo.nome}`}
-        sotto={`${sede?.nome || "Laboratorio"} · rifornisce ${servite.length} sedi operatore`}
+        sotto={`${sede?.nome || "Laboratorio"} · rifornisce ${servite.length === 1 ? "1 sede operatore" : `${servite.length} sedi operatore`}`}
         azione={<Bottone icona={FlaskConical} onClick={() => vaiA("richieste")}>Apri richieste</Bottone>} />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-        <StatCard icona={FlaskConical} colore={T.ciano} label="Richieste in attesa" valore={inAttesa} />
-        <StatCard icona={Boxes} colore={T.viola} label="Magazzini laboratorio" valore={magLab.length} />
-        <StatCard icona={AlertTriangle} colore={T.ambra} label="Articoli sotto scorta"
-          valore={magLab.reduce((s, m) => s + sottoScorta(m), 0)} />
-      </div>
+      {/* le tre statistiche che stavano qui dicevano cose gia' scritte
+          altrove: le richieste in attesa sono il badge della barra, il
+          numero dei magazzini non cambia mai, il sotto-scorta sta sui Chip
+          delle schede qui sotto. Via (gen-5.95): un numero ripetuto e' una
+          riga da leggere in piu', non un'informazione in piu'. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        {magLab.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato} />)}
+        {magLab.map((m) => <SchedaMagazzino key={m.id} m={m} stato={stato}
+          azione={<Bottone variante="tonale" piccolo icona={Boxes}
+            onClick={() => vaiA("magazzini", { magId: m.id })}>Apri questo magazzino</Bottone>} />)}
       </div>
-      <Scheda className="p-5">
-        <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
-        <LogLista log={stato.log} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
-      </Scheda>
+      {puoCorreggere(profilo) && (() => {
+        const idsMiei = new Set(magazziniVisti(stato, profilo).map((m) => m.id));
+        const logMiei = (stato.log || []).filter((e) => (e.cambi || []).some((c) => idsMiei.has(c.k.split("|")[0])));
+        return (
+          <Scheda className="p-5">
+            <div className="font-extrabold mb-2" style={{ color: T.ink }}>Attività recente</div>
+            <LogLista log={logMiei} n={5} stato={stato} muta={muta} profilo={profilo} mostraToast={mostraToast} />
+          </Scheda>
+        );
+      })()}
     </div>
   );
 }
@@ -4733,8 +6523,22 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const [filtroF, setFiltroF] = useState("tutti");
   const [campo, setCampo] = useState("categoriaId");
   const [valore, setValore] = useState("");
+  /* ── LE CONVERSIONI IN BLOCCO (gen-5.82) ──
+     Una conversione non e' un valore che si possa appiccicare a una selezione
+     qualunque: dice «uno di questo vale N di quello», e il «quello» e'
+     l'unita' BASE del singolo prodotto. Scrivere «1 cassa = 6 kg» su un
+     prodotto la cui base e' «pz» non da' un errore, da' un numero sbagliato —
+     in silenzio, su tutta la selezione, e si scopre mesi dopo quando un
+     ordine arriva sballato.
+     Quindi qui l'unita' base si SCEGLIE, e fa da filtro: chi ha un'altra base
+     resta fuori e viene contato a schermo prima di premere. Il conto di
+     quanti restano fuori e' la parte che rende la cosa usabile senza paura. */
+  const [convDa, setConvDa] = useState("");     // «1 di questa…»
+  const [convBase, setConvBase] = useState(""); // «…vale N di questa», che e' la base
+  const [convQta, setConvQta] = useState("");
+  const [convSovr, setConvSovr] = useState(false); // sostituire quelle gia' scritte?
   useEffect(() => { setValore(""); }, [campo]);
-  const lista = stato.prodotti.filter((p) =>
+  const lista = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase()) &&
     (filtro === "tutti" || p.categoriaId === filtro) &&
     (filtroF === "tutti" ? true
@@ -4743,12 +6547,27 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
       : p.fornitoreId === filtroF));
   const toggle = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const etichetta = { categoriaId: "Categoria", fornitoreId: "Fornitore",
-    uomBase: "Unità di misura base", preparato: "Chi lo fa" }[campo];
+    uomBase: "Unità di misura base", preparato: "Chi lo fa", soloInteri: "Mezze confezioni",
+    conv: "Conversione" }[campo];
+
+  /* Chi della selezione riceve davvero la conversione, e chi no. Si calcola
+     mentre si guarda, non dopo aver premuto: e' l'unica cosa che distingue
+     «assegnare in blocco» da «sparare nel mucchio». */
+  const nQta = num(convQta);
+  const dentro = campo !== "conv" || !convBase ? []
+    : stato.prodotti.filter((p) => sel.has(p.id) && p.uomBase === convBase && p.uomBase !== convDa);
+  const fuoriBase = campo !== "conv" || !convBase ? []
+    : stato.prodotti.filter((p) => sel.has(p.id) && p.uomBase !== convBase);
+  const giaScritta = dentro.filter((p) => (p.conv || {})[convDa] != null);
+  const tocca = convSovr ? dentro : dentro.filter((p) => (p.conv || {})[convDa] == null);
   const opzioniValore = campo === "categoriaId" ? stato.categorie
-    : campo === "fornitoreId" ? stato.fornitori
+    : campo === "fornitoreId" ? ordinaPerNome(stato.fornitori)
     : campo === "preparato" ? [
       { id: "si", nome: "Lo fa il laboratorio" },
       { id: "no", nome: "Si compra da un fornitore" }]
+    : campo === "soloInteri" ? [
+      { id: "si", nome: "Solo confezioni intere" },
+      { id: "no", nome: "Si possono ordinare quantità spezzate" }]
     : stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }));
   /* Quanti, fra quelli scelti, resterebbero senza nessuno che glieli dà. Si
      conta QUI e non dentro muta(): quel pezzo può essere rieseguito quando la
@@ -4756,12 +6575,48 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
   const orfaniDopo = campo === "preparato" && valore === "no"
     ? stato.prodotti.filter((p) => sel.has(p.id) && !p.fornitoreId).length : 0;
 
+  const salvaConv = () => {
+    if (!convDa || !convBase) return mostraToast("Scegli tutte e due le unità", "errore");
+    if (convDa === convBase) return mostraToast("Sono la stessa unità: una vale sempre uno", "errore");
+    if (!(nQta > 0)) return mostraToast("Scrivi quanto vale, con un numero maggiore di zero", "errore");
+    if (!tocca.length) return mostraToast(dentro.length
+      ? "Ce l'hanno già tutti: spunta «sostituisci» se la vuoi riscrivere"
+      : "Nessuno dei prodotti scelti ha quella unità base", "errore");
+    const ids = new Set(tocca.map((p) => p.id));
+    const quanti = tocca.length;
+    muta((s) => {
+      for (const p of s.prodotti) {
+        if (!ids.has(p.id)) continue;
+        p.conv = { ...(p.conv || {}), [convDa]: nQta };
+        /* Questa l'ha scritta una persona guardando la merce, non l'ha
+           indovinata l'app: il bollino «stimata» va tolto, se no l'avviso
+           delle conversioni da sistemare continua a chiamarla in causa. */
+        if ((p.convStim || []).includes(convDa))
+          p.convStim = p.convStim.filter((u) => u !== convDa);
+      }
+    }, `${quanti} prodotti · 1 ${simboloU(stato, convDa)} = ${fmtQ(nQta)} ${simboloU(stato, convBase)}`);
+    mostraToast(fuoriBase.length
+      ? `${quanti} prodotti aggiornati · ${fuoriBase.length} lasciati stare: altra unità base`
+      : `${quanti} prodotti aggiornati`);
+    onChiudi();
+  };
+
   const salva = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    if (campo === "conv") return salvaConv();
     if (!valore) return mostraToast("Scegli il valore da assegnare", "errore");
+    /* stesso conto vero: qui il ciclo gira sui prodotti a catalogo, e uno
+       cancellato da un altro telefono non c'e' piu' */
+    const quanti = stato.prodotti.filter((x) => sel.has(x.id)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più a catalogo", "errore");
     muta((s) => {
       for (const p of s.prodotti) {
         if (!sel.has(p.id)) continue;
+        if (campo === "soloInteri") {
+          if (valore === "si") p.soloInteri = true; else delete p.soloInteri;
+          continue;
+        }
         if (campo !== "preparato") { p[campo] = valore; continue; }
         /* La spunta si scrive solo quando è vera, esattamente come nella scheda
            del singolo prodotto: un prodotto comprato non si porta dietro un
@@ -4770,10 +6625,11 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         if (valore === "si") { p.preparato = true; p.fornSede = {}; }
         else delete p.preparato;
       }
-    }, `${sel.size} prodotti · ${etichetta} aggiornata`);
-    mostraToast(orfaniDopo
-      ? `${sel.size} aggiornati · ${orfaniDopo} sono rimasti senza fornitore: vanno assegnati`
-      : `${sel.size} prodotti aggiornati`, orfaniDopo ? "avviso" : "ok");
+    }, fuori ? `${quanti} prodotti · ${etichetta} aggiornata · ${fuori} saltati`
+      : `${quanti} prodotti · ${etichetta} aggiornata`);
+    mostraToast(fuori ? `${quanti} aggiornati · ${fuori} saltati: non sono più a catalogo`
+      : orfaniDopo ? `${quanti} aggiornati · ${orfaniDopo} sono rimasti senza fornitore: vanno assegnati`
+      : `${quanti} prodotti aggiornati`, (fuori || orfaniDopo) ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -4783,9 +6639,45 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         <Selettore label="Cosa vuoi cambiare" valore={campo} onCambia={setCampo} opzioni={[
           { id: "categoriaId", nome: "Categoria" }, { id: "fornitoreId", nome: "Fornitore" }, { id: "uomBase", nome: "Unità di misura base" },
           { id: "preparato", nome: "Chi lo fa · laboratorio o fornitore" },
+          { id: "conv", nome: "Conversione · quanto vale un'unità" },
+          { id: "soloInteri", nome: "Mezze confezioni · sì o no" },
         ]} />
-        <Selettore label={`Nuovo valore · ${etichetta}`} valore={valore} onCambia={setValore}
-          opzioni={[{ id: "", nome: "— scegli —" }, ...opzioniValore]} />
+        {campo !== "conv" && (
+          <Selettore label={`Nuovo valore · ${etichetta}`} valore={valore} onCambia={setValore}
+            opzioni={[{ id: "", nome: "— scegli —" }, ...opzioniValore]} />
+        )}
+        {campo === "conv" && (
+          <div className="rounded-2xl p-3 flex flex-col gap-3" style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+              <Selettore label="Uno di questa…" valore={convDa} onCambia={setConvDa}
+                opzioni={[{ id: "", nome: "— scegli —" }, ...stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))]} />
+              <Campo label="…vale" valore={convQta} onCambia={setConvQta} inputMode="decimal" placeholder="es. 6" />
+              <Selettore label="di questa, che è la base" valore={convBase} onCambia={setConvBase}
+                opzioni={[{ id: "", nome: "— scegli —" }, ...stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))]} />
+            </div>
+            <label className="flex items-center gap-2 text-sm font-bold" style={{ color: T.ink }}>
+              <input type="checkbox" checked={convSovr} onChange={(e) => setConvSovr(e.target.checked)} />
+              Sostituisci anche dove una conversione c'è già
+            </label>
+            {/* Il conto prima di premere. E' questo che rende la cosa usabile
+                senza paura: si vede a chi arriva e a chi no, e perche'. */}
+            {convBase ? (
+              <div className="text-sm font-semibold leading-relaxed" style={{ color: T.dim }}>
+                Si scrive su <b style={{ color: tocca.length ? T.verde : T.ambra }}>{tocca.length}</b> prodotti
+                {giaScritta.length > 0 && !convSovr && <> · <b>{giaScritta.length}</b> ce l'hanno già e restano come sono</>}
+                {fuoriBase.length > 0 && (
+                  <> · <b style={{ color: T.ambra }}>{fuoriBase.length}</b> restano fuori perché la loro
+                  unità base non è «{simboloU(stato, convBase)}»</>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm font-semibold" style={{ color: T.tenue }}>
+                Scegli l'unità base: la conversione andrà <b>solo</b> sui prodotti che ce l'hanno,
+                perché su tutti gli altri sarebbe un numero sbagliato.
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5" style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
         <Search size={16} style={{ color: T.tenue }} />
@@ -4798,11 +6690,11 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
         <option value="tutti">Ogni fornitore</option>
         <option value="_senza">Senza fornitore</option>
         <option value="_prep">Solo quelli fatti in laboratorio</option>
-        {stato.fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+        {ordinaPerNome(stato.fornitori).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
       </select>
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-          style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+          style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
         {stato.categorie.map((c) => (
           <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
             style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -4836,7 +6728,9 @@ function FormModificaMulti({ stato, muta, mostraToast, onChiudi }) {
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <Bottone variante="fantasma" onClick={onChiudi}>Annulla</Bottone>
-        <Bottone icona={Check} onClick={salva} disabilitato={!sel.size || !valore}>Applica a {sel.size || ""}</Bottone>
+        <Bottone icona={Check} onClick={salva}
+          disabilitato={!sel.size || (campo === "conv" ? !(tocca.length && nQta > 0) : !valore)}>
+          {campo === "conv" ? `Applica a ${tocca.length || ""}` : `Applica a ${sel.size || ""}`}</Bottone>
       </div>
     </div>
   );
@@ -4868,6 +6762,237 @@ function valoreRete(stato, mags) {
 const fmtEuro = (n) => "€ " + (Math.round(n * 100) / 100).toLocaleString("it-IT",
   { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/* ─────────── LE DOSI, UNA DIETRO L'ALTRA ───────────
+   La macchina delle ricette è in piedi da gen-5.68 e funziona: il laboratorio
+   segna «ho prodotto venti breccole» e l'app scala farina, pecorino e
+   guanciale dai magazzini della sua sede. Solo che in catalogo di ricette ce
+   ne sono ZERO, quindi non scala niente — e la ragione non è la pigrizia di
+   nessuno: le dosi si scrivono aprendo la scheda del singolo prodotto, una
+   alla volta, in mezzo a categoria, fornitore, unità, conversioni e prezzo.
+   Per venti preparati vuol dire venti aperture, venti ricerche, venti
+   salvataggi, con la ricetta che è l'ultima cosa in fondo alla scheda.
+
+   Qui invece si sta fermi su una schermata e si va avanti: «per fare 1 di
+   questo serve…», salva, prossimo. Chi ha il quaderno delle ricette davanti
+   deve poter finire in mezz'ora senza mai cercare niente.
+
+   Due scelte che vale la pena dichiarare.
+   La prima: si salva a ogni passaggio, non alla fine. Una sessione di dieci
+   ricette che si perde perché il telefono si spegne non la rifà nessuno.
+   La seconda: da qui si può marcare un prodotto come «lo fa il laboratorio»
+   mentre gli si scrive la ricetta. Sembra fuori posto, e invece è il motivo
+   per cui questa schermata oggi non sarebbe utile a niente: in catalogo i
+   preparati sono zero, e mandare la persona in un'altra schermata a marcarli
+   prima di poter cominciare vorrebbe dire far fallire il lavoro sul primo
+   passo. Scrivere la ricetta di una cosa È dire che la si fa in casa. */
+function FormRicette({ stato, muta, mostraToast, onChiudi }) {
+  const preparati = ordinaPerNome(stato.prodotti).filter((p) => preparato(p));
+  const [i, setI] = useState(() => {
+    /* si riparte dal primo che NON ha ancora le dosi: chi riapre la
+       schermata vuole continuare, non ricominciare */
+    const k = preparati.findIndex((p) => !conRicetta(p));
+    return k >= 0 ? k : 0;
+  });
+  const [q, setQ] = useState("");
+  const prod = preparati[i] || null;
+
+  /* la bozza della ricetta del prodotto su cui si è adesso */
+  const [resa, setResa] = useState("");
+  const [uomResa, setUomResa] = useState("");
+  const [ing, setIng] = useState([]);
+  const [tocco, setTocco] = useState(false);
+  const carica = (p) => {
+    setResa(p?.ricetta?.resa != null ? String(p.ricetta.resa).replace(".", ",") : "");
+    setUomResa(p?.ricetta?.uomResa || p?.uomLavorazione || p?.uomBase || "");
+    setIng((p?.ricetta?.ingredienti || []).map((x) => ({
+      prodottoId: x.prodottoId, qty: String(x.qty).replace(".", ","), uomId: x.uomId })));
+    setTocco(false);
+  };
+  const idRif = prod?.id;
+  useEffect(() => { carica(prod); /* eslint-disable-next-line */ }, [idRif]);
+
+  const unitaDi = (p) => {
+    /* le unità che hanno senso per QUEL prodotto: la sua base e quelle per
+       cui esiste una conversione. Offrire tutte le unità del catalogo vuol
+       dire offrire numeri che l'app poi non sa convertire. */
+    const ids = [p?.uomBase, ...Object.keys(p?.conv || {})].filter(Boolean);
+    return [...new Set(ids)].map((id) => ({ id, nome: labelU(trova(stato.unita, id)) }));
+  };
+
+  const salva = (poi) => {
+    if (!prod) return;
+    const r = num(resa);
+    if (r == null || r <= 0) return mostraToast("Scrivi quanto ne esce: senza la resa non si scala niente", "errore");
+    const pulite = [];
+    for (const x of ing) {
+      if (!x.prodottoId) continue;
+      const n = num(x.qty);
+      if (n == null || n <= 0) {
+        const nome = trova(stato.prodotti, x.prodottoId)?.nome || "un ingrediente";
+        return mostraToast(`Manca la quantità di «${nome}»`, "errore");
+      }
+      pulite.push({ prodottoId: x.prodottoId, qty: n, uomId: x.uomId });
+    }
+    if (!pulite.length) return mostraToast("Serve almeno un ingrediente", "errore");
+    muta((s) => {
+      const p = trova(s.prodotti, prod.id); if (!p) return;
+      p.preparato = true;
+      p.ricetta = { resa: r, uomResa: uomResa || p.uomBase, ingredienti: pulite };
+    }, `Ricetta di «${prod.nome}»: ${pulite.length} ingredienti per ${fmtQ(r)}`);
+    mostraToast(`«${prod.nome}» a posto`);
+    if (poi === "avanti") {
+      /* si salta al prossimo SENZA ricetta, non semplicemente al successivo:
+         chi sta riempiendo vuole andare dove manca */
+      const dopo = preparati.findIndex((p, k) => k > i && !conRicetta(p));
+      setI(dopo >= 0 ? dopo : Math.min(i + 1, preparati.length - 1));
+    } else onChiudi();
+  };
+
+  /* ── nessun preparato: è il caso di oggi, e va preso di petto ── */
+  const trovati = q.trim().length >= 2
+    ? ordinaPerNome(stato.prodotti).filter((p) => !preparato(p)
+        && (p.nome || "").toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+    : [];
+  const marca = (p) => {
+    muta((s) => { const b = trova(s.prodotti, p.id); if (b) b.preparato = true; },
+      `«${p.nome}» lo fa il laboratorio`);
+    setQ("");
+    mostraToast(`«${p.nome}» adesso lo fa il laboratorio: scrivi le dosi`);
+  };
+
+  const fatte = preparati.filter(conRicetta).length;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-2xl px-3.5 py-3 text-sm"
+        style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}`, color: T.dim }}>
+        Le dosi servono a una cosa sola, ma importante: quando il laboratorio segna
+        <b style={{ color: T.ink }}> «ho prodotto»</b>, gli ingredienti si scalano da soli.
+        Senza, la quantità sale e il magazzino continua a dire che c'è roba che non c'è.
+        {preparati.length > 0 && <> <b style={{ color: T.ink }}>{fatte} su {preparati.length}</b> ce l'hanno già.</>}
+      </div>
+
+      {/* Cercare un prodotto e marcarlo sta qui sopra e non in fondo perché
+          oggi i preparati sono zero: senza questo, la schermata si apre vuota
+          e non c'è niente da fare. */}
+      <div>
+        <div className="flex items-center gap-2 rounded-2xl px-3.5 py-2.5"
+          style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+          <Search size={16} style={{ color: T.tenue }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Aggiungi un prodotto che fate voi…" aria-label="Cerca un prodotto da marcare come fatto in laboratorio"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm font-semibold"
+            style={{ color: T.ink }} />
+        </div>
+        {trovati.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-2">
+            {trovati.map((p) => (
+              <button key={p.id} type="button" onClick={() => marca(p)}
+                className="flex items-center gap-2 rounded-2xl px-3 py-2.5 text-left"
+                style={{ background: "#EFF7F3", border: "1px solid #CFEADD" }}>
+                <FlaskConical size={14} style={{ color: T.verde }} />
+                <span className="flex-1 min-w-0 truncate font-bold text-sm" style={{ color: T.ink }}>{p.nome}</span>
+                <span className="text-xs font-bold shrink-0" style={{ color: T.verde }}>lo facciamo noi</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {!prod ? (
+        <p className="text-sm" style={{ color: T.ambra }}>
+          In catalogo non c'è ancora nessun prodotto marcato come <b>fatto in laboratorio</b>.
+          Cercalo qui sopra: marcarlo e scrivergli le dosi si fa in un gesto solo.
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setI(Math.max(0, i - 1))}
+              aria-label="Preparato precedente" className="rounded-full p-2.5 shrink-0"
+              style={{ background: "#EAF0FE", color: T.blu, opacity: i === 0 ? .4 : 1 }}>
+              <ChevronRight size={16} style={{ transform: "rotate(180deg)" }} /></button>
+            <div className="flex-1 min-w-0 text-center">
+              <div className="font-extrabold truncate" style={{ color: T.ink }}>{prod.nome}</div>
+              <div className="text-xs" style={{ color: T.tenue }}>
+                {i + 1} di {preparati.length}{conRicetta(prod) ? " · le dosi ci sono già" : " · dosi da scrivere"}
+              </div>
+            </div>
+            <button type="button" onClick={() => setI(Math.min(preparati.length - 1, i + 1))}
+              aria-label="Preparato successivo" className="rounded-full p-2.5 shrink-0"
+              style={{ background: "#EAF0FE", color: T.blu, opacity: i >= preparati.length - 1 ? .4 : 1 }}>
+              <ChevronRight size={16} /></button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Campo label="Ne escono" valore={resa} onCambia={(v) => { setResa(puliziaNum(v)); setTocco(true); }}
+              inputMode="decimal" placeholder="20" />
+            <Selettore label="di" valore={uomResa || prod.uomBase}
+              onCambia={(v) => { setUomResa(v); setTocco(true); }} opzioni={unitaDi(prod)} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {ing.map((r, k) => (
+              <div key={k} className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Selettore label={k === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId } : x))); setTocco(true); }}
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== prod.id))}
+                    placeholder="— scegli —" />
+                </div>
+                <div style={{ width: 88 }}>
+                  <Campo label={k === 0 ? "quanto" : ""} valore={r.qty}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k ? { ...x, qty: puliziaNum(v) } : x))); setTocco(true); }}
+                    inputMode="decimal" placeholder="0" />
+                </div>
+                <div style={{ width: 104 }}>
+                  <Selettore label={k === 0 ? "unità" : ""} valore={r.uomId}
+                    onCambia={(v) => { setIng(ing.map((x, j) => (j === k ? { ...x, uomId: v } : x))); setTocco(true); }}
+                    opzioni={r.prodottoId ? unitaDi(trova(stato.prodotti, r.prodottoId))
+                      : stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+                </div>
+                <button type="button" onClick={() => { setIng(ing.filter((_, j) => j !== k)); setTocco(true); }}
+                  aria-label="Togli ingrediente" className="rounded-full p-2.5 mb-0.5"
+                  style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end">
+            <Bottone piccolo variante="tonale" icona={Plus}
+              onClick={() => { setIng([...ing, { prodottoId: "", qty: "", uomId: prod.uomBase }]); setTocco(true); }}>
+              Aggiungi ingrediente
+            </Bottone>
+          </div>
+
+          {/* Le pastiglie in fondo servono a due cose: saltare dove si vuole, e
+              far vedere quanto manca. Un elenco che si accorcia a vista è la
+              ragione per cui uno finisce invece di smettere a metà. */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {preparati.map((p, k) => (
+              <button key={p.id} type="button" onClick={() => setI(k)}
+                aria-label={`Vai a ${p.nome}`}
+                className="rounded-full px-2.5 py-1 text-xs font-bold"
+                style={{
+                  background: k === i ? T.blu : conRicetta(p) ? "#E4F6EE" : "#F1F4FB",
+                  color: k === i ? "#fff" : conRicetta(p) ? T.verde : T.tenue,
+                }}>
+                {conRicetta(p) ? "✓ " : ""}{p.nome}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 justify-end mt-2 flex-wrap">
+            <Bottone variante="fantasma" onClick={onChiudi}>Chiudi</Bottone>
+            <Bottone variante="tonale" icona={Check} onClick={() => salva("chiudi")} disabilitato={!tocco && conRicetta(prod)}>
+              Salva
+            </Bottone>
+            <Bottone icona={ChevronRight} onClick={() => salva("avanti")}>Salva e vai al prossimo</Bottone>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* Un campo per prodotto, tutti nella stessa schermata: mettere 102 prezzi
    entrando e uscendo da 102 schede non lo farebbe nessuno. */
 function FormPrezzi({ stato, muta, mostraToast, onChiudi }) {
@@ -4877,7 +7002,7 @@ function FormPrezzi({ stato, muta, mostraToast, onChiudi }) {
     const v = {}; for (const p of stato.prodotti) v[p.id] = p.prezzo > 0 ? String(p.prezzo).replace(".", ",") : "";
     return v;
   });
-  const lista = stato.prodotti.filter((p) =>
+  const lista = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase())
     && (!soloVuoti || !(p.prezzo > 0)));
   const quanti = stato.prodotti.filter((p) => !(p.prezzo > 0)).length;
@@ -5056,6 +7181,7 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
   const [del, setDel] = useState(null);       // {tipo, item}
   const [bulk, setBulk] = useState(false);    // modifica prodotti in blocco
   const [prezzi, setPrezzi] = useState(false);       // prezzi, uno per uno ma tutti insieme
+  const [ricette, setRicette] = useState(false);     // le dosi, un preparato dietro l'altro
   const [conversioni, setConversioni] = useState(false);  // i fattori mancanti, tutti in una volta
   const [catAperte, setCatAperte] = useState(() => new Set());  // categorie aperte nell'elenco
   const [soloFuori, setSoloFuori] = useState(false);  // solo i prodotti in nessun magazzino
@@ -5066,7 +7192,7 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
   const cerca = (n) => (n || "").toLowerCase().includes(q.trim().toLowerCase());
   const unitaF = stato.unita.filter((u) => cerca(u.nome) || cerca(u.simbolo));
   const categorieF = stato.categorie.filter((c) => cerca(c.nome));
-  const fornitoriF = stato.fornitori.filter((f) => cerca(f.nome));
+  const fornitoriF = ordinaPerNome(stato.fornitori).filter((f) => cerca(f.nome));
   const fuoriMag = prodottiFuori(stato);
   const idFuori = new Set(fuoriMag.map((p) => p.id));
   /* il filtro vale solo finché ci sono prodotti fuori: se li sistema tutti
@@ -5098,6 +7224,9 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
           )}
           {tab === "prodotti" && stato.prodotti.length > 1 && (
             <Bottone variante="tonale" icona={Pencil} onClick={() => setBulk(true)}>Modifica in blocco</Bottone>
+          )}
+          {tab === "prodotti" && stato.prodotti.length > 0 && (
+            <Bottone variante="tonale" icona={FlaskConical} onClick={() => setRicette(true)}>Ricette</Bottone>
           )}
           {tab === "prodotti" && stato.prodotti.length > 0 && (
             <Bottone variante="tonale" icona={TrendingUp} onClick={() => setPrezzi(true)}>Prezzi</Bottone>
@@ -5228,10 +7357,10 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
           const cercando = !!q.trim() || filtroFuori;
           const gruppi = [];
           for (const c of stato.categorie) {
-            const dentro = prodottiF.filter((p) => p.categoriaId === c.id);
+            const dentro = ordinaPerNome(prodottiF).filter((p) => p.categoriaId === c.id);
             if (dentro.length) gruppi.push({ cat: c, prod: dentro });
           }
-          const orfani = prodottiF.filter((p) => !trova(stato.categorie, p.categoriaId));
+          const orfani = ordinaPerNome(prodottiF).filter((p) => !trova(stato.categorie, p.categoriaId));
           if (orfani.length) gruppi.push({ cat: null, prod: orfani });
           const riga = (p) => {
             const cat = trova(stato.categorie, p.categoriaId);
@@ -5306,6 +7435,9 @@ function VistaCatalogo({ stato, muta, mostraToast, profilo }) {
         {del && <EliminaGuidata key={del.item.id} stato={stato} tipo={del.tipo} item={del.item}
           muta={muta} mostraToast={mostraToast} onChiudi={() => setDel(null)} />}
       </Foglio>
+      <Foglio aperto={ricette} titolo="Le dosi delle ricette" onChiudi={() => setRicette(false)} larga>
+        {ricette && <FormRicette stato={stato} muta={muta} mostraToast={mostraToast} onChiudi={() => setRicette(false)} />}
+      </Foglio>
       <Foglio aperto={prezzi} titolo="Prezzi dei prodotti" onChiudi={() => setPrezzi(false)} larga>
         {prezzi && <FormPrezzi stato={stato} muta={muta} mostraToast={mostraToast} onChiudi={() => setPrezzi(false)} />}
       </Foglio>
@@ -5331,6 +7463,11 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [tipo, setTipo] = useState(item?.tipo || "operatore");
   const [labId, setLabId] = useState(item?.labSedeId || lab[0]?.id || "");
+  /* il magazzino di cassa (gen-5.96): da dove esce quello che si vende.
+     Si sceglie solo modificando una sede esistente — alla creazione i
+     magazzini non ci sono ancora — e senza scelta vale la prima linea. */
+  const [cassaMagId, setCassaMagId] = useState(item?.cassaMagId || "");
+  const magSede = item ? stato.magazzini.filter((m) => m.sedeId === item.id) : [];
   const salva = () => {
     if (!nome.trim()) return mostraToast("Inserisci il nome della sede", "errore");
     if (tipo === "operatore" && !labId) return mostraToast("Crea prima una sede laboratorio di riferimento", "errore");
@@ -5339,6 +7476,7 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
         const x = trova(s.sedi, item.id);
         x.nome = nome.trim();
         if (x.tipo === "operatore") x.labSedeId = labId;
+        x.cassaMagId = cassaMagId || undefined;
       } else {
         s.sedi.push({ id: uid("sede"), nome: nome.trim(), tipo, ...(tipo === "operatore" ? { labSedeId: labId } : {}) });
       }
@@ -5360,6 +7498,10 @@ function FormSede({ stato, item, muta, mostraToast, onChiudi }) {
         ? <Selettore label="Rifornita dal laboratorio" valore={labId} onCambia={setLabId} opzioni={lab} />
         : <p className="text-sm font-semibold" style={{ color: T.ambra }}>
             Nessuna sede laboratorio disponibile: creane una prima.</p>
+    )}
+    {item && magSede.length > 0 && (
+      <Selettore label="Magazzino di cassa" valore={cassaMagId} onCambia={setCassaMagId}
+        opzioni={magSede} placeholder="La prima linea della sede (predefinito)" />
     )}
     <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
   </div>);
@@ -5445,7 +7587,7 @@ function VistaSedi({ stato, muta, mostraToast }) {
             <div className="font-extrabold text-lg leading-tight" style={{ color: T.ink }}>{sede.nome}</div>
             <div className="text-xs mt-0.5" style={{ color: T.dim }}>
               {isLab
-                ? `Rifornisce ${servite.length} sedi operatore`
+                ? `Rifornisce ${servite.length === 1 ? "1 sede operatore" : `${servite.length} sedi operatore`}`
                 : `Rifornita da ${rifornita?.nome || "—"}`}
             </div>
           </div>
@@ -5502,12 +7644,26 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [colore, setColore] = useState(item?.colore || PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   const [sedeId, setSedeId] = useState(item?.sedeId || "");
   const [magIds, setMagIds] = useState(item?.magazziniIds || []);
+  const [postIds, setPostIds] = useState(item?.postazioniIds || []);
+  const [struttura, setStruttura] = useState(!!item?.struttura);
+  const [correzioni, setCorrezioni] = useState(!!item?.correzioni);
+  const [ordini, setOrdini] = useState(!!item?.ordini);
+  const [cassa, setCassa] = useState(!!item?.cassa);
+  const [soloBanco, setSoloBanco] = useState(!!item?.soloCassa);
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
   const lineeSede = stato.magazzini.filter((m) => m.sedeId === sedeId && m.tipo.startsWith("linea"));
-  const cambiaRuolo = (r) => { setRuolo(r); setSedeId(""); setMagIds([]); };
+  const cambiaRuolo = (r) => { setRuolo(r); setSedeId(""); setMagIds([]); setPostIds([]); };
   const toggleMag = (id) => setMagIds((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  const togglePost = (id) => setPostIds((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  /* le postazioni assegnabili a questo profilo: quelle della sua sede piu'
+     quelle dichiarate «tutte le sedi». Assegnargli la postazione di
+     un'ALTRA sede non servirebbe: le comande di quella sede non gli
+     arriverebbero comunque, il filtro della sede resta quello di sempre
+     (gen-6.01, chiesto da Valerio: «ogni cassa deve mandare le comande
+     solo alle postazioni di appartenenza»). */
+  const postSede = (stato.postazioni || []).filter((po) => !po.sedeId || po.sedeId === sedeId);
 
   /* commento dal vivo sotto al campo: chi scrive deve vedere subito se
      quello che sta digitando diventerà davvero il nuovo PIN */
@@ -5531,6 +7687,17 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
         nome: nome.trim(), ruolo, colore, pinHash,
         sedeId: ruolo === "admin" ? undefined : sedeId,
         magazziniIds: ruolo === "operatore" ? magIds : undefined,
+        /* niente per l'admin e niente quando e' vuoto: il campo assente e'
+           il verso giusto anche qui (gen-6.01) */
+        postazioniIds: ruolo === "admin" || postIds.length === 0 ? undefined : postIds,
+        struttura: ruolo === "admin" ? undefined : (struttura || undefined),
+        correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
+        ordini: ruolo === "admin" ? undefined : (ordini || undefined),
+        cassa: ruolo === "admin" ? undefined : (cassa || undefined),
+        /* appeso a «cassa»: se la cassa si spegne, si spegne anche questo —
+           una barra di sole voci della Cassa addosso a chi in Cassa non puo'
+           entrare sarebbe una porta su un muro (gen-6.17) */
+        soloCassa: ruolo === "admin" ? undefined : ((cassa && soloBanco) || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -5565,7 +7732,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
                   <button key={m.id} onClick={() => toggleMag(m.id)}
                     className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
                     style={sel
-                      ? { background: T.grad, color: "#fff" }
+                      ? { background: T.blu, color: "#fff" }
                       : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
                     {sel && <Check size={13} />}{m.nome}
                   </button>
@@ -5574,6 +7741,85 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
             </div>}
       </div>
     )}
+    {/* LE POSTAZIONI DEL PROFILO (gen-6.01) — chieste da Valerio: «non posso
+        ancora visualizzare le postazioni nei profili nei quali li assegno».
+        Stanno QUI, prima e FUORI dal riquadro «Autorizzazioni», perche' non
+        sono un permesso: non aprono e non chiudono niente, dicono soltanto
+        «di solito tu stai qui», e servono da punto di partenza allo schermo
+        che non ha ancora scelto. */}
+    {ruolo !== "admin" && sedeId && (
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Postazioni di cucina</span>
+        {postSede.length === 0
+          ? <p className="text-sm" style={{ color: T.tenue }}>
+              Questa sede non ha ancora postazioni: le disegna un Admin da Gestione → Listino.</p>
+          : <>
+            <div className="flex flex-wrap gap-2">
+              {postSede.map((po) => {
+                const sel = postIds.includes(po.id);
+                return (
+                  <button key={po.id} onClick={() => togglePost(po.id)}
+                    className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
+                    style={sel
+                      ? { background: T.blu, color: "#fff" }
+                      : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
+                    {sel && <Check size={13} />}{po.nome}
+                    {!po.sedeId && <span className="text-xs font-semibold" style={{ opacity: .75 }}>· tutte le sedi</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+              Non è un permesso: è il punto di partenza dello schermo che apre le Comande. Chi lavora può sempre cambiare sedia dal suo schermo.</span>
+          </>}
+      </div>
+    )}
+    {ruolo !== "admin" && (() => {
+      /* i TRE interruttori (gen-5.95), la stessa grafica del primo: di
+         solito restano spenti — il mestiere non passa da qui */
+      const InterruttoreAut = ({ acceso, onCambia, titolo, sotto }) => (
+        <button type="button" onClick={onCambia} aria-pressed={acceso}
+          className="flex items-start gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+          style={acceso
+            ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` }
+            : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+          <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+            style={{ background: acceso ? T.blu : "#fff", border: `1.5px solid ${acceso ? T.blu : T.tenue}` }}>
+            {acceso && <Check size={13} color="#fff" />}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-extrabold" style={{ color: T.ink }}>{titolo}</span>
+            <span className="block text-xs mt-0.5" style={{ color: T.dim }}>{sotto}</span>
+          </span>
+        </button>
+      );
+      return (
+        <div className="flex flex-col gap-2">
+          <span className="block text-sm font-bold" style={{ color: T.ink }}>
+            Autorizzazioni <span className="font-normal" style={{ color: T.tenue }}>· di solito restano spente</span>
+          </span>
+          <InterruttoreAut acceso={correzioni} onCambia={() => setCorrezioni((v) => !v)}
+            titolo="Può correggere le quantità"
+            sotto="Rettifiche, scarti, trasferimenti, inventario e comandi quantità in Plancia. Contare, produrre, evadere e ricevere la merce restano comunque a tutti." />
+          <InterruttoreAut acceso={ordini} onCambia={() => setOrdini((v) => !v)}
+            titolo="Può gestire gli ordini"
+            sotto="Ricalcolo dei fabbisogni, segnare ordinato, togliere righe, report e testi da mandare. Ricevere la merce arrivata resta a tutti." />
+          <InterruttoreAut acceso={cassa} onCambia={() => setCassa((v) => !v)}
+            titolo="Può battere in cassa"
+            sotto="La vista Cassa: vendite al cliente con scarico automatico dal magazzino di cassa della sede. In barra prende il posto della Plancia. Non comprende correzioni né ordini." />
+          {/* compare solo se la cassa e' accesa: senza, sarebbe un
+              interruttore che non puo' fare niente (gen-6.17) */}
+          {cassa && (
+            <InterruttoreAut acceso={soloBanco} onCambia={() => setSoloBanco((v) => !v)}
+              titolo="Sta solo in cassa"
+              sotto="Chi lo ha acceso apre l'app direttamente sulla Cassa e sotto il pollice trova Battere · Clienti · Giornata, niente altro: né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi al banco batte e basta." />
+          )}
+          <InterruttoreAut acceso={struttura} onCambia={() => setStruttura((v) => !v)}
+            titolo="Può modificare la struttura dei magazzini"
+            sotto="Aggiungere e togliere articoli, soglie, livelli previsti, unità, spostare in blocco. Comprende anche le correzioni delle quantità." />
+        </div>
+      );
+    })()}
     <SceltaColore valore={colore} onCambia={setColore} />
     <Campo label={item ? "Nuovo PIN · 4 cifre (facoltativo)" : "PIN di accesso · 4 cifre"} valore={pin}
       onCambia={(v) => setPin(v.slice(0, 16))} tipo="password"
@@ -5792,14 +8038,74 @@ function chiediAlLaboratorio(bozza, prod, artR, sedeId, magR) {
   return qty;
 }
 
+/* ─────────── QUELLO CHE È GIÀ PARTITO E NON È ANCORA ARRIVATO ───────────
+   Il difetto n.1 del consiglio del 2 agosto, e l'unico che costava soldi tutti
+   i giorni. Il retro ha bisogno di 8 kg di farina, parte l'ordine, lo si segna
+   «ordinato». Il giorno dopo la merce non è ancora arrivata — quindi in
+   magazzino non c'è, quindi il fabbisogno è ancora 8 — e ogni «Ricalcola»,
+   ogni conteggio di linea che attinge dal retro, ogni evasione del laboratorio
+   rifaceva la domanda da capo accanto a quella già partita. Al fornitore se ne
+   chiedevano 16 per un bisogno di 8.
+
+   La riga in stato «ordinato» è esattamente la merce in viaggio: partita, non
+   ancora scaricata. Quelle «ricevute» hanno già caricato il magazzino, quindi
+   stanno già dentro artR.qty e sottrarle sarebbe l'errore opposto — ordinare
+   di meno. Quelle «da ordinare» non sono partite: sono la riga che stiamo per
+   riscrivere.
+
+   Ogni riga porta la SUA unità di misura, che può non essere più quella di
+   oggi se nel frattempo è cambiata l'unità del fornitore. Se non si sa
+   convertirla NON si sottrae: fra i due sbagli possibili, ordinare due volte
+   costa dei soldi, non ordinare abbastanza ferma la cucina.
+
+   E per la stessa ragione la fiducia in una riga «ordinato» SCADE. Nessuno
+   obbliga a registrare una consegna: basta che una volta ci si dimentichi, e
+   quella riga resterebbe lì a dire «tranquillo, sta arrivando» per sempre —
+   il prodotto smetterebbe di comparire negli ordini e l'unico modo per
+   accorgersene sarebbe la cucina che rimane a secco. Dopo GIORNI_IN_VIAGGIO
+   la riga non fa più da tappo: l'app torna a chiederla, com'era prima di
+   questa correzione. Ordinare due volte una cosa che tarda da una settimana
+   costa dei soldi; non ordinarla mai più costa il servizio. Il numero è
+   scritto qui in un posto solo apposta: se i fornitori sono più lenti, si
+   cambia questo. */
+const GIORNI_IN_VIAGGIO = 7;
+const giaInViaggio = (bozza, prod, sedeId, tipo, uom) => {
+  const limite = Date.now() - GIORNI_IN_VIAGGIO * 86400000;
+  return (bozza.ordini || []).reduce((tot, o) => {
+    if (o.stato !== "ordinato" || o.tipo !== tipo || o.sedeId !== sedeId || o.prodottoId !== prod.id) return tot;
+    if ((o.tOrdine || o.t || 0) < limite) return tot;
+    const q = o.uomId === uom ? o.qty : converti(prod, o.qty, o.uomId, uom);
+    return q == null ? tot : tot + q;
+  }, 0);
+};
+
+/* Di righe «da ordinare» per la stessa cosa ce ne deve essere UNA. Prima di
+   questa correzione se ne potevano formare due — due ordini partiti per lo
+   stesso fabbisogno, consegnati tutti e due a metà, due residui — e il
+   ricalcolo ne aggiornava solo la prima: l'altra restava lì per sempre a
+   chiedere merce che non serviva. Qui si tiene la prima e si tolgono le altre,
+   così i doppioni già in giro si riassorbono al primo ricalcolo invece di
+   restare a vita. Si scorre all'indietro perché togliere una riga più avanti
+   non sposta quelle che devono ancora essere guardate. */
+function unicaRigaAperta(bozza, prod, sedeId, tipo) {
+  let tenuta = -1;
+  for (let i = bozza.ordini.length - 1; i >= 0; i--) {
+    const o = bozza.ordini[i];
+    if (o.tipo !== tipo || o.sedeId !== sedeId || o.prodottoId !== prod.id || o.stato !== "da-ordinare") continue;
+    if (tenuta >= 0) bozza.ordini.splice(tenuta, 1);
+    tenuta = i;
+  }
+  return tenuta;
+}
+
 /* aggiorna la riga d'ordine «diretto» in base al deficit del retro */
-function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR) {
+function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR, conta) {
   const uom = prod.uomFornitoreDiretto || prod.uomBase;
   const deficit = Math.max(0, parOggi(artR) - artR.qty);
   const conv = converti(prod, deficit, artR.uomId, uom) ?? deficit;
-  const qty = Math.ceil(conv - 1e-9);
-  const idx = bozza.ordini.findIndex((o) =>
-    o.tipo === "diretto" && o.sedeId === sedeId && o.prodottoId === prod.id && o.stato === "da-ordinare");
+  const viaggio = giaInViaggio(bozza, prod, sedeId, "diretto", uom);
+  const qty = Math.ceil(conv - viaggio - 1e-9);
+  const idx = unicaRigaAperta(bozza, prod, sedeId, "diretto");
   /* Un preparato il retro non lo ordina: lo chiede al laboratorio, come farebbe
      una linea. E se una riga d'ordine era rimasta lì da prima della spunta va
      tolta: tenerla vorrebbe dire portarsi dietro un acquisto che nessuno farà. */
@@ -5807,7 +8113,14 @@ function aggiornaOrdineDiretto(bozza, prod, artR, sedeId, magR) {
     if (idx >= 0) bozza.ordini.splice(idx, 1);
     return chiediAlLaboratorio(bozza, prod, artR, sedeId, magR);
   }
-  if (qty <= 0) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
+  if (qty <= 0) {
+    /* «serve, ma è già in arrivo» non è la stessa cosa di «non serve»: chi
+       preme Ricalcola e non vede comparire niente deve sapere quale dei due è,
+       se no va a riordinare a mano ed è come se il difetto ci fosse ancora. */
+    if (conta && conv > 1e-9 && viaggio > 1e-9) conta.inArrivo++;
+    if (idx >= 0) bozza.ordini.splice(idx, 1);
+    return 0;
+  }
   const riga = {
     id: idx >= 0 ? bozza.ordini[idx].id : uid("ord"), t: Date.now(), tipo: "diretto",
     sedeId, prodottoId: prod.id, fornitoreId: fornitoreDi(prod, sedeId), qty, uomId: uom, stato: "da-ordinare",
@@ -5899,7 +8212,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
       <Campo label="Nome prodotto" valore={nome} onCambia={setNome} placeholder="Es. Pomodori San Marzano" autoFocus />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Selettore label="Categoria" valore={categoriaId} onCambia={setCategoriaId} opzioni={stato.categorie} />
-        {!prep && <Selettore label="Fornitore abituale" valore={fornitoreId} onCambia={setFornitoreId} opzioni={stato.fornitori} />}
+        {!prep && <Selettore label="Fornitore abituale" valore={fornitoreId} onCambia={setFornitoreId} opzioni={ordinaPerNome(stato.fornitori)} />}
       </div>
 
       {/* La spunta che dice «questo non si compra». Sta subito sotto la
@@ -5953,10 +8266,11 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
               <div key={i} className="flex gap-2 items-end">
                 <div className="flex-1 min-w-0">
                   <Selettore label={i === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
-                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, prodottoId: v } : x)))}
-                    opzioni={[{ id: "", nome: "— scegli —" }, ...stato.prodotti
-                      .filter((x) => x.id !== item?.id)
-                      .map((x) => ({ id: x.id, nome: x.nome }))]} />
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
+                      : x)))}
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== item?.id))}
+                    placeholder="— scegli —" />
                 </div>
                 <div style={{ width: 92 }}>
                   <Campo label={i === 0 ? "quanto" : ""} valore={r.qty}
@@ -6005,7 +8319,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
                   className="rounded-xl px-2.5 py-2 text-sm font-bold shrink-0"
                   style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink, maxWidth: "58%" }}>
                   <option value="">come sopra</option>
-                  {stato.fornitori.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  {ordinaPerNome(stato.fornitori).map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
                 </select>
               </div>
             ))}
@@ -6069,7 +8383,7 @@ function FormProdotto({ stato, item, muta, mostraToast, onChiudi }) {
 }
 
 /* ─────────── GESTIONE MAGAZZINI ─────────── */
-function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa }) {
+function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa, onElimina }) {
   const [nome, setNome] = useState(item?.nome || "");
   const [sedeId, setSedeId] = useState(item?.sedeId || sedeFissa || stato.sedi[0]?.id || "");
   const sede = trova(stato.sedi, sedeId);
@@ -6112,13 +8426,16 @@ function FormMagazzino({ stato, item, muta, mostraToast, onChiudi, sedeFissa }) 
           ? <Selettore label="Retro di riferimento" valore={rifId} onCambia={setRifId} opzioni={retroSede} />
           : <p className="text-sm font-semibold" style={{ color: T.ambra }}>Nessun retro in questa sede: creane uno prima.</p>
       )}
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Elimina questo magazzino</Bottone>
+      )}
       <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
     </div>
   );
 }
 
 function FormArticolo({ stato, mag, art, muta, mostraToast, onChiudi, profilo }) {
-  const disponibili = stato.prodotti.filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
+  const disponibili = ordinaPerNome(stato.prodotti).filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
   const [prodottoId, setProdottoId] = useState(art?.prodottoId || disponibili[0]?.id || "");
   const prod = trova(stato.prodotti, prodottoId);
   /* unità del prodotto + eventuali unità Gastronorm (per comunicare col laboratorio) */
@@ -6166,7 +8483,7 @@ function FormArticolo({ stato, mag, art, muta, mostraToast, onChiudi, profilo })
         : disponibili.length
           ? <Selettore label="Prodotto" valore={prodottoId}
               onCambia={(v) => { setProdottoId(v); const p = trova(stato.prodotti, v); setUomId(p?.uomBase || ""); }}
-              opzioni={disponibili} />
+              gruppi={gruppiProdotto(stato, disponibili)} />
           : <p className="text-sm font-semibold" style={{ color: T.ambra }}>Tutti i prodotti sono già presenti qui.</p>}
       {prod && (<>
         <Selettore label="Unità di misura in questo magazzino" valore={uomOk} onCambia={setUomId}
@@ -6258,9 +8575,29 @@ function FormRettifica({ stato, mag, art, muta, mostraToast, onChiudi, profilo }
      3. solo dopo, il tasto che tocca i numeri
    Se qualcosa non torna (manca l'ingrediente, manca la conversione, non ce
    n'e' abbastanza) si dice qui, in chiaro, e si lascia decidere. */
-function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo }) {
+function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo, suggerito }) {
   const prod = trova(stato.prodotti, art.prodottoId);
-  const [qty, setQty] = useState("");
+  /* se si arriva dal piano di lavoro il numero e' gia' scritto: chi apre la
+     scheda sa gia' quanti gliene servono, riscriverlo e' solo un passaggio in
+     piu' in cui si puo' sbagliare. Resta modificabile: e' un suggerimento. */
+  const [qty, setQty] = useState(() => (suggerito > 0 ? String(suggerito).replace(".", ",") : ""));
+  /* ── LA RICETTA SI SCRIVE DA QUI ──
+     Segnalato da Valerio: «serve poter confermare la preparazione dei prodotti
+     che vengono lavorati con piu' prodotti nel laboratorio». Il tasto per
+     confermare c'era gia'; quello che mancava e' che per dieci preparati su
+     dodici la conferma era VUOTA — nessuna ricetta, quindi la quantita' saliva
+     e nessun ingrediente scendeva.
+     E la ricetta il laboratorio non poteva scriverla: sta dentro il Catalogo,
+     che e' sotto «Gestione», e nella barra del laboratorio «Gestione» non c'e'.
+     Le dosi le sa chi ha la pentola in mano, e finivano dietro un permesso che
+     quella persona non ha. Adesso si scrivono qui, nel momento in cui servono,
+     senza aprire il Catalogo a chi non deve toccarlo. */
+  const [scrivi, setScrivi] = useState(false);
+  const [ricResa, setRicResa] = useState(() =>
+    prod?.ricetta?.resa != null ? String(prod.ricetta.resa).replace(".", ",") : "");
+  const [ricUom, setRicUom] = useState(() => prod?.ricetta?.uomResa || art.uomId);
+  const [ricIng, setRicIng] = useState(() => (prod?.ricetta?.ingredienti || [])
+    .map((x) => ({ prodottoId: x.prodottoId, qty: String(x.qty).replace(".", ","), uomId: x.uomId })));
   const n = num(qty);
   const sym = simboloU(stato, art.uomId);
   const calc = n > 0 ? calcoloProduzione(stato, { magProd: mag, prod, quanto: n, uomFatto: art.uomId })
@@ -6279,15 +8616,122 @@ function FormProduzione({ stato, mag, art, muta, mostraToast, onChiudi, profilo 
     onChiudi();
   };
 
+  /* Stesse regole del Catalogo, e per la stessa ragione: o la ricetta e'
+     intera o non si scrive. Una resa senza ingredienti, o un ingrediente
+     senza quantita', farebbe scalare numeri sbagliati con l'aria di essere a
+     posto — peggio del non avere niente. */
+  const bozza = () => {
+    const resa = num(ricResa);
+    const ing = ricIng
+      .map((r) => ({ prodottoId: r.prodottoId, qty: num(r.qty), uomId: r.uomId }))
+      .filter((r) => r.prodottoId && r.qty > 0 && r.uomId);
+    return { resa, ing, buona: resa > 0 && ing.length > 0 };
+  };
+  const salvaRicetta = () => {
+    const { resa, ing, buona } = bozza();
+    if (!buona) return mostraToast(
+      !(resa > 0) ? "Scrivi quanto ne esce per una volta" : "Aggiungi almeno un ingrediente con la quantità",
+      "errore");
+    muta((s) => {
+      const p = trova(s.prodotti, art.prodottoId);
+      if (!p) return;
+      p.preparato = true;
+      p.ricetta = { resa, uomResa: ricUom || art.uomId, ingredienti: ing };
+    }, `Ricetta di «${prod?.nome}»: ${ing.length} ingredienti per ${fmtQ(resa)} ${simboloU(stato, ricUom || art.uomId)}`);
+    setScrivi(false);
+    mostraToast(`Ricetta salvata · ${ing.length} ingredienti`);
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <Campo label={`Quanto ne hai prodotto? (${sym})`} valore={qty} onCambia={(v) => setQty(puliziaNum(v))}
         inputMode="decimal" placeholder="0" autoFocus
         suggerimento={conRicetta(prod)
           ? `La ricetta ne fa ${fmtQ(prod.ricetta.resa)} ${simboloU(stato, prod.ricetta.uomResa)} per volta.`
-          : "Nessuna ricetta impostata: si carica la quantità e basta."} />
+          : undefined} />
 
-      {calc.problemi.length > 0 && (
+      {/* ── QUANDO LA RICETTA NON C'È ──
+          Prima qui c'era una riga grigia sotto il campo: «Nessuna ricetta
+          impostata: si carica la quantità e basta». Diceva il vero e non
+          serviva a niente — chi la leggeva non aveva nessun posto dove
+          andare, perche' il Catalogo il laboratorio non ce l'ha. */}
+      {!conRicetta(prod) && !scrivi && (
+        <div className="rounded-2xl px-3.5 py-3 text-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
+          <div className="font-extrabold mb-1">Questo si fa con altri prodotti?</div>
+          <div style={{ color: T.dim }} className="text-xs leading-relaxed mb-2">
+            Finché non c'è scritto cosa ci vuole, confermare alza la quantità di
+            «{prod?.nome}» e <b>non scala niente</b>: i magazzini continuano a dire che
+            c'è roba che hai già usato. Scrivilo una volta e da qui in poi si scala da solo.
+          </div>
+          <div className="flex justify-end">
+            <Bottone piccolo variante="tonale" icona={FlaskConical} onClick={() => {
+              if (!ricResa) setRicResa(String(n > 0 ? n : 1).replace(".", ","));
+              if (!ricIng.length) setRicIng([{ prodottoId: "", qty: "", uomId: "" }]);
+              setScrivi(true);
+            }}>Scrivi cosa ci vuole</Bottone>
+          </div>
+        </div>
+      )}
+
+      {scrivi && (
+        <div className="rounded-2xl p-3" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+          <div className="font-extrabold text-sm mb-1" style={{ color: T.ink }}>Cosa ci vuole per «{prod?.nome}»</div>
+          <p className="text-xs mb-2 leading-relaxed" style={{ color: T.dim }}>
+            Scrivilo per una volta sola: quanto ne esce e cosa ci vuole. Il resto lo fa
+            l'app in proporzione — per mezza teglia non serve riscrivere niente.
+          </p>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <Campo label="Ne escono" valore={ricResa} onCambia={(v) => setRicResa(puliziaNum(v))}
+              inputMode="decimal" placeholder="1" />
+            <Selettore label="di" valore={ricUom} onCambia={setRicUom}
+              opzioni={stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+          </div>
+          <div className="flex flex-col gap-2">
+            {ricIng.map((r, i) => (
+              <div key={i} className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Selettore label={i === 0 ? "Ci vuole" : ""} valore={r.prodottoId}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i
+                      ? { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || x.uomId }
+                      : x)))}
+                    gruppi={gruppiProdotto(stato, stato.prodotti.filter((x) => x.id !== art.prodottoId))}
+                    placeholder="— scegli —" />
+                </div>
+                <div style={{ width: 88 }}>
+                  <Campo label={i === 0 ? "quanto" : ""} valore={r.qty}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, qty: puliziaNum(v) } : x)))}
+                    inputMode="decimal" placeholder="0" />
+                </div>
+                <div style={{ width: 104 }}>
+                  <Selettore label={i === 0 ? "unità" : ""} valore={r.uomId}
+                    onCambia={(v) => setRicIng(ricIng.map((x, j) => (j === i ? { ...x, uomId: v } : x)))}
+                    opzioni={stato.unita.map((u) => ({ id: u.id, nome: labelU(u) }))} />
+                </div>
+                <button type="button" onClick={() => setRicIng(ricIng.filter((_, j) => j !== i))}
+                  aria-label="Togli ingrediente" className="rounded-full p-2.5 mb-0.5"
+                  style={{ background: "#FCE9EE", color: T.rosso }}><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between items-center gap-2 mt-2 flex-wrap">
+            <Bottone piccolo variante="tonale" icona={Plus}
+              onClick={() => setRicIng([...ricIng, { prodottoId: "", qty: "", uomId: "" }])}>
+              Aggiungi ingrediente
+            </Bottone>
+            <div className="flex gap-2">
+              <Bottone piccolo variante="fantasma" onClick={() => setScrivi(false)}>Lascia stare</Bottone>
+              <Bottone piccolo icona={Check} onClick={salvaRicetta} disabilitato={!bozza().buona}>
+                Salva la ricetta
+              </Bottone>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* «non c'è una ricetta» adesso lo dice il riquadro qui sopra, che oltre
+          a dirlo offre di rimediare: ripeterlo qui sarebbe lo stesso avviso
+          due volte, e il secondo senza via d'uscita. */}
+      {conRicetta(prod) && calc.problemi.length > 0 && (
         <div className="rounded-2xl px-3.5 py-3 text-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
           {calc.problemi.map((t, i) => <div key={i} className="font-semibold">{t}</div>)}
         </div>
@@ -6418,12 +8862,12 @@ function MovimentiArticolo({ stato, mag, art }) {
 }
 
 function FormTrasferimento({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const conQta = mag.articoli.filter((a) => a.qty > 0);
+  const conQta = articoliPerNome(stato, mag.articoli).filter((a) => a.qty > 0);
   const [prodottoId, setProdottoId] = useState(conQta[0]?.prodottoId || "");
   const art = mag.articoli.find((a) => a.prodottoId === prodottoId);
   const prod = trova(stato.prodotti, prodottoId);
   const admin = profilo?.ruolo === "admin";
-  const dest = stato.magazzini.filter((m) => m.id !== mag.id && (admin || m.sedeId === profilo?.sedeId));
+  const dest = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id && (admin || m.sedeId === profilo?.sedeId));
   const [destId, setDestId] = useState("");
   const magDest = trova(stato.magazzini, destId);
   const artDest = magDest?.articoli.find((a) => a.prodottoId === prodottoId);
@@ -6481,7 +8925,7 @@ function FormTrasferimento({ stato, mag, muta, mostraToast, onChiudi, profilo })
 
 /* == AGGIUNTA MULTIPLA: più prodotti in un magazzino == */
 function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const disponibili = stato.prodotti.filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
+  const disponibili = ordinaPerNome(stato.prodotti).filter((p) => !mag.articoli.some((a) => a.prodottoId === p.id));
   const [sel, setSel] = useState(() => new Set());
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState("tutti");
@@ -6495,6 +8939,13 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     const nPar = num(par) ?? 0;
     if (nPar < 0) return mostraToast("Livello previsto non valido", "errore");
+    /* qui il ciclo salta chi e' GIA' nel magazzino: se un altro telefono ce
+       l'ha appena messo, non lo si aggiunge due volte — giusto — ma dirlo
+       aggiunto sarebbe falso */
+    const quanti = stato.prodotti.filter((x) => sel.has(x.id)
+      && !mag.articoli.some((a) => a.prodottoId === x.id)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Sono già tutti in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const p of s.prodotti) {
@@ -6502,8 +8953,10 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
         m.articoli.push({ prodottoId: p.id, uomId: p.uomBase, par: nPar, qty: 0 });
         registraMov(s, { magId: m.id, prodottoId: p.id, uomId: p.uomBase, delta: 0, dopo: 0, causale: "articolo", chi: profilo?.nome });
       }
-    }, `${sel.size} prodotti aggiunti in «${mag.nome}»`);
-    mostraToast(`${sel.size} prodotti aggiunti · livello e quantità da rifinire`);
+    }, fuori ? `${quanti} prodotti aggiunti in «${mag.nome}» · ${fuori} c'erano già`
+      : `${quanti} prodotti aggiunti in «${mag.nome}»`);
+    mostraToast(fuori ? `${quanti} aggiunti · ${fuori} c'erano già`
+      : `${quanti} prodotti aggiunti · livello e quantità da rifinire`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -6519,7 +8972,7 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
       </div>
       <div className="flex gap-1.5 flex-wrap">
         <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-          style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+          style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
         {stato.categorie.map((c) => (
           <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
             style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -6558,7 +9011,7 @@ function FormAggiungiMulti({ stato, mag, muta, mostraToast, onChiudi, profilo })
 
 /* == COPIA PRODOTTI da un altro magazzino == */
 function FormCopiaMagazzino({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
-  const fonti = stato.magazzini.filter((m) => m.id !== mag.id && m.articoli.length);
+  const fonti = magazziniPerSede(stato, stato.magazzini).filter((m) => m.id !== mag.id && m.articoli.length);
   const [fonteId, setFonteId] = useState(fonti[0]?.id || "");
   const [soloMancanti, setSoloMancanti] = useState(true);
   const fonte = trova(stato.magazzini, fonteId);
@@ -6624,6 +9077,9 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
     const nff = num(ff), nfw = num(fw);
     if (nff == null || nff < 0 || nfw == null || nfw < 0) return mostraToast("Moltiplicatori non validi", "errore");
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const a of m.articoli) {
@@ -6633,8 +9089,11 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         const fer = r2(base * nff), wk = r2(base * nfw);
         a.parGiorni = { "1": fer, "2": fer, "3": fer, "4": fer, "5": fer, "6": wk, "0": wk };
       }
-    }, `Soglie per giorno aggiornate su ${sel.size} prodotti in «${mag.nome}»`);
-    mostraToast(nff === 1 && nfw === 1 ? "Soglie per giorno azzerate (livello unico)" : `Soglie per giorno impostate su ${sel.size} prodotti`);
+    }, fuori ? `Soglie per giorno aggiornate su ${quanti} prodotti in «${mag.nome}» · ${fuori} saltati`
+      : `Soglie per giorno aggiornate su ${quanti} prodotti in «${mag.nome}»`);
+    mostraToast(fuori ? `${quanti} aggiornati · ${fuori} saltati: non ci sono più in questo magazzino`
+      : nff === 1 && nfw === 1 ? "Soglie per giorno azzerate (livello unico)" : `Soglie per giorno impostate su ${quanti} prodotti`,
+      fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -6658,7 +9117,7 @@ function FormSoglieMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         </div>
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "38vh" }}>
-        {mag.articoli.map((a) => {
+        {articoliPerNome(stato, mag.articoli).map((a) => {
           const p = trova(stato.prodotti, a.prodottoId); const on = sel.has(a.prodottoId);
           const sym = simboloU(stato, a.uomId);
           const nff = num(ff) ?? 1, nfw = num(fw) ?? 1;
@@ -6689,7 +9148,7 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
   const [q, setQ] = useState("");
   const [par, setPar] = useState("");
   const [uom, setUom] = useState("");
-  const lista = mag.articoli.filter((a) => {
+  const lista = articoliPerNome(stato, mag.articoli).filter((a) => {
     const p = trova(stato.prodotti, a.prodottoId);
     return (p?.nome || "").toLowerCase().includes(q.trim().toLowerCase());
   });
@@ -6701,6 +9160,16 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
     const nPar = cambiaPar ? num(par) : null;
     if (cambiaPar && (nPar == null || nPar < 0)) return mostraToast("Livello previsto non valido", "errore");
     if (!cambiaPar && !uom) return mostraToast("Imposta un livello o un'unità (o entrambi)", "errore");
+    /* ── IL CONTO VERO, COME NELLA PLANCIA (gen-5.90) ──
+       Il ciclo qui sotto salta in silenzio le righe che non trova piu', ma il
+       messaggio contava la SELEZIONE. Da gen-5.80 due telefoni lavorano
+       davvero insieme: fra lo spuntare e il premere, un altro puo' aver tolto
+       quella riga. Un'app che dice «fatto» su cose che non ha toccato e'
+       peggio di una che rifiuta — chi ha premuto va via convinto, e chi legge
+       lo storico non ha modo di accorgersene. */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       for (const a of m.articoli) {
@@ -6708,8 +9177,10 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
         if (cambiaPar) a.par = nPar;
         if (uom) a.uomId = uom;
       }
-    }, `Livello previsto aggiornato su ${sel.size} prodotti in «${mag.nome}»`);
-    mostraToast(`Aggiornati ${sel.size} prodotti`);
+    }, fuori ? `Livello previsto aggiornato su ${quanti} prodotti in «${mag.nome}» · ${fuori} saltati`
+      : `Livello previsto aggiornato su ${quanti} prodotti in «${mag.nome}»`);
+    mostraToast(fuori ? `Aggiornati ${quanti} · ${fuori} saltati: non ci sono più in questo magazzino`
+      : `Aggiornati ${quanti} prodotti`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -6764,9 +9235,12 @@ function FormParMulti({ stato, mag, muta, mostraToast, onChiudi }) {
 function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const [sel, setSel] = useState(() => new Set());
   const [q, setQ] = useState("");
-  const altri = stato.magazzini.filter((m) => m.id !== mag.id);
+  /* solo destinazioni su cui si ha permesso PIENO: prima l'elenco offriva
+     TUTTI i magazzini, comprese le sedi altrui — offrire cio' che poi va
+     rifiutato e' il difetto, non la protezione */
+  const altri = magazziniPerSede(stato, stato.magazzini.filter((m) => permessoSu(profilo, m) === "pieno")).filter((m) => m.id !== mag.id);
   const [destId, setDestId] = useState(altri[0]?.id || "");
-  const lista = mag.articoli.filter((a) => {
+  const lista = articoliPerNome(stato, mag.articoli).filter((a) => {
     const p = trova(stato.prodotti, a.prodottoId);
     return (p?.nome || "").toLowerCase().includes(q.trim().toLowerCase());
   });
@@ -6776,6 +9250,13 @@ function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
   const sposta = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
     if (!dest) return mostraToast("Scegli il magazzino di destinazione", "errore");
+    if (permessoSu(profilo, dest) !== "pieno")
+      return mostraToast("Quel magazzino non e' di tua competenza: scegli una destinazione tua", "errore");
+    /* stesso conto vero: qui il ciclo fa «if (!a) continue» sulle righe che
+       non trova, e il messaggio le contava lo stesso */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => {
       const m = trova(s.magazzini, mag.id);
       const d = trova(s.magazzini, destId);
@@ -6794,21 +9275,30 @@ function FormSpostaMulti({ stato, mag, muta, mostraToast, onChiudi, profilo }) {
         if (a.qty > 0) registraMov(s, { magId: m.id, prodottoId: pid, uomId: a.uomId, delta: -a.qty, dopo: 0, causale: "trasferimento", chi: profilo?.nome, rif: `a «${d.nome}»` });
       }
       m.articoli = m.articoli.filter((x) => !sel.has(x.prodottoId));
-    }, `${sel.size} prodotti spostati da «${mag.nome}» a «${dest.nome}»`);
-    mostraToast(`${sel.size} prodotti spostati in «${dest.nome}»`);
+    }, fuori ? `${quanti} prodotti spostati da «${mag.nome}» a «${dest.nome}» · ${fuori} saltati`
+      : `${quanti} prodotti spostati da «${mag.nome}» a «${dest.nome}»`);
+    mostraToast(fuori ? `${quanti} spostati · ${fuori} saltati: non ci sono più qui`
+      : `${quanti} prodotti spostati in «${dest.nome}»`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
   const linee = lineeDelLab(stato, mag);
   const rimuovi = () => {
     if (!sel.size) return mostraToast("Seleziona almeno un prodotto", "errore");
+    /* la sesta, che nel giro del 5 agosto non avevo contato: togliArticolo
+       non trova la riga e restituisce zero senza dire niente, e il messaggio
+       contava la selezione */
+    const quanti = mag.articoli.filter((a) => sel.has(a.prodottoId)).length;
+    const fuori = sel.size - quanti;
+    if (!quanti) return mostraToast("Nessuno di questi prodotti è più in questo magazzino", "errore");
     muta((s) => { for (const pid of sel) togliArticolo(s, mag.id, pid); },
-      linee.length
-        ? `${sel.size} prodotti rimossi da «${mag.nome}» e dalle linee rifornite`
-        : `${sel.size} prodotti rimossi da «${mag.nome}»`);
-    mostraToast(linee.length
-      ? `${sel.size} prodotti rimossi, qui e nelle linee rifornite`
-      : `${sel.size} prodotti rimossi (restano a catalogo)`);
+      (linee.length
+        ? `${quanti} prodotti rimossi da «${mag.nome}» e dalle linee rifornite`
+        : `${quanti} prodotti rimossi da «${mag.nome}»`) + (fuori ? ` · ${fuori} saltati` : ""));
+    mostraToast(fuori ? `${quanti} rimossi · ${fuori} saltati: non c'erano più`
+      : linee.length
+      ? `${quanti} prodotti rimossi, qui e nelle linee rifornite`
+      : `${quanti} prodotti rimossi (restano a catalogo)`, fuori ? "avviso" : "ok");
     onChiudi();
   };
 
@@ -6893,13 +9383,14 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <Chip colore={meta.colore}>{meta.nome}</Chip>
+        <Chip colore={meta.colore}>{meta.breve}</Chip>
         <Chip colore={T.dim}>{sede?.nome}</Chip>
         {retro && <Chip colore={T.ambra}>Rif: {retro.nome}</Chip>}
         {permesso === "rettifica" && <Chip colore={T.blu}>Rettifica giacenze</Chip>}
-        {(() => {
-          /* quanto vale quello che c'è qui dentro. Se non si può calcolare
-             non si mostra un numero a caso: si dice quante righe mancano */
+        {profilo.ruolo === "admin" && (() => {
+          /* quanto vale quello che c'e' qui dentro — solo all'admin: il
+             valore economico e' controllo di gestione, non lavoro di linea.
+             Se non si puo' calcolare non si mostra un numero a caso */
           const v = valoreMag(stato, mag);
           if (v.contate === 0) return null;
           const mancanti = v.senzaPrezzo + v.senzaConv;
@@ -6964,7 +9455,7 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
                     magazzino di laboratorio, a chi può toccare le giacenze. Su una
                     linea o su un retro non c'entra niente — lì i preparati arrivano,
                     non si fanno. */}
-                {permesso !== "lettura" && mag.tipo === "laboratorio" && preparato(p) && (
+                {(permesso !== "lettura" || profilo.ruolo === "laboratorio") && mag.tipo === "laboratorio" && preparato(p) && (
                   <button onClick={() => setProduz(a)} aria-label={`Ho prodotto ${p?.nome}`}
                     className="rounded-full p-2.5" style={{ background: "#E8F6F0", color: T.verde }}><FlaskConical size={14} /></button>
                 )}
@@ -7002,24 +9493,58 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
       </div>
 
       <Foglio aperto={menu} titolo="Gestione rapida" onChiudi={() => setMenu(false)}>
-        <div className="flex flex-col gap-2">
+        {/* ── TRE GRUPPI, E LE STESSE IDENTICHE PAROLE DELLA RICERCA ──
+            Prima era una fila piatta di sei voci in ordine di quando le ho
+            scritte, e per trovarne una bisognava leggerle tutte. Adesso sono
+            in tre gruppi con l'intestazione: si aggiunge, si sposta, si
+            regolano i livelli. Un elenco di sei cose senza titoli è una lista;
+            con i titoli è un pannello di comando.
+
+            I nomi non sono scritti qui: arrivano da AZIONI tramite nomeAzione,
+            la stessa tabella che risponde alla lente della ricerca. Quello che
+            si legge cercando è parola per parola quello che si legge qui.
+
+            E le voci che hanno bisogno di prodotti non spariscono più quando il
+            magazzino è vuoto: restano al loro posto, spente, e dicono perché.
+            Una funzione che sparisce è una funzione da ricordare a memoria —
+            ed è esattamente la fatica che questo lavoro doveva togliere. */}
+        <div className="flex flex-col gap-3">
           {[
-            { ic: Boxes, t: "Aggiungi più prodotti", d: "Scegli tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true), mostra: true },
-            { ic: Copy, t: "Copia da un magazzino", d: "Prendi la lista prodotti (e i livelli) da un altro magazzino", on: () => setCopia(true), mostra: true },
-            { ic: ArrowLeftRight, t: "Sposta o rimuovi prodotti", d: "Sposta in un altro magazzino, oppure togli in blocco", on: () => setSposta(true), mostra: mag.articoli.length > 0 },
-            { ic: Ruler, t: "Livello previsto in blocco", d: "Imposta la soglia prevista (anche in Gastronorm) su più prodotti", on: () => setParMulti(true), mostra: mag.articoli.length > 0 },
-            { ic: TrendingUp, t: "Soglie per giorno", d: "Imposta feriale/weekend su tanti prodotti in una volta", on: () => setSoglie(true), mostra: mag.articoli.length > 0 },
-            { ic: ArrowLeftRight, t: "Trasferisci scorte", d: "Sposta solo le quantità verso un altro magazzino", on: () => setTrasf(true), mostra: mag.articoli.length > 0 },
-          ].filter((a) => a.mostra).map((a, i) => (
-            <button key={i} onClick={() => { setMenu(false); a.on(); }} className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left"
-              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
-              <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><a.ic size={18} /></span>
-              <span className="flex-1 min-w-0">
-                <span className="font-extrabold block" style={{ color: T.ink }}>{a.t}</span>
-                <span className="text-xs" style={{ color: T.dim }}>{a.d}</span>
-              </span>
-              <ChevronRight size={18} style={{ color: T.tenue }} />
-            </button>
+            { g: "Aggiungere", voci: [
+              { k: "mag-aggiungi", ic: Boxes, d: "Tanti prodotti insieme, con un livello di partenza", on: () => setMulti(true) },
+              { k: "mag-copia", ic: Copy, d: "La stessa lista, con gli stessi livelli", on: () => setCopia(true) },
+            ] },
+            { g: "Spostare", voci: [
+              { k: "mag-sposta", ic: ArrowLeftRight, d: "In un altro magazzino, oppure togli e basta", on: () => setSposta(true), serveRoba: true },
+              { k: "mag-trasf", ic: ArrowLeftRight, d: "Solo le quantità, verso un altro magazzino", on: () => setTrasf(true), serveRoba: true },
+            ] },
+            { g: "Livelli", voci: [
+              { k: "mag-par", ic: Ruler, d: "La soglia prevista, anche in Gastronorm", on: () => setParMulti(true), serveRoba: true },
+              { k: "mag-soglie", ic: TrendingUp, d: "Feriale e weekend, su tanti prodotti insieme", on: () => setSoglie(true), serveRoba: true },
+            ] },
+          ].map((gruppo) => (
+            <div key={gruppo.g} className="flex flex-col gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>{gruppo.g}</span>
+              {gruppo.voci.map((a) => {
+                const spenta = !!a.serveRoba && mag.articoli.length === 0;
+                return (
+                  <button key={a.k} type="button" data-azione={a.k}
+                    onClick={() => {
+                      if (spenta) { mostraToast("Questo magazzino è ancora vuoto: prima aggiungi dei prodotti", "avviso"); return; }
+                      setMenu(false); a.on();
+                    }}
+                    className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left"
+                    style={{ background: spenta ? "#F4F5F8" : "#F7F9FE", border: `1.5px solid ${T.bordo}`, opacity: spenta ? 0.66 : 1 }}>
+                    <span className="rounded-xl p-2.5 shrink-0" style={{ background: spenta ? "#ECEEF3" : "#EAF0FE", color: spenta ? T.tenue : T.blu }}><a.ic size={18} /></span>
+                    <span className="flex-1 min-w-0">
+                      <span className="font-extrabold block" style={{ color: spenta ? T.dim : T.ink }}>{nomeAzione(a.k)}</span>
+                      <span className="text-xs" style={{ color: T.dim }}>{spenta ? "Serve almeno un prodotto qui dentro" : a.d}</span>
+                    </span>
+                    <ChevronRight size={18} style={{ color: T.tenue }} />
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </div>
       </Foglio>
@@ -7028,19 +9553,19 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
         {formArt && <FormArticolo key={formArt.art?.prodottoId || "n"} stato={stato} mag={mag} art={formArt.art}
           muta={muta} mostraToast={mostraToast} onChiudi={() => setFormArt(null)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={multi} titolo="Aggiungi più prodotti" onChiudi={() => setMulti(false)} larga>
+      <Foglio aperto={multi} titolo={nomeAzione("mag-aggiungi")} onChiudi={() => setMulti(false)} larga>
         {multi && <FormAggiungiMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setMulti(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={copia} titolo="Copia prodotti da un magazzino" onChiudi={() => setCopia(false)}>
+      <Foglio aperto={copia} titolo={nomeAzione("mag-copia")} onChiudi={() => setCopia(false)}>
         {copia && <FormCopiaMagazzino stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setCopia(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={soglie} titolo="Soglie per giorno in blocco" onChiudi={() => setSoglie(false)} larga>
+      <Foglio aperto={soglie} titolo={nomeAzione("mag-soglie")} onChiudi={() => setSoglie(false)} larga>
         {soglie && <FormSoglieMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setSoglie(false)} />}
       </Foglio>
-      <Foglio aperto={sposta} titolo="Sposta o rimuovi prodotti" onChiudi={() => setSposta(false)} larga>
+      <Foglio aperto={sposta} titolo={nomeAzione("mag-sposta")} onChiudi={() => setSposta(false)} larga>
         {sposta && <FormSpostaMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setSposta(false)} profilo={profilo} />}
       </Foglio>
-      <Foglio aperto={parMulti} titolo="Livello previsto in blocco" onChiudi={() => setParMulti(false)} larga>
+      <Foglio aperto={parMulti} titolo={nomeAzione("mag-par")} onChiudi={() => setParMulti(false)} larga>
         {parMulti && <FormParMulti stato={stato} mag={mag} muta={muta} mostraToast={mostraToast} onChiudi={() => setParMulti(false)} />}
       </Foglio>
       <Foglio aperto={!!produz} titolo={`Ho prodotto · ${trova(stato.prodotti, produz?.prodottoId)?.nome || ""}`} onChiudi={() => setProduz(null)}>
@@ -7059,7 +9584,7 @@ function MagazzinoDettaglio({ stato, mag, muta, mostraToast, permesso = "pieno",
         {kardex && <MovimentiArticolo stato={stato} mag={mag}
           art={mag.articoli.find((x) => x.prodottoId === kardex.prodottoId) || kardex} />}
       </Foglio>
-      <Foglio aperto={trasf} titolo="Trasferimento fra magazzini" onChiudi={() => setTrasf(false)}>
+      <Foglio aperto={trasf} titolo={nomeAzione("mag-trasf")} onChiudi={() => setTrasf(false)}>
         {trasf && <FormTrasferimento stato={stato} mag={mag} muta={muta} mostraToast={mostraToast}
           profilo={profilo} onChiudi={() => setTrasf(false)} />}
       </Foglio>
@@ -7149,7 +9674,7 @@ function EliminaMagazzino({ stato, mag, muta, mostraToast, onChiudi }) {
    vorrebbe dire far sparire delle quantità vere con una spunta, e per quello
    c'è «Sposta o rimuovi», che almeno lo dice. */
 function FormDoveSta({ stato, prod, muta, mostraToast, onChiudi, profilo }) {
-  const mags = stato.magazzini.filter((m) => puoModificare(profilo, m));
+  const mags = magazziniPerSede(stato, stato.magazzini).filter((m) => puoModificare(profilo, m));
   const dentro = (m) => (m.articoli || []).find((a) => a.prodottoId === prod.id);
   const conRoba = new Set(mags.filter((m) => { const a = dentro(m); return a && Math.abs(a.qty) > 1e-9; }).map((m) => m.id));
   const [sel, setSel] = useState(() => new Set(mags.filter((m) => dentro(m)).map((m) => m.id)));
@@ -7245,7 +9770,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
   const [q, setQ] = useState("");
   const [filtro, setFiltro] = useState("tutti");
   const [par, setPar] = useState("");
-  const listaP = stato.prodotti.filter((p) =>
+  const listaP = ordinaPerNome(stato.prodotti).filter((p) =>
     (p.nome || "").toLowerCase().includes(q.trim().toLowerCase()) &&
     (filtro === "tutti" || p.categoriaId === filtro));
   const toggleP = (id) => setSelP((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -7288,7 +9813,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
         </div>
         <div className="flex gap-1.5 flex-wrap mb-2">
           <button onClick={() => setFiltro("tutti")} className="rounded-full px-2.5 py-1 text-xs font-bold"
-            style={filtro === "tutti" ? { background: T.grad, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
+            style={filtro === "tutti" ? { background: T.blu, color: "#fff" } : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>Tutte</button>
           {stato.categorie.map((c) => (
             <button key={c.id} onClick={() => setFiltro(filtro === c.id ? "tutti" : c.id)} className="rounded-full px-2.5 py-1 text-xs font-bold"
               style={filtro === c.id ? { background: c.colore, color: "#fff" } : { background: `${c.colore}14`, color: c.colore, border: `1px solid ${c.colore}33` }}>{c.nome}</button>
@@ -7327,7 +9852,7 @@ function FormAssegnaMulti({ stato, muta, mostraToast, onChiudi, profilo }) {
           </div>
         </div>
         <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll pr-1" style={{ maxHeight: "22vh" }}>
-          {stato.magazzini.map((m) => {
+          {magazziniPerSede(stato, stato.magazzini).map((m) => {
             const on = selM.has(m.id); const sede = trova(stato.sedi, m.sedeId); const meta = TIPI_MAG[m.tipo];
             return (
               <button key={m.id} type="button" onClick={() => toggleM(m.id)} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left"
@@ -7379,7 +9904,7 @@ function invDi(stato, profilo, chiave) {
   const vecchio = stato.inventario;
   if (vecchio && (vecchio.magIds || []).some((id) => {
     const m = trova(stato.magazzini, id);
-    return m && puoModificare(profilo, m);
+    return m && permessoSu(profilo, m) !== "lettura";
   })) return vecchio;
   return null;
 }
@@ -7496,14 +10021,14 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
      aperto, l'admin ci entra dentro invece di aprirne un secondo. */
   const [sedeScelta, setSedeScelta] = useState(null);
   const sceglibili = profilo.sedeId ? [] : sediViste(stato, profilo)
-    .filter((sd) => stato.magazzini.some((m) => m.sedeId === sd.id && puoModificare(profilo, m)));
+    .filter((sd) => stato.magazzini.some((m) => m.sedeId === sd.id && permessoSu(profilo, m) !== "lettura"));
   const chiave = profilo.sedeId || sedeScelta || "_tutte";
   const inv = invDi(stato, profilo, chiave);
   const deveScegliere = !profilo.sedeId && sceglibili.length > 1 && !sedeScelta && !inv;
   /* i miei magazzini, meno quelli che stanno già nell'inventario di un altro */
   const occupati = magOccupati(stato, profilo, chiave);
   const tutti = magazziniVisti(stato, profilo)
-    .filter((m) => puoModificare(profilo, m))
+    .filter((m) => permessoSu(profilo, m) !== "lettura")
     /* se l'admin ha scelto una sede, il giro è quello di quella sede e basta */
     .filter((m) => chiave === "_tutte" || m.sedeId === chiave);
   const mios = tutti.filter((m) => !occupati.has(m.id));
@@ -7518,11 +10043,14 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
   const fogli = stato.inventari || [];
 
   const inclusi = (inv?.magIds || []).map((id) => trova(stato.magazzini, id)).filter(Boolean)
-    .filter((m) => puoModificare(profilo, m));
+    .filter((m) => permessoSu(profilo, m) !== "lettura");
   const diff = inv ? differenzeInv(stato, inv) : [];
   const tuttiChiusi = inclusi.length > 0 && inclusi.every((m) => (inv.chiusi || []).includes(m.id));
 
   const avvia = () => {
+    /* il muro anche qui, non solo sul tasto di VistaMagazzini */
+    if (!puoCorreggere(profilo))
+      return mostraToast("Per l'inventario serve l'autorizzazione dell'admin (Profili)", "errore");
     if (!mios.length) return mostraToast("Non hai magazzini da inventariare", "errore");
     const n = mios.length;
     muta((s) => {
@@ -7531,7 +10059,7 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
          vecchio vorrebbe dire prendersi un magazzino che ora è di un altro */
       const occ = magOccupati(s, profilo, chiave);
       const liberi = magazziniVisti(s, profilo)
-        .filter((m) => puoModificare(profilo, m) && !occ.has(m.id))
+        .filter((m) => permessoSu(profilo, m) !== "lettura" && !occ.has(m.id))
         /* il filtro della sede va rifatto ANCHE qui dentro: fuori serve a
            disegnare la schermata, qui a decidere cosa entra davvero nella
            sessione. Senza, l'admin che ha scelto una sede si portava dentro
@@ -7627,7 +10155,7 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
         per ultimo.
       </p>
       {sceglibili.map((sd) => {
-        const suoi = stato.magazzini.filter((m) => m.sedeId === sd.id && puoModificare(profilo, m));
+        const suoi = stato.magazzini.filter((m) => m.sedeId === sd.id && permessoSu(profilo, m) !== "lettura");
         const aperto = (stato.invCorso || {})[sd.id];
         const fatti = aperto ? (aperto.chiusi || []).length : 0;
         return (
@@ -7958,14 +10486,20 @@ function VistaInventario({ stato, profilo, muta, mostraToast, onChiudi }) {
   );
 }
 
-function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
+function VistaMagazzini({ stato, muta, mostraToast, profilo, salto }) {
 
   const admin = profilo.ruolo === "admin";
   /* il laboratorio apre su «tutte»: la prima cosa che deve vedere è a chi
-     sta mandando la roba, non solo il proprio scaffale */
-  const [filtro, setFiltro] = useState(
-    admin || profilo.ruolo === "laboratorio" ? "tutte" : profilo.sedeId);
-  const [apertoId, setApertoId] = useState(null);
+     sta mandando la roba, non solo il proprio scaffale.
+     «salto» arriva dalla Home («Apri questo magazzino»): si legge SOLO qui
+     negli inizializzatori — la vista viene rimontata a ogni navigazione,
+     quindi il dato e' sempre fresco e non serve nessun effect. */
+  const [filtro, setFiltro] = useState(() => {
+    const m = salto?.magId && trova(stato.magazzini, salto.magId);
+    if (m) return m.sedeId;
+    return admin || profilo.ruolo === "laboratorio" ? "tutte" : profilo.sedeId;
+  });
+  const [apertoId, setApertoId] = useState(salto?.magId ?? null);
   const [form, setForm] = useState(null);
   const [del, setDel] = useState(null);
   const [assegna, setAssegna] = useState(false);   // assegna prodotti a più magazzini
@@ -7974,7 +10508,7 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
   const visti = magazziniVisti(stato, profilo);
   /* l'inventario si offre solo su quello che quel profilo puo' davvero
      correggere: contare un magazzino che poi non puoi scrivere e' una beffa */
-  const inventariabili = visti.filter((m) => puoModificare(profilo, m));
+  const inventariabili = visti.filter((m) => permessoSu(profilo, m) !== "lettura");
   /* ── IL TASTO NON PARLA A NOME D'ALTRI ──
      L'admin non ha una sede, quindi un inventario «suo» per sede non esiste.
      Prima, se una squadra stava contando, il tasto pescava la PRIMA sessione
@@ -8009,14 +10543,11 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
 
   /* permessi sul dettaglio: admin pieno; operatore rettifica giacenze
      nella propria sede; laboratorio rettifica sui magazzini lab */
-  const permessoDi = (m) => {
-    if (admin) return "pieno";
-    if (m.sedeId !== profilo.sedeId) return "lettura";
-    /* sui magazzini laboratorio della propria sede può aggiungere e togliere
-       prodotti, non solo correggere le quantità: è lui che decide cosa si fa */
-    if (profilo.ruolo === "laboratorio") return m.tipo === "laboratorio" ? "pieno" : "lettura";
-    return "rettifica";
-  };
+  /* da gen-5.95 la scala sta in permessoSu, una regola sola per tutte le
+     schermate: struttura=pieno, correzioni=rettifica, altrimenti lettura.
+     Sana anche l'asimmetria di gen-5.94: l'operatore autorizzato alla
+     struttura adesso ha «pieno» anche qui, non solo in Plancia. */
+  const permessoDi = (m) => permessoSu(profilo, m);
 
   return (
     <div>
@@ -8024,7 +10555,9 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
         ? "Linee, retro e magazzini laboratorio: articoli, livelli previsti e UdM"
         : profilo.ruolo === "laboratorio"
         ? "I tuoi magazzini, più le linee che rifornisci: quelle si vedono soltanto"
-        : "I magazzini della tua sede: consulta e rettifica le giacenze in tempo reale"}
+        : puoCorreggere(profilo)
+        ? "I magazzini della tua sede: consulta e rettifica le giacenze, allineate fra i telefoni in qualche secondo"
+        : "I magazzini della tua sede: le giacenze, allineate fra i telefoni in qualche secondo"}
         azione={<div className="flex gap-2 flex-wrap">
           {inventariabili.length > 0 && (
             <Bottone variante={invProprio ? "primario" : "tonale"} icona={ClipboardList}
@@ -8046,7 +10579,7 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
             <button key={s.id} onClick={() => setFiltro(s.id)}
               className="rounded-full px-3.5 py-2 text-sm font-bold"
               style={filtro === s.id
-                ? { background: T.grad, color: "#fff" }
+                ? { background: T.blu, color: "#fff" }
                 : { background: T.sup, color: T.dim, border: `1px solid ${T.bordo}` }}>
               {s.nome}
             </button>
@@ -8071,23 +10604,26 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-extrabold truncate" style={{ color: T.ink }}>{m.nome}</div>
-                  <div className="text-xs truncate" style={{ color: T.dim }}>{sede?.nome} · {meta.nome}</div>
+                  <div className="text-xs truncate" style={{ color: T.dim }}>{sede?.nome} · {meta.breve}</div>
                 </div>
                 <ChevronRight size={18} style={{ color: T.tenue }} />
               </div>
               <div className="flex items-center gap-2 mt-3 flex-wrap">
                 <Chip colore={T.dim}>{m.articoli.length} articoli</Chip>
-                {sotto > 0
+                {m.articoli.length === 0
+                  ? <Chip colore={T.tenue}>vuoto · da riempire</Chip>
+                  : sotto > 0
                   ? <Chip colore={T.ambra}><AlertTriangle size={11} /> {sotto} sotto scorta</Chip>
                   : <Chip colore={T.verde}><Check size={11} /> A livello</Chip>}
                 {righeOrd > 0 && <Chip colore={T.rosa}><Truck size={11} /> {righeOrd} righe ordine</Chip>}
               </div>
               {admin && (
                 <div className="flex gap-2 justify-end mt-3">
+                  {/* niente «Elimina» a vista sull'elenco: il distruttivo sta
+                      nel foglio Modifica, dove si vede COSA si sta toccando
+                      (gen-5.99, dal giudizio del gruppo) */}
                   <Bottone variante="tonale" piccolo icona={Pencil}
                     onClick={(e) => { e.stopPropagation(); setForm({ item: m }); }}>Modifica</Bottone>
-                  <Bottone variante="pericolo" piccolo icona={Trash2}
-                    onClick={(e) => { e.stopPropagation(); setDel(m); }}>Elimina</Bottone>
                 </div>
               )}
             </Scheda>
@@ -8105,7 +10641,8 @@ function VistaMagazzini({ stato, muta, mostraToast, profilo }) {
       </Foglio>
       <Foglio aperto={!!form} titolo={form?.item ? "Modifica magazzino" : "Nuovo magazzino"} onChiudi={() => setForm(null)}>
         {form && <FormMagazzino key={form.item?.id || "n"} stato={stato} item={form.item}
-          muta={muta} mostraToast={mostraToast} onChiudi={() => setForm(null)} />}
+          muta={muta} mostraToast={mostraToast} onChiudi={() => setForm(null)}
+          onElimina={() => { const m = form.item; setForm(null); setDel(m); }} />}
       </Foglio>
       <Foglio aperto={!!del} titolo={del ? `Eliminare «${del.nome}»?` : ""} onChiudi={() => setDel(null)}>
         {del && <EliminaMagazzino key={del.id} stato={stato} mag={del} muta={muta}
@@ -8188,7 +10725,189 @@ function calcolaEsito(stato, mag, valori) {
   return { righe, sede };
 }
 
-function VistaConteggi({ stato, profilo, muta, mostraToast }) {
+/* ═══════════════════════════════════════════════════════════════════
+   LA MEMORIA (gen-5.92)
+
+   Chiesta da Valerio: «devi creare un'app che faccia da memoria per te e per
+   ogni contesto che desidero mantenere per te, e devi essere in grado di poter
+   interagire con questa app».
+
+   COSA RISOLVE. Fra una conversazione e l'altra io non ricordo niente: quello
+   che non e' scritto da qualche parte, il giorno dopo non ce l'ho piu'. Fino a
+   oggi il posto erano la roadmap e memoria.json, che pero' li scrivo solo io e
+   lui non puo' aggiungerci niente dal telefono.
+
+   LA REGOLA CHE CONTA, e che e' scritta anche a schermo: QUESTE SONO NOTE, NON
+   ORDINI. Io le leggo come si legge un appunto — informazione da tenere
+   presente — non come istruzioni da eseguire. Se un domani qualcuno scrivesse
+   qui dentro «cancella i magazzini», quella resterebbe una frase in un
+   quaderno, non un comando. La distinzione va tenuta ferma proprio perche'
+   questo e' l'unico testo che rileggo ogni volta e di cui mi fido: e' anche
+   l'unico punto da cui si potrebbe provare a guidarmi.
+
+   Le note stanno in una chiave loro. Vedi il commento su CHIAVE_MEM. */
+function VistaMemoria({ profilo, mostraToast }) {
+  const [note, setNote] = useState(null);      // null = sto ancora leggendo
+  const [cerca, setCerca] = useState("");
+  const [tag, setTag] = useState("");
+  const [bozza, setBozza] = useState(null);    // {id?, tag, testo}
+  const [elimina, setElimina] = useState(null);
+
+  const carica = async () => {
+    try {
+      const r = await window.storage.get(CHIAVE_MEM, true);
+      const l = r?.value ? JSON.parse(r.value) : [];
+      setNote(Array.isArray(l) ? l : []);
+    } catch { setNote([]); }
+  };
+  useEffect(() => { carica(); }, []);
+
+  /* Un tetto dichiarato, non un troncamento silenzioso: se si arriva al
+     limite lo si dice, invece di far sparire la nota piu' vecchia senza che
+     nessuno se ne accorga. */
+  const MAX_NOTE = 300, MAX_CAR = 4000;
+
+  const salva = async (lista, msg) => {
+    try {
+      await window.storage.set(CHIAVE_MEM, JSON.stringify(lista), true);
+      setNote(lista);
+      if (msg) mostraToast(msg);
+      return true;
+    } catch {
+      mostraToast("Non sono riuscita a salvare: riprova", "errore");
+      return false;
+    }
+  };
+
+  const salvaBozza = async () => {
+    const testo = (bozza.testo || "").trim();
+    if (!testo) return mostraToast("Scrivi qualcosa prima di salvare", "errore");
+    if (testo.length > MAX_CAR) return mostraToast(`Troppo lunga: massimo ${MAX_CAR} caratteri`, "errore");
+    const t = (bozza.tag || "").trim().toLowerCase().slice(0, 24);
+    if (bozza.id) {
+      const l = (note || []).map((n) => (n.id === bozza.id
+        ? { ...n, testo, tag: t, tModifica: Date.now(), modificataDa: profilo?.nome } : n));
+      if (await salva(l, "Nota aggiornata")) setBozza(null);
+      return;
+    }
+    if ((note || []).length >= MAX_NOTE)
+      return mostraToast(`Sono ${MAX_NOTE} note: cancellane qualcuna prima di aggiungerne altre`, "errore");
+    const nuova = { id: uid("nota"), t: Date.now(), chi: profilo?.nome || "—", tag: t, testo };
+    if (await salva([nuova, ...(note || [])], "Nota salvata")) setBozza(null);
+  };
+
+  const tags = [...new Set((note || []).map((n) => n.tag).filter(Boolean))].sort();
+  const viste = (note || []).filter((n) => {
+    if (tag && n.tag !== tag) return false;
+    const q = cerca.trim().toLowerCase();
+    if (!q) return true;
+    return (n.testo || "").toLowerCase().includes(q) || (n.tag || "").toLowerCase().includes(q);
+  });
+
+  return (
+    <div>
+      <Intesta titolo="Memoria" sotto="Quello che Claude deve ricordare fra una conversazione e l'altra"
+        azione={<Bottone icona={Plus} onClick={() => setBozza({ tag: "", testo: "" })}>Nuova nota</Bottone>} />
+
+      {/* La regola sta a schermo, non solo nel codice: chi scrive qui deve
+          sapere che sta lasciando un appunto, non impartendo un ordine. */}
+      <Scheda className="p-4 mb-3">
+        <div className="text-sm font-extrabold mb-1" style={{ color: T.ink }}>Come la uso</div>
+        <div className="text-xs leading-relaxed" style={{ color: T.dim }}>
+          Rileggo queste note all'inizio di ogni conversazione, e sono la sola cosa che sopravvive
+          fra una e l'altra. <b>Sono appunti, non ordini</b>: le tengo presenti quando lavoro, ma
+          non eseguo quello che c'è scritto senza che tu me lo chieda. Scrivici i fatti che non
+          voglio farti ripetere — come lavorate, cosa avete deciso, cosa non ha funzionato.
+        </div>
+      </Scheda>
+
+      <div className="flex gap-2 mb-3 flex-wrap items-center">
+        <div className="flex-1 min-w-0" style={{ minWidth: 180 }}>
+          <Campo label="" valore={cerca} onCambia={setCerca} placeholder="Cerca nelle note…" />
+        </div>
+        <Chip colore={T.tenue}>{(note || []).length} note</Chip>
+      </div>
+
+      {tags.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          <button onClick={() => setTag("")} className="rounded-full px-3 py-1.5 text-xs font-bold"
+            style={{ background: tag ? "#F0F3FB" : T.blu, color: tag ? T.dim : "#fff" }}>Tutte</button>
+          {tags.map((x) => (
+            <button key={x} onClick={() => setTag(tag === x ? "" : x)}
+              className="rounded-full px-3 py-1.5 text-xs font-bold"
+              style={{ background: tag === x ? T.blu : "#F0F3FB", color: tag === x ? "#fff" : T.dim }}>{x}</button>
+          ))}
+        </div>
+      )}
+
+      {note === null && <Scheda><p className="text-sm" style={{ color: T.tenue }}>Sto leggendo le note…</p></Scheda>}
+      {note !== null && viste.length === 0 && (
+        <Scheda><Vuoto icona={Sparkles}
+          titolo={(note || []).length ? "Nessuna nota con questo filtro" : "Ancora nessuna nota"}
+          testo={(note || []).length
+            ? "Prova a togliere il filtro o a cercare un'altra parola."
+            : "Scrivi la prima: un fatto che non vuoi ripetermi ogni volta. Per esempio come lavora il laboratorio la mattina, o una decisione che avete già preso."} /></Scheda>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {viste.map((n) => (
+          <Scheda key={n.id} className="p-4">
+            <div className="flex items-start gap-2 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm whitespace-pre-wrap" style={{ color: T.ink }}>{n.testo}</div>
+                <div className="text-xs mt-1.5" style={{ color: T.tenue }}>
+                  {n.chi} · {tempoFa(n.t)}
+                  {n.tModifica && ` · modificata ${tempoFa(n.tModifica)}`}
+                </div>
+              </div>
+              {n.tag && <Chip colore={T.blu}>{n.tag}</Chip>}
+            </div>
+            <div className="flex gap-2 justify-end mt-2">
+              <Bottone variante="fantasma" piccolo icona={Pencil}
+                onClick={() => setBozza({ id: n.id, tag: n.tag || "", testo: n.testo })}>Modifica</Bottone>
+              <Bottone variante="pericolo" piccolo icona={Trash2} onClick={() => setElimina(n)}>Elimina</Bottone>
+            </div>
+          </Scheda>
+        ))}
+      </div>
+
+      <Foglio aperto={!!bozza} titolo={bozza?.id ? "Modifica la nota" : "Nuova nota"} onChiudi={() => setBozza(null)}>
+        {bozza && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-bold block mb-1" style={{ color: T.dim }}>La nota</label>
+              <textarea value={bozza.testo} onChange={(e) => setBozza({ ...bozza, testo: e.target.value })}
+                rows={7} autoFocus placeholder="Per esempio: «il laboratorio prepara i supplì la mattina presto, prima che arrivino le richieste»"
+                className="w-full rounded-2xl px-3.5 py-3 text-sm"
+                style={{ border: `1.5px solid ${T.bordo}`, background: "#fff", color: T.ink, fontFamily: "inherit" }} />
+              <div className="text-xs mt-1" style={{ color: (bozza.testo || "").length > MAX_CAR ? T.rosso : T.tenue }}>
+                {(bozza.testo || "").length} / {MAX_CAR} caratteri
+              </div>
+            </div>
+            <Campo label="Etichetta (facoltativa)" valore={bozza.tag}
+              onCambia={(v) => setBozza({ ...bozza, tag: v })}
+              placeholder="laboratorio, ordini, decisioni…"
+              suggerimento="Serve solo a ritrovarla: le note con la stessa etichetta si filtrano insieme." />
+            <div className="flex gap-2 justify-end pt-1">
+              <Bottone variante="fantasma" onClick={() => setBozza(null)}>Annulla</Bottone>
+              <Bottone icona={Check} onClick={salvaBozza} disabilitato={!(bozza.testo || "").trim()}>Salva</Bottone>
+            </div>
+          </div>
+        )}
+      </Foglio>
+
+      <Conferma aperto={!!elimina} titolo="Eliminare questa nota?"
+        testo={elimina ? `«${(elimina.testo || "").slice(0, 90)}${(elimina.testo || "").length > 90 ? "…" : ""}» — non la ricorderò più.` : ""}
+        onSi={async () => {
+          await salva((note || []).filter((x) => x.id !== elimina.id), "Nota eliminata");
+          setElimina(null);
+        }}
+        onNo={() => setElimina(null)} />
+    </div>
+  );
+}
+
+function VistaConteggi({ stato, profilo, muta, mostraToast, sync }) {
   /* Il conteggio di linea vale solo per le linee. Un retro o un laboratorio
      assegnato alla persona ha senso — serve all'inventario — ma non va contato
      da qui: la strada del retro cercherebbe un rifornitore e finirebbe per
@@ -8214,7 +10933,11 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
      previsto. Sulla tastiera numerica del telefono il meno spesso non c'è, per
      questo la via principale è il tasto meno e non quello che si batte. */
   const passo = (pid, art, d) => {
-    const cur = num(valori[art.prodottoId] ?? "") ?? 0;
+    /* si parte da quello che c'è scritto adesso in magazzino, non da zero:
+       premere «+» su una casella che ne ha tre deve portare a quattro, non a
+       uno. Prima si ripartiva sempre da zero, e per correggere un numero di
+       poco bisognava ribatterlo tutto. */
+    const cur = num(valori[art.prodottoId] ?? "") ?? art.qty ?? 0;
     imposta(pid, String(Math.max(-MAX_IN_PIU, +(cur + d).toFixed(2))));
   };
 
@@ -8239,9 +10962,31 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
       const magB = trova(s.magazzini, magId);
       if (!magB) return;
       const { righe, sede } = calcolaEsito(s, magB, vNum);
-      let nRich = 0, nPrel = 0, nParz = 0, nOrd = 0, nOk = 0;
+      let nRich = 0, nPrel = 0, nParz = 0, nOrd = 0, nOk = 0, nAgg = 0, nTolte = 0;
+      /* ── CONTARE DUE VOLTE NON DEVE FAR ARRIVARE IL DOPPIO ──
+         Difetto n.4 del consiglio del 2 agosto. Conti la linea, parte la
+         richiesta al laboratorio. Ti accorgi di aver battuto un numero
+         sbagliato e riconti: nasceva una SECONDA richiesta identica, perché la
+         merce non è ancora arrivata e il fabbisogno è ancora tutto lì. Il
+         laboratorio si trovava due righe per lo stesso prodotto, «Confermo
+         tutto» le serviva entrambe, e sulla linea arrivava il doppio mentre
+         all'altra sede rispondeva «non ce n'è».
+         Questa protezione nell'app c'era già, scritta bene e col suo commento,
+         in «chiediAlLaboratorio» — duemilacinquecento righe più su. Non era
+         mai stata portata qui. Adesso ce n'è una sola, e vale l'ultimo
+         conteggio: chi ricorregge un numero sbagliato deve poterlo fare senza
+         che il primo resti in giro. */
+      const richiestaAperta = (prodottoId) => (s.richieste || []).find((x) =>
+        x.stato === "in-attesa" && x.prodottoId === prodottoId && x.daMagazzinoId === magB.id);
       for (const r of righe) {
         if (r.saltato) continue;
+        /* Se questa riga NON produce una richiesta ma una era rimasta in
+           attesa, va tolta: è la stessa regola dell'altra funzione, e senza
+           di essa il laboratorio prepara roba che nessuno aspetta più. */
+        if (r.azione !== "richiesta") {
+          const vecchia = richiestaAperta(r.prod.id);
+          if (vecchia) { s.richieste = s.richieste.filter((x) => x !== vecchia); nTolte++; }
+        }
         const primaLinea = r.art.qty;
         /* r.giacenza e non r.contato: se ha chiesto di più il contato è negativo,
            ma sullo scaffale ci sono zero pezzi, non meno di zero */
@@ -8249,16 +10994,24 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
         registraMov(s, { magId: magB.id, prodottoId: r.prod.id, uomId: r.art.uomId, delta: r.giacenza - primaLinea, dopo: r.giacenza, causale: "conteggio", chi: profilo.nome });
         if (r.azione === "ok") { nOk++; continue; }
         if (r.azione === "richiesta") {
-          nRich++;
-          s.richieste.unshift({
-            id: uid("ric"), t: Date.now(), daSedeId: magB.sedeId, aSedeLabId: sede?.labSedeId,
+          const vecchia = richiestaAperta(r.prod.id);
+          const riga = {
+            id: vecchia?.id || uid("ric"), t: Date.now(), daSedeId: magB.sedeId, aSedeLabId: sede?.labSedeId,
             daMagazzinoId: magB.id, magNome: magB.nome, prodottoId: r.prod.id,
             qty: r.qtyLav, uomId: r.uomLav, qtyLinea: r.mancante, uomLineaId: r.art.uomId,
             /* l'extra viaggia con la richiesta solo quando c'è: una richiesta
                normale non deve portarsi dietro due campi che valgono zero */
             ...(r.extra > 0 ? { extraLinea: r.extra, qtyLivello: r.qtyLivello } : {}),
             stato: "in-attesa", creataDa: profilo.nome,
-          });
+          };
+          if (vecchia) {
+            /* la vecchia poteva portarsi dietro l'extra e questa no:
+               riscriverci sopra senza togliere quei due campi lascerebbe in
+               laboratorio un «+2 in più» che nessuno ha più chiesto */
+            if (!(r.extra > 0)) { delete vecchia.extraLinea; delete vecchia.qtyLivello; }
+            Object.assign(vecchia, riga);
+            nAgg++;
+          } else { s.richieste.unshift(riga); nRich++; }
         } else if (r.azione === "prelievo" || r.azione === "parziale") {
           /* con i pezzi interi il prelievo può risultare zero (nel retro c'è
              mezza confezione): in quel caso non si scrive nessun movimento */
@@ -8278,7 +11031,7 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
           }
         }
       }
-      ris = { nOk, nRich, nPrel, nParz, nOrd, nomeMag };
+      ris = { nOk, nRich, nPrel, nParz, nOrd, nAgg, nTolte, nomeMag };
     }, `Conteggio «${nomeMag}» di ${profilo.nome}: aggiornate le giacenze`);
     setRiepilogo(null); setValori({}); setMagId(null);
     setFatto(ris);
@@ -8292,12 +11045,39 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
           <Check size={44} style={{ color: T.verde }} />
         </div>
         <h2 className="text-2xl font-extrabold" style={{ color: T.ink }}>Conteggio registrato</h2>
-        <p className="text-sm max-w-sm" style={{ color: T.dim }}>
-          «{fatto.nomeMag}» è aggiornato e sincronizzato con tutta la rete.
-        </p>
+        {/* ── LA FRASE DICE IL VERO (gen-5.91) ──
+            Qui c'era scritto «aggiornato e sincronizzato con tutta la rete»,
+            sempre, senza guardare se la rete avesse risposto. Marco conta il
+            retro in cantina, dove non prende: quella frase gli diceva che era
+            tutto a posto mentre il conteggio era solo sul suo telefono. Se
+            chiudeva l'app prima che la rete tornasse, la mattina dopo il
+            magazzino aveva i numeri di ieri e il laboratorio non aveva
+            ricevuto niente.
+            Un'app che dichiara un esito che non ha verificato e' peggio di
+            una che tace: chi legge smette di controllare. */}
+        {sync === "ok" ? (
+          <p className="text-sm max-w-sm" style={{ color: T.dim }}>
+            «{fatto.nomeMag}» è aggiornato e sincronizzato con tutta la rete.
+          </p>
+        ) : (
+          <div className="rounded-2xl px-3.5 py-3 text-sm max-w-sm" style={{ background: "#FFF6E8", border: `1px solid ${T.ambra}55`, color: T.ink }}>
+            <div className="font-extrabold mb-1">Salvato sul telefono, non ancora in rete</div>
+            <div className="text-xs leading-relaxed" style={{ color: T.dim }}>
+              «{fatto.nomeMag}» è aggiornato <b>qui</b>. Parte da solo appena torna la rete:
+              <b> lascia l'app aperta</b> finché la pastiglia in alto non dice «Sincronizzato».
+              Se la chiudi adesso, gli altri continuano a vedere i numeri di prima.
+            </div>
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap justify-center">
           {fatto.nOk > 0 && <Chip colore={T.verde}>{fatto.nOk} a livello</Chip>}
           {fatto.nRich > 0 && <Chip colore={T.ciano}><FlaskConical size={11} /> {fatto.nRich} richieste al lab</Chip>}
+          {/* Ricontando, «aggiornate» e «tolte» sono la notizia vera: dicono
+              che il primo conteggio non è rimasto in giro a far arrivare il
+              doppio. Senza, si vedrebbe «0 richieste» e sembrerebbe che il
+              conteggio non abbia fatto niente. */}
+          {fatto.nAgg > 0 && <Chip colore={T.ciano}><FlaskConical size={11} /> {fatto.nAgg} {fatto.nAgg === 1 ? "richiesta corretta" : "richieste corrette"}</Chip>}
+          {fatto.nTolte > 0 && <Chip colore={T.dim}>{fatto.nTolte} {fatto.nTolte === 1 ? "richiesta ritirata" : "richieste ritirate"}</Chip>}
           {fatto.nPrel > 0 && <Chip colore={T.blu}>{fatto.nPrel} prelievi dal retro</Chip>}
           {fatto.nParz > 0 && <Chip colore={T.parziale}>{fatto.nParz} parziali</Chip>}
           {fatto.nOrd > 0 && <Chip colore={T.rosa}><Truck size={11} /> {fatto.nOrd} righe ordine</Chip>}
@@ -8316,15 +11096,17 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
             conta da qui, ma nasconderlo in silenzio lascia chi guarda a chiedersi
             dove sia finito: meglio dirlo, con dentro il nome. */}
         {nonLinee.length > 0 && (
-          <div className="rounded-2xl px-3.5 py-3 mb-3 text-sm"
-            style={{ background: "#FFF6E8", border: "1px solid #F2DCC0", color: "#7A4A00" }}>
-            {nonLinee.length === 1
-              ? `«${nonLinee[0].nome}» non è una linea, quindi non si conta da qui: `
-              : `${nonLinee.length} magazzini assegnati non sono linee (${nonLinee.map((m) => m.nome).join(", ")}), quindi non si contano da qui: `}
-            il conteggio di linea fa partire richieste e prelievi, e un magazzino
-            di retro finirebbe per rifornire se stesso. Per correggere le giacenze
-            usa l'<b>Inventario</b> da Magazzini.
-          </div>
+          <Spiega id="conteggi-non-linee" titolo="Perché alcuni magazzini non si contano qui"
+            colore="#7A4A00" sfondo="#FFF6E8" icona={AlertTriangle}>
+            <p>
+              {nonLinee.length === 1
+                ? `«${nonLinee[0].nome}» non è una linea, quindi non si conta da qui: `
+                : `${nonLinee.length} magazzini assegnati non sono linee (${nonLinee.map((m) => m.nome).join(", ")}), quindi non si contano da qui: `}
+              il conteggio di linea fa partire richieste e prelievi, e un magazzino
+              di retro finirebbe per rifornire se stesso. Per correggere le giacenze
+              usa l'<b>Inventario</b> da Magazzini.
+            </p>
+          </Spiega>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {miei.length === 0
@@ -8349,10 +11131,9 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
         style={{ color: T.dim, background: "#EDF1FA" }}>
         <ArrowLeft size={15} /> Magazzini
       </button>
-      <Intesta titolo={mag.nome} sotto={meta.nome} azione={<Chip colore={meta.colore}>{meta.breve}</Chip>} />
-      <Scheda className="p-3.5 mb-3 flex items-start gap-2.5" style={{ background: "#EFF4FE" }}>
-        <Sparkles size={16} style={{ color: T.blu }} className="mt-0.5 shrink-0" />
-        <p className="text-sm" style={{ color: T.ink }}>
+      <Intesta titolo={mag.nome} sotto={meta.breve} azione={<Chip colore={meta.colore}>{meta.breve}</Chip>} />
+      <Spiega id="conteggi-guida" titolo="Come si conta">
+        <p>
           Scrivi <b>quanto vedi</b> per ogni articolo. Lascia vuoto per saltarlo:
           al conferma penserà il sistema a scalare e convertire.
           <span className="block mt-1.5">
@@ -8361,7 +11142,7 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
             e chiedimene 2 in più». La giacenza resta zero: cresce solo la richiesta.
           </span>
         </p>
-      </Scheda>
+      </Spiega>
 
       <div className="flex flex-col gap-2.5">
         {perCategoria(stato, mag.articoli).map(({ cat, arts }) => {
@@ -8395,14 +11176,31 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
             {aperto && arts.map((a) => {
           const p = trova(stato.prodotti, a.prodottoId);
           const sym = simboloU(stato, a.uomId);
-          const v = valori[a.prodottoId] ?? "";
-          const n = num(v);
+          /* ── SI VEDE QUELLO CHE C'È GIÀ SCRITTO ──
+             Segnalato da Valerio dopo il primo giorno di uso vero: «se apro i
+             conteggi dopo averne fatto uno, la lista si resetta e fa vedere che
+             è tutto da controllare invece dei valori che hai già inserito», e
+             «modificare un conteggio è abbastanza complicato».
+             Aveva ragione tutte e due le volte, ed erano la stessa cosa: la
+             schermata partiva vuota SEMPRE, quindi dopo aver contato non si
+             rivedeva più niente e per correggere un numero bisognava rifare
+             tutta la linea da capo.
+             Adesso ogni casella mostra la giacenza di adesso — che subito dopo
+             un conteggio è esattamente quello che è stato battuto. Ma mostrarlo
+             non vuol dire darlo per confermato: finché nessuno tocca quella
+             riga resta «da controllare», scritta in grigio, e al momento di
+             confermare NON viene mandata. Se bastasse aprire la schermata per
+             far risultare contate tutte e trentotto le caselle, partirebbero
+             richieste al laboratorio per roba che nessuno ha guardato. */
+          const toccato = a.prodottoId in valori;
+          const v = toccato ? valori[a.prodottoId] : fmtQ(a.qty);
+          const n = toccato ? num(v) : null;
           const pOggi = parOggi(a);
           const inPiu = n != null && n < 0;
           /* n == null copre il vuoto e anche il solo «−» appena battuto: prima
              si guardava v === "" e un «−» da solo faceva dire «manca 3» come se
              fosse stato contato zero */
-          const chip = n == null ? [T.tenue, "da contare"]
+          const chip = n == null ? [T.tenue, toccato ? "da contare" : "da controllare"]
             : inPiu ? [T.ciano, `${fmtQ(pOggi)} + ${fmtQ(-n)} in più`]
             : n < pOggi ? [T.ambra, `manca ${fmtQ(pOggi - n)} ${sym}`]
             : n > pOggi ? [T.blu, `+${fmtQ(n - pOggi)} ${sym}`]
@@ -8427,7 +11225,9 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
                   className="flex-1 min-w-0 rounded-2xl px-3 py-3 text-xl font-extrabold text-center"
                   style={{ background: inPiu ? "#E6F7FA" : "#F6F8FE",
                     border: `1.5px solid ${inPiu ? T.ciano : T.bordo}`,
-                    color: inPiu ? T.ciano : T.ink }} />
+                    /* grigio finché non l'hai toccata: è il modo di far vedere
+                       il numero senza far credere che sia già confermato */
+                    color: inPiu ? T.ciano : toccato ? T.ink : T.tenue }} />
                 <span className="text-xs font-bold shrink-0 text-center" style={{ color: T.dim, whiteSpace: "nowrap", minWidth: "1.75rem" }}>{sym}</span>
                 <button onClick={() => passo(a.prodottoId, a, 1)} aria-label="Aumenta"
                   className="rounded-2xl px-4 py-3 text-xl font-extrabold shrink-0"
@@ -8515,20 +11315,25 @@ function VistaConteggi({ stato, profilo, muta, mostraToast }) {
 }
 
 /* ═══════════════ GENERAZIONE 3 ═══════════════ */
-function aggiornaOrdineLab(bozza, prod, artLab, sedeId) {
+function aggiornaOrdineLab(bozza, prod, artLab, sedeId, conta) {
   const uom = prod.uomFornitore || prod.uomBase;
   const deficit = Math.max(0, parOggi(artLab) - artLab.qty);
   const conv = converti(prod, deficit, artLab.uomId, uom) ?? deficit;
-  const qty = Math.ceil(conv - 1e-9);
-  const idx = bozza.ordini.findIndex((o) =>
-    o.tipo === "lab" && o.sedeId === sedeId && o.prodottoId === prod.id && o.stato === "da-ordinare");
+  /* stessa regola del retro: quello che è già partito non si richiede */
+  const viaggio = giaInViaggio(bozza, prod, sedeId, "lab", uom);
+  const qty = Math.ceil(conv - viaggio - 1e-9);
+  const idx = unicaRigaAperta(bozza, prod, sedeId, "lab");
   /* Un preparato il laboratorio non lo compra: lo fa lui. Qui non nasce nessuna
      riga d'ordine — e nemmeno una richiesta, perché il laboratorio non può
      chiedere a se stesso. Quello che serve sapere («ne manca, va preparato») si
      ricava dai livelli dei magazzini laboratorio e si legge in Ordini, senza
      bisogno di inventare un fornitore né di scrivere niente nei dati. */
   if (preparato(prod)) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
-  if (qty <= 0) { if (idx >= 0) bozza.ordini.splice(idx, 1); return 0; }
+  if (qty <= 0) {
+    if (conta && conv > 1e-9 && viaggio > 1e-9) conta.inArrivo++;
+    if (idx >= 0) bozza.ordini.splice(idx, 1);
+    return 0;
+  }
   const riga = {
     id: idx >= 0 ? bozza.ordini[idx].id : uid("ord"), t: Date.now(), tipo: "lab",
     sedeId, prodottoId: prod.id, fornitoreId: fornitoreDi(prod, sedeId), qty, uomId: uom, stato: "da-ordinare",
@@ -8537,8 +11342,13 @@ function aggiornaOrdineLab(bozza, prod, artLab, sedeId) {
   return qty;
 }
 
+/* Torna due numeri, non uno: quante righe sono state scritte e quanti prodotti
+   servivano ma erano già in viaggio. Il secondo serve a dirlo a chi ha premuto
+   il tasto — vedere «Report aggiornato» e poi niente in elenco, senza sapere
+   perché, è il modo più veloce per farsi riordinare la roba a mano. */
 function ricalcolaFabbisogni(bozza, profilo) {
   let n = 0;
+  const conta = { inArrivo: 0 };
   bozza.magazzini.forEach((m) => {
     const mio =
       (m.tipo === "retro" && (profilo.ruolo === "admin" || (profilo.ruolo === "operatore" && m.sedeId === profilo.sedeId))) ||
@@ -8547,11 +11357,13 @@ function ricalcolaFabbisogni(bozza, profilo) {
     m.articoli.forEach((a) => {
       const p = trova(bozza.prodotti, a.prodottoId);
       if (!p) return;
-      const q = m.tipo === "retro" ? aggiornaOrdineDiretto(bozza, p, a, m.sedeId, m) : aggiornaOrdineLab(bozza, p, a, m.sedeId);
+      const q = m.tipo === "retro"
+        ? aggiornaOrdineDiretto(bozza, p, a, m.sedeId, m, conta)
+        : aggiornaOrdineLab(bozza, p, a, m.sedeId, conta);
       if (q > 0) n++;
     });
   });
-  return n;
+  return { righe: n, inArrivo: conta.inArrivo };
 }
 
 /* ─────────── LABORATORIO · RICHIESTE ─────────── */
@@ -8608,7 +11420,7 @@ function applicaEvasione(s, rid, magId, inviato, chi) {
 
 function FormEvasione({ stato, profilo, r, muta, mostraToast, onChiudi, onAnnulla }) {
   const prod = trova(stato.prodotti, r.prodottoId);
-  const candidati = stato.magazzini.filter((m) =>
+  const candidati = magazziniPerSede(stato, stato.magazzini).filter((m) =>
     m.sedeId === profilo.sedeId && m.tipo === "laboratorio" &&
     m.articoli.some((a) => a.prodottoId === r.prodottoId));
   const primo = candidati.find((m) => m.articoli.find((a) => a.prodottoId === r.prodottoId)?.qty > 0) || candidati[0];
@@ -8715,11 +11527,137 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
   const [evadi, setEvadi] = useState(null);
   const [annullaR, setAnnullaR] = useState(null);
   const [chiediTutte, setChiediTutte] = useState(false);
+  /* ── PRODURRE DA QUI (gen-5.84) ──
+     Segnalato da Valerio: «il laboratorio non puo' confermare la produzione
+     dei preparati, gli viene solo detto quanti kg o pezzi devono fare».
+     La strada c'era, ma passava da un'altra parte: Magazzini → apri il
+     magazzino → cerca la riga → «Ho prodotto». Due schermate per un lavoro
+     solo, e nel mezzo la richiesta che stavi guardando la perdi di vista.
+     PRODURRE ED EVADERE RESTANO DUE GESTI. Fonderli in un tasto solo
+     sarebbe peggio: la merce risulterebbe partita anche quando nessuno l'ha
+     fatta, e la giacenza del laboratorio smetterebbe di dire il vero. */
+  const [produci, setProduci] = useState(null);
+  /* ── PRODURRE PRIMA CHE QUALCUNO CHIEDA (gen-5.87) ──
+     Segnalato da Valerio: «il laboratorio a volte si prepara prima dei
+     prodotti per poi inviarli, quindi deve avere la possibilita' di poter
+     inviare rapidamente i prodotti composti richiesti».
+     gen-5.84 aveva messo «Ho prodotto» SULLA RICHIESTA, e risolveva meta' del
+     lavoro: produrre quello che qualcuno ha gia' chiesto. L'altra meta' —
+     preparare la mattina, prima che arrivi qualunque richiesta — era rimasta
+     dov'era: Magazzini, apri il magazzino, cerca la riga fra le altre, premi
+     l'ampollina. E senza richieste in attesa questa schermata mostrava un
+     riquadro vuoto: proprio nel momento in cui si sta lavorando.
+     Da qui nasce anche la lentezza a valle. Quello che e' stato fatto ma non
+     segnato in laboratorio non c'e', «Confermo tutto» non lo vede, e quando
+     le richieste arrivano non si manda niente in fretta. */
+  const [elenco, setElenco] = useState(false);
+  const [cerca, setCerca] = useState("");
+  const magLab = stato.magazzini.find((m) => m.tipo === "laboratorio" && m.sedeId === profilo.sedeId);
+  const preparatiLab = (magLab?.articoli || [])
+    .map((a) => ({ a, p: trova(stato.prodotti, a.prodottoId) }))
+    .filter((x) => x.p && preparato(x.p))
+    .sort((x, y) => x.p.nome.localeCompare(y.p.nome, "it"));
+  const cercati = cerca.trim()
+    ? preparatiLab.filter((x) => x.p.nome.toLowerCase().includes(cerca.trim().toLowerCase()))
+    : preparatiLab;
+
 
   const mie = stato.richieste.filter((r) => r.aSedeLabId === profilo.sedeId);
   const attive = mie.filter((r) => r.stato === "in-attesa");
   const archivio = mie.filter((r) => r.stato !== "in-attesa");
   const lista = tab === "in-attesa" ? attive : archivio;
+
+  /* ── COSA DEVO PRODURRE, E QUANDO (gen-5.88) ──
+     Chiesto da Valerio: «in laboratorio si deve vedere quando e quali prodotti
+     devono essere prodotti (parlo dei prodotti composti)».
+     Fino a qui il laboratorio vedeva solo le richieste GIA' ARRIVATE: si
+     lavorava all'indietro, quando la linea era gia' scesa sotto. Il dato per
+     guardare avanti c'era gia', ma stava dall'altra parte — sulle LINEE, che
+     hanno il livello previsto giorno per giorno (tutte e 24 le righe dei
+     preparati, in produzione).
+     ATTENZIONE A DOVE SI GUARDA. Il livello dei preparati DENTRO il
+     laboratorio non serve a questo: e' quanto se ne tiene di scorta, e in
+     produzione vale 3 su tutti e dodici, cioe' un numero che non ha scelto
+     nessuno. Sommare quello darebbe un piano di lavoro inventato. Quello che
+     conta e' quanto ne vogliono le linee che il laboratorio rifornisce. */
+  const parDi = (a, g) => ((a.parGiorni && a.parGiorni[g] != null ? a.parGiorni[g] : a.par) || 0);
+  const lineeLab = magLab ? lineeDelLab(stato, magLab) : [];
+  const oggiG = new Date().getDay();
+  const domaniG = (oggiG + 1) % 7;
+  /* ── IL FABBISOGNO NETTO, UNA VOLTA SOLA (gen-5.89) ──
+     Valerio, con due schermate a confronto: «non sono presenti queste diciture
+     che sono in ordinazioni, e' difficile capire cosa mandare cosi' o cosa
+     produrre».
+     Aveva ragione, e la causa l'avevo fatta io. C'erano DUE elenchi di
+     produzione in due schermate, con due regole diverse: quello in Ordini
+     («Da preparare») guardava la giacenza del laboratorio contro il LIVELLO
+     DEL LABORATORIO, e quello che avevo aggiunto in gen-5.88 guardava quanto
+     vogliono le LINEE. Sui dati veri il primo diceva «da fare 2» e il secondo
+     «niente»: due numeri diversi per la stessa domanda sono peggio di nessun
+     numero. Adesso il conto e' uno solo e sta qui, dove il laboratorio lavora.
+
+     LA DOMANDA PER OGNI LINEA E' UNA: quanto le manca. Puo' arrivare da due
+     parti — il livello previsto del giorno, e una richiesta esplicita gia' in
+     coda — e si prende la PIU' GRANDE, non la somma. Sommarle raddoppierebbe:
+     una richiesta nasce proprio dal fatto che la linea e' sotto il livello, e
+     conteggiarla due volte farebbe produrre il doppio del necessario.
+
+     IL LIVELLO DI SCORTA DEL LABORATORIO NON ENTRA, e va detto perche' e' una
+     scelta: in produzione vale 3 su tutti e dodici i preparati, cioe' un
+     valore di partenza che non ha scelto nessuno — con 49 supplì in casa
+     chiederebbe lo stesso di farne altri. Quando quei livelli saranno decisi
+     davvero, questo e' il punto in cui rientrano. */
+  const pianoDi = (g) => {
+    const out = [];
+    for (const { a, p } of preparatiLab) {
+      let serve = 0, hannoGia = 0, dove = 0, chiesto = 0;
+      for (const l of lineeLab) {
+        const al = (l.articoli || []).find((x) => x.prodottoId === p.id);
+        if (!al) continue;
+        dove++;
+        /* tutto nell'unità del laboratorio: è quella in cui si produce */
+        const inLab = (q, da) => (da === a.uomId ? q : (converti(p, q, da, a.uomId) ?? q));
+        hannoGia += inLab(al.qty, al.uomId);
+        const sottoLivello = Math.max(0, parDi(al, g) - al.qty);
+        const inCoda = attive
+          .filter((r) => r.prodottoId === p.id && r.daMagazzinoId === l.id)
+          .reduce((t, r) => t + inLab(r.qty, r.uomId), 0);
+        chiesto += inCoda;
+        serve += Math.max(inLab(sottoLivello, al.uomId), inCoda);
+      }
+      if (!dove || serve <= 0) continue;
+      const manca = serve - a.qty;
+      const fare = p.soloInteri ? Math.ceil(Math.max(0, manca) - 1e-9) : +Math.max(0, manca).toFixed(2);
+      /* ── GLI INGREDIENTI BASTANO? ──
+         È il controllo che un piano di produzione serio fa sempre e che qui
+         mancava: sapere che ne servono 15 non serve a niente se il riso basta
+         per 10. Meglio saperlo adesso che davanti alla pentola. Senza ricetta
+         non si può dire niente, e infatti non si dice niente. */
+      let quantiPosso = null, chiManca = null;
+      if (fare > 0 && conRicetta(p)) {
+        const c = calcoloProduzione(stato, { magProd: magLab, prod: p, quanto: fare, uomFatto: a.uomId });
+        if (c.righe.length) {
+          let peggio = Infinity, colpevole = null;
+          for (const r of c.righe) {
+            const quota = r.quanto > 0 ? r.prima / r.quanto : Infinity;
+            if (quota < peggio) { peggio = quota; colpevole = r.nome; }
+          }
+          if (peggio < 1) {
+            quantiPosso = p.soloInteri ? Math.floor(fare * peggio + 1e-9) : +(fare * peggio).toFixed(2);
+            chiManca = colpevole;
+          }
+        }
+      }
+      out.push({ p, a, serve: +serve.toFixed(2), hannoGia: +hannoGia.toFixed(2), chiesto: +chiesto.toFixed(2),
+        fare, dove, quantiPosso, chiManca });
+    }
+    return out.sort((x, y) => y.fare - x.fare);
+  };
+  const pianoOggi = pianoDi(oggiG).filter((x) => x.fare > 0);
+  const pianoDomani = pianoDi(domaniG).filter((x) => x.fare > 0);
+  const [piano, setPiano] = useState(false);
+  const [quando, setQuando] = useState("oggi");
+  const pianoVisto = quando === "oggi" ? pianoOggi : pianoDomani;
 
   const annulla = (r) => {
     const nome = trova(stato.prodotti, r.prodottoId)?.nome || "prodotto";
@@ -8855,6 +11793,58 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           <ChevronRight size={18} style={{ color: T.verde }} />
         </button>
       )}
+
+      {/* ── COSA DEVO PRODURRE, E QUANDO ──
+          Sta sopra «Ho prodotto» perche' viene prima nel tempo: prima si
+          guarda cosa serve, poi si fa. Compare solo se c'e' davvero qualcosa
+          da fare, oggi o domani: un riquadro che dice «niente» tutti i giorni
+          insegna a non guardarlo. */}
+      {(pianoOggi.length > 0 || pianoDomani.length > 0) && (
+        <button onClick={() => { setQuando(pianoOggi.length ? "oggi" : "domani"); setPiano(true); }}
+          className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3 w-full text-left"
+          style={{ background: "#FFF6E8", border: `1.5px solid ${T.ambra}55` }}>
+          <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.ambra}22`, color: T.ambra }}>
+            <ClipboardList size={17} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="font-extrabold block" style={{ color: T.ink }}>
+              {pianoOggi.length > 0
+                ? `Da produrre oggi · ${pianoOggi.length} ${pianoOggi.length === 1 ? "preparato" : "preparati"}`
+                : `Oggi sei a posto · domani ne servono ${pianoDomani.length}`}
+            </span>
+            <span className="text-xs block" style={{ color: T.dim }}>
+              {pianoOggi.length > 0
+                ? `Contando quello che le linee hanno adesso e quello che c'è in laboratorio${
+                    pianoDomani.length > 0 ? ` · domani altri ${pianoDomani.length}` : ""}`
+                : "Guarda avanti: così domani mattina non si parte in ritardo"}
+            </span>
+          </span>
+          <ChevronRight size={18} style={{ color: T.ambra }} />
+        </button>
+      )}
+
+      {/* ── «HO PRODOTTO», ANCHE SENZA UNA RICHIESTA ──
+          Sta qui e non sotto Magazzini perche' qui ci sta il laboratorio
+          mentre lavora. Resta visibile anche quando non c'e' niente in
+          attesa: e' esattamente il momento in cui si prepara per dopo. */}
+      {preparatiLab.length > 0 && (
+        <button onClick={() => { setCerca(""); setElenco(true); }}
+          className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3 w-full text-left"
+          style={{ background: "#EAF6FB", border: `1.5px solid ${T.ciano}55` }}>
+          <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.ciano}22`, color: T.ciano }}>
+            <FlaskConical size={17} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="font-extrabold block" style={{ color: T.ink }}>Ho prodotto</span>
+            <span className="text-xs block" style={{ color: T.dim }}>
+              Segna quello che hai preparato, anche se nessuno l'ha ancora chiesto:
+              così quando la richiesta arriva parte subito
+            </span>
+          </span>
+          <ChevronRight size={18} style={{ color: T.ciano }} />
+        </button>
+      )}
+
       <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "in-attesa", nome: `In attesa · ${attive.length}` },
@@ -8867,7 +11857,9 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           <Scheda><Vuoto icona={FlaskConical}
             titolo={tab === "in-attesa" ? "Nessuna richiesta in attesa" : "Archivio vuoto"}
             testo={tab === "in-attesa"
-              ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in tempo reale."
+              ? (preparatiLab.length
+                ? "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in qualche secondo. Intanto, se stai preparando per dopo, segnalo con «Ho prodotto» qui sopra: quello che è segnato parte subito quando la richiesta arriva."
+                : "Quando un operatore conta una linea rifornita dal laboratorio, la richiesta apparirà qui in qualche secondo.")
               : "Le richieste evase, parziali o annullate finiranno qui."} /></Scheda>
         )}
         {lista.map((r) => {
@@ -8901,6 +11893,17 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                   style={{ background: "#E7F7FA", border: "1px solid #C4EAF2", color: T.ciano }}>
                   {unitaProdotto(stato, prod).map((u) => <option key={u.id} value={u.id}>{u.simbolo}</option>)}
                 </select>
+                {/* L'EQUIVALENZA, sempre a schermo e non da cercare nella
+                    tendina. Sua richiesta: «dovrebbero vedere sia i pezzi che
+                    sono stati richiesti e a quanti kg corrispondono». Chi
+                    lavora ha in mano una bilancia, non un convertitore. */}
+                {(() => {
+                  const altra = unitaProdotto(stato, prod).find((u) => u.id !== sel);
+                  if (!altra) return null;
+                  const eq = converti(prod, q, sel, altra.id);
+                  if (eq == null) return null;
+                  return <Chip colore={T.ciano}>= {fmtQ(eq)} {altra.simbolo}</Chip>;
+                })()}
                 <Chip colore={T.dim}>linea: {fmtQ(r.qtyLinea)} {simboloU(stato, r.uomLineaId)}</Chip>
                 {/* senza questo il laboratorio vede solo il totale e non sa
                     quale parte è il livello e quale è stata chiesta in più */}
@@ -8954,6 +11957,18 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                       )}
                       <div className="flex gap-2 justify-end flex-wrap">
                         <Bottone variante="fantasma" piccolo icona={X} onClick={() => setAnnullaR(r)}>Annulla</Bottone>
+                        {/* «Ho prodotto» sta QUI, dove il laboratorio legge cosa
+                            deve fare. Compare solo su un preparato e solo se il
+                            magazzino del laboratorio ha quella riga: se non ce
+                            l'ha, non c'e' niente da caricare e un tasto che si
+                            preme senza effetto sarebbe peggio di un tasto che
+                            manca. Resta separato da «Conferma»: prima si fa la
+                            merce, poi la si manda. */}
+                        {preparato(prod) && magLab
+                          && (magLab.articoli || []).some((a) => a.prodottoId === r.prodottoId) && (
+                          <Bottone variante="tonale" piccolo icona={FlaskConical}
+                            onClick={() => setProduci(r)}>Ho prodotto</Bottone>
+                        )}
                         <Bottone variante="tonale" piccolo icona={Pencil} onClick={() => setEvadi(r)}>Cambia</Bottone>
                         {ok && (
                           <Bottone piccolo icona={Check} onClick={() => confermaRiga(r, pr, tetto)}>
@@ -8973,6 +11988,118 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
           );
         })}
       </div>
+
+      <Foglio aperto={piano} titolo="Da produrre" onChiudi={() => setPiano(false)}>
+        <div className="flex flex-col gap-3">
+          <Segmenti valore={quando} onCambia={setQuando} opzioni={[
+            { id: "oggi", nome: `Oggi · ${pianoOggi.length}` },
+            { id: "domani", nome: `${NOMI_GIORNI[String(domaniG)]} · ${pianoDomani.length}` },
+          ]} />
+          {/* Il conto di domani non sa cosa verrà consumato da qui a stasera:
+              dirlo è meglio che lasciar credere a una precisione che non c'è.
+              Un numero che si spaccia per certo, il giorno che sbaglia, si
+              porta dietro anche quelli giusti. */}
+          {quando === "domani" && (
+            <p className="text-xs leading-relaxed" style={{ color: T.dim }}>
+              È il livello previsto di {NOMI_GIORNI[String(domaniG)]} sulle linee, meno quello che
+              c'è adesso. <b>Non sa cosa verrà consumato da qui a stasera</b>: prendilo come un
+              «preparati», non come un numero esatto.
+            </p>
+          )}
+          {pianoVisto.length === 0 && (
+            <p className="text-sm font-semibold py-2" style={{ color: T.verde }}>
+              {quando === "oggi" ? "Oggi non manca niente: le linee sono a livello."
+                : `Per ${NOMI_GIORNI[String(domaniG)]} c'è già tutto.`}
+            </p>
+          )}
+          {pianoVisto.map(({ p, a, fare, serve, hannoGia, chiesto, dove, quantiPosso, chiManca }) => (
+            <button key={p.id} onClick={() => { setPiano(false); setProduci({ prodottoId: p.id, quanto: fare }); }}
+              className="rounded-2xl px-3.5 py-3 w-full text-left"
+              style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold flex-1 min-w-0 truncate" style={{ color: T.ink }}>{p.nome}</span>
+                <Chip colore={T.ambra}>{fmtQ(fare)} {simboloU(stato, a.uomId)}</Chip>
+                <ChevronRight size={16} style={{ color: T.dim }} />
+              </div>
+              {/* il conto in chiaro: chi legge deve poter rifare la somma, se
+                  no il numero è un oracolo e non ci si fida */}
+              <div className="text-xs mt-1" style={{ color: T.dim }}>
+                Manca {fmtQ(serve)} {simboloU(stato, a.uomId)} {dove === 1 ? "a 1 linea" : `su ${dove} linee`}
+                {chiesto > 0 && <span> · di cui <b style={{ color: T.ink }}>{fmtQ(chiesto)} già chiesti</b></span>}
+                {" "}· in laboratorio {fmtQ(a.qty)}
+                {!conRicetta(p) && <span style={{ color: T.ambra, fontWeight: 700 }}> · nessuna ricetta</span>}
+              </div>
+              {/* il controllo che qui mancava: sapere che ne servono 15 non
+                  serve a niente se il riso basta per 10 */}
+              {quantiPosso != null && (
+                <div className="text-xs mt-1.5 rounded-xl px-2.5 py-1.5 font-bold"
+                  style={{ background: "#FCEEF1", color: T.rosso }}>
+                  {quantiPosso > 0
+                    ? `Gli ingredienti bastano per ${fmtQ(quantiPosso)}: manca «${chiManca}»`
+                    : `Non si può farne: manca «${chiManca}»`}
+                </div>
+              )}
+            </button>
+          ))}
+          {/* una scelta dichiarata, non un silenzio: il livello di scorta del
+              laboratorio non entra in questo conto finché vale lo stesso
+              numero su tutti i preparati, cioè finché è un valore di partenza
+              e non una decisione. */}
+          {pianoVisto.length > 0 && (
+            <p className="text-xs leading-relaxed" style={{ color: T.tenue }}>
+              Il conto guarda <b>quanto manca alle linee</b>. La scorta che il laboratorio tiene per
+              sé non ci entra: oggi quel livello vale lo stesso numero su tutti i preparati, quindi
+              non è una scelta di nessuno. Quando lo deciderete, si aggiunge qui.
+            </p>
+          )}
+        </div>
+      </Foglio>
+
+      {/* l'elenco di quello che il laboratorio puo' aver fatto: si sceglie e
+          si va dritti sulla scheda della produzione, che e' la stessa di
+          sempre — un solo posto dove i numeri si muovono */}
+      <Foglio aperto={elenco} titolo="Ho prodotto · cosa hai fatto?" onChiudi={() => setElenco(false)}>
+        <div className="flex flex-col gap-2">
+          {preparatiLab.length > 6 && (
+            <Campo label="" valore={cerca} onCambia={setCerca} placeholder="Cerca un preparato…" autoFocus />
+          )}
+          {cercati.length === 0 && (
+            <p className="text-sm font-semibold py-2" style={{ color: T.ambra }}>
+              Nessun preparato con questo nome.
+            </p>
+          )}
+          {cercati.map(({ a, p }) => {
+            /* la giacenza si mostra perche' e' la domanda che uno si fa
+               proprio in quel momento: ne ho gia', o parto da zero? */
+            const chieste = attive.filter((r) => r.prodottoId === p.id).length;
+            return (
+              <button key={p.id} onClick={() => { setElenco(false); setProduci({ prodottoId: p.id }); }}
+                className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 w-full text-left"
+                style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+                <span className="flex-1 min-w-0">
+                  <span className="font-extrabold block truncate" style={{ color: T.ink }}>{p.nome}</span>
+                  <span className="text-xs block" style={{ color: T.dim }}>
+                    In laboratorio: {fmtQ(a.qty)} {simboloU(stato, a.uomId)}
+                    {chieste > 0 && ` · ${chieste === 1 ? "1 richiesta in attesa" : `${chieste} richieste in attesa`}`}
+                    {!conRicetta(p) && " · nessuna ricetta: non scalerà ingredienti"}
+                  </span>
+                </span>
+                <ChevronRight size={18} style={{ color: T.dim }} />
+              </button>
+            );
+          })}
+        </div>
+      </Foglio>
+
+      <Foglio aperto={!!produci} titolo={`Ho prodotto · ${trova(stato.prodotti, produci?.prodottoId)?.nome || ""}`}
+        onChiudi={() => setProduci(null)}>
+        {produci && magLab && (() => {
+          const art = (magLab.articoli || []).find((a) => a.prodottoId === produci.prodottoId);
+          if (!art) return null;
+          return <FormProduzione stato={stato} mag={magLab} art={art} muta={muta} suggerito={produci.quanto}
+            mostraToast={mostraToast} onChiudi={() => setProduci(null)} profilo={profilo} />;
+        })()}
+      </Foglio>
 
       <Foglio aperto={!!evadi} titolo="Evadi richiesta" onChiudi={() => setEvadi(null)}>
         {evadi && <FormEvasione key={evadi.id} stato={stato} profilo={profilo} r={evadi}
@@ -9071,14 +12198,47 @@ function FormRicezione({ stato, o, profilo, muta, mostraToast, onChiudi }) {
 /* ─────────── DA MANDARE ───────────
    Il testo è pensato per WhatsApp: niente tabelle, righe corte, un trattino
    per articolo. Chi lo riceve deve poterlo leggere sul telefono senza zoom. */
+/* ─────────── DIVISI PER CATEGORIA, ANCHE QUELLI DEL LABORATORIO ───────────
+   Chiesto da chi lo riceve: «anche al laboratorio i prodotti divisi per
+   categoria senza che vengano mischiati tutti insieme, almeno anche loro sono
+   facilitati nella lettura».
+
+   Aveva ragione due volte. Il «Report ordine» raggruppava per categoria da
+   sempre, questo testo no: la stessa persona si trovava in mano due elenchi
+   fatti in due modi diversi, a seconda del tasto premuto. Quindi qui va per
+   categoria TUTTO — laboratorio e fornitori — non solo il blocco chiesto:
+   sistemarne uno e lasciare l'altro sarebbe stato spostare l'incoerenza di un
+   posto, non toglierla.
+
+   Le cose senza categoria finiscono in fondo sotto un'intestazione che lo
+   dice, invece di sparire in silenzio: quello che non si vede in un ordine e'
+   quello che poi manca in cucina. */
 function testoDaMandare(stato, sede, righeLab, perForn) {
   const riga = (x) => "- " + (trova(stato.prodotti, x.prodottoId)?.nome || "?")
     + ": " + fmtQ(x.qty) + " " + simboloU(stato, x.uomId);
+  const nome = (x) => trova(stato.prodotti, x.prodottoId)?.nome || "";
+  const perAlfabeto = (a, b) => nome(a).localeCompare(nome(b));
+  const perCategoria = (righe) => {
+    const gruppi = stato.categorie
+      .map((c) => ({ nome: c.nome,
+        items: righe.filter((x) => trova(stato.prodotti, x.prodottoId)?.categoriaId === c.id) }))
+      .filter((g) => g.items.length);
+    const conCat = new Set(gruppi.flatMap((g) => g.items));
+    const fuori = righe.filter((x) => !conCat.has(x));
+    if (fuori.length) gruppi.push({ nome: "Senza categoria", items: fuori });
+    return gruppi.map((g) => ({ nome: g.nome, items: g.items.slice().sort(perAlfabeto) }));
+  };
+  const blocco = (r, righe) => {
+    for (const g of perCategoria(righe)) {
+      r.push("· " + g.nome);
+      g.items.forEach((x) => r.push(riga(x)));
+    }
+  };
   const r = [sede.nome.toUpperCase() + " · " + new Date().toLocaleDateString("it-IT")];
-  if (righeLab.length) { r.push("", "AL LABORATORIO"); righeLab.forEach((x) => r.push(riga(x))); }
+  if (righeLab.length) { r.push("", "AL LABORATORIO"); blocco(r, righeLab); }
   for (const g of perForn) {
     r.push("", g.f ? g.f.nome.toUpperCase() : "SENZA FORNITORE");
-    g.righe.forEach((x) => r.push(riga(x)));
+    blocco(r, g.righe);
   }
   return r.join("\n");
 }
@@ -9214,10 +12374,15 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
      sembrava che gli ordini fatti fossero spariti. Non era vero: erano nella
      scheda accanto. Ora si apre sulla prima scheda che ha qualcosa, e «Da
      ordinare» resta la preferita quando c'è del lavoro da fare. */
+  /* senza «ordini» il ciclo d'acquisto non e' suo: restano le schede della
+     merce in arrivo (ricevere e' mestiere). Le stesse schede guidano anche
+     «primaPiena» e «altrove»: offrire un «vai a Da ordinare» a chi non ha
+     la scheda sarebbe una porta dipinta sul muro. */
+  const STATI_MIEI = puoOrdinare(profilo) ? ["da-ordinare", "ordinato", "ricevuto"] : ["ordinato", "ricevuto"];
   const primaPiena = (() => {
     const conta = (st) => (stato.ordini || []).filter((o) => ordineVisibile(profilo, o) && o.stato === st).length;
-    for (const st of ["da-ordinare", "ordinato", "ricevuto"]) if (conta(st)) return st;
-    return "da-ordinare";
+    for (const st of STATI_MIEI) if (conta(st)) return st;
+    return STATI_MIEI[0];
   })();
   const [tab, setTab] = useState(primaPiena);
   const [reportAperto, setReportAperto] = useState(false);
@@ -9242,21 +12407,6 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
   /* le cose da preparare le vede chi le prepara (il laboratorio, sui suoi
      magazzini) e chi guarda tutto (l'admin). A un operatore di sede non serve:
      non è lui che le fa, e in Ordini avrebbe solo una scheda in più da saltare. */
-  const daPreparare = (() => {
-    const out = [];
-    for (const m of stato.magazzini) {
-      if (m.tipo !== "laboratorio") continue;
-      if (profilo.ruolo !== "admin" && m.sedeId !== profilo.sedeId) continue;
-      for (const a of m.articoli || []) {
-        const p = trova(stato.prodotti, a.prodottoId);
-        if (!p || !preparato(p)) continue;
-        const manca = parOggi(a) - a.qty;
-        if (manca <= 1e-9) continue;
-        out.push({ mag: m, prod: p, art: a, manca });
-      }
-    }
-    return out.sort((x, y) => y.manca - x.manca || x.prod.nome.localeCompare(y.prod.nome));
-  })();
   /* ── IL BUCO CHE NON SI VEDEVA ──
      Un preparato che manca in una linea o in un retro diventa una richiesta al
      laboratorio. Ma se la sede non ha un laboratorio a cui chiedere, la
@@ -9300,7 +12450,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
   /* Quante righe ci sono nelle ALTRE schede: se questa è vuota bisogna dirlo,
      se no il vuoto si legge come «i miei ordini non ci sono più». */
   const ETICHETTE = { "da-ordinare": "Da ordinare", ordinato: "Ordinati", ricevuto: "Ricevuti" };
-  const altrove = ["da-ordinare", "ordinato", "ricevuto"]
+  const altrove = STATI_MIEI
     .filter((st) => st !== tab)
     .map((st) => ({ st, n: miei.filter((o) => o.stato === st).length }))
     .filter((x) => x.n > 0);
@@ -9340,12 +12490,30 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
     () => mostraToast("Seleziona e copia a mano", "avviso"));
   const whatsapp = (t) => window.open("https://wa.me/?text=" + encodeURIComponent(t), "_blank", "noopener");
 
-  const ricalcola = () => muta((s) => { ricalcolaFabbisogni(s, profilo); },
-    `Fabbisogni ricalcolati da ${profilo.nome}`) && mostraToast("Report aggiornato dalle scorte attuali");
+  const ricalcola = () => {
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
+    let esito = { righe: 0, inArrivo: 0 };
+    const fatto = muta((s) => { esito = ricalcolaFabbisogni(s, profilo); },
+      `Fabbisogni ricalcolati da ${profilo.nome}`);
+    if (!fatto) return;
+    /* Il silenzio qui è pericoloso: se il fabbisogno è coperto da roba già
+       ordinata non compare nessuna riga, e senza una parola sembra che il
+       ricalcolo non abbia funzionato. */
+    mostraToast(esito.inArrivo
+      ? `Report aggiornato · ${esito.inArrivo === 1
+          ? "1 prodotto serve ma è già ordinato"
+          : `${esito.inArrivo} prodotti servono ma sono già ordinati`}: sono in «Ordinati», non li richiedo`
+      : "Report aggiornato dalle scorte attuali");
+  };
 
-  const segna = (ids) => muta((s) => {
+  const segna = (ids) => {
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
+    return muta((s) => {
     s.ordini.forEach((o) => { if (ids.includes(o.id)) { o.stato = "ordinato"; o.tOrdine = Date.now(); o.ordinatoDa = profilo.nome; } });
   }, `${ids.length} righe segnate come ordinate da ${profilo.nome}`);
+  };
 
   /* Ricezione in blocco: tutta la merce di un fornitore arrivata come
      ordinata. Carica ogni magazzino di destinazione con la quantità
@@ -9380,27 +12548,33 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
 
   const [ricezione, setRicezione] = useState(null);
 
-  const rimuovi = (id) => muta((s) => { s.ordini = s.ordini.filter((o) => o.id !== id); }, "Riga ordine rimossa");
+  const rimuovi = (id) => {
+    /* prima di gen-5.95 QUESTO era senza nessuna condizione: chiunque
+       vedesse una riga poteva cancellarla, in qualunque stato */
+    if (!puoOrdinare(profilo))
+      return mostraToast("Per gestire gli ordini serve l'autorizzazione dell'admin (Profili)", "errore");
+    muta((s) => { s.ordini = s.ordini.filter((o) => o.id !== id); }, "Riga ordine rimossa");
+  };
 
   return (
     <div>
       <Intesta titolo="Ordini" sotto="Report acquisti nelle unità di misura dei fornitori, raggruppati per categoria"
-        azione={<div className="flex gap-2 flex-wrap">
+        azione={puoOrdinare(profilo) && <div className="flex gap-2 flex-wrap">
           {/* Lo Storico ordini sta anche sotto «Gestione», ma «Gestione» ce l'ha
-              solo l'admin: un operatore o il laboratorio non avrebbero avuto
-              nessuna strada per arrivarci. Il posto dove uno lo cerca è
-              comunque questo — accanto agli ordini di adesso. */}
+              solo l'admin: chi ha l'interruttore «ordini» lo cerca comunque
+              qui — accanto agli ordini di adesso. Per gli altri questi tre
+              tasti sono gestione, non mestiere (gen-5.95). */}
           {vaiA && <Bottone variante="tonale" icona={History} onClick={() => vaiA("storico-ordini")}>Storico</Bottone>}
           <Bottone variante="tonale" icona={RotateCcw} onClick={ricalcola}>Ricalcola</Bottone>
           <Bottone icona={ClipboardList} onClick={() => setReportAperto(true)} disabilitato={!reportCat.length}>Report ordine</Bottone>
         </div>} />
-      <DaMandare stato={stato} profilo={profilo} mostraToast={mostraToast} />
+      {puoOrdinare(profilo) && <DaMandare stato={stato} profilo={profilo} mostraToast={mostraToast} />}
 
       {/* ── NESSUNO A CUI CHIEDERLO ──
           Rosso e non ambra: l'ambra nell'app vuol dire «sta finendo», e questo
           non e' un livello basso, e' una strada interrotta. Finche' resta cosi'
           quel prodotto non arrivera' mai, per quanto si ricalcoli. */}
-      {senzaLaboratorio.length > 0 && (
+      {(profilo.ruolo === "admin" || puoOrdinare(profilo)) && senzaLaboratorio.length > 0 && (
         <Scheda className="p-4 mb-3" style={{ border: `1.5px solid ${T.rosso}55`, background: "#FFF4F6" }}>
           <div className="flex items-center gap-3 flex-wrap mb-2.5">
             <div className="rounded-2xl p-2.5" style={{ background: "#FBDDE4", color: T.rosso }}>
@@ -9439,51 +12613,36 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
             ))}
           </div>
           <p className="text-xs mt-2.5" style={{ color: T.dim }}>
-            Si sistema da <b>Gestione → Sedi</b>: apri la sede e scegli quale laboratorio la
-            rifornisce. Se un laboratorio non c'è ancora, va creato prima da <b>Magazzini</b>.
+            {profilo.ruolo === "admin"
+              ? <>Si sistema da <b>Gestione → Sedi</b>: apri la sede e scegli quale laboratorio la
+                  rifornisce. Se un laboratorio non c'è ancora, va creato prima da <b>Magazzini</b>.</>
+              : <>Da segnalare a un <b>Admin</b>: si sistema da Gestione → Sedi.</>}
           </p>
         </Scheda>
       )}
 
-      {/* ── DA PREPARARE ──
-          I preparati sotto il livello previsto nei magazzini di laboratorio.
-          Non è una riga d'ordine e non si scrive da nessuna parte: è la stessa
-          domanda che l'app fa già ai magazzini («quanto manca per stare a
-          livello»), fatta sulle cose che non si comprano. Se cambia una
-          giacenza questo elenco cambia da solo, senza niente da aggiornare —
-          ed è il motivo per cui non ho inventato un finto ordine al posto suo. */}
-      {daPreparare.length > 0 && (
+      {/* ── DOV'È FINITO «DA PREPARARE» ──
+          Stava qui e contava contro il livello di scorta del laboratorio — che
+          in produzione vale lo stesso numero su tutti e dodici i preparati,
+          cioè un valore di partenza e non una decisione. Intanto in Richieste
+          ne era nato un secondo, che contava quanto manca alle LINEE. Due
+          elenchi in due schermate con due regole diverse: sui dati veri uno
+          diceva «da fare 2» e l'altro «niente». Due numeri diversi per la
+          stessa domanda sono peggio di nessun numero, quindi ne resta uno, e
+          sta dove il laboratorio lavora. */}
+      {profilo.ruolo === "laboratorio" && (
         <Scheda className="p-4 mb-3">
-          <div className="flex items-center gap-3 flex-wrap mb-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="rounded-2xl p-2.5" style={{ background: "#E1F5FA", color: T.ciano }}>
               <FlaskConical size={18} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-extrabold" style={{ color: T.ink }}>Da preparare · {daPreparare.length}</div>
+              <div className="font-extrabold" style={{ color: T.ink }}>Cosa produrre sta in «Richieste»</div>
               <div className="text-xs" style={{ color: T.dim }}>
-                Queste non si comprano: si fanno in laboratorio. Nessun fornitore, nessun ordine.
+                Lì c'è un elenco solo, che conta quanto manca alle linee e dice se gli
+                ingredienti bastano. Qui restava un secondo conto che diceva un'altra cosa.
               </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {daPreparare.map((x) => (
-              <div key={x.mag.id + x.prod.id} className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 flex-wrap"
-                style={{ background: "#F7F9FE", border: `1px solid ${T.bordo}` }}>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold truncate" style={{ color: T.ink }}>{x.prod.nome}</div>
-                  <div className="text-xs" style={{ color: T.tenue }}>
-                    {x.mag.nome} · ce ne sono {fmtQ(x.art.qty)} su {fmtQ(parOggi(x.art))} {simboloU(stato, x.art.uomId)}
-                  </div>
-                </div>
-                {/* «+7» col verde qui sarebbe una bugia di colore: altrove nell'app
-                    il verde vuol dire «a livello» e il «+» vuol dire «ce n'è in più
-                    del previsto». Questo numero è l'opposto — è quanto manca — e va
-                    detto con la parola e col colore di quello che manca. */}
-                <span className="font-extrabold whitespace-nowrap" style={{ color: T.ambra }}>
-                  da fare {fmtQ(x.manca)} {simboloU(stato, x.art.uomId)}
-                </span>
-              </div>
-            ))}
           </div>
         </Scheda>
       )}
@@ -9491,13 +12650,12 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
       <div className="mb-4">
         <Segmenti valore={tab} onCambia={setTab} opzioni={[
           { id: "lab", nome: `Al laboratorio · ${nLabAttesa}` },
-          { id: "da-ordinare", nome: `Da ordinare · ${miei.filter((o) => o.stato === "da-ordinare").length}` },
-          { id: "ordinato", nome: `Ordinati · ${miei.filter((o) => o.stato === "ordinato").length}` },
-          { id: "ricevuto", nome: `Ricevuti · ${miei.filter((o) => o.stato === "ricevuto").length}` },
+          ...STATI_MIEI.map((st) => ({ id: st,
+            nome: `${{ "da-ordinare": "Da ordinare", ordinato: "Ordinati", ricevuto: "Ricevuti" }[st]} · ${miei.filter((o) => o.stato === st).length}` })),
         ]} />
       </div>
 
-      {tab === "da-ordinare" && (costoDaOrdinare.tot > 0 || costoDaOrdinare.senza > 0) && (
+      {profilo.ruolo === "admin" && tab === "da-ordinare" && (costoDaOrdinare.tot > 0 || costoDaOrdinare.senza > 0) && (
         <div className="flex items-center gap-2.5 rounded-2xl px-3.5 py-3 mb-3"
           style={{ background: "#F1F8F4", border: `1px solid ${T.verde}33` }}>
           <span className="rounded-xl p-2 shrink-0" style={{ background: `${T.verde}22`, color: T.verde }}>
@@ -9556,7 +12714,15 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
           <Scheda><Vuoto icona={Truck}
             titolo={tab === "da-ordinare" ? "Nessun acquisto da fare" : tab === "ordinato" ? "Nessun ordine in attesa di consegna" : "Nessuna merce ricevuta"}
             testo={tab === "da-ordinare"
-              ? "Le righe compaiono quando retro o laboratorio scendono sotto il livello previsto. Usa «Ricalcola fabbisogni» per rigenerarle dalle scorte."
+              /* la Home urlava «88 sotto scorta» e questo vuoto rispondeva
+                 «niente da fare»: adesso il vuoto AMMETTE la scorta bassa e
+                 nomina il tasto col suo nome vero, «Ricalcola» (gen-5.99) */
+              ? (() => { const sottoTot = stato.magazzini
+                    .filter((m) => profilo.ruolo === "admin" || m.sedeId === profilo.sedeId)
+                    .reduce((n, m) => n + sottoScorta(m), 0);
+                  return sottoTot > 0
+                    ? `Eppure ${sottoTot} articoli sono sotto scorta: le righe nascono dai conteggi delle linee, oppure da «Ricalcola» qui sopra, che le rigenera dalle scorte di retro e laboratorio.`
+                    : "Le righe compaiono quando retro o laboratorio scendono sotto il livello previsto. «Ricalcola» qui sopra le rigenera dalle scorte."; })()
               : tab === "ordinato"
                 ? "Le righe segnate come ordinate finiranno qui, in attesa che la merce arrivi."
                 : "Quando segni un ordine come ricevuto, il magazzino si carica e la riga finisce qui."} /></Scheda>
@@ -9575,7 +12741,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                   <div className="font-extrabold" style={{ color: T.ink }}>{f.nome}</div>
                   <div className="text-xs" style={{ color: T.dim }}>{rf.length} righe</div>
                 </div>
-                {tab === "da-ordinare" && (
+                {tab === "da-ordinare" && puoOrdinare(profilo) && (
                   <Bottone variante="tonale" piccolo icona={CheckCheck}
                     onClick={() => segna(rf.map((o) => o.id))}>Tutto ordinato</Bottone>
                 )}
@@ -9627,7 +12793,7 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                           </span>
                           {/* erano 30×30: in cucina, con le mani bagnate, si
                               sbaglia bersaglio. Il minimo comodo è 32. */}
-                          {tab === "da-ordinare" && (
+                          {tab === "da-ordinare" && puoOrdinare(profilo) && (
                             <button onClick={() => segna([o.id])} aria-label="Segna come ordinato"
                               className="rounded-full p-2.5 shrink-0" style={{ background: "#E4F6EE", color: T.verde }}>
                               <Check size={16} /></button>
@@ -9638,9 +12804,11 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
                               className="rounded-full p-2.5 shrink-0" style={{ background: "#E4F6EE", color: T.verde }}>
                               <PackageCheck size={16} /></button>
                           )}
-                          <button onClick={() => rimuovi(o.id)} aria-label="Rimuovi riga"
-                            className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
-                            <Trash2 size={16} /></button>
+                          {puoOrdinare(profilo) && (
+                            <button onClick={() => rimuovi(o.id)} aria-label="Rimuovi riga"
+                              className="rounded-full p-2.5 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}>
+                              <Trash2 size={16} /></button>
+                          )}
                           {/* a tutta larghezza, in fondo: la riga ha gia' il
                               «vai a capo», e questa spiegazione stretta in una
                               colonna da tre parole diventava una filastrocca
@@ -9705,8 +12873,2689 @@ function VistaOrdini({ stato, profilo, muta, mostraToast, vaiA }) {
 }
 
 /* ─────────── SISTEMA · BACKUP CONDIVISIBILE ─────────── */
+/* DOVE VIVE LA MEMORIA. In una chiave SUA, non dentro «scp:stato:v1». Lo
+   stato del lavoro ha la coda, il confronto fra revisioni e l'annulla: e' roba
+   delicata, e infilarci dentro degli appunti vorrebbe dire far passare ogni
+   nota per quel macchinario e mettere a rischio le giacenze per un promemoria.
+   Il prezzo, dichiarato: qui vince l'ultimo che scrive. Per degli appunti fra
+   due persone va bene; per le giacenze non andrebbe, ed e' il motivo per cui
+   stanno separati. */
+const CHIAVE_MEM = "mem:v1";
 const CHIAVE_INDICE = "scp:backup-indice";
-function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
+/* ─────────── IL LISTINO (gen-5.96, solo admin) ───────────
+   Le voci che il banco vede in Cassa. NON sono i prodotti del catalogo:
+   una «Margherita» scala farina, mozzarella e pomodoro — la distinta ha la
+   stessa forma degli ingredienti di una ricetta, ed e' la stessa idea. */
+function FormVoceListino({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [gruppo, setGruppo] = useState(item?.gruppo || "");
+  const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
+  const [aliquota, setAliquota] = useState(item?.aliquota != null ? String(item.aliquota) : "");
+  const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
+  const [varianti, setVarianti] = useState((item?.varianti || []).map((v) => ({ ...v, delta: String(v.delta) })));
+  const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
+  /* «Boscaiola» e' un nome che vale per mozzarella+funghi+salsiccia: qui si
+     scrive quello che sta dietro al nome corto (gen-6.03). E' un'etichetta
+     che un umano scrive per un umano, non una chiave: testo libero.
+     dentroId e' il legame coi prodotti del magazzino, e vale solo se e'
+     ESATTO: lo scrive «Prendi dalla distinta» e decade al primo carattere
+     battuto a mano. O e' esatto, o non c'e' — un legame stantio sarebbe
+     peggio di nessun legame. In gen-6.03 nessuno lo legge: nasce oggi,
+     mentre l'admin ha il tasto sotto il dito, per il «senza» di domani. */
+  const [dentro, setDentro] = useState(item?.dentro || "");
+  const [dentroId, setDentroId] = useState(item?.dentroId || []);
+
+  const toccaVar = (i, campo, v) => setVarianti((xs) => xs.map((x, j) => (j === i ? { ...x, [campo]: v } : x)));
+  const toccaDis = (i, campo, v) => setDistinta((xs) => xs.map((x, j) => {
+    if (j !== i) return x;
+    /* cambiando prodotto l'unita' vecchia puo' non esistere piu': si riparte
+       dalla base del prodotto nuovo, mai da un id orfano */
+    if (campo === "prodottoId") return { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || "" };
+    return { ...x, [campo]: v };
+  }));
+
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("Inserisci il nome della voce", "errore");
+    const nP = num(prezzo);
+    if (nP == null || nP < 0) return mostraToast("Il prezzo di vendita è in euro, zero compreso (un omaggio è legittimo)", "errore");
+    const nA = aliquota.trim() === "" ? undefined : num(aliquota);
+    if (aliquota.trim() !== "" && (nA == null || nA < 0 || nA > 100)) return mostraToast("L'aliquota è una percentuale fra 0 e 100", "errore");
+    const vOk = [];
+    for (const v of varianti) {
+      if (!v.nome.trim() && v.delta.trim() === "") continue;
+      const d = num(v.delta) ?? 0;
+      if (!v.nome.trim()) return mostraToast("Ogni variante ha un nome", "errore");
+      if (nP + d < 0) return mostraToast(`«${v.nome}»: il prezzo con la variante andrebbe sotto zero`, "errore");
+      vOk.push({ id: v.id || uid("va"), nome: v.nome.trim(), delta: d });
+    }
+    const dOk = [];
+    for (const d of distinta) {
+      if (!d.prodottoId && d.qty.trim() === "") continue;
+      const q = num(d.qty);
+      if (!d.prodottoId || q == null || q <= 0 || !d.uomId)
+        return mostraToast("Ogni riga della distinta richiede prodotto, quantità e unità", "errore");
+      dOk.push({ prodottoId: d.prodottoId, qty: q, uomId: d.uomId });
+    }
+    const dati = { nome: nome.trim(), gruppo: gruppo.trim(), prezzo: nP,
+      aliquota: nA, attivo, varianti: vOk, distinta: dOk,
+      ...(dentro.trim() ? { dentro: dentro.trim() } : {}),
+      ...(dentro.trim() && dentroId.length ? { dentroId } : {}) };
+    /* l'id nasce QUI FUORI, come per le vendite: un uid() dentro la closure
+       cambierebbe a ogni replay della coda, e la modifica successiva —
+       che ha in mano l'id del primo render — cadrebbe nel vuoto in silenzio
+       (trovato dalla revisione di gen-5.96) */
+    const nuovoId = item ? null : uid("li");
+    muta((s) => {
+      if (item) {
+        const t = trova(s.listino || [], item.id) || {};
+        Object.assign(t, dati);
+        /* Object.assign NON cancella: senza queste due righe, svuotato il
+           campo il vecchio testo resterebbe a schermo per sempre e nessuno
+           capirebbe perche' */
+        if (!dati.dentro) delete t.dentro;
+        if (!dati.dentroId) delete t.dentroId;
+      } else s.listino = [...(s.listino || []), { id: nuovoId, ...dati }];
+    }, `Voce di listino «${nome.trim()}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+
+  return (<div className="flex flex-col gap-4">
+    <Campo label="Nome in cassa" valore={nome} onCambia={setNome} placeholder="Es. Margherita" autoFocus />
+    <div>
+      <Campo label="Cosa c'è dentro · facoltativo" valore={dentro}
+        onCambia={(v) => { setDentro(v); setDentroId([]); }}
+        placeholder="Es. mozzarella, funghi, salsiccia"
+        suggerimento="I nomi che stanno dietro al nome corto: in Cassa e in cucina si legge «Boscaiola», e sotto in piccolo questa riga. Non scala niente dal magazzino: quello è la Distinta qui sotto." />
+      <div className="mt-1.5">
+        <Bottone variante="tonale" piccolo icona={Copy} onClick={() => {
+          const nomi = (distinta || []).map((d) => trova(stato.prodotti, d.prodottoId)?.nome).filter(Boolean);
+          if (!nomi.length) return mostraToast("La distinta è vuota: non c'è niente da prendere", "avviso");
+          setDentro(nomi.map((n) => n.toLowerCase()).join(", "));
+          setDentroId((distinta || []).filter((d) => trova(stato.prodotti, d.prodottoId)).map((d) => d.prodottoId));
+          mostraToast("Presi dalla distinta: sono nomi di magazzino, accorciali a mano");
+        }}>Prendi dalla distinta</Bottone>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <Campo label="Gruppo" valore={gruppo} onCambia={setGruppo} placeholder="Es. Pizze" />
+      <Campo label="Prezzo di vendita (€)" valore={prezzo} onCambia={setPrezzo} inputMode="decimal" placeholder="Es. 8,50"
+        suggerimento="IVA inclusa: è il prezzo che paga il cliente." />
+    </div>
+    <Campo label="Aliquota IVA % · facoltativa" valore={aliquota} onCambia={setAliquota} inputMode="decimal"
+      placeholder="Es. 10" suggerimento="Solo informativa, per i totali di giornata: lo scontrino resta al registratore telematico." />
+    <button type="button" onClick={() => setAttivo((v) => !v)} aria-pressed={attivo}
+      className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+      style={attivo ? { background: "#EAF0FE", border: `1.5px solid ${T.blu}` } : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+      <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+        style={{ background: attivo ? T.blu : "#fff", border: `1.5px solid ${attivo ? T.blu : T.tenue}` }}>
+        {attivo && <Check size={13} color="#fff" />}
+      </span>
+      <span className="text-sm font-extrabold" style={{ color: T.ink }}>
+        {attivo ? "In vendita: il banco la vede" : "Spenta: resta qui, il banco non la vede"}
+      </span>
+    </button>
+    <div>
+      <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Varianti <span className="font-normal" style={{ color: T.tenue }}>· cambiano solo il prezzo</span></span>
+      <div className="flex flex-col gap-2">
+        {varianti.map((v, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input value={v.nome} onChange={(e) => toccaVar(i, "nome", e.target.value)} placeholder="Es. Maxi"
+              aria-label={`Nome della variante ${i + 1}`}
+              className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+            <input value={v.delta} onChange={(e) => toccaVar(i, "delta", e.target.value)} placeholder="+ €" inputMode="decimal"
+              aria-label={`Differenza di prezzo della variante ${i + 1}, in euro`}
+              className="w-24 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+            <button onClick={() => setVarianti((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli variante ${v.nome || i + 1}`}
+              className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+          </div>
+        ))}
+        <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setVarianti((xs) => [...xs, { nome: "", delta: "" }])}>Aggiungi variante</Bottone>
+        <p className="text-xs" style={{ color: T.tenue }}>
+          Il nome della variante si attacca a quello della voce: scrivi «Maxi», non «Pizza maxi».</p>
+      </div>
+    </div>
+    <div>
+      <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Distinta <span className="font-normal" style={{ color: T.tenue }}>· cosa esce dal magazzino a ogni vendita</span></span>
+      <div className="flex flex-col gap-2">
+        {distinta.map((d, i) => {
+          const prod = trova(stato.prodotti, d.prodottoId);
+          return (
+            <div key={i} className="flex gap-2 items-center flex-wrap">
+              <div className="flex-1 min-w-40"><Selettore valore={d.prodottoId} onCambia={(v) => toccaDis(i, "prodottoId", v)}
+                opzioni={[...stato.prodotti].sort((a, b) => a.nome.localeCompare(b.nome, "it"))} placeholder="Prodotto…" /></div>
+              <input value={d.qty} onChange={(e) => toccaDis(i, "qty", e.target.value)} placeholder="Qtà" inputMode="decimal"
+                aria-label={`Quantità dell'ingrediente ${i + 1}`}
+                className="w-20 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+              <div className="w-28">{prod
+                ? <Selettore valore={d.uomId} onCambia={(v) => toccaDis(i, "uomId", v)}
+                    opzioni={unitaProdotto(stato, prod).map((u) => ({ id: u.id, nome: u.simbolo }))} placeholder="UdM" />
+                : <span className="text-xs" style={{ color: T.tenue }}>—</span>}</div>
+              <button onClick={() => setDistinta((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli ingrediente ${prod?.nome || i + 1}`}
+                className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+            </div>
+          );
+        })}
+        <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setDistinta((xs) => [...xs, { prodottoId: "", qty: "", uomId: "" }])}>Aggiungi ingrediente</Bottone>
+      </div>
+      <p className="text-xs mt-1.5" style={{ color: T.tenue }}>Una voce senza distinta si vende comunque: semplicemente non scala niente.</p>
+    </div>
+    {item && onElimina && (
+      <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli dal listino</Bottone>
+    )}
+    <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+  </div>);
+}
+
+function VistaListino({ stato, muta, mostraToast }) {
+  const [modal, setModal] = useState(null);
+  const [del, setDel] = useState(null);
+  const [post, setPost] = useState(null);     // la postazione in modifica (gen-5.98)
+  const [delPost, setDelPost] = useState(null);
+  const [agg, setAgg] = useState(null);       // l'aggiunta in modifica (gen-6.02)
+  const [delAgg, setDelAgg] = useState(null);
+  const voci = stato.listino || [];
+  /* IL FILTRO delle composizioni (gen-6.04): e' un paio di occhiali, non una
+     preferenza. Vive nella vista e muore col rimontaggio, perche' serve per
+     la sera in cui si compilano le pizze e mai piu' — salvarlo vorrebbe dire
+     ritrovarselo acceso fra un mese senza ricordare perche' meta' listino e'
+     sparito. Zero byte sul canale. */
+  const [soloSenza, setSoloSenza] = useState(false);
+  const conta = conteggioDentro(voci);
+  const vociViste = soloSenza ? voci.filter((v) => !(v.dentro || "").trim()) : voci;
+  /* stesso ripiego della Cassa («Altro», via gruppoDi): prima qui si leggeva
+     «Senza gruppo» e di la' «Altro» — due nomi per lo stesso vuoto, e le
+     comande smistano per nome (gen-5.98) */
+  const gruppi = [...new Set(vociViste.map(gruppoDi))].sort((a, b) => a.localeCompare(b, "it"));
+  return (
+    <div>
+      <Intesta titolo="Listino" sotto="Quello che il banco vede in Cassa: prezzi di vendita e cosa scalano dal magazzino"
+        azione={<Bottone icona={Plus} onClick={() => setModal({})}>Nuova voce</Bottone>} />
+      {/* LE POSTAZIONI (gen-5.98) stanno QUI, non in una settima sezione:
+          abbinano i gruppi di questo listino, e chi ridisegna l'uno vede
+          l'altra. Sono configurazione di vista: cambiarle non tocca mai le
+          vendite gia' battute. */}
+      <Scheda className="p-3.5 mb-3">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="font-extrabold" style={{ color: T.ink }}>Postazioni</span>
+          <span className="flex-1" />
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setPost({})}>Nuova postazione</Bottone>
+        </div>
+        <p className="text-xs mb-1" style={{ color: T.tenue }}>
+          Chi vede cosa in cucina: ogni postazione abbina i gruppi del listino che produce, e le Comande le
+          smistano per gruppo. Un gruppo che nessuna postazione reclama compare su tutti gli schermi.
+          Prima di creare la prima postazione ricarica TUTTI i telefoni: una vendita battuta da un telefono
+          vecchio esce senza gruppo e finisce fra le «senza postazione».
+        </p>
+        {(stato.postazioni || []).map((po) => (
+          <div key={po.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
+            <span className="flex-1 min-w-0">
+              <b style={{ color: T.ink }}>{po.nome}</b>
+              <span className="text-xs block truncate" style={{ color: T.dim }}>
+                {(po.gruppi || []).join(", ") || "nessun gruppo"}
+                {po.sedeId ? ` · ${trova(stato.sedi, po.sedeId)?.nome || "sede rimossa"}` : " · tutte le sedi"}
+              </span>
+            </span>
+            <button onClick={() => setPost({ item: po })} aria-label={`Modifica la postazione ${po.nome}`}
+              className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+          </div>
+        ))}
+      </Scheda>
+      {/* LE AGGIUNTE (gen-6.02) stanno qui accanto alle postazioni, per la
+          stessa ragione: abbinano i GRUPPI di questo listino, e chi ridisegna
+          l'uno vede l'altra. Toglierne una non tocca le vendite gia' battute:
+          la riga porta nome e prezzo di quando e' stata fatta. */}
+      <Scheda className="p-3.5 mb-3">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="font-extrabold" style={{ color: T.ink }}>Aggiunte</span>
+          <span className="flex-1" />
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setAgg({})}>Nuova aggiunta</Bottone>
+        </div>
+        <p className="text-xs mb-1" style={{ color: T.tenue }}>
+          Quello che il cliente chiede in più sul piatto: broccoletti, salsiccia, bufala. Ogni aggiunta ha il suo
+          prezzo, la sua distinta di magazzino e i gruppi del listino su cui si può mettere («tutte le Pizze»).
+          In Cassa si toccano dal nome della riga nel conto, o dal foglio della voce se ha varianti.
+          Sono un'altra cosa dalle varianti: la variante è il formato (una sola), le aggiunte si sommano.
+        </p>
+        {/* ordinate per CATEGORIA e poi per nome, come si vedono in Cassa: chi
+            le scrive qui deve ritrovare lo stesso ordine che trovera' al banco,
+            o le due liste diventano due mondi (gen-6.09) */}
+        {[...(stato.aggiunte || [])].sort((a, b) =>
+          (categoriaAgg(stato, a) || "\uffff").localeCompare(categoriaAgg(stato, b) || "\uffff", "it")
+          || a.nome.localeCompare(b.nome, "it")).map((ag) => (
+          <div key={ag.id} className="flex items-center gap-2 text-sm mt-2 pt-2" style={{ borderTop: `1px solid ${T.bordo}` }}>
+            <span className="flex-1 min-w-0">
+              <b style={{ color: T.ink }}>{ag.nome}</b>
+              <span className="text-xs block truncate" style={{ color: T.dim }}>
+                {categoriaAgg(stato, ag) ? `${categoriaAgg(stato, ag)} · ` : ""}{fmtEuro(ag.prezzo || 0)} · {(ag.gruppi || []).join(", ") || "nessun gruppo"}
+                {(ag.distinta || []).length > 0
+                  ? ` · scala ${ag.distinta.length} prodott${ag.distinta.length === 1 ? "o" : "i"}`
+                  : " · non scala niente"}
+              </span>
+            </span>
+            {ag.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
+            <button onClick={() => setAgg({ item: ag })} aria-label={`Modifica l'aggiunta ${ag.nome}`}
+              className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+          </div>
+        ))}
+      </Scheda>
+      {/* DOVE SEI ARRIVATO. Un numero solo, sopra l'elenco, che conta tutte
+          le voci: e' l'unica cosa onesta che l'app puo' dire, perche' quali
+          voci meritino una composizione non lo sa (gen-6.04). */}
+      {voci.length > 0 && (
+        <Scheda className="p-3 mb-3 flex items-center gap-3 flex-wrap">
+          <span className="flex-1 min-w-0">
+            <span className="text-sm font-bold block" style={{ color: T.ink }}>
+              Cosa c'è dentro: scritta su {conta.fatte} voc{conta.fatte === 1 ? "e" : "i"} di {conta.tot}</span>
+            <span className="text-xs block" style={{ color: T.tenue }}>
+              {conta.senza === 0
+                ? "tutte le voci hanno la loro composizione"
+                : `${conta.senza} non ce l'${conta.senza === 1 ? "ha" : "hanno"} — l'app non sa quali ne abbiano bisogno: lo decidi tu`}</span>
+          </span>
+          {/* solo icone gia' importate: Eye e Filter non ci sono, e importarne
+              una nuova rompe l'app (commento in cima al file) */}
+          {conta.senza > 0 && (
+            <Bottone variante="tonale" piccolo icona={soloSenza ? ClipboardList : Search}
+              onClick={() => setSoloSenza((x) => !x)}>
+              {soloSenza ? "Mostra tutte" : "Mostra solo quelle senza"}</Bottone>
+          )}
+        </Scheda>
+      )}
+      {voci.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={Tag} titolo="Il listino è vuoto"
+            testo="Le voci che crei qui compaiono nella Cassa di chi ha l'interruttore «Può battere in cassa»." /></Scheda>
+        : gruppi.map((g) => (
+          <div key={g} className="mb-4">
+            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+            <div className="flex flex-col gap-2">
+              {vociViste.filter((v) => gruppoDi(v) === g)
+                .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
+                <Scheda key={v.id} className="p-3 flex items-center gap-3">
+                  <span className="flex-1 min-w-0">
+                    <span className="font-extrabold block" style={{ color: T.ink }}>{v.nome}</span>
+                    <span className="text-xs flex gap-2 flex-wrap mt-0.5" style={{ color: T.dim }}>
+                      <b style={{ color: T.ink }}>{fmtEuro(v.prezzo || 0)}</b>
+                      {v.aliquota != null && <span>IVA {v.aliquota}%</span>}
+                      {(v.varianti || []).length > 0 && <span>{v.varianti.length} variant{v.varianti.length === 1 ? "e" : "i"}</span>}
+                      {aggiunteDi(stato, gruppoDi(v)).length > 0 && (
+                        <span>{aggiunteDi(stato, gruppoDi(v)).length} aggiunt{aggiunteDi(stato, gruppoDi(v)).length === 1 ? "a" : "e"}</span>
+                      )}
+                      {(v.distinta || []).length > 0
+                        ? <span>scala {v.distinta.length} prodott{v.distinta.length === 1 ? "o" : "i"}</span>
+                        : <span style={{ color: T.ambra }}>non scala niente</span>}
+                      {/* tutto il valore del nome corto dipende da una
+                          quindicina di pizze da descrivere a mano: si deve
+                          vedere quali mancano senza aprirle una per una */}
+                      {!(v.dentro || "").trim() && (v.distinta || []).length > 0 && (
+                        <span style={{ color: T.ambra }}>composizione da scrivere</span>
+                      )}
+                    </span>
+                    {!!(v.dentro || "").trim() && (
+                      <span className="text-xs block truncate mt-0.5" style={{ color: T.tenue }}>dentro: {v.dentro}</span>
+                    )}
+                  </span>
+                  {v.attivo === false && <Chip colore={T.tenue}>spenta</Chip>}
+                  {/* il cestino non sta piu' sulla riga: si toglie da dentro
+                      il foglio, dove si vede cosa si sta togliendo (gen-5.99) */}
+                  <button onClick={() => setModal({ item: v })} aria-label={`Modifica ${v.nome}`}
+                    className="rounded-full p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Pencil size={14} /></button>
+                </Scheda>
+              ))}
+            </div>
+          </div>
+        ))}
+      <Foglio aperto={!!modal} titolo={modal?.item ? "Modifica voce di listino" : "Nuova voce di listino"} onChiudi={() => setModal(null)} larga>
+        {modal && <FormVoceListino stato={stato} item={modal.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setModal(null)}
+          onElimina={() => { const v = modal.item; setModal(null); setDel(v); }} />}
+      </Foglio>
+      <Foglio aperto={!!post} titolo={post?.item ? "Modifica postazione" : "Nuova postazione"} onChiudi={() => setPost(null)}>
+        {post && <FormPostazione stato={stato} item={post.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setPost(null)}
+          onElimina={() => { const po = post.item; setPost(null); setDelPost(po); }} />}
+      </Foglio>
+      <Foglio aperto={!!agg} titolo={agg?.item ? "Modifica aggiunta" : "Nuova aggiunta"} onChiudi={() => setAgg(null)}>
+        {agg && <FormAggiunta stato={stato} item={agg.item} muta={muta} mostraToast={mostraToast} onChiudi={() => setAgg(null)}
+          onElimina={() => { const a = agg.item; setAgg(null); setDelAgg(a); }} />}
+      </Foglio>
+      <Conferma aperto={!!delAgg} titolo={`Togliere l'aggiunta «${delAgg?.nome}»?`}
+        testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
+        onNo={() => setDelAgg(null)}
+        onSi={() => { muta((s) => { s.aggiunte = (s.aggiunte || []).filter((x) => x.id !== delAgg.id); }, `Aggiunta «${delAgg.nome}» rimossa`); setDelAgg(null); }} />
+      <Conferma aperto={!!del} titolo={`Togliere «${del?.nome}» dal listino?`}
+        testo="Le vendite già battute non cambiano: portano il nome e il prezzo di quando sono state fatte."
+        onNo={() => setDel(null)}
+        onSi={() => { muta((s) => { s.listino = (s.listino || []).filter((x) => x.id !== del.id); }, `Voce di listino «${del.nome}» rimossa`); setDel(null); }} />
+      <Conferma aperto={!!delPost} titolo={`Togliere la postazione «${delPost?.nome}»?`}
+        testo="I suoi gruppi restano nel listino: senza una postazione che li reclama compariranno su tutti gli schermi delle Comande."
+        onNo={() => setDelPost(null)}
+        onSi={() => { muta((s) => { s.postazioni = (s.postazioni || []).filter((x) => x.id !== delPost.id); }, `Postazione «${delPost.nome}» rimossa`); setDelPost(null); }} />
+    </div>
+  );
+}
+
+/* ── LA POSTAZIONE: nome, sede e gruppi A SPUNTA dall'elenco vero del
+   listino — il gruppo e' testo libero e riscriverlo a mano qui sarebbe il
+   secondo posto dove sbagliarlo. I gruppi gia' abbinati ma spariti dal
+   listino restano visibili (per poterli staccare). (gen-5.98) */
+function FormPostazione({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [sedeScelta, setSedeScelta] = useState(item?.sedeId || "tutte");
+  const [gruppi, setGruppi] = useState(item?.gruppi || []);
+  const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
+  const disponibili = [...new Set([...(stato.listino || []).map(gruppoDi), ...gruppi])]
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const giraGruppo = (g) => setGruppi((gs) => (gs.includes(g) ? gs.filter((x) => x !== g) : [...gs, g]));
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("La postazione ha bisogno di un nome", "errore");
+    if (!gruppi.length) return mostraToast("Abbina almeno un gruppo: una postazione senza gruppi non vede niente", "errore");
+    /* l'id nasce QUI FUORI, come per le voci di listino: un uid() dentro la
+       closure diventerebbe una postazione nuova a ogni replay della coda */
+    const dati = { id: item?.id || uid("po"), nome: nome.trim(),
+      sedeId: sedeScelta === "tutte" ? "" : sedeScelta, gruppi };
+    muta((s) => {
+      const lista = s.postazioni || [];
+      s.postazioni = lista.some((x) => x.id === dati.id)
+        ? lista.map((x) => (x.id === dati.id ? dati : x))
+        : [...lista, dati];
+    }, `Postazione «${dati.nome}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <Campo label="Nome della postazione" valore={nome} onCambia={setNome}
+        placeholder="Es. Friggitoria" autoFocus />
+      {sediOp.length > 1 && (
+        <Selettore label="Sede" valore={sedeScelta} onCambia={setSedeScelta}
+          opzioni={[{ id: "tutte", nome: "Tutte le sedi" }, ...sediOp]} />
+      )}
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>I gruppi che produce</span>
+        {disponibili.length === 0
+          ? <p className="text-xs" style={{ color: T.tenue }}>Il listino non ha ancora gruppi: scrivili sulle voci, poi torna qui.</p>
+          : <div className="flex gap-2 flex-wrap">
+              {disponibili.map((g) => { const giu = gruppi.includes(g); return (
+                <button key={g} onClick={() => giraGruppo(g)}
+                  aria-label={giu ? `Stacca il gruppo ${g}` : `Abbina il gruppo ${g}`}
+                  className="rounded-2xl px-3 py-2 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={13} />}{g}
+                </button>
+              ); })}
+            </div>}
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+          «Chi fa i fritti fa anche i dolci» si scrive qui: una postazione, due gruppi.
+        </p>
+      </div>
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli questa postazione</Bottone>
+      )}
+      <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+    </div>
+  );
+}
+
+/* ── L'AGGIUNTA (gen-6.02): nome, prezzo suo, i gruppi a spunta come la
+   postazione e una distinta come la voce. Tre pezzi gia' collaudati messi
+   insieme: chi sa creare una voce di listino sa gia' creare un'aggiunta. */
+function FormAggiunta({ stato, item, muta, mostraToast, onChiudi, onElimina }) {
+  const [nome, setNome] = useState(item?.nome || "");
+  const [prezzo, setPrezzo] = useState(item?.prezzo != null ? String(item.prezzo) : "");
+  const [attivo, setAttivo] = useState(item ? item.attivo !== false : true);
+  /* la CATEGORIA e' testo libero come il gruppo del listino, e per la stessa
+     ragione: chi sta al banco la scrive come la dice («Verdure», «Salumi»,
+     «Formaggi»), non la sceglie da un elenco che qualcun altro ha deciso.
+     Il prezzo di quella liberta' e' il refuso, e si paga come sul listino:
+     una categoria scritta in due modi diventa due intestazioni. Per attutirlo
+     l'editor propone quelle che gia' esistono (gen-6.09). */
+  const [categoria, setCategoria] = useState(item?.categoria || "");
+  const [gruppi, setGruppi] = useState(item?.gruppi || []);
+  const [distinta, setDistinta] = useState((item?.distinta || []).map((d) => ({ ...d, qty: String(d.qty) })));
+  const disponibili = [...new Set([...(stato.listino || []).map(gruppoDi), ...gruppi])]
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const giraGruppo = (g) => setGruppi((gs) => (gs.includes(g) ? gs.filter((x) => x !== g) : [...gs, g]));
+  const toccaDis = (i, campo, v) => setDistinta((xs) => xs.map((x, j) => {
+    if (j !== i) return x;
+    if (campo === "prodottoId") return { ...x, prodottoId: v, uomId: trova(stato.prodotti, v)?.uomBase || "" };
+    return { ...x, [campo]: v };
+  }));
+  const salva = () => {
+    if (!nome.trim()) return mostraToast("L'aggiunta ha bisogno di un nome", "errore");
+    const nP = num(prezzo);
+    if (nP == null || nP < 0) return mostraToast("Il prezzo dell'aggiunta è in euro, zero compreso (una cortesia è legittima)", "errore");
+    if (!gruppi.length) return mostraToast("Abbina almeno un gruppo: un'aggiunta senza gruppi non si può mettere su niente", "errore");
+    const dOk = [];
+    for (const d of distinta) {
+      if (!d.prodottoId && d.qty.trim() === "") continue;
+      const q = num(d.qty);
+      if (!d.prodottoId || q == null || q <= 0 || !d.uomId)
+        return mostraToast("Ogni riga della distinta richiede prodotto, quantità e unità", "errore");
+      dOk.push({ prodottoId: d.prodottoId, qty: q, uomId: d.uomId });
+    }
+    /* l'id nasce QUI FUORI come per le postazioni e le voci: un uid() dentro
+       la closure diventerebbe un'aggiunta nuova a ogni replay della coda */
+    const dati = { id: item?.id || uid("ag"), nome: nome.trim(), prezzo: nP, attivo, gruppi, distinta: dOk,
+      /* la chiave si scrive solo se c'e': un'aggiunta senza categoria pesa
+         oggi quanto pesava ieri sul canale (stessa regola di «agg» e «cli») */
+      ...(categoria.trim() ? { categoria: categoria.trim() } : {}) };
+    muta((s) => {
+      const lista = s.aggiunte || [];
+      s.aggiunte = lista.some((x) => x.id === dati.id)
+        /* «esaurito» NON passa da qui e non deve sparire da qui (gen-6.18).
+           Lo scrive la cassa in servizio, spesso mentre l'admin ha il foglio
+           aperto sul suo telefono: un Salva che sostituisce l'oggetto intero
+           rimetterebbe in vendita una cosa finita, senza un avviso.
+           Si conserva dalla BOZZA (`x`) e non da `item`: `item` e' la foto di
+           quando il foglio si e' aperto, la bozza e' quello che c'e' adesso —
+           ed e' l'unica forma che converge se due admin salvano insieme, in
+           tutti e due gli ordini di riapplicazione della coda. */
+        ? lista.map((x) => (x.id === dati.id ? { ...dati, ...(x.esaurito ? { esaurito: true } : {}) } : x))
+        : [...lista, dati];
+    }, `Aggiunta «${dati.nome}» ${item ? "aggiornata" : "creata"}`);
+    onChiudi();
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <Campo label="Nome dell'aggiunta" valore={nome} onCambia={setNome} placeholder="Es. Broccoletti" autoFocus />
+      <Campo label="Prezzo dell'aggiunta (€)" valore={prezzo} onCambia={setPrezzo} placeholder="1,50" inputMode="decimal"
+        suggerimento="Si somma al prezzo della voce. Zero è legittimo: una cortesia della casa." />
+      <div>
+        <Campo label="Categoria" valore={categoria} onCambia={setCategoria} placeholder="Es. Verdure"
+          suggerimento="Raggruppa gli ingredienti nella fascia della Cassa. Si può lasciare vuota: la prende dal prodotto della distinta, e se non c'è nemmeno quello finisce sotto «Altro»." />
+        {/* ── QUELLO CHE NON SERVE RISCRIVERE (gen-6.17) ──
+            Parole di Valerio: «non dovrei neanche riscriverle e
+            categorizzarle perche' l'ho gia' fatto». Se la distinta punta a un
+            prodotto che una categoria ce l'ha, qui si LEGGE quale — cosi' chi
+            apre il campo vede che è già pieno di suo e chiude senza scrivere.
+            Sparisce appena si scrive qualcosa: da quel momento vince lo
+            scritto, e dire due cose diverse insieme confonderebbe. */}
+        {(() => {
+          const dal = categoriaAgg(stato, { distinta: distinta.filter((d) => d.prodottoId) });
+          if (!dal || categoria.trim()) return null;
+          return (
+            <p className="text-xs mt-1.5" style={{ color: T.blu }}>
+              Dal magazzino: <b>{dal}</b> — non serve riscriverla.
+            </p>
+          );
+        })()}
+        {/* le categorie GIA' SCRITTE, a portata di tocco: e' l'unica difesa
+            contro il refuso, perche' il campo resta libero. Solo quelle
+            diverse da quella scritta adesso: un tasto che non cambia niente
+            e' un tasto morto (gen-5.99). */}
+        {(() => {
+          const gia = [...new Set((stato.aggiunte || []).map((a) => (a.categoria || "").trim()).filter(Boolean))]
+            .filter((c) => c !== categoria.trim()).sort((a, b) => a.localeCompare(b, "it"));
+          if (!gia.length) return null;
+          return (
+            <div className="flex gap-1.5 mt-2 flex-wrap">
+              {gia.map((c) => (
+                <button key={c} onClick={() => setCategoria(c)} aria-label={`Categoria ${c}`}
+                  className="rounded-full px-3 text-xs font-bold"
+                  style={{ minHeight: 40, background: "#EAF0FE", color: T.blu }}>{c}</button>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+      <button onClick={() => setAttivo((x) => !x)} aria-pressed={attivo}
+        className="rounded-2xl px-3.5 py-3 text-left text-sm font-bold inline-flex items-center gap-2"
+        style={attivo ? { background: "#E8F6F0", color: T.verde } : { background: "#F0F3FB", color: T.dim }}>
+        {attivo ? <Check size={16} /> : <X size={16} />}
+        {attivo ? "In vendita: le casse la propongono" : "Finita: le casse non la propongono"}
+      </button>
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>I gruppi su cui si può mettere</span>
+        {disponibili.length === 0
+          ? <p className="text-xs" style={{ color: T.tenue }}>Il listino non ha ancora gruppi: scrivili sulle voci, poi torna qui.</p>
+          : <div className="flex gap-2 flex-wrap">
+              {disponibili.map((g) => { const giu = gruppi.includes(g); return (
+                <button key={g} onClick={() => giraGruppo(g)}
+                  aria-label={giu ? `Stacca il gruppo ${g}` : `Abbina il gruppo ${g}`}
+                  className="rounded-2xl px-3 py-2 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={13} />}{g}
+                </button>
+              ); })}
+            </div>}
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+          «I broccoletti vanno su tutte le pizze» si scrive qui: un'aggiunta, un gruppo intero.
+        </p>
+      </div>
+      <div>
+        <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Distinta <span className="font-normal" style={{ color: T.tenue }}>· cosa esce dal magazzino a ogni aggiunta</span></span>
+        <div className="flex flex-col gap-2">
+          {distinta.map((d, i) => {
+            const prod = trova(stato.prodotti, d.prodottoId);
+            return (
+              <div key={i} className="flex gap-2 items-center flex-wrap">
+                <div className="flex-1 min-w-40"><Selettore valore={d.prodottoId} onCambia={(v) => toccaDis(i, "prodottoId", v)}
+                  opzioni={[...stato.prodotti].sort((a, b) => a.nome.localeCompare(b.nome, "it"))} placeholder="Prodotto…" /></div>
+                <input value={d.qty} onChange={(e) => toccaDis(i, "qty", e.target.value)} placeholder="Qtà" inputMode="decimal"
+                  aria-label={`Quantità dell'ingrediente ${i + 1}`}
+                  className="w-20 rounded-xl px-3 py-2.5 text-sm font-semibold" style={{ border: `1.5px solid ${T.bordo}` }} />
+                <div className="w-28">{prod
+                  ? <Selettore valore={d.uomId} onCambia={(v) => toccaDis(i, "uomId", v)}
+                      opzioni={unitaProdotto(stato, prod).map((u) => ({ id: u.id, nome: u.simbolo }))} placeholder="UdM" />
+                  : <span className="text-xs" style={{ color: T.tenue }}>—</span>}</div>
+                <button onClick={() => setDistinta((xs) => xs.filter((_, j) => j !== i))} aria-label={`Togli ingrediente ${prod?.nome || i + 1}`}
+                  className="rounded-full p-2 shrink-0" style={{ background: "#FCE9EE", color: T.rosso }}><X size={14} /></button>
+              </div>
+            );
+          })}
+          <Bottone variante="tonale" piccolo icona={Plus} onClick={() => setDistinta((xs) => [...xs, { prodottoId: "", qty: "", uomId: "" }])}>Aggiungi ingrediente</Bottone>
+        </div>
+        <p className="text-xs mt-1.5" style={{ color: T.tenue }}>Un'aggiunta senza distinta si vende comunque: si somma al prezzo e non scala niente.</p>
+      </div>
+      {item && onElimina && (
+        <Bottone variante="pericolo" icona={Trash2} onClick={onElimina}>Togli questa aggiunta</Bottone>
+      )}
+      <PieDiPagina onChiudi={onChiudi} onSalva={salva} />
+    </div>
+  );
+}
+
+/* ── DA QUANTO E' FERMA QUESTA LISTA (gen-6.15) ──
+   In cucina il vuoto e' muto: «Nessuna comanda in coda» ha esattamente lo
+   stesso schermo di «non ricevo niente da tre minuti». Questa riga dice
+   quale delle due, e per il documento del pavimento e' la riga che rende
+   rilasciabile la museruola del PASSO 4 in una pizzeria aperta.
+   DA DOVE VIENE IL NUMERO: dal poll (diagRef.ultimaRete), non da s.mtime.
+   s.mtime dice quando ha scritto QUALCUN ALTRO, non quando ho sentito io la
+   rete — ed e' proprio la differenza che serve qui: un sabato tranquillo ha
+   un mtime vecchio e la rete perfetta.
+   PERCHE' E' UN COMPONENTE SUO. Il tic da un secondo rimonta SOLO questa
+   riga. Dentro VistaComande avrebbe rimontato ogni secondo la vista piu'
+   pesante e piu' aperta della casa — carte, tre filtri e tre ordinamenti
+   ricostruiti da capo, senza un useMemo — cioe' tre volte piu' spesso di
+   quello useState accanto al ref che ho scartato proprio per non farlo.
+   E il tic e' un CONTATORE, non il diag: mettere in stato diagRef.current
+   avrebbe fatto bail-out di React finche' il ref non cambia, e il ref non
+   cambia quando la rete e' giu' — la spia si sarebbe spenta nel solo caso
+   per cui esiste. */
+function EtaVista({ leggiDiag, locale }) {
+  /* IL TIC E' DA CINQUE SECONDI, NON DA UNO. Questa riga porta una decisione
+     binaria — e' ferma o no — con una soglia di decine di secondi: un secondo
+     di risoluzione non serve a nessuno, e questo e' lo schermo che il tablet
+     di cucina tiene aperto tutto il servizio. In Sistema, che si apre apposta
+     e per poco, il tic resta da un secondo. */
+  const [, tic] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tic((n) => (n + 1) % 1000000), 5000);
+    return () => clearInterval(id);
+  }, []);
+  const d = (leggiDiag && leggiDiag()) || {};
+  const ms = d.ultimaRete ? Date.now() - d.ultimaRete : null;
+  const eta = ms == null ? -1 : Math.max(0, Math.round(ms / 1000));
+  const ferma = ms != null && ms > SOGLIA_VISTA_FERMA;
+  /* «confermata», non «aggiornata»: quello che il numero misura e' l'ultima
+     volta che la lista e' ARRIVATA, non l'ultima volta che e' cambiata */
+  const testo = locale
+    ? "Questo schermo lavora da solo: non c'è nessuna rete da cui ricevere comande."
+    : ms == null
+      ? "Lista non ancora arrivata dalla rete."
+      : ferma
+        ? `Lista ferma da ${eta} s: qualcosa non sta arrivando`
+        : `Lista confermata ${eta} s fa`;
+  return (
+    <div data-eta-vista={locale ? -1 : eta} data-eta-ferma={ferma ? "1" : "0"}
+      className="flex items-center gap-2 text-xs font-bold mb-3 rounded-2xl px-3.5 py-2"
+      style={{ color: ferma ? T.ambra : T.tenue, background: ferma ? "#FDF3E3" : "#F0F3FB" }}>
+      {ferma ? <CloudOff size={14} /> : <Cloud size={14} />}{testo}
+    </div>
+  );
+}
+/* ─────────── LE COMANDE: LA VISTA (gen-5.98) ───────────
+   Sola lettura piu' UN bottone. La verita' sta in v.fatte, non in stato
+   locale: il poll non smonta la vista (come per il carrello della Cassa) e
+   due schermi sulla stessa postazione vedono le stesse spunte. La SEDIA e'
+   del DISPOSITIVO (localStorage), non del profilo: lo schermo di cucina e'
+   un oggetto fisico attaccato alla corrente. Ci si puo' sedere a PIU'
+   postazioni («stasera faccio anche i dolci»): la vista mostra l'unione.
+   Le stornate NON spariscono sotto le mani del cuoco: card barrata col
+   motivo finche' qualcuno tocca «Vista» — presa d'atto locale, zero
+   scritture. */
+function VistaComande({ stato, profilo, muta, mutaDato, mostraToast, leggiDiag, sync }) {
+  const postazioni = stato.postazioni || [];
+  /* IL PROFILO PROPONE, IL DISPOSITIVO COMANDA (gen-6.01). La sedia resta
+     del DISPOSITIVO — il tablet di cucina e' un oggetto fisico attaccato
+     alla corrente e non deve cambiare postazione perche' a meta' servizio
+     ha fatto il login un'altra persona. Ma uno schermo che non ha MAI
+     scelto (chiave assente, non vuota) parte dalle postazioni scritte sul
+     profilo: cosi' il telefono nuovo di chi lavora apre gia' giusto.
+     null = mai scelto; un array (anche vuoto) = il dispositivo ha deciso. */
+  const [scelta, setScelta] = useState(() => {
+    try {
+      const grezzo = localStorage.getItem("scp:comande:v1");
+      if (grezzo == null) return null;
+      const v = JSON.parse(grezzo);
+      return Array.isArray(v) ? v : null;
+    } catch { return null; }
+  });
+  const sedute = scelta === null ? (profilo.postazioniIds || []) : scelta;
+  const [congedate, setCongedate] = useState(() => new Set());
+  /* «cosa c'e' dentro» in cucina e' una scelta del SINGOLO SCHERMO, gemella
+     della sedia: il pizzaiolo che sa a memoria la spegne una volta, il
+     ragazzo nuovo del sabato la trova accesa. Zero byte sul canale. */
+  const [mostraDentro, setMostraDentro] = useState(() => {
+    try { return localStorage.getItem("scp:comande:dentro:v1") !== "0"; } catch { return true; }
+  });
+  const giraDentro = () => setMostraDentro((x) => {
+    try { localStorage.setItem("scp:comande:dentro:v1", x ? "0" : "1"); } catch {}
+    return !x;
+  });
+  const siediti = (id) => {
+    const dopo = sedute.includes(id) ? sedute.filter((x) => x !== id) : [...sedute, id];
+    try { localStorage.setItem("scp:comande:v1", JSON.stringify(dopo)); } catch {}
+    setScelta(dopo);   // dal primo tocco in poi comanda questo schermo
+  };
+  const tornaAlProfilo = () => {
+    try { localStorage.removeItem("scp:comande:v1"); } catch {}
+    setScelta(null);
+  };
+  /* OGNI CASSA ALLE SUE (gen-6.01, parole di Valerio): questo schermo puo'
+     sedersi solo alle postazioni della PROPRIA sede, piu' quelle dichiarate
+     «tutte le sedi». Offrire la postazione di un'altra sede sarebbe una
+     porta su una stanza vuota: le comande di quella sede non arrivano qui
+     comunque, perche' il filtro di reclamanti() guarda la sede della
+     vendita. L'admin le vede tutte, con scritto di quale sede sono. */
+  const postazioniQui = profilo.ruolo === "admin"
+    ? postazioni
+    : postazioni.filter((po) => !po.sedeId || po.sedeId === profilo.sedeId);
+  /* una sedia puo' puntare a una postazione rimossa (o di un'altra sede, se
+     il profilo e' stato spostato): si ignora, non si rompe */
+  const mie = new Set(sedute.filter((id) => postazioniQui.some((p) => p.id === id)));
+
+  const finestra = Date.now() - ORE_COMANDE * 3600000;
+  /* chi reclama un gruppo nella sede di QUESTA vendita; se nessuna
+     postazione lo reclama, e' di tutti («senza postazione») */
+  const reclamanti = (v, gruppo) => postazioni.filter((po) =>
+    (!po.sedeId || po.sedeId === v.sedeId)
+    && (po.gruppi || []).some((x) => chiaveGruppo(x) === chiaveGruppo(gruppo)));
+
+  const carte = [];
+  for (const v of stato.vendite || []) {
+    if (v.t < finestra) continue;
+    if (v.stato !== "registrata" && v.stato !== "stornata") continue;
+    if (v.stato === "stornata" && congedate.has(v.id)) continue;
+    const mieRighe = []; const altrui = new Set();
+    for (const r of v.righe || []) {
+      const g = r.gruppo || "Altro";   // righe dei telefoni non aggiornati: senza gruppo
+      const chi = reclamanti(v, g);
+      if (chi.length === 0 || chi.some((po) => mie.has(po.id))) {
+        mieRighe.push({ ...r, gruppo: g, orfana: chi.length === 0 });
+      } else {
+        for (const po of chi) altrui.add(po.nome);
+      }
+    }
+    if (!mieRighe.length) continue;
+    const gruppiMiei = [...new Set(mieRighe.map((r) => r.gruppo))];
+    carte.push({ v, mieRighe, altrui: [...altrui].sort((a, b) => a.localeCompare(b, "it")),
+      gruppiMiei, fatta: gruppiMiei.every((g) => v.fatte?.[g]) });
+  }
+  const stornate = carte.filter((c) => c.v.stato === "stornata").sort((a, b) => a.v.t - b.v.t);
+  /* la coda di cucina: la piu' VECCHIA in cima — il contrario del prepend
+     di s.vendite, perche' qui si serve, non si consulta */
+  const inCoda = carte.filter((c) => c.v.stato === "registrata" && !c.fatta).sort((a, b) => a.v.t - b.v.t);
+  const fatte = carte.filter((c) => c.v.stato === "registrata" && c.fatta).sort((a, b) => b.v.t - a.v.t).slice(0, 10);
+
+  const oraDi = (t) => new Date(t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const etaDi = (t) => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? "adesso" : `${m} min`; };
+  const spunta = (c, togli) => {
+    /* dati TUTTI da fuori, come per vendita e storno: la closure resta pura */
+    const dati = { venditaId: c.v.id, gruppi: c.gruppiMiei, t: Date.now(), chi: profilo.nome,
+      ...(togli ? { togli: true } : {}) };
+    mutaDato("spunta", dati);
+  };
+
+  /* ── IL CARTELLINO (gen-6.08, chiesto da Valerio il 4 settembre) ──
+     Chi impacchetta ha bisogno di sapere DI CHI e' il sacchetto: fino a ieri
+     la comanda diceva solo «#7 · 20:31», e con quattro sacchetti sul banco
+     quel numero non basta a nessuno. Nome, ora richiesta, e se va consegnato.
+     Il TELEFONO si legge dalla RUBRICA, non dalla vendita: nella vendita non
+     c'e' apposta (gen-6.08, applicaVendita), e cosi' quel numero non finisce
+     ne' nel CSV ne' negli scontrini che viaggiano in rete. Se il cliente e'
+     uscito dalla rubrica per il tetto, il nome resta e il numero no — ed e'
+     giusto: chi e' uscito e' chi non ordina da mesi. */
+  const cliDi = (v) => (v.cli?.id ? (stato.clienti || []).find((c) => c.id === v.cli.id) : null);
+  const intestaCarta = (c) => (
+    <>
+    <div className="flex items-center gap-2 text-xs mb-1.5" style={{ color: T.dim }}>
+      {c.v.n != null && <b className="text-sm" style={{ color: T.ink }}>#{c.v.n}</b>}
+      <span className="font-bold" style={{ color: T.tenue }}>{oraDi(c.v.t)}</span>
+      <span>{etaDi(c.v.t)}</span>
+      <span className="flex-1" />
+      <span className="truncate">{c.v.chi}</span>
+    </div>
+    {c.v.cli && (
+      <div className="flex items-center gap-2 flex-wrap mb-1.5 rounded-xl px-2.5 py-1.5"
+        style={{ background: "#FFF6E8", border: "1.5px solid #F0C98A" }}>
+        <b className="text-sm" style={{ color: "#7A4A00" }}>{c.v.cli.nome || "Senza nome"}</b>
+        <Chip colore={c.v.cli.modo === "consegna" ? T.rosso : T.ambra}>
+          {c.v.cli.modo === "consegna" ? "Consegna" : "Asporto"}</Chip>
+        {c.v.cli.fascia && <Chip colore={T.blu} pieno>{c.v.cli.fascia}</Chip>}
+        <span className="flex-1" />
+        {cliDi(c.v)?.tel && <span className="text-xs font-bold" style={{ color: "#7A4A00" }}>{cliDi(c.v).tel}</span>}
+        {c.v.cli.modo === "consegna" && cliDi(c.v)?.via && (
+          <span className="w-full text-xs truncate" style={{ color: "#7A4A00" }}>{cliDi(c.v).via}</span>
+        )}
+      </div>
+    )}
+    </>
+  );
+
+  return (
+    <div>
+      <Intesta titolo="Comande"
+        sotto="La tua parte di ogni scontrino battuto in Cassa: arriva col giro dell'app (qualche secondo), a schermo acceso" />
+      <EtaVista leggiDiag={leggiDiag} locale={sync === "locale"} />
+      {postazioniQui.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Non ci sono ancora postazioni"
+            testo="Le disegna un Admin da Gestione → Listino: ogni postazione abbina i gruppi del listino che produce." /></Scheda>
+        : <>
+          <Scheda className="p-3.5 mb-3">
+            <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>La tua postazione</div>
+            <div className="flex gap-2 flex-wrap">
+              {postazioniQui.map((po) => { const giu = mie.has(po.id); return (
+                <button key={po.id} onClick={() => siediti(po.id)}
+                  aria-label={giu ? `Alzati da ${po.nome}` : `Siediti a ${po.nome}`}
+                  className="rounded-2xl px-3.5 py-2.5 text-sm font-bold inline-flex items-center gap-1.5"
+                  style={giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }}>
+                  {giu && <Check size={14} />}{po.nome}
+                  {profilo.ruolo === "admin" && po.sedeId && (
+                    <span className="text-xs font-semibold" style={{ opacity: .75 }}>
+                      · {trova(stato.sedi, po.sedeId)?.nome || "sede"}</span>
+                  )}
+                </button>
+              ); })}
+            </div>
+            {/* la via del ritorno: cancella la scelta di QUESTO schermo e
+                rimette quella scritta sul profilo (gen-6.01) */}
+            {scelta !== null && (profilo.postazioniIds || []).length > 0 && (
+              <button onClick={tornaAlProfilo}
+                className="text-xs font-bold mt-2 rounded-full px-3.5"
+                style={{ color: T.blu, background: "#EAF0FE", minHeight: 36 }}>Torna alle mie postazioni</button>
+            )}
+            <button onClick={giraDentro}
+              className="text-xs font-bold mt-2 ml-2 rounded-full px-3.5"
+              style={{ color: T.tenue, background: "#F0F3FB", minHeight: 36 }}>
+              {mostraDentro ? "Nascondi cosa c'è dentro" : "Mostra cosa c'è dentro"}</button>
+          </Scheda>
+          {mie.size === 0
+            ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Scegli la tua postazione"
+                testo="Tocca qui sopra la postazione di cui ti occupi — anche più di una: chi fa i fritti stasera può fare anche i dolci. La scelta resta su questo schermo; se un Admin te ne ha assegnate nel profilo, «Torna alle mie postazioni» rimette quelle." /></Scheda>
+            : <>
+              {stornate.map((c) => {
+                const contro = (stato.vendite || []).find((x) => x.origId === c.v.id && x.stato === "storno");
+                const eraFatta = Object.keys(c.v.fatte || {}).length > 0;
+                return (
+                  <Scheda key={c.v.id} className="p-3.5 mb-2" style={{ border: `1.5px solid ${T.rosso}` }}>
+                    {intestaCarta(c)}
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <Chip colore={T.rosso} pieno>Stornata</Chip>
+                      {eraFatta && <Chip colore={T.ambra}>era già segnata fatta</Chip>}
+                    </div>
+                    <div className="flex flex-col gap-1 mb-1.5">
+                      {c.mieRighe.map((r, i) => (
+                        <span key={i} className="text-base font-bold line-through" style={{ color: T.dim }}>{r.qty}× {r.nome}</span>
+                      ))}
+                    </div>
+                    <p className="text-xs mb-2" style={{ color: T.rosso }}>Motivo: {contro?.motivo || "—"}</p>
+                    <button onClick={() => setCongedate((prev) => new Set([...prev, c.v.id]))}
+                      aria-label={`Vista: congeda la comanda stornata delle ${oraDi(c.v.t)}`}
+                      className="rounded-full px-5 py-3 text-sm font-bold w-full"
+                      style={{ background: "#FCE9EE", color: T.rosso }}>Vista</button>
+                  </Scheda>
+                );
+              })}
+              {inCoda.length === 0 && stornate.length === 0
+                ? <Scheda className="p-8"><Vuoto icona={CheckCheck} titolo="Nessuna comanda in coda"
+                    testo="Le vendite battute in Cassa compaiono qui in qualche secondo. Lo schermo deve restare acceso: da spento non arriva niente." /></Scheda>
+                : inCoda.map((c) => (
+                  <Scheda key={c.v.id} className="p-3.5 mb-2">
+                    {intestaCarta(c)}
+                    <div className="flex flex-col gap-1 mb-2">
+                      {c.mieRighe.map((r, i) => (
+                        <div key={i}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base font-extrabold" style={{ color: T.ink }}>{r.qty}× {nomeBase(r)}</span>
+                            {r.orfana && <Chip colore={T.ambra}>senza postazione</Chip>}
+                          </div>
+                          {/* COSA DEVO FARE / COM'E' FATTO / COSA CAMBIA:
+                              il nome grande, la composizione in grigio, e le
+                              aggiunte in blu — che restano la riga piu' forte
+                              perche' sono quelle su cui si sbaglia. Se la
+                              voce non e' piu' a listino la riga grigia non
+                              c'e': mai una composizione inventata sotto un
+                              piatto vero (gen-6.03). */}
+                          {mostraDentro && !!dentroDi(stato, r.voceId) && (
+                            <span className="block text-xs pl-5" style={{ color: T.tenue }}>{dentroDi(stato, r.voceId)}</span>
+                          )}
+                          {/* le aggiunte SOTTO il piatto, rientrate e in blu:
+                              il pizzaiolo legge «Margherita» e poi cosa ci va
+                              sopra, invece di un nome lungo che si tronca a
+                              meta' (gen-6.02) */}
+                          {(r.agg || []).map((a, j) => (
+                            <span key={j} className="block text-base font-extrabold pl-5" style={{ color: T.blu }}>+ {a.nome}</span>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    {c.altrui.length > 0 && (
+                      <p className="text-xs mb-2" style={{ color: T.tenue }}>anche per: {c.altrui.join(", ")}</p>
+                    )}
+                    <button onClick={() => spunta(c)}
+                      aria-label={`Fatta la comanda delle ${oraDi(c.v.t)}`}
+                      className="rounded-full px-5 py-3 text-sm font-bold w-full inline-flex items-center justify-center gap-2"
+                      style={{ background: T.verde, color: "#fff", boxShadow: "0 10px 22px -10px rgba(31,154,110,.55)" }}>
+                      <Check size={17} />Fatto</button>
+                  </Scheda>
+                ))}
+              {fatte.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>Fatte</div>
+                  {fatte.map((c) => (
+                    <Scheda key={c.v.id} className="p-3 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold shrink-0" style={{ color: T.tenue }}>
+                          {c.v.n != null ? `#${c.v.n} · ` : ""}{oraDi(c.v.t)}</span>
+                        <span className="flex-1 min-w-0 text-sm truncate" style={{ color: T.dim }}>
+                          {c.mieRighe.map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+                        <button onClick={() => spunta(c, true)}
+                          aria-label={`Riporta in coda la comanda delle ${oraDi(c.v.t)}`}
+                          className="rounded-full p-2 shrink-0" style={{ background: "#F0F3FB", color: T.dim }}>
+                          <RotateCcw size={13} /></button>
+                      </div>
+                    </Scheda>
+                  ))}
+                </div>
+              )}
+            </>}
+        </>}
+    </div>
+  );
+}
+
+/* ─────────── LA CASSA (gen-5.96) ───────────
+   Il carrello e' stato LOCALE della vista, di proposito: e' di una persona,
+   su un telefono, per un minuto — nello stato condiviso ogni tap sarebbe una
+   scrittura di rete e si vedrebbe il conto dell'altra cassa. Il poll che
+   aggiorna lo stato non smonta la vista, quindi il conto sopravvive ai
+   refresh; cambiando schermata si azzera, ed e' sano cosi' (un conto
+   fantasma che riappare dopo un'ora e' peggio). */
+/* ── LA MINI MAPPA (gen-6.11) ──
+   Mattonelle di OpenStreetMap messe in fila con un po' di aritmetica invece
+   che con una libreria: l'app e' un file solo e le sue importazioni sono
+   fisse — aggiungerne una vorrebbe dire scommettere su cosa ha in produzione
+   il caricatore, e quella scommessa non rompe una mappa, rompe l'app.
+   Serve a UNA cosa sola: far vedere a chi risponde al telefono che
+   l'indirizzo scelto e' dove pensa che sia. Non si trascina e non si
+   ingrandisce, apposta — un dito che scorre una mappa dentro un foglio
+   d'ordine e' un dito che non sta prendendo l'ordine. */
+const MiniMappa = ({ lat, lon, z = 16, larga = 264, alta = 150 }) => {
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  const n = Math.pow(2, z);
+  const latR = (lat * Math.PI) / 180;
+  const px = ((lon + 180) / 360) * n * 256;
+  const py = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n * 256;
+  const x0 = px - larga / 2, y0 = py - alta / 2;
+  const pezzi = [];
+  for (let tx = Math.floor(x0 / 256); tx <= Math.floor((x0 + larga) / 256); tx++)
+    for (let ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + alta) / 256); ty++) {
+      if (ty < 0 || ty >= n) continue;
+      const wx = ((tx % n) + n) % n;
+      pezzi.push({ k: tx + "_" + ty, u: `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`,
+        l: tx * 256 - x0, t: ty * 256 - y0 });
+    }
+  return (
+    <div data-minimappa="1" className="relative overflow-hidden rounded-2xl mt-2"
+      style={{ width: larga, height: alta, maxWidth: "100%", border: `1.5px solid ${T.bordo}`, background: "#E8EEF6" }}>
+      {pezzi.map((q) => (
+        <img key={q.k} src={q.u} alt="" width={256} height={256} loading="lazy"
+          className="absolute select-none pointer-events-none" style={{ left: q.l, top: q.t }} />
+      ))}
+      <span aria-hidden className="absolute rounded-full"
+        style={{ left: larga / 2 - 7, top: alta / 2 - 7, width: 14, height: 14,
+          background: T.rosso, border: "2.5px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.4)" }} />
+      <span className="absolute px-1 rounded" style={{ right: 2, bottom: 2, fontSize: 9,
+        background: "rgba(255,255,255,.82)", color: T.tenue }}>© OpenStreetMap</span>
+    </div>
+  );
+};
+function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "battere", vaiSez = () => {} }) {
+  const sediOp = stato.sedi.filter((x) => x.tipo === "operatore");
+  const [sedeId, setSedeId] = useState(profilo.sedeId || sediOp[0]?.id || "");
+  const [carrello, setCarrello] = useState([]);
+  const [scelta, setScelta] = useState(null);   // la voce nel foglio di scelta
+  const [aggSel, setAggSel] = useState([]);     // le aggiunte spuntate nel foglio (gen-6.02)
+  const [rigaDa, setRigaDa] = useState(null);   // la riga del conto da cui si e' aperto il foglio
+  const [incasso, setIncasso] = useState(false);
+  const [metodo, setMetodo] = useState("contanti");
+  const [stornoDi, setStornoDi] = useState(null); // la vendita da stornare (gen-5.97)
+  const [motivo, setMotivo] = useState("");
+  const [pinA, setPinA] = useState("");
+  const [report, setReport] = useState(false);
+  const [ultime, setUltime] = useState(false);    // il Foglio delle ultime vendite (gen-6.00)
+  const [svuotato, setSvuotato] = useState(null); // l'ultimo conto svuotato, per il ripristino
+  const [ricevuti, setRicevuti] = useState("");   // contanti in mano: SOLO per il resto, mai registrato
+  /* L'ORDINE NON CONTA (gen-6.03, parole di Valerio: «devo poterlo fare in
+     qualsiasi momento… deve essere interdipendente»). Due stati soli, ed
+     entrambi LOCALI come il carrello — zero byte sul canale:
+     · viva = la chiave della riga che riceve il prossimo ingrediente;
+     · mano = gli ingredienti presi in mano, in attesa del piatto.
+     L'INVARIANTE che li tiene insieme senza farne due modi da indovinare:
+     mano piena ⇒ nessuna riga viva. Non c'e' mai un istante in cui il
+     cassiere debba chiedersi se il chip appoggia o prende. */
+  const [viva, setViva] = useState(null);
+  const [mano, setMano] = useState([]);
+  /* il Foglio degli esauriti: uno stato LOCALE come il carrello, zero byte
+     sul canale. Sta qui e non dentro la fascia perche' il suo markup deve
+     stare FUORI dal `fixed` della fascia (gen-6.18, vedi piu' sotto). */
+  const [esauritiSu, setEsauritiSu] = useState(false);
+  /* LA FASCIA SI APRE QUANDO SERVE (gen-6.04, parole di Valerio: «non deve
+     essere visibile in cassa se non quando richiesto, attualmente rimane una
+     barra aperta»). Misurato prima di toccare: aperta costava 105 px piu' 104
+     di spaziatore = 209 su 844, un quarto dello schermo, a conto vuoto.
+     PARTE CHIUSA OGNI VOLTA, e NON si ricorda: se restasse aperta perche'
+     qualcuno l'ha aperta ieri, il fastidio tornerebbe tale e quale. Per
+     questo non c'e' nessun localStorage qui, al contrario della sedia delle
+     comande — quella e' una preferenza, questa e' un attrezzo per un gesto.
+     CHIUSA NON VUOL DIRE MUTA: resta una pastiglia che dice a parole cosa si
+     ha in mano, perche' la fascia aperta era l'UNICO posto dell'app dove lo
+     si leggeva, e nasconderla e basta avrebbe reso invisibile uno stato —
+     peggio della barra sempre aperta. */
+  const [fasciaSu, setFasciaSu] = useState(false);
+  /* ── I GRUPPI SONO PULSANTI (gen-6.19, parole di Valerio del 13 settembre:
+     «pizze fritti e dolci devono diventare dei pulsanti che aprono la loro
+     sezione») ──
+     26 voci su due colonne sono 13 righe da ~72px: le PIZZE DA SOLE fanno
+     ~720px su un 390x844, e fritti e dolci stavano SEMPRE sotto la piega,
+     dopo venti pizze.
+     UNA sola memoria, e locale: quale gruppo ha SCELTO chi sta battendo.
+     Niente localStorage — e' un attrezzo per un gesto, non una preferenza, la
+     stessa riga della fascia qui sopra — e niente canale condiviso: lo stato
+     viaggia INTERO a ogni scrittura e la cassa accanto vedrebbe aprirsi una
+     sezione da sola. Zero byte sui ~286 KB. */
+  const [gruppoScelto, setGruppoScelto] = useState(null);
+  /* l'ancora per tornare in cima. NON e' la riga appiccicata: un elemento
+     sticky e' gia' al bordo alto dello scrollport per definizione, e
+     scrollIntoView su se stesso non ha dove portarlo. */
+  const cimaRef = useRef(null);
+  /* e si scorre a mano il SOLO contenitore che scorre davvero, mai con
+     scrollIntoView. Misurato: scrollIntoView scorre TUTTI gli antenati
+     scorrevoli, e la scorza dell'app («sc-root», overflow-hidden) e' alta
+     139px piu' dello schermo — il primo tentativo si portava dietro anche
+     quella e spingeva <main> fuori schermo, con la riga appiccicata che
+     spariva insieme a lui. Il difetto lo ha visto §15 del banco, non io. */
+  const tornaInCima = () => {
+    try {
+      const a = cimaRef.current;
+      if (!a) return;
+      let s = a.parentElement;
+      while (s && !(s.scrollHeight > s.clientHeight + 4
+        && /auto|scroll/.test(getComputedStyle(s).overflowY))) s = s.parentElement;
+      if (!s) return;
+      s.scrollTop += Math.round(a.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientTop);
+    } catch {}
+  };
+  /* chi sta SOLO in cassa non esce MAI dalla Cassa (il tasto «Esci» non
+     esiste per soloQui, e ogni altra vista e' murata) e cambiare stanza NON
+     rimonta la vista — «sez» e' una prop, si smonta solo il sottoalbero delle
+     tre stanze. Senza questa riga il gruppo scelto alle 23 sarebbe ancora li'
+     a mezzogiorno del giorno dopo, sullo stesso telefono: la memoria che
+     questo disegno rifiuta, riprodotta senza scriverla. */
+  useEffect(() => { setGruppoScelto(null); }, [sez]);
+  /* l'altezza VERA del blocco degli ingredienti, misurata dopo ogni disegno:
+     con le categorie non e' piu' una costante, e lo spaziatore che tiene
+     «Incassa» sopra la fascia deve seguirla (gen-6.09) */
+  const fasciaRef = useRef(null);
+  const [altezzaFascia, setAltezzaFascia] = useState(0);
+  useEffect(() => {
+    const misura = () => {
+      const h = fasciaRef.current ? Math.round(fasciaRef.current.getBoundingClientRect().height) : 0;
+      setAltezzaFascia((p) => (Math.abs(p - h) > 1 ? h : p));
+    };
+    misura();
+    window.addEventListener("resize", misura);
+    return () => window.removeEventListener("resize", misura);
+  });
+  /* ── IL CLIENTE (gen-6.08, parole di Valerio del 1º e del 4 settembre) ──
+     Tutto LOCALE come il carrello: finche' non si incassa, chi sta al banco
+     sta scrivendo su un foglietto suo — zero byte sul canale, e la cassa
+     accanto non vede il cliente di questa.
+     PARTE SU «banco», ed e' la scelta che decide se questa novita' pesa o no:
+     al bancone il 90% degli scontrini non ha nome, non ha telefono e non ha
+     ora, e deve restare esattamente com'era — un tocco sulla cella, Incassa.
+     La lezione di gen-6.04 vale identica: chiuso non vuol dire muto. La
+     pastiglia resta li' e dice a parole a chi sta andando l'ordine
+     («Consegna · Mario · 20:30»), perche' l'unico posto dove si legge quello
+     stato e' il foglio, e nasconderlo del tutto sarebbe peggio di tenerlo
+     aperto. `cli.id` nasce SOLO quando il cliente e' gia' in rubrica: per uno
+     nuovo lo genera registra(), fuori da muta come l'id della vendita. */
+  const [modo, setModo] = useState("banco");
+  const [cliId, setCliId] = useState(null);
+  const [cliNome, setCliNome] = useState("");
+  const [cliTel, setCliTel] = useState("");
+  const [cliVia, setCliVia] = useState("");
+  const [cliFascia, setCliFascia] = useState("");
+  const [cliSu, setCliSu] = useState(false);
+  const [cercaCli, setCercaCli] = useState("");   // la ricerca della stanza «Clienti» (gen-6.11)
+  /* ── L'INDIRIZZO CHE SI CORREGGE DA SOLO (gen-6.11, parole di Valerio
+       dell'8 settembre: «la mini mappa deve servire alla cassa per poter
+       velocizzare l'inserimento della via, se la via non viene verificata si
+       deve correggere da sola») ──
+     Mentre si scrive, l'app chiede a un servizio di indirizzi e propone
+     quelli veri: se ne tocca uno e il campo si RISCRIVE normalizzato, con le
+     coordinate accanto. Le coordinate restano in RUBRICA come il telefono e
+     la via — non entrano nella vendita, che viaggia intera a ogni
+     salvataggio verso tutti i telefoni e finisce nel CSV (la regola di
+     gen-6.08, che vale identica per due numeri quanto per un indirizzo).
+     LA REGOLA CHE VIENE PRIMA DI TUTTE: questo non blocca MAI l'incasso.
+     Se il servizio non risponde non si propone niente, resta il vecchio
+     tasto che apre le mappe, e si batte come sempre. Una cassa che si ferma
+     perche' un servizio di mappe e' giu' e' peggio di una cassa senza mappe.
+     Percio' niente attese, niente «verifica in corso» che blocca «Registra»,
+     e nessuna chiave da tenere: il servizio si sceglie proprio perche' non
+     ne chiede — questo file finisce in un repository pubblico. */
+  const [viaSugg, setViaSugg] = useState([]);
+  const [viaOk, setViaOk] = useState(false);
+  const [cliGeo, setCliGeo] = useState(null);
+  const [viaMuto, setViaMuto] = useState(false);
+  const viaTimer = useRef(null);
+  const viaSeq = useRef(0);
+  useEffect(() => {
+    const q = cliVia.trim();
+    if (modo !== "consegna" || viaOk || q.length < 4) { setViaSugg([]); return; }
+    clearTimeout(viaTimer.current);
+    /* il numero di giro: una risposta lenta di due battute fa non deve
+       riscrivere l'elenco di quello che si sta scrivendo adesso */
+    const mio = ++viaSeq.current;
+    viaTimer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://photon.komoot.io/api/?limit=4&lang=it&q=${encodeURIComponent(q)}`);
+        const j = await r.json();
+        if (mio !== viaSeq.current) return;
+        const lista = (j.features || []).map((f) => {
+          const pr = f.properties || {};
+          const strada = [pr.street || pr.name, pr.housenumber].filter(Boolean).join(" ");
+          const dove = [pr.postcode, pr.city || pr.county || pr.state].filter(Boolean).join(" ");
+          const c = (f.geometry || {}).coordinates || [];
+          return { testo: [strada, dove].filter(Boolean).join(", "),
+            lat: +c[1], lon: +c[0] };
+        }).filter((x) => x.testo && isFinite(x.lat) && isFinite(x.lon));
+        setViaSugg(lista); setViaMuto(false);
+      } catch {
+        if (mio !== viaSeq.current) return;
+        setViaSugg([]); setViaMuto(true);
+      }
+    }, 500);
+    return () => clearTimeout(viaTimer.current);
+  }, [cliVia, modo, viaOk]);
+  const scriviVia = (v) => { setCliVia(v); setViaOk(false); setCliGeo(null); };
+  const prendiVia = (x) => { setCliVia(x.testo); setCliGeo({ lat: x.lat, lon: x.lon }); setViaOk(true); setViaSugg([]); };
+  const azzeraCliente = () => {
+    setModo("banco"); setCliId(null); setCliNome(""); setCliTel(""); setCliVia(""); setCliFascia("");
+    /* anche la verifica: un indirizzo verificato che sopravvive al cliente
+       sarebbe una spunta verde sull'indirizzo di quello prima */
+    setViaOk(false); setCliGeo(null); setViaSugg([]); setViaMuto(false);
+  };
+  /* senza un admin col PIN lo storno di un non-admin non e' autorizzabile:
+     meglio dirlo che un dialogo che fallisce sempre (gen-5.97) */
+  const adminConPin = stato.profili.some((p) => p.ruolo === "admin" && p.pinHash);
+
+  const voci = (stato.listino || []).filter((v) => v.attivo !== false);
+  /* i gruppi si ordinano per BATTUTE, non in alfabeto: quello che si vende
+     di piu' sta in cima, sotto il pollice. Il conteggio viene dalle vendite
+     presenti nello stato — che per costruzione sono le ultime 48 ore
+     (sfoltisciVendite) — quindi e' un sort client, zero scritture. Le righe
+     degli storni contano come battute: per l'ordine va bene cosi'. «Altro»
+     sta SEMPRE in fondo anche se batte piu' di tutti: e' il ripieno delle
+     voci senza gruppo, non un gruppo scelto (gen-6.00). */
+  const battute = {};
+  for (const v of stato.vendite || [])
+    for (const r of v.righe || [])
+      battute[gruppoDi(r)] = (battute[gruppoDi(r)] || 0) + Math.abs(+r.qty || 0);
+  const gruppi = [...new Set(voci.map(gruppoDi))].sort((a, b) => {
+    if ((a === "Altro") !== (b === "Altro")) return a === "Altro" ? 1 : -1;
+    return (battute[b] || 0) - (battute[a] || 0) || a.localeCompare(b, "it");
+  });
+  /* quante ce ne sono gia' nel conto, voce per voce: il badge sulla cella
+     risponde al tocco DOVE il tocco e' caduto (gen-6.00) */
+  const nelConto = {};
+  for (const r of carrello) nelConto[r.voceId] = (nelConto[r.voceId] || 0) + r.qty;
+  /* ── QUALE GRUPPO E' APERTO ADESSO (gen-6.19) ──
+     il gruppo di partenza si RICALCOLA a ogni disegno e non si congela in un
+     ref: se un Admin cancella dal listino l'ultima voce del gruppo aperto
+     mentre il banco batte, la griglia deve tornare al gruppo di partenza, mai
+     restare vuota. */
+  const gPartenza = gruppoDiPartenza(voci);
+  const gAperto = gruppi.includes(gruppoScelto) ? gruppoScelto : gPartenza;
+  /* con UN GRUPPO SOLO niente pulsanti: una fisarmonica a un'anta e' 44px di
+     tassa su ogni tocco, e su un listino senza gruppi metterebbe in cima un
+     «ALTRO» che nessuno ha scelto */
+  const aFisarmonica = gruppi.length > 1;
+  /* quante ne ho gia' battute, GRUPPO per gruppo. E' il rimedio all'unica
+     cosa che i pulsanti tolgono: il badge di una cella chiusa non si vede
+     piu'. Stessa mossa dell'intestazione dei Conteggi e stessa ragione gia'
+     scritta li' — «per non trasformare un gruppo chiuso in una scatola nera».
+     Si cerca la voce nel listino INTERO e non fra le «voci» attive: una voce
+     disattivata a meta' conto deve continuare a contare nel gruppo dov'e'
+     gia' stata battuta. */
+  const nelGruppo = {};
+  for (const r of carrello) {
+    const v = (stato.listino || []).find((x) => x.id === r.voceId);
+    if (v) nelGruppo[gruppoDi(v)] = (nelGruppo[gruppoDi(v)] || 0) + r.qty;
+  }
+  /* ── L'ORDINE DEGLI INGREDIENTI E' L'ALFABETO (gen-6.17) ──
+     Qui stavano «battuteAgg» e «perBanco»: ordinavano i chip per quante volte
+     erano stati battuti, e la ragione scritta era che la fascia era una riga
+     sola e su 390px se ne vedevano due e mezzo — quindi le due piu' probabili
+     andavano messe sotto il pollice.
+     Quella ragione non c'e' piu' per due motivi, e tutti e due contano. Il
+     primo: da oggi i chip VANNO A CAPO, se ne vedono quattro, e non c'e' piu'
+     una feritoia da ottimizzare. Il secondo, che basterebbe da solo — Valerio
+     il 13 settembre: «con zero categorie va in ordine alfabetico». Il dito non
+     cerca «la piu' probabile», cerca UNA PAROLA che sa gia', e una parola si
+     trova in alfabeto. L'ordine per battute resta dove serve ancora: sui
+     GRUPPI del listino, dove non c'e' nessuna parola da cercare.
+     Niente da riordinare: aggiunteDi e aggiunteTutte ordinano gia' in
+     alfabeto, e le due funzioni se ne vanno invece di restare qui spente. */
+  /* ── LE AGGIUNTE PER CATEGORIA (gen-6.09, parole di Valerio del 6 e 7
+       settembre: «devono poter essere divisi per categoria così mentre la
+       cassa prepara l'ordine le aggiunte sono ordinate e le può selezionare
+       rapidamente» e «nelle categorie devono essere ordinati in ordine
+       alfabetico») ──
+     DENTRO la categoria si ordina in ALFABETO, non per battute: gliel'ho
+     chiesto e ha risposto cosi'. Ed e' la scelta giusta per il gesto vero —
+     con le categorie il dito non cerca piu' «la piu' probabile», cerca UNA
+     PAROLA che sa gia', e una parola si trova in alfabeto. L'ordine per
+     battute resta dove serve ancora: sui GRUPPI del listino, dove non c'e'
+     nessuna parola da cercare perche' li' si guarda la cella.
+     Le CATEGORIE fra loro restano in alfabeto per la stessa ragione, con una
+     sola eccezione: «Altro» sempre in fondo, come gia' fa il listino coi
+     gruppi senza nome. Chi non ha categoria non sparisce — finisce li'. */
+  const SENZA_CAT = "Altro";
+  const perCategoria = (l) => {
+    const per = new Map();
+    for (const a of l) {
+      /* non piu' «a.categoria» soltanto: se non e' scritta si legge dal
+         prodotto della distinta (gen-6.17, categoriaAgg) */
+      const c = categoriaAgg(stato, a) || SENZA_CAT;
+      if (!per.has(c)) per.set(c, []);
+      per.get(c).push(a);
+    }
+    return [...per.entries()]
+      .map(([cat, aggs]) => [cat, aggs.sort(ordineAgg)])
+      .sort((a, b) => {
+        if ((a[0] === SENZA_CAT) !== (b[0] === SENZA_CAT)) return a[0] === SENZA_CAT ? 1 : -1;
+        return a[0].localeCompare(b[0], "it");
+      });
+  };
+  /* una categoria sola non e' una divisione: se tutte le aggiunte stanno
+     nello stesso gruppo, l'intestazione ruba una riga e non dice niente —
+     si torna alla fila unica per battute, che e' l'ordine di prima. */
+  const vuoleCategorie = (l) =>
+    new Set(l.map((a) => categoriaAgg(stato, a) || SENZA_CAT)).size > 1;
+  /* una volta per gruppo, non una per riga del conto: su un Android da
+     banco un filter+sort per riga si sente */
+  const aggPer = {}; for (const g of gruppi) aggPer[g] = aggiunteDi(stato, g);
+  const aggiunteDelGruppo = (g) => aggPer[g] || aggiunteDi(stato, g);
+  /* una riga e' BERSAGLIABILE solo se il suo gruppo ha aggiunte: un'Acqua
+     non ruba mai il bersaglio e il suo nome non diventa un bottone
+     («niente porte che non aprono niente», gen-5.99) */
+  const bersagliabile = (r) => aggiunteDelGruppo(r.gruppo).length > 0;
+  /* la riga viva NON si fida della chiave salvata: un «meno» puo' averla
+     portata a zero. Si deriva, e si ripara da sola. */
+  const rigaViva = carrello.find((r) => r.chiave === viva) || null;
+  const nomiDi = (ids) => (stato.aggiunte || []).filter((a) => ids.includes(a.id)).map((a) => a.nome).join(", ");
+  const magCassa = magCassaDi(stato, sedeId);
+  const oggi = giornoDi(Date.now());
+  const giornata = (stato.giornate || []).find((x) => x.id === oggi + "|" + sedeId);
+  const venditeOggi = (stato.vendite || []).filter((v) => v.sedeId === sedeId && v.giorno === oggi);
+  /* ── QUARANTOTTO ORE, NON «OGGI» (gen-6.07) ──
+     Il Foglio filtrava per giorno di calendario mentre lo sfoltimento tiene 48
+     ORE, e il commento accanto a ORE_VENDITE dice che lo storno realistico e'
+     «lo scontrino di ieri sera»: alle 00:30 di sabato quello delle 23:50 di
+     venerdi' era gia' irraggiungibile. Il dato c'era, la porta no.
+     Lista A PARTE: venditeOggi resta al giorno di calendario perche' la scheda
+     «Oggi» deve contare oggi. Sono due domande diverse — quanto ho incassato,
+     e cosa posso ancora correggere.
+     QUARANTA DI OGGI PIU' VENTI PIU' VECCHIE, non sessanta a caso: in un
+     sabato da ottanta scontrini le piu' vecchie uscirebbero dall'elenco
+     proprio quando servono. */
+  const venditeRecenti = (stato.vendite || [])
+    .filter((v) => v.sedeId === sedeId && v.t >= Date.now() - ORE_VENDITE * 3600000)
+    .sort((a, b) => b.t - a.t);
+  const daMostrare = [
+    ...venditeRecenti.filter((v) => giornoDi(v.t) === oggi).slice(0, 40),
+    ...venditeRecenti.filter((v) => giornoDi(v.t) !== oggi).slice(0, 20),
+  ].sort((a, b) => b.t - a.t);
+  /* ── DUE SCONTRINI POSSONO AVERE LO STESSO NUMERO ──
+     Il progressivo si calcola sullo stato VISTO, quindi due casse in parallelo
+     producono lo stesso «#1» (ammesso nel commento accanto a dove nasce). Se
+     capita nello stesso minuto, due righe diventano indistinguibili: per chi
+     legge, per chi ascolta, e per il dito che sta per stornare — e si storna
+     quello sbagliato. Il codino dell'id si aggiunge SOLO alle righe che
+     collidono davvero: nel caso normale non si vede niente, e quando serve
+     c'e' qualcosa che le separa di sicuro. */
+  const quandoDi = (v) => (giornoDi(v.t) !== oggi
+    ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " "
+    : "") + new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const targaDi = (v) => (v.n != null ? `#${v.n}` : String(v.id || "").slice(-4));
+  const quanteUguali = new Map();
+  for (const v of daMostrare) { const k = targaDi(v) + "|" + quandoDi(v); quanteUguali.set(k, (quanteUguali.get(k) || 0) + 1); }
+
+  const aggiungi = (voce, variante, extra = [], usaMano = true) => {
+    /* il piatto prende quello che si tiene in mano, e lo fa QUI dentro:
+       cosi' il percorso della pizza liscia — il 90% delle battute del
+       sabato — non cambia di una riga al punto di chiamata (gen-6.03) */
+    const ammesse   = aggiunteDelGruppo(gruppoDi(voce));
+    /* PORTA 4 (gen-6.18): quello che si ha in mano e' sempre NUOVO per il
+       piatto che nasce, quindi un'esaurita non ci sale. */
+    const daMano    = usaMano ? ammesse.filter((a) => mano.includes(a.id) && !a.esaurito) : [];
+    const rifiutate = usaMano ? mano.filter((id) => !ammesse.some((a) => a.id === id)) : [];
+    /* e NON sparisce in silenzio: «rifiutate» contiene solo cio' che il
+       gruppo non ammette, e un'esaurita e' ammessa eccome — senza questa
+       riga uscirebbe dalla mano senza che nessuno lo dica, che e' lo stesso
+       danno del prezzo che scende di nascosto, dalla parte opposta. */
+    const fuoriPerEsaurito = usaMano ? mano.filter((id) => ammesse.some((a) => a.id === id && a.esaurito)) : [];
+    /* le aggiunte si ordinano per nome (il testo che si legge) e la chiave
+       usa i loro id ORDINATI: broccoletti+salsiccia e salsiccia+broccoletti
+       sono la stessa pizza, e devono fondersi in una riga da 2 (gen-6.02) */
+    const agg = [...new Map([...extra, ...daMano].map((a) => [a.id, a])).values()];
+    const aggOrd = [...agg].sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    const chiave = voce.id + "|" + (variante?.id || "")
+      + (aggOrd.length ? "|" + aggOrd.map((a) => a.id).sort().join("+") : "");
+    /* il prezzo si congela QUI: se domani il listino cambia, il conto gia'
+       aperto non si muove da solo sotto le dita di chi batte */
+    const prezzo = Math.max(0, (+voce.prezzo || 0) + (variante ? +variante.delta || 0 : 0)
+      + aggOrd.reduce((a, x) => a + (+x.prezzo || 0), 0));
+    setCarrello((c) => {
+      const gia = c.find((r) => r.chiave === chiave);
+      if (gia) return c.map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + 1 } : r));
+      return [...c, { chiave, voceId: voce.id, varianteId: variante?.id,
+        /* LA GIUNZIONE (gen-6.03): il formato si attacca con uno SPAZIO,
+           quello che ci metti sopra con un « + ». Una regola sola per chi
+           legge: prima del primo « + » c'e' il piatto, dopo ogni « + » c'e'
+           quello che ci hai messo sopra. Prima si scriveva «Panino + Maxi»,
+           che in cucina si leggeva come un panino con dentro un maxi. */
+        nome: voce.nome + (variante ? " " + variante.nome : "") + suffissoAgg(aggOrd), prezzo, qty: 1,
+        /* lo snapshot delle aggiunte: nome e prezzo di OGGI, come per la
+           voce — domani il catalogo puo' cambiare, la riga battuta no */
+        ...(aggOrd.length ? { agg: aggOrd.map((a) => ({ id: a.id, nome: a.nome, prezzo: +a.prezzo || 0 })) } : {}),
+        /* l'aliquota si congela come il prezzo: serve allo scorporo del
+           report anche se domani la voce cambia o sparisce (gen-5.97) */
+        aliquota: voce.aliquota,
+        /* e il GRUPPO si congela per le comande (gen-5.98): la postazione
+           smista per nome, e la voce domani puo' cambiare o sparire */
+        gruppo: gruppoDi(voce),
+        /* la distinta della riga e' quella della voce PIU' quelle delle
+           aggiunte: calcoloScarico somma per prodotto e non deve sapere
+           niente di tutto questo (gen-6.02) */
+        distinta: [...(voce.distinta || []), ...aggOrd.flatMap((a) => a.distinta || [])].map((d) => ({ ...d })) }];
+    });
+    setScelta(null); setAggSel([]); setRigaDa(null);
+    setSvuotato(null); // un conto nuovo che parte: il vecchio svuotato non torna piu'
+    /* L'INVARIANTE: se qualcosa resta in mano, NESSUNA riga e' viva. E le
+       righe non bersagliabili (un'Acqua) non rubano mai il bersaglio. */
+    const restaInMano = usaMano ? rifiutate : mano;
+    if (restaInMano.length) {
+      if (usaMano) setMano(restaInMano);
+      setViva(null);
+      if (rifiutate.length)
+        mostraToast(`${nomiDi(rifiutate)} non va su «${voce.nome}»: resta in mano`, "errore");
+    } else {
+      if (usaMano) setMano([]);
+      if (ammesse.length) setViva(chiave);
+    }
+    if (fuoriPerEsaurito.length)
+      mostraToast(`Esaurita, l'ho tolta dalla mano: ${nomiDi(fuoriPerEsaurito)}`, "errore");
+  };
+  /* il foglio si apre da due porte: la cella (voce con varianti) e il NOME
+     della riga gia' nel conto (voce con aggiunte). Nel secondo caso si
+     riparte dalle aggiunte che quella riga ha gia'. */
+  const apriScelta = (voce, ids = [], da = null) => { setScelta(voce); setAggSel(ids); setRigaDa(da); };
+  const chiudiScelta = () => { setScelta(null); setAggSel([]); setRigaDa(null); };
+  const cambia = (chiave, delta) => setCarrello((c) => c
+    .map((r) => (r.chiave === chiave ? { ...r, qty: r.qty + delta } : r))
+    .filter((r) => r.qty > 0));
+  /* il tasto che chiude il foglio: se si e' arrivati da una riga del conto
+     si SPOSTA una unita' (meno uno di la', piu' uno nella riga composta) —
+     due margherite di cui una coi broccoletti sono due righe, non due conti
+     diversi. Se la chiave nuova coincide con la vecchia, -1 +1 non cambia
+     niente. (gen-6.02) */
+  const metti = (variante) => {
+    if (!scelta) return;
+    /* PORTA 3 — il foglio di scelta (gen-6.18). Stessa regola delle altre
+       cinque: si rifiuta cio' che e' NUOVO, si conserva cio' che la riga ha
+       gia'. Senza `eraGia`, riaprire dal nome una riga che porta un'esaurita
+       la strapperebbe via al primo Salva — e il prezzo scenderebbe in
+       silenzio, che e' proprio quello che giraAgg evita gia' per la variante
+       sparita. */
+    const eraGia = rigaDa ? ((carrello.find((r) => r.chiave === rigaDa) || {}).agg || []).map((a) => a.id) : [];
+    const spuntate = aggiunteDi(stato, gruppoDi(scelta)).filter((a) => aggSel.includes(a.id));
+    const scelte = spuntate.filter((a) => !a.esaurito || eraGia.includes(a.id));
+    const tolte = spuntate.filter((a) => !scelte.includes(a));
+    if (rigaDa) cambia(rigaDa, -1);
+    aggiungi(scelta, variante, scelte);
+    if (tolte.length) mostraToast(`Esaurita, non si mette: ${tolte.map((a) => a.nome).join(", ")}`, "errore");
+  };
+  /* LE DUE STRADE DI VALERIO FINISCONO QUI DENTRO. Sposta UNA unita', come
+     metti(): «tre margherite, una coi broccoletti» sono due righe, non due
+     conti. Con la mano piena non c'e' riga viva (invariante), quindi il
+     chip prende in mano invece di appoggiare. */
+  /* ── LA GUARDIA DELL'ESAURITO STA QUI, E SOLO QUI (gen-6.18) ──
+     «Si rifiuta cio' che e' NUOVO, si conserva cio' che c'e' gia'.»
+     Perche' dentro giraAgg e non sul chip: `levaDaRiga` E' `giraAgg`, e il
+     chip fa QUATTRO mestieri (prende, lascia, mette, leva). Una guardia in
+     testa alla funzione bloccherebbe anche la ×; un cortocircuito sul chip
+     renderebbe queste due righe irraggiungibili — e un controllo che non puo'
+     diventare rosso non e' un controllo. Cosi' invece sono entrambe
+     esercitate dal chip, quindi collaudabili e sabotabili.
+     Il toast e' di tipo «errore» come il rifiuto gemello qui sotto («X non va
+     su Y: resta in mano»): e' l'unico tipo che cambia l'icona in
+     AlertTriangle, e un rifiuto vestito da spunta e' una bugia.
+     La RAGIONE sta prima del nome perche' il toast tronca la coda. */
+  const rifiutaEsaurita = (a) => mostraToast(`Esaurita, non si mette: ${a.nome}`, "errore");
+  /* UNA SCRITTURA PER TOCCO, non un «salva» finale: l'altra cassa lo vede al
+     giro di poll invece che a fine serata, ed e' tutto il punto del gesto.
+     Il costo e' dichiarato: ogni tocco e' una scrittura dello stato intero e
+     un nome in s.applicate. Una giornata tipo ne spende 15-25.
+     Il valore e' ASSOLUTO e non un giro: e' quello che fa convergere due
+     casse che segnano la stessa cosa nello stesso minuto — la seconda trova
+     gia' il valore e l'esecutore esce senza scrivere. L'ora viaggia col dato
+     perche' lo steccato d'eta' vive dentro l'esecutore (vedi applicaEsaurito). */
+  const segnaEsaurito = (a, val) => {
+    mutaDato("esaurito", { id: a.id, val, t: Date.now() }, val
+      ? `Esaurita: «${a.nome}» non si mette più sui piatti`
+      : `Di nuovo disponibile: «${a.nome}»`);
+  };
+  const giraAgg = (agId, su = null) => {
+    const riga = su || (mano.length ? null : rigaViva);
+    const ag = (stato.aggiunte || []).find((x) => x.id === agId);
+    if (!riga) {
+      /* PORTA 1 — la mano. Il controllo sta FUORI dal setter funzionale:
+         li' dentro non si puo' ne' mostrare un toast ne' sapere il verso. */
+      if (ag?.esaurito && !mano.includes(agId)) return rifiutaEsaurita(ag);
+      setMano((xs) => (xs.includes(agId) ? xs.filter((x) => x !== agId) : [...xs, agId])); return;
+    }
+    const voce = trova(voci, riga.voceId);
+    if (!voce) return;                       // voce sparita: non si ricompone al buio
+    const ids = (riga.agg || []).map((a) => a.id);
+    /* PORTA 2 — la riga. Solo sull'AGGIUNTA: `ids` sono quelle gia' sulla
+       riga, e toglierle deve restare possibile anche da esaurite. */
+    if (ag?.esaurito && !ids.includes(agId)) return rifiutaEsaurita(ag);
+    const dopo = ids.includes(agId) ? ids.filter((x) => x !== agId) : [...ids, agId];
+    const variante = (voce.varianti || []).find((v) => v.id === riga.varianteId) || null;
+    /* formato sparito dal listino a meta' servizio: si RIAPRE il foglio
+       invece di ricomporre senza formato e far scendere il prezzo in
+       silenzio */
+    if (riga.varianteId && !variante) return apriScelta(voce, dopo, riga.chiave);
+    const scelte = aggiunteDelGruppo(riga.gruppo).filter((a) => dopo.includes(a.id));
+    cambia(riga.chiave, -1);
+    aggiungi(voce, variante, scelte, false);   // usaMano:false — la × non appoggia la mano di nascosto
+  };
+  /* la × della sotto-riga: toglie un ingrediente da una riga QUALSIASI,
+     senza doverla prima rendere viva e senza toccare quello che si ha in
+     mano */
+  const levaDaRiga = (r, agId) => giraAgg(agId, r);
+  /* il tocco sul NOME della riga: un significato solo, sempre lo stesso —
+     «da adesso lavoro qui». Se si tiene qualcosa in mano, il piatto lo
+     prende, esattamente come farebbe la cella. */
+  const lavoraSu = (r) => {
+    /* IL GESTO CHE APRE (gen-6.04). Il tocco sul nome della riga significa
+       gia' «da adesso lavoro qui», che e' parola per parola la richiesta di
+       vedere gli ingredienti: aprirla qui non e' un tocco in piu', e' lo
+       stesso tocco che dice cosa vuoi. La CELLA del listino invece NON la
+       apre, ed e' il punto di tutta la riparazione: la pizza liscia e' il
+       90% delle battute del sabato, ed e' esattamente il caso in cui la
+       barra stava li' aperta a non servire a niente. */
+    setFasciaSu(true);
+    if (!mano.length) { setViva(r.chiave); return; }
+    const voce = trova(voci, r.voceId);
+    if (!voce) { setViva(r.chiave); return; }
+    const ammesse = aggiunteDelGruppo(r.gruppo);
+    /* PORTA 5 (gen-6.18): la mano che si fonde in una riga gia' battuta. Le
+       aggiunte GIA' sulla riga restano (prima meta' dell'unione); il
+       contributo della mano e' nuovo, e le esaurite non entrano. */
+    const dopo = [...new Set([...(r.agg || []).map((a) => a.id),
+      ...ammesse.filter((a) => mano.includes(a.id) && !a.esaurito).map((a) => a.id)])];
+    const variante = (voce.varianti || []).find((v) => v.id === r.varianteId) || null;
+    if (r.varianteId && !variante) return apriScelta(voce, dopo, r.chiave);
+    cambia(r.chiave, -1);
+    aggiungi(voce, variante, ammesse.filter((a) => dopo.includes(a.id)), true);
+  };
+  const totale = +carrello.reduce((a, r) => a + r.prezzo * r.qty, 0).toFixed(2);
+  const sc = incasso ? calcoloScarico(stato, carrello, sedeId) : null;
+
+  /* CHI CERCA PER TELEFONO STA GIA' PARLANDO AL TELEFONO (gen-6.08).
+     Il gesto vero non e' «apri la rubrica e scorri»: e' «pronto, sono il
+     340…» mentre si scrive. Bastano tre cifre, e si confronta il numero
+     RIDOTTO — chi ha in rubrica «+39 340 111 0001» lo trova battendo «0001».
+     Cinque righe e non di piu': una lista lunga sotto il pollice, in piedi,
+     col telefono all'orecchio, non si legge. */
+  const cercati = (() => {
+    const q = telNorm(cliTel);
+    if (q.length < 3) return [];
+    return (stato.clienti || []).filter((c) => telNorm(c.tel).includes(q))
+      .sort((a, b) => (b.ultimo || 0) - (a.ultimo || 0)).slice(0, 5);
+  })();
+  const prendiCliente = (c) => {
+    setCliId(c.id); setCliNome(c.nome || ""); setCliTel(c.tel || "");
+    if (c.via) setCliVia(c.via);
+    /* chi ha gia' ordinato ha gia' un indirizzo verificato: si riprende come
+       sta, senza chiedere niente a nessuno — e' l'ordine rapido di gen-6.08
+       che diventa rapido anche sulla via */
+    if (c.geo && isFinite(c.geo.lat) && isFinite(c.geo.lon)) { setCliGeo(c.geo); setViaOk(true); }
+    else { setCliGeo(null); setViaOk(false); }
+  };
+  /* la mappa NON e' una verifica automatica: e' l'occhio di chi risponde al
+     telefono messo sull'indirizzo prima di prometterlo. Un link, non una API
+     — nessuna chiave da tenere, nessuna chiamata che parte, e funziona anche
+     se domani cambiano le condizioni di chiunque. */
+  const apriMappa = () => {
+    if (!cliVia.trim()) return;
+    const sede = trova(stato.sedi, sedeId);
+    const q = encodeURIComponent(cliVia.trim() + (sede?.nome ? ", " + sede.nome : ""));
+    window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, "_blank", "noopener");
+  };
+  const MODI = { banco: "Banco", asporto: "Asporto", consegna: "Consegna" };
+  const targhettaCliente = [MODI[modo], modo !== "banco" && cliNome.trim(), cliFascia.trim()]
+    .filter(Boolean).join(" · ");
+
+  const registra = () => {
+    /* un tasto nascosto non e' un permesso negato (regola di gen-5.95) */
+    if (!puoCassa(profilo))
+      return mostraToast("Per battere in cassa serve l'autorizzazione dell'admin (Profili)", "errore");
+    if (!carrello.length) return;
+    /* un tasto che non fa nulla e non dice perche' e' il peggio dei due
+       mondi: senza sede operatore lo si spiega (revisione gen-5.96) */
+    if (!sedeId)
+      return mostraToast("La vendita ha bisogno di una sede operatore: creala da Gestione → Sedi", "errore");
+    /* ── DUE SOLI OBBLIGHI, E NESSUNO AL BANCO (gen-6.08) ──
+       Il nome per asporto e consegna: senza, in cucina il sacchetto non ha
+       padrone e la comanda dice solo «#7». La via per la consegna: promettere
+       una consegna a un indirizzo che non c'e' e' peggio di un no detto
+       subito, ed e' per questo che c'e' il tasto che la apre sulle mappe
+       PRIMA. Il telefono NON blocca niente: al banco si dice sempre no al
+       numero, e fermare un incasso per questo sarebbe fermare la cassa. Ma
+       senza numero il cliente non entra in rubrica — non c'e' una chiave per
+       ritrovarlo — e il foglio lo dice, invece di lasciarlo credere. */
+    if (modo !== "banco" && !cliNome.trim()) {
+      setIncasso(false); setCliSu(true);
+      return mostraToast(`Per un ordine da ${MODI[modo].toLowerCase()} serve il nome: senza, in cucina il sacchetto non ha padrone`, "errore");
+    }
+    if (modo === "consegna" && !cliVia.trim()) {
+      setIncasso(false); setCliSu(true);
+      return mostraToast("Per una consegna serve la via: controllala sulla mappa prima di prometterla", "errore");
+    }
+    const t = Date.now();
+    const scarico = calcoloScarico(stato, carrello, sedeId);
+    /* TUTTO calcolato fuori da muta, id compreso: la closure viene rieseguita
+       a ogni riallineamento della coda e deve restare pura su (s, dati) */
+    const vendita = {
+      id: uid("vn"), t, giorno: giornoDi(t), sedeId, chi: profilo.nome,
+      /* il progressivo da urlare in cucina («la 47 e' pronta»), congelato
+         QUI FUORI come l'id; con due casse in parallelo puo' uscire doppio —
+         dentro il limite dichiarato di una cassa va bene, e va detto (gen-5.98) */
+      n: (giornata?.nVendite || 0) + 1,
+      righe: carrello.map(({ voceId, varianteId, nome, qty, prezzo, aliquota, gruppo, agg }) =>
+        ({ voceId, ...(varianteId ? { varianteId } : {}), nome, qty, prezzo,
+          ...(aliquota != null ? { aliquota } : {}), gruppo,
+          /* «agg» solo se c'e', come varianteId: una riga liscia pesa oggi
+             quanto pesava ieri sul canale (gen-6.02) */
+          ...(agg?.length ? { agg } : {}) })),
+      totale, metodo, scarico: scarico.righe,
+      ...(scarico.problemi.length ? { problemi: scarico.problemi } : {}),
+      /* «cli» solo se serve davvero: una vendita al banco pesa oggi quanto
+         pesava ieri sul canale, come per «agg» e «varianteId» (gen-6.08).
+         Quattro campi e basta — id, nome, modo, fascia: il nome e' una FOTO,
+         cosi' lo scontrino resta leggibile anche se il cliente esce dalla
+         rubrica per il tetto. Telefono e via viaggiano a parte in «cliReg» e
+         applicaVendita li stacca prima di scrivere la vendita. */
+      ...(modo !== "banco" ? { cli: {
+        ...(cliId ? { id: cliId } : {}), nome: cliNome.trim(), modo,
+        ...(cliFascia.trim() ? { fascia: cliFascia.trim() } : {}),
+      } } : {}),
+      ...(modo !== "banco" && telNorm(cliTel) ? { cliReg: {
+        /* l'id nasce QUI FUORI, come quello della vendita: un uid() dentro la
+           closure darebbe un cliente nuovo a ogni riallineamento della coda */
+        id: cliId || uid("cl"), nome: cliNome.trim(), tel: cliTel.trim(), via: cliVia.trim(),
+        ...(cliGeo && isFinite(cliGeo.lat) && isFinite(cliGeo.lon) ? { geo: cliGeo } : {}),
+      } } : {}),
+    };
+    /* la vendita porta gia' l'id del cliente nuovo: cosi' la riga e la
+       rubrica si legano anche quando il salvataggio parte fra un'ora */
+    if (vendita.cliReg && !vendita.cli.id) vendita.cli.id = vendita.cliReg.id;
+    mutaDato("vendita", vendita, `Vendita in cassa: ${fmtEuro(totale)} (${metodo})`);
+    mostraToast(`Incassato ${fmtEuro(totale)}`);
+    setCarrello([]); setIncasso(false); setMetodo("contanti"); setRicevuti("");
+    /* il cliente si azzera con il conto: il prossimo che arriva al banco non
+       deve ereditare il nome e l'indirizzo di quello prima — sarebbe una
+       pizza consegnata a casa di un altro */
+    azzeraCliente();
+    /* chiude anche la fascia: il conto dopo riparte pulito come il primo
+       della serata, senza ereditare la barra aperta di quello prima */
+    setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null);
+  };
+
+  const storna = async () => {
+    if (!puoCassa(profilo))
+      return mostraToast("Per battere in cassa serve l'autorizzazione dell'admin (Profili)", "errore");
+    if (!stornoDi) return;
+    if (!motivo.trim())
+      return mostraToast("Serve il motivo: uno storno senza perché non si può rileggere", "errore");
+    /* il PIN si verifica QUI FUORI (hashPin e' async, e i permessi non si
+       decidono dentro muta): vale il limite dichiarato — e' un muro client,
+       come il login (gen-5.97) */
+    let autorizzataDa = profilo.nome;
+    if (profilo.ruolo !== "admin") {
+      const h = await hashPin(pinA);
+      const adm = stato.profili.find((p) => p.ruolo === "admin" && p.pinHash === h);
+      if (!adm) return mostraToast("PIN non riconosciuto: serve il PIN di un profilo Admin", "errore");
+      autorizzataDa = adm.nome;
+    }
+    /* ── SI RILEGGE IL DATO VIVO PRIMA DI MANDARE (gen-6.15) ──
+       Questo Foglio e' aperto su uno SNAPSHOT: «stornoDi» e' la riga com'era
+       quando e' stata toccata. Se nel frattempo un'altra cassa ha stornato
+       lo stesso scontrino, il bivio che protegge la LISTA (piu' su:
+       registrata → bottone, se no riga morta) non serve a niente, perche'
+       sta a monte e non chiude un Foglio gia' aperto. Senza questa riga
+       applicaStorno rifiuta — riferisce «false» da gen-6.12, quindi il
+       registro resta pulito — ma il toast qui sotto e' INCONDIZIONATO e
+       direbbe «Stornato» per un lavoro mai fatto. Una bugia sullo schermo fa
+       ribattere lo scontrino a mano: e' il modo di perdere i soldi due volte.
+       IL LIMITE, DETTO PER QUELLO CHE E': «stato» e' una prop, cioe' una
+       costante catturata al disegno che ha creato questa callback. Mettere
+       il controllo prima o dopo l'await del PIN legge lo stesso identico
+       dato: quello che resta scoperto e' la finestra fra l'ultimo
+       rimontaggio e il tocco, non «l'await». Il caso vero — Foglio aperto,
+       la rete cambia sotto, poi si conferma — e' coperto, perche' l'arrivo
+       dalla rete rimonta la vista.
+       E' la TERZA copia della stessa regola (applicaStorno e il bivio della
+       lista sono le altre due): non e' bello, ed e' scritto qui perche' chi
+       un giorno cambiera' la condizione sappia dove sono le altre. */
+    const viva = (stato.vendite || []).find((v) => v.id === stornoDi.id);
+    if (!viva || viva.stato !== "registrata") {
+      setStornoDi(null); setMotivo(""); setPinA("");
+      return mostraToast("Questo scontrino non è più stornabile: l'ha già stornato un'altra cassa", "errore");
+    }
+    const dati = { stornoId: uid("vn"), origId: stornoDi.id, t: Date.now(),
+      motivo: motivo.trim(), chi: profilo.nome, autorizzataDa };
+    mutaDato("storno", dati, `Storno di ${fmtEuro(stornoDi.totale)}: ${dati.motivo}`);
+    mostraToast(`Stornato ${fmtEuro(stornoDi.totale)}`);
+    setStornoDi(null); setMotivo(""); setPinA("");
+  };
+
+  /* ── LA RIGA DI UNA VENDITA, UNA SOLA (gen-6.11) ──
+     La usano il Foglio «Ultime vendite» e la stanza «Giornata». Due copie e
+     la prossima modifica ne cambierebbe una — la lezione del chip delle
+     aggiunte, pagata a gen-6.09.
+     IL GIORNO DA UNA FONTE SOLA: giornoDi(v.t), mai v.giorno — la riga
+     contraria di uno storno porta il giorno della vendita originale, e
+     leggerlo qui direbbe «di ieri» a una riga nata oggi. E il giorno si
+     SCRIVE quando non e' oggi: senza, due scontrini delle 23:50 di due sere
+     diverse sono la stessa riga per chi legge e lo stesso nome per chi
+     ascolta — e per il collaudo, che su due bersagli identici non sa quale
+     toccare. Niente ambra sulla data: in quest'app l'ambra vuol dire «sta
+     finendo», e qui non sta finendo niente. */
+  const rigaVendita = (v) => {
+    const ora = new Date(v.t).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const quando = giornoDi(v.t) !== oggi
+      ? new Date(v.t).toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit" }) + " " + ora
+      : ora;
+    const targa = targaDi(v)
+      + (quanteUguali.get(targaDi(v) + "|" + quando) > 1 ? ` ·${String(v.id || "").slice(-4)}` : "");
+    const dentro = (
+      <>
+        <span className="font-bold shrink-0" style={{ color: T.tenue }}>{quando}</span>
+        <span className="shrink-0 text-xs" style={{ color: T.tenue }}>{targa}</span>
+        <span className="flex-1 min-w-0 truncate text-left">{(v.righe || []).map((r) => `${r.qty}× ${r.nome}`).join(", ")}</span>
+        {v.problemi?.length > 0 && <Chip colore={T.ambra}>da contare</Chip>}
+        {v.stato === "stornata" && <Chip colore={T.tenue}>stornata</Chip>}
+        {v.stato === "storno" && <Chip colore={T.rosso}>storno</Chip>}
+        {v.nonRipristinate > 0 && <Chip colore={T.ambra}>{v.nonRipristinate} non ripristinate</Chip>}
+        <b className="shrink-0" style={{ color: v.totale < 0 ? T.rosso : T.ink }}>{fmtEuro(v.totale)}</b>
+      </>
+    );
+    return v.stato === "registrata" ? (
+      <button key={v.id} onClick={() => { setUltime(false); setStornoDi(v); setMotivo(""); setPinA(""); }}
+        aria-label={`Storna la vendita ${targa} delle ${quando}`}
+        className="flex items-center gap-2 text-xs rounded-xl px-2"
+        style={{ color: T.dim, minHeight: 44, border: `1px solid ${T.bordo}`, background: "#fff" }}>
+        {dentro}<RotateCcw size={13} className="shrink-0" style={{ color: T.rosso }} /></button>
+    ) : (
+      <div key={v.id} className="flex items-center gap-2 text-xs rounded-xl px-2"
+        style={{ color: T.dim, minHeight: 44 }}>{dentro}</div>
+    );
+  };
+
+  return (
+    <div>
+      {/* ── LE TRE STANZE DELLA CASSA (gen-6.11) ──
+          I Fogli restano montati FUORI da questo interruttore: lo storno si
+          apre dalla Giornata e dalle Ultime vendite, e se vivesse dentro una
+          sola delle due stanze l'altra avrebbe una porta che non si apre. */}
+      {sez === "battere" && (<>
+      <Intesta titolo="Cassa" sotto={!sedeId
+        ? "Non c'è una sede operatore: le vendite non si possono battere"
+        : magCassa
+        ? `Ogni vendita scarica «${magCassa.nome}»`
+        : "Questa sede non ha un magazzino: le vendite si registrano senza scarico"} />
+      {profilo.ruolo === "admin" && sediOp.length > 1 && (
+        <div className="mb-3"><Selettore label="Sede" valore={sedeId} onCambia={(v) => { setSedeId(v); setCarrello([]); setSvuotato(null); setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null); azzeraCliente(); }} opzioni={sediOp} /></div>
+      )}
+      {/* «Oggi» in UNA riga: la Cassa si apre SULLA BATTUTA, non sul
+          registro. Le ultime vendite — coi loro storni — stanno dietro il
+          Foglio «Ultime vendite», e i metodi dentro il report (gen-6.00,
+          dalle foto 09-10 della revisione della veste). */}
+      {/* LA PORTA PRIMA DELLA FINESTRA (gen-6.07). Questo cancello e' l'UNICA
+          strada verso «Ultime vendite» e quindi verso lo storno: a mezzanotte
+          e mezza, senza vendite di oggi, non c'era. Allargare la lista dentro
+          il Foglio senza aprire qui non si sarebbe visto — il banco lo ha
+          misurato: «il bottone non c'e'», e tutto il resto della sezione
+          cadeva dietro. Il Chip e il conteggio restano su «giornata», quindi a
+          porte aperte la riga dice onestamente «Oggi € 0,00 · 0 vendite»: si
+          allarga il cancello, non il numero. */}
+      {(giornata || venditeOggi.length > 0 || venditeRecenti.length > 0) && (
+        <Scheda className="p-3.5 mb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-extrabold" style={{ color: T.ink }}>Oggi</span>
+            <Chip colore={T.verde} pieno>{fmtEuro(giornata?.totale || 0)}</Chip>
+            <span className="text-sm" style={{ color: T.dim }}>
+              {giornata?.nVendite || 0} vendite{(giornata?.nStorni || 0) > 0 ? ` · ${giornata.nStorni} storni` : ""}</span>
+            <span className="flex-1" />
+            <Bottone variante="tonale" piccolo icona={History} onClick={() => setUltime(true)}>Ultime vendite</Bottone>
+            <Bottone variante="tonale" piccolo icona={BarChart3} onClick={() => setReport(true)}>Report di giornata</Bottone>
+          </div>
+        </Scheda>
+      )}
+      {/* LA PASTIGLIA DEL CLIENTE (gen-6.08). Una riga sola, sempre nello
+          stesso posto, sopra la griglia: e' la prima cosa che si tocca quando
+          suona il telefono, e non si tocca mai quando il cliente e' davanti.
+          Ambra quando l'ordine ha un padrone — in quest'app l'ambra vuol dire
+          «attenzione, c'e' qualcosa di aperto», e un ordine da consegnare che
+          sta per essere incassato e' esattamente quello. */}
+      <button onClick={() => setCliSu(true)}
+        aria-label={`Chi è, e come lo vuole: ${targhettaCliente}`}
+        className="w-full flex items-center gap-2 rounded-full px-3.5 mb-3 text-sm font-bold"
+        style={{ minHeight: 48, background: modo === "banco" ? "#F0F3FB" : "#FFF6E8",
+          color: modo === "banco" ? T.dim : "#7A4A00",
+          border: `1.5px solid ${modo === "banco" ? T.bordo : "#F0C98A"}` }}>
+        {modo === "consegna" ? <Truck size={16} /> : modo === "asporto" ? <Package size={16} /> : <Store size={16} />}
+        <span className="flex-1 text-left truncate">{targhettaCliente}</span>
+        <ChevronRight size={16} />
+      </button>
+      {/* l'ancora di «torna in cima»: sta FUORI dalla riga appiccicata,
+          perche' una riga sticky e' gia' in cima e non saprebbe dove andare */}
+      <div ref={cimaRef} data-cima-gruppi="1" />
+      {aFisarmonica && (
+        /* APPICCICATA: una fisarmonica in posto avrebbe lasciato il pulsante
+           «Fritti» sotto le venti pizze, cioe' sotto la piega, cioe' il
+           difetto di partenza. La tecnica e' quella gia' in casa nella barra
+           dei Magazzini e nel Catalogo; la velatura e' la stessa stringa —
+           T.bg velato, non un colore nuovo. VA A CAPO e non scorre di lato:
+           un bersaglio in una feritoia laterale al banco non esiste. */
+        <div data-riga-gruppi="1" className="flex flex-wrap gap-2 mb-3"
+          style={{ position: "sticky", top: 0, zIndex: 20, paddingTop: 6, paddingBottom: 6,
+            background: "rgba(244,247,254,.94)", backdropFilter: "blur(10px)" }}>
+          {gruppi.map((g) => {
+            const aperto = g === gAperto;
+            const n = nelGruppo[g] || 0;
+            return (
+              <button key={g} type="button" data-gruppo={g} data-nel-gruppo={n}
+                aria-expanded={aperto} aria-controls={`griglia-${g}`}
+                /* il nome dice COSA FA e COME STA: chi ascolta deve sapere
+                   perche' toccare il pulsante acceso non svuota lo schermo.
+                   I banchi cercano il pulsante per data-gruppo e MAI per nome
+                   accessibile: il nome porta un conto vivo che cambia mentre
+                   si batte. */
+                aria-label={aperto
+                  ? `${g}: gruppo aperto${n ? `, ${n} nel conto` : ""} — torna in cima`
+                  : `Apri ${g}${n ? `, ${n} nel conto` : ""}`}
+                /* il pulsante gia' acceso NON chiude: riporta la riga in cima.
+                   Se esistesse lo stato «tutto chiuso», esisterebbe uno stato
+                   in cui la margherita costa due tocchi. */
+                onClick={() => { setGruppoScelto(g); tornaInCima(); }}
+                className="flex-1 min-w-0 rounded-2xl px-3 inline-flex items-center justify-center gap-1.5 text-sm font-extrabold uppercase tracking-wide"
+                /* 44 punti espliciti: prima l'intestazione era un div alto
+                   ~16px, e al banco si batte col pollice, di fretta */
+                style={{ minHeight: 44, background: aperto ? T.blu : T.sup,
+                  color: aperto ? T.sup : T.dim,
+                  border: `1.5px solid ${aperto ? T.blu : T.bordo}` }}>
+                <span className="truncate">{g}</span>
+                {n > 0 && <Chip colore={aperto ? T.sup : T.blu} pieno={!aperto}>{n}</Chip>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {voci.length === 0
+        ? <Scheda className="p-8"><Vuoto icona={Store} titolo="Il listino è vuoto"
+            testo="Le voci della Cassa le prepara un Admin da Gestione → Listino." /></Scheda>
+        : gruppi.filter((g) => !aFisarmonica || g === gAperto).map((g) => (
+          <div key={g} id={`griglia-${g}`} data-griglia={g} className="mb-3">
+            {/* CON UN GRUPPO SOLO resta il titolino di prima, identico */}
+            {!aFisarmonica && (
+              <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>{g}</div>
+            )}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {voci.filter((v) => gruppoDi(v) === g)
+                .sort((a, b) => a.nome.localeCompare(b.nome, "it")).map((v) => (
+                <button key={v.id} aria-label={`Aggiungi ${v.nome}`}
+                  onClick={() => ((v.varianti || []).length
+                    /* con qualcosa in mano il foglio si apre gia' spuntato:
+                       «prendo la salsiccia, poi il panino Maxi» e' un giro
+                       solo (gen-6.03) */
+                    /* PORTA 6 (gen-6.18), la piu' nascosta: la cella di una voce CON
+                       varianti apre il Foglio di scelta PRE-SEMINATO dalla mano, senza
+                       nessuna riga di partenza. Il primo disegno la dava per sicura
+                       («aggSel puo' contenerne una solo se gia' sulla riga»): era falso,
+                       e un'esaurita si vendeva senza che nessuna delle altre guardie la
+                       vedesse passare. Si chiude dove NASCE. */
+                    ? apriScelta(v, aggiunteDelGruppo(gruppoDi(v)).filter((a) => mano.includes(a.id) && !a.esaurito).map((a) => a.id))
+                    : aggiungi(v, null))}
+                  className="relative rounded-2xl px-3 py-3.5 text-left"
+                  data-nel-conto={nelConto[v.id] || 0}
+                  style={{ background: "#fff", border: `1.5px solid ${nelConto[v.id] ? T.blu : T.bordo}` }}>
+                  {/* il badge: il tocco risponde DOVE e' caduto, senza dover
+                      cercare la riga nel conto piu' in basso (gen-6.00) */}
+                  {(nelConto[v.id] || 0) > 0 && (
+                    <span className="absolute -top-2 -right-1.5 rounded-full text-xs font-extrabold px-2 py-0.5"
+                      style={{ background: T.blu, color: "#fff" }}>{nelConto[v.id]}</span>
+                  )}
+                  <span className="font-extrabold block text-sm" style={{ color: T.ink }}>{v.nome}</span>
+                  <span className="text-sm font-bold" style={{ color: T.blu }}>{fmtEuro(v.prezzo || 0)}</span>
+                  {/* LA CELLA E' LA CARTA (gen-6.03, parole di Valerio):
+                      «la cassa deve poter vedere il nome che contiene quegli
+                      ingredienti ma anche vedere da cosa e' composto». A ZERO
+                      tocchi: il cassiere risponde a «cosa c'e' nella
+                      boscaiola?» senza girarsi verso il muro. Compare SOLO
+                      se qualcuno l'ha scritta: chi non compila non paga un
+                      pixel, e non si inventa niente dalla distinta. */}
+                  {!!(v.dentro || "").trim() && (
+                    <span className="block text-[10px] leading-tight mt-0.5" style={{ color: T.tenue,
+                      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {v.dentro}</span>
+                  )}
+                  {/* e i NOMI dei formati al posto della parola muta
+                      «varianti»: «sennò ci sta molta ridondanza nel nome» */}
+                  {(v.varianti || []).length > 0 && (
+                    <span className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide"
+                      style={{ background: "#EAF0FE", color: T.blu }}>
+                      {v.varianti.slice(0, 2).map((x) => x.nome).join(" · ")}
+                      {v.varianti.length > 2 ? ` +${v.varianti.length - 2}` : ""}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      {carrello.length > 0 && (
+        <Scheda className="p-3.5 mt-1">
+          <div className="font-extrabold mb-2" style={{ color: T.ink }}>Il conto</div>
+          <div className="flex flex-col gap-2">
+            {carrello.map((r) => {
+              /* la porta delle aggiunte per le voci senza varianti: si tocca
+                 il NOME della riga. La cella resta a UN tocco — al sabato il
+                 90% delle pizze esce liscia, e un foglio a ogni tocco
+                 renderebbe la Cassa piu' lenta di prima (gen-6.02). */
+              const voceR = trova(voci, r.voceId);
+              const puoi = voceR ? bersagliabile(r) : false;
+              const eViva = viva === r.chiave;
+              return (
+              <div key={r.chiave} {...(eViva ? { "data-viva": "1" } : {})} className="rounded-xl"
+                style={eViva ? { boxShadow: `inset 3px 0 0 ${T.blu}`, background: "#F7FAFF", paddingLeft: 8 } : undefined}>
+              <div className="flex items-center gap-2">
+                {puoi
+                  ? <button onClick={() => lavoraSu(r)}
+                      /* il nome ACCESSIBILE porta la riga INTERA, non solo
+                         il nome corto: due righe possono avere lo stesso
+                         piatto («Margherita» e «Margherita + Broccoletti») e
+                         due bottoni con lo stesso nome sono un tranello per
+                         chi ascolta. E' la stessa regola dei tasti + e −. */
+                      aria-label={`Lavora su ${r.nome}`}
+                      className="flex-1 min-w-0 text-sm font-semibold truncate text-left underline decoration-dotted underline-offset-4"
+                      style={{ color: T.ink, textDecorationColor: T.blu, minHeight: 44 }}>{nomeBase(r)}</button>
+                  : <span className="flex-1 min-w-0 text-sm font-semibold truncate" style={{ color: T.ink }}>{nomeBase(r)}</span>}
+                <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(r.prezzo)}</span>
+                {/* 44 punti: al banco si batte col pollice, di fretta — un
+                    piu' da 30 punti manca una volta su tre (gen-6.00) */}
+                <button onClick={() => cambia(r.chiave, -1)} aria-label={`Diminuisci ${r.nome}`}
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ background: "#F0F3FB", color: T.dim, width: 44, height: 44 }}><Minus size={16} /></button>
+                <b className="w-6 text-center" style={{ color: T.ink }}>{r.qty}</b>
+                <button onClick={() => cambia(r.chiave, +1)} aria-label={`Aumenta ${r.nome}`}
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ background: "#EAF0FE", color: T.blu, width: 44, height: 44 }}><Plus size={16} /></button>
+              </div>
+              {/* ogni aggiunta e' una SOTTO-RIGA con la sua ×: si toglie da
+                  una riga qualsiasi senza prima doverla rendere viva, e
+                  senza toccare quello che si ha in mano (gen-6.03) */}
+              {(r.agg || []).map((a) => (
+                <div key={a.id} className="flex items-center gap-2 pl-4">
+                  <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: T.blu }}>+ {a.nome}</span>
+                  <span className="text-xs" style={{ color: T.tenue }}>{fmtEuro(a.prezzo || 0)}</span>
+                  <button onClick={() => levaDaRiga(r, a.id)} aria-label={`Riga: leva ${a.nome} da ${r.nome}`}
+                    className="rounded-full shrink-0 grid place-items-center"
+                    style={{ background: "#FCE9EE", color: T.rosso, width: 44, height: 44 }}><X size={15} /></button>
+                </div>
+              ))}
+              {/* il FORMATO ha la sua pillola: e' l'unica porta al foglio, e
+                  dice sempre la stessa cosa. Prima il nome della riga faceva
+                  due mestieri a seconda di uno stato invisibile. */}
+              {(voceR?.varianti || []).length > 0 && (
+                <button onClick={() => apriScelta(voceR, (r.agg || []).map((a) => a.id), r.chiave)}
+                  aria-label={`Cambia formato di ${r.nome}`}
+                  className="ml-4 rounded-full px-3 text-xs font-bold inline-flex items-center"
+                  style={{ minHeight: 44, background: "#EAF0FE", color: T.blu }}>
+                  Formato: {(voceR.varianti.find((x) => x.id === r.varianteId) || {}).nome || "Così com'è"}</button>
+              )}
+              </div>
+              ); })}
+          </div>
+          <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: `1.5px solid ${T.bordo}` }}>
+            <button onClick={() => { setSvuotato(carrello); setCarrello([]); setViva(null); setMano([]); setFasciaSu(false); setGruppoScelto(null); }} aria-label="Svuota il conto"
+              className="text-xs font-bold rounded-full px-4 shrink-0"
+              style={{ color: T.tenue, background: "#F0F3FB", minHeight: 44 }}>Svuota</button>
+            <span className="flex-1 text-right font-extrabold text-lg" style={{ color: T.ink }}>Totale {fmtEuro(totale)}</span>
+            <Bottone icona={CheckCheck} onClick={() => { setRicevuti(""); setIncasso(true); }}>Incassa</Bottone>
+          </div>
+        </Scheda>
+      )}
+      {/* «Svuota» si puo' disfare: il dito che sbaglia tasto non deve
+          ribattere un conto di dieci righe. Il conto svuotato resta qui
+          finche' non ne parte uno nuovo (gen-6.00). */}
+      {carrello.length === 0 && (svuotato?.length || 0) > 0 && (
+        <Scheda className="p-3.5 mt-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex-1 text-sm" style={{ color: T.dim }}>
+              Conto svuotato: {svuotato.length === 1 ? "1 riga" : `${svuotato.length} righe`}.</span>
+            <Bottone variante="tonale" piccolo icona={RotateCcw}
+              onClick={() => { setCarrello(svuotato); setSvuotato(null); setViva(null); }}>Ripristina il conto</Bottone>
+          </div>
+        </Scheda>
+      )}
+      {/* LO SPAZIATORE: la fascia e' alta ~96 e sta a 86 dal fondo; il
+          paddingBottom del guscio (7rem = 112) non basta a far scorrere
+          «Incassa» sopra di lei. Misurato, non a occhio: il collaudo §12
+          confronta i boundingBox. Compare alla stessa condizione della
+          fascia — chi non ha aggiunte non paga un pixel. */}
+      {/* LO SPAZIATORE SEGUE L'ALTEZZA VERA DEL BLOCCO (gen-6.04). E' la
+          trappola di questa riparazione: prima spaziatore e fascia avevano la
+          stessa condizione e nessuno dei due guardava se fosse aperta. Se
+          resta alto da fascia aperta si spreca schermo per niente; se resta
+          basso da fascia chiusa «Incassa» finisce sotto la fascia — che e'
+          il sabotaggio n.9 di gen-6.03. Per questo il collaudo lo misura in
+          TUTTI E DUE gli stati, non in uno solo.
+          gen-6.09: con le categorie l'altezza non e' piu' una costante — una
+          categoria o sei fanno blocchi diversi — quindi lo spaziatore la
+          MISURA invece di indovinarla. I due numeri fissi restano come rete
+          per il primo disegno, prima che la misura arrivi. */}
+      {aggiunteTutte(stato).length > 0 && (
+        <div aria-hidden="true" data-spaziatore="1"
+          style={{ height: altezzaFascia
+            ? `calc(${altezzaFascia}px + 1.4rem + env(safe-area-inset-bottom))`
+            : `calc(${fasciaSu ? "6.5rem" : "4rem"} + env(safe-area-inset-bottom))` }} />
+      )}
+      {/* ═══ LA FASCIA DEGLI INGREDIENTI (gen-6.03) ═══
+          Parole di Valerio: «devo poterlo fare in qualsiasi momento, non
+          devo prima selezionare l'aggiunta e poi la pizza, deve essere
+          interdipendente». Qui l'ordine non conta: con una riga VIVA il
+          chip appoggia, senza riga viva il chip va IN MANO e lo prende il
+          primo piatto compatibile. UNA sola fascia, mai una per gruppo:
+          la stessa aggiunta puo' valere per due gruppi e comparirebbe due
+          volte con lo stesso nome. Sta in basso, nello slot gia' usato
+          dalla barra comandi dei Magazzini, sopra la barra di navigazione:
+          il bersaglio e i chip devono stare sotto lo stesso pollice. */}
+      {aggiunteTutte(stato).length > 0 && (() => {
+        const inMano = mano.length > 0;
+        const rv = inMano ? null : rigaViva;
+        const chips = rv ? aggiunteDelGruppo(rv.gruppo) : aggiunteTutte(stato);
+        /* LA PAROLA CHE DICE DOV'E' IL TOCCO. E' la stessa a fascia aperta e
+           a fascia chiusa, di proposito: chiudere la fascia non deve mai
+           togliere l'informazione, solo lo spazio. */
+        const dove = inMano ? `In mano: ${nomiDi(mano)}` : rv ? `Su: ${nomeBase(rv)}` : "Ingredienti";
+        if (!fasciaSu) return (
+          /* CHIUSA: una pastiglia sola, alta un dito, che dice a parole cosa
+             si ha in mano e apre al tocco. Ambra quando la mano e' piena,
+             perche' quello e' l'unico stato che, dimenticato, fa sbagliare
+             la pizza dopo. */
+          <div ref={fasciaRef} data-fascia-chiusa="1" className="fixed z-30"
+            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            <button onClick={() => setFasciaSu(true)} aria-label={dove}
+              className="w-full rounded-2xl px-3 flex items-center gap-2"
+              style={{ minHeight: 48, background: inMano ? "#FFF6E8" : "#fff",
+                border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 8px 20px -12px rgba(20,30,60,.4)" }}>
+              <Plus size={16} style={{ color: inMano ? "#7A4A00" : T.blu, flexShrink: 0 }} />
+              <span className="flex-1 min-w-0 text-sm font-extrabold truncate text-left"
+                style={{ color: inMano ? "#7A4A00" : T.ink }}>{dove}</span>
+              <span className="text-[11px] font-semibold shrink-0" style={{ color: T.tenue }}>
+                {inMano ? "la prende il prossimo piatto" : "tocca per aprire"}</span>
+            </button>
+          </div>
+        );
+        return (
+          <div ref={fasciaRef} data-fascia="1" className="fixed z-30"
+            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            <div className="rounded-2xl p-2" style={{ background: inMano ? "#FFF6E8" : "#fff",
+              border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 12px 30px -14px rgba(20,30,60,.45)" }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-extrabold truncate" style={{ color: inMano ? "#7A4A00" : T.ink }}>
+                    {inMano ? `In mano: ${nomiDi(mano)}` : rv ? `Su: ${nomeBase(rv)}` : "Nessuna riga scelta"}</span>
+                  <span className="block text-[11px] truncate" style={{ color: T.tenue }}>
+                    {inMano ? "la prende il prossimo piatto"
+                      : rv ? (dentroDi(stato, rv.voceId) || "tocca un ingrediente: ci va sopra")
+                      : "l'ingrediente che tocchi resta in mano per il prossimo piatto"}</span>
+                </span>
+                {(inMano || rv) && (
+                  <button onClick={() => (inMano ? setMano([]) : setViva(null))}
+                    aria-label={inMano ? "Svuota la mano" : `Stacca da ${nomeBase(rv)}`}
+                    className="rounded-full px-3 text-xs font-bold shrink-0 inline-flex items-center gap-1"
+                    style={{ minHeight: 44, background: inMano ? "#fff" : "#F0F3FB", color: inMano ? "#7A4A00" : T.tenue }}>
+                    <X size={14} />{inMano ? "Lascia" : "Stacca"}</button>
+                )}
+                {/* ── LA PORTA DEGLI ESAURITI (gen-6.18) ──
+                    Il disegno la voleva solo a mano vuota, per non rubare
+                    larghezza al titolo su 360 px. Il banco ha dimostrato che
+                    era la condizione sbagliata, e con lo scenario piu' vero
+                    che ci sia: la Bufala e' IN MANO e qualcuno dal forno
+                    grida che e' finita. Con «!inMano» la porta non c'e'
+                    proprio nel momento in cui serve, e per segnarla bisogna
+                    prima posare quello che si tiene.
+                    Quindi c'e' sempre, e il prezzo e' misurato, non stimato:
+                    a mano piena restano 128 px al titolo («In mano: Bufa…»)
+                    e il collaudo §18 verifica che a 360 px non sbordi niente.
+                    Un titolo accorciato si legge; una porta che non c'e' no.
+                    Icona sola, la stessa forma della × qui accanto. */}
+                <button onClick={() => setEsauritiSu(true)} aria-label="Ingredienti esauriti" data-esauriti="1"
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ width: 44, height: 44, background: "#F0F3FB", color: T.tenue }}><PackageMinus size={15} /></button>
+                {/* chiudere la fascia NON lascia la mano: si richiude sulla
+                    pastiglia, che resta ambra e dice cosa si sta tenendo.
+                    Sono due gesti diversi e devono restare due bottoni. */}
+                <button onClick={() => setFasciaSu(false)} aria-label="Chiudi gli ingredienti"
+                  className="rounded-full shrink-0 grid place-items-center"
+                  style={{ width: 44, height: 44, background: "#F0F3FB", color: T.tenue }}><X size={15} /></button>
+              </div>
+              {(() => {
+                /* IL CHIP, uno solo, usato in tutte e due le forme: se ne
+                   scrivessi due copie, la prossima modifica ne cambierebbe
+                   una sola. */
+                const unChip = (a) => {
+                  const giu = rv ? (rv.agg || []).some((x) => x.id === a.id) : mano.includes(a.id);
+                  /* ── IL VESTITO DELL'ESAURITA (gen-6.18) ──
+                     Qui si decide SOLO l'aspetto e la parola: la regola sta in
+                     giraAgg, e il chip continua a chiamarlo sempre. `fuori` e'
+                     lo specchio esatto delle due guardie — con una riga viva
+                     «giu» E' ids.includes, senza riga viva E' mano.includes —
+                     percio' un'esaurita che sta GIA' sulla riga o in mano
+                     resta un chip normale: si deve poter ancora levare e
+                     lasciare.
+                     Si cambia il FONDO, non il grigio: #F0F3FB e' esattamente
+                     il fondo del chip disponibile, e T.tenue dista da T.dim di
+                     15/13/15 su 255 — cioe' l'unico canale che non si vede. Il
+                     fondo caldo tiene T.dim a 4,7:1, che passa AA; T.tenue su
+                     quel fondo si ferma sotto la soglia.
+                     Niente aria-disabled: il tocco fa qualcosa (dice perche'),
+                     e in tutto il file quell'attributo non compare mai. */
+                  const fuori = !!a.esaurito && !giu;
+                  return (
+                    <button key={a.id} data-agg={a.nome} aria-pressed={giu} onClick={() => giraAgg(a.id)}
+                      aria-label={fuori ? `${a.nome} esaurita: non si mette` : (rv
+                        ? (giu ? `Leva ${a.nome} da ${nomeBase(rv)}` : `Metti ${a.nome} su ${nomeBase(rv)}`)
+                        : (giu ? `Lascia ${a.nome}` : `Prendi in mano ${a.nome}`))}
+                      className={`rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5 shrink-0${fuori ? " line-through" : ""}`}
+                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" }
+                        : fuori ? { background: "#F6EFE6", color: T.dim, border: `1.5px dashed ${T.tenue}` }
+                        : { background: "#F0F3FB", color: T.dim }) }}>
+                      {giu && <Check size={13} />}{a.nome}
+                      <span className="text-[11px] font-semibold" style={{ opacity: .8 }}>+ {fmtEuro(a.prezzo || 0)}</span>
+                    </button>
+                  );
+                };
+                /* SENZA categorie vere, UNA GRIGLIA CHE VA A CAPO (gen-6.17,
+                   parole di Valerio: «le aggiunte hanno una barra poco utile»).
+                   Era una fila che scorreva di lato: su 390px si vedevano due
+                   chip e mezzo su ventitre', e il resto stava oltre il bordo
+                   senza che niente lo facesse capire — la stessa forma che a
+                   gen-5.52 aveva gia' rotto la barra di navigazione.
+                   Adesso se ne vedono quattro e si scorre col pollice in giu',
+                   come in tutto il resto dell'app. Costa 52px in piu' SOLO a
+                   fascia aperta (165 contro 113), sotto i 209 che gen-6.04 ha
+                   giudicato troppi; chiusa non cambia di un pixel.
+                   Il tetto a 6.1rem sono due righe di chip: oltre, si scorre. */
+                if (!vuoleCategorie(chips))
+                  return <div className="flex flex-wrap gap-2 overflow-y-auto sc-scroll"
+                    style={{ maxHeight: "6.1rem" }}>{chips.map(unChip)}</div>;
+                /* CON le categorie: una riga per categoria, il nome a
+                   sinistra e i suoi chip che scorrono accanto. In verticale
+                   e non in orizzontale perche' la parola che si cerca e' la
+                   categoria, e un elenco di parole si legge in colonna;
+                   dentro la riga si scorre col dito, come prima.
+                   Il tetto d'altezza serve al caso di dieci categorie: la
+                   fascia non deve mangiare mezzo schermo (la lezione di
+                   gen-6.04, misurata: 209 px su 844 erano troppi). */
+                return (
+                  <div className="flex flex-col gap-1.5 overflow-y-auto sc-scroll" style={{ maxHeight: "12.5rem" }}>
+                    {perCategoria(chips).map(([cat, aggs]) => (
+                      <div key={cat} data-cat={cat} className="flex items-start gap-2">
+                        {/* l'etichetta sta in ALTO e non al centro: con i chip
+                            su due righe, centrata galleggerebbe in mezzo alla
+                            categoria invece di intitolarla (gen-6.17) */}
+                        <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wide text-right"
+                          style={{ color: T.tenue, width: "4.6rem", paddingTop: "0.9rem" }}>{cat}</span>
+                        <div className="flex flex-wrap gap-2">{aggs.map(unChip)}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
+      </>)}
+
+      {/* ── LA STANZA «CLIENTI» (gen-6.11) ──
+          La rubrica esce dal foglio dell'ordine e diventa una stanza: si
+          cerca per numero o per nome, e toccare un cliente non lo MOSTRA,
+          gli APRE UN ORDINE. E' il gesto vero di chi risponde al telefono —
+          «pronto, sono il 340…» — e finiva dentro un foglio che si apriva
+          solo se stavi gia' battendo. */}
+      {sez === "clienti" && (() => {
+        const q = cercaCli.trim().toLowerCase();
+        const qn = telNorm(cercaCli);
+        const lista = (stato.clienti || []).filter((c) => {
+          if (!q) return true;
+          if (qn.length >= 2 && telNorm(c.tel).includes(qn)) return true;
+          return (c.nome || "").toLowerCase().includes(q);
+        }).sort((a, b) => (b.ultimo || b.t || 0) - (a.ultimo || a.t || 0)).slice(0, 60);
+        return (
+          <div>
+            <Intesta titolo="Clienti" sotto="Cerca per numero o per nome. Toccarne uno apre un ordine per lui." />
+            <div className="mb-3">
+              <Campo label="Cerca un cliente" valore={cercaCli} onCambia={setCercaCli}
+                placeholder="Numero o nome" />
+            </div>
+            {(stato.clienti || []).length === 0 && (
+              <Vuoto icona={Users} titolo="La rubrica è vuota"
+                testo="I clienti entrano in rubrica quando batti un ordine da asporto o da consegna col loro numero." />
+            )}
+            {(stato.clienti || []).length > 0 && lista.length === 0 && (
+              <p className="text-sm" style={{ color: T.dim }}>Nessun cliente con «{cercaCli}».</p>
+            )}
+            <div className="flex flex-col gap-1.5">
+              {lista.map((c) => (
+                <button key={c.id} aria-label={`Apri un ordine per ${c.nome || "cliente senza nome"}`}
+                  onClick={() => { prendiCliente(c); if (modo === "banco") setModo("asporto"); vaiSez("battere"); }}
+                  className="flex items-center gap-2.5 rounded-2xl px-3 text-left"
+                  style={{ minHeight: 56, background: "#fff", border: `1.5px solid ${T.bordo}` }}>
+                  <Avatar nome={c.nome || "?"} colore={T.blu} size={34} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold truncate" style={{ color: T.ink }}>{c.nome || "senza nome"}</span>
+                    <span className="block text-xs truncate" style={{ color: T.tenue }}>
+                      {c.tel || "senza numero"}{c.via ? ` · ${c.via}` : ""}</span>
+                  </span>
+                  {c.n > 0 && <Chip colore={T.tenue}>{c.n === 1 ? "1 ordine" : `${c.n} ordini`}</Chip>}
+                  <ChevronRight size={16} className="shrink-0" style={{ color: T.tenue }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── LA STANZA «GIORNATA» (gen-6.11) ──
+          Il giorno aveva una porta sola, il riquadro «Oggi» in cima alla
+          griglia — e quel riquadro compare solo se qualcosa e' gia' passato.
+          A mezzanotte e mezza, con lo scontrino di ieri sera da stornare, non
+          c'era: e' il rilievo che ha salvato gen-6.07. Adesso la Giornata sta
+          nella barra, quindi c'e' SEMPRE. */}
+      {sez === "giornata" && (
+        <div>
+          <Intesta titolo="Giornata" sotto="Quello che è entrato oggi, e le vendite delle ultime 48 ore" />
+          <Scheda className="p-4 mb-3">
+            <span className="block text-xs font-bold uppercase tracking-wide" style={{ color: T.tenue }}>Incassato oggi</span>
+            <div className="font-extrabold" style={{ color: T.ink, fontSize: 34, lineHeight: 1.1 }}>
+              {fmtEuro(giornata?.totale || 0)}</div>
+            <div className="text-sm mt-0.5" style={{ color: T.dim }}>
+              {giornata?.nVendite || 0} {(giornata?.nVendite || 0) === 1 ? "vendita" : "vendite"}
+              {(giornata?.nStorni || 0) > 0 ? ` · ${giornata.nStorni} ${giornata.nStorni === 1 ? "storno" : "storni"}` : ""}</div>
+            <div className="flex gap-1.5 flex-wrap mt-2.5">
+              <Chip colore={T.verde}>Contanti {fmtEuro(giornata?.metodi?.contanti || 0)}</Chip>
+              <Chip colore={T.blu}>Carta {fmtEuro(giornata?.metodi?.carta || 0)}</Chip>
+              <Chip colore={T.tenue}>Altro {fmtEuro(giornata?.metodi?.altro || 0)}</Chip>
+            </div>
+            <div className="mt-3">
+              <Bottone variante="tonale" piccolo icona={BarChart3} onClick={() => setReport(true)}>Report di giornata</Bottone>
+            </div>
+          </Scheda>
+          <Scheda className="p-3.5">
+            <span className="block font-extrabold mb-1" style={{ color: T.ink }}>Le ultime vendite</span>
+            <p className="text-xs mb-2" style={{ color: T.tenue }}>
+              {daMostrare.length === 0
+                ? "Nelle ultime 48 ore non è passato nessuno."
+                : "Le ultime 48 ore. Uno scontrino si storna toccando la sua riga."}</p>
+            <div className="flex flex-col gap-1">{daMostrare.map((v) => rigaVendita(v))}</div>
+            {venditeRecenti.length > daMostrare.length && (
+              <p className="text-xs mt-1" style={{ color: T.tenue }}>
+                … e altre {venditeRecenti.length - daMostrare.length}: il CSV in Sistema le tiene tutte.</p>
+            )}
+          </Scheda>
+        </div>
+      )}
+      <Foglio aperto={!!scelta} titolo={scelta?.nome || ""} onChiudi={chiudiScelta}>
+        {scelta && (() => {
+          /* un foglio solo per le due cose: il FORMATO (varianti, esclusive:
+             sono i tasti che chiudono) e le AGGIUNTE (a spunta, quante ne
+             vuoi: cambiano quello che i tasti dicono). Senza nessuna
+             aggiunta spuntata i tasti sono parola per parola quelli di
+             gen-6.01. (gen-6.02) */
+          const aggV = aggiunteDi(stato, gruppoDi(scelta));
+          const scelte = aggV.filter((a) => aggSel.includes(a.id));
+          const somma = scelte.reduce((x, a) => x + (+a.prezzo || 0), 0);
+          const p0 = +scelta.prezzo || 0;
+          const nomiAgg = scelte.map((a) => a.nome).join(" + ");
+          const etichetta = (va) => (va ? va.nome + (scelte.length ? " + " + nomiAgg : "")
+            : (scelte.length ? "Con " + nomiAgg : "Così com'è"));
+          return (
+          <div className="flex flex-col gap-2">
+            {aggV.length > 0 && (
+              <div className="mb-1">
+                <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>
+                  Cosa ci metti sopra <span className="font-normal" style={{ color: T.tenue }}>· quante ne vuoi</span></span>
+                <div className="flex gap-2 flex-wrap">
+                  {aggV.map((a) => { const giu = aggSel.includes(a.id); return (
+                    <button key={a.id} aria-pressed={giu} aria-label={giu ? `Leva ${a.nome}` : `Metti ${a.nome}`}
+                      onClick={() => setAggSel((xs) => (xs.includes(a.id) ? xs.filter((x) => x !== a.id) : [...xs, a.id]))}
+                      className="rounded-2xl px-3 text-sm font-bold inline-flex items-center gap-1.5"
+                      style={{ minHeight: 44, ...(giu ? { background: T.blu, color: "#fff" } : { background: "#F0F3FB", color: T.dim }) }}>
+                      {giu && <Check size={13} />}{a.nome} · + {fmtEuro(a.prezzo || 0)}
+                    </button>
+                  ); })}
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: T.tenue }}>
+                  {rigaDa
+                    ? "Vale per una: le altre restano com'erano."
+                    : "Il prezzo si somma, e il magazzino scala anche quello che aggiungi."}</p>
+              </div>
+            )}
+            {/* niente aria-label sui tasti che chiudono: il testo visibile e'
+                gia' univoco dentro il foglio, e un nome accessibile diverso
+                da quello stampato e' un tranello per chi ascolta
+                (revisione gen-5.96) */}
+            <button onClick={() => metti(null)}
+              className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
+              {etichetta(null)} · {fmtEuro(Math.max(0, p0 + somma))}
+            </button>
+            {(scelta.varianti || []).map((va) => (
+              <button key={va.id} onClick={() => metti(va)}
+                className="rounded-2xl px-3.5 py-3 text-left font-bold" style={{ background: "#fff", border: `1.5px solid ${T.bordo}`, color: T.ink }}>
+                {etichetta(va)} · {fmtEuro(Math.max(0, p0 + (+va.delta || 0) + somma))}
+              </button>
+            ))}
+          </div>);
+        })()}
+      </Foglio>
+      {/* ═══ GLI INGREDIENTI ESAURITI (gen-6.18) ═══
+          Parole di Valerio del 13 settembre: la cassa «può scegliere gli
+          ingredienti disponibili, e quelli esauriti».
+          IL MARKUP STA QUI, non dentro la fascia, e non e' un dettaglio di
+          stile: la fascia e' un `fixed z-30`, e un elemento posizionato crea
+          un contesto di impilamento — lo z-50 del Foglio varrebbe solo li'
+          dentro e la barra di navigazione (z-40) gli dipingerebbe sopra. Nella
+          fascia resta il solo bottone; il Foglio vive accanto agli altri.
+          Il collaudo §10 non guarda gli z-index: chiede al documento chi
+          riceve il tocco nel punto della barra. */}
+      <Foglio aperto={esauritiSu} titolo="Ingredienti esauriti" onChiudi={() => setEsauritiSu(false)}>
+        <p className="text-sm mb-3" style={{ color: T.dim }}>
+          Quello che segni qui finisce in fondo alla fascia, barrato, e non si mette più sui piatti.
+          Le righe già nel conto non si toccano: si incassano com'erano.
+          <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+            Le altre casse lo vedono al giro dopo, qualche secondo. A fine serata si rimette disponibile da qui.</span>
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {aggiunteTutte(stato).length === 0 && (
+            <p className="text-sm" style={{ color: T.tenue }}>Non c'è nessun ingrediente da segnare.</p>
+          )}
+          {aggiunteTutte(stato).map((a) => {
+            const fin = !!a.esaurito;
+            return (
+              /* il marcatore sta sulla RIGA e il bottone dentro: sono due cose
+                 diverse — lo stato si legge, il tocco si dà. Stessa ragione del
+                 cartello «da salvare», che il banco aveva già insegnato. */
+              <div key={a.id} data-esa-riga={a.id} data-esa-stato={fin ? "esaurito" : "disponibile"}>
+                <button type="button" onClick={() => segnaEsaurito(a, !fin)} aria-pressed={fin}
+                  aria-label={fin ? `Rimetti disponibile ${a.nome}` : `Segna esaurito ${a.nome}`}
+                  className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left w-full"
+                  style={fin
+                    ? { background: "#F6EFE6", border: `1.5px dashed ${T.tenue}` }
+                    : { background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
+                  <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                    style={{ background: fin ? T.ambra : "#fff", border: `1.5px solid ${fin ? T.ambra : T.tenue}` }}>
+                    {fin && <Check size={13} color="#fff" />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-sm font-extrabold truncate${fin ? " line-through" : ""}`}
+                      style={{ color: T.ink }}>{a.nome}</span>
+                    <span className="block text-xs" style={{ color: T.dim }}>
+                      {fin ? "Esaurita: non si mette sui piatti" : "Disponibile"}</span>
+                  </span>
+                  <span className="text-xs shrink-0" style={{ color: T.tenue }}>+ {fmtEuro(a.prezzo || 0)}</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Foglio>
+      {/* ── CHI È, E COME LO VUOLE (gen-6.08) ──
+          Un foglio solo per tutte e tre le domande, nell'ordine in cui le fa
+          chi risponde al telefono: come lo vuole, chi è, per quando. Le voci
+          compaiono a mano a mano che servono — al banco non si vede niente,
+          per l'asporto nome e telefono, per la consegna anche la via. */}
+      <Foglio aperto={cliSu} titolo="Chi è, e come lo vuole" onChiudi={() => setCliSu(false)}>
+        <div className="flex flex-col gap-4">
+          <Segmenti valore={modo} onCambia={(v) => { setModo(v); if (v === "banco") azzeraCliente(); }} opzioni={[
+            { id: "banco", nome: "Banco" }, { id: "asporto", nome: "Asporto" }, { id: "consegna", nome: "Consegna" },
+          ]} />
+          {modo === "banco"
+            ? <p className="text-sm" style={{ color: T.dim }}>
+                Al banco non serve niente: batti e incassi come sempre. Scegli «Asporto» o «Consegna»
+                quando l'ordine è di qualcuno che verrà a prenderlo o che aspetta a casa.</p>
+            : <>
+              <div>
+                <Campo label="Telefono" valore={cliTel} onCambia={(v) => { setCliTel(v); setCliId(null); }}
+                  inputMode="tel" placeholder="Bastano le ultime cifre per cercarlo"
+                  suggerimento={telNorm(cliTel)
+                    ? "È la chiave con cui lo ritrovi la prossima volta."
+                    : "Senza numero l'ordine si fa lo stesso, ma il cliente non entra in rubrica: la prossima volta va riscritto tutto."} />
+                {/* i CANDIDATI, non una rubrica da scorrere: compaiono mentre
+                    si scrive e spariscono appena se ne tocca uno */}
+                {cercati.length > 0 && !cliId && (
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    {cercati.map((c) => (
+                      <button key={c.id} onClick={() => prendiCliente(c)}
+                        aria-label={`Prendi ${c.nome || "senza nome"}, ${c.n || 1} ordini`}
+                        className="w-full text-left rounded-2xl px-3 py-2.5"
+                        style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+                        <span className="block text-sm font-extrabold truncate" style={{ color: T.ink }}>{c.nome || "Senza nome"}</span>
+                        <span className="block text-xs truncate" style={{ color: T.tenue }}>
+                          {c.tel}{c.via ? " · " + c.via : ""} · {c.n || 1} {(c.n || 1) === 1 ? "ordine" : "ordini"}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Campo label="Nome" valore={cliNome} onCambia={setCliNome}
+                placeholder="Come lo chiami quando è pronto"
+                suggerimento="Obbligatorio: è quello che si legge in cucina sul cartellino." />
+              {modo === "consegna" && (
+                <div>
+                  <Campo label="Via e numero" valore={cliVia} onCambia={scriviVia}
+                    placeholder="Via, numero civico, scala" />
+                  {/* GLI INDIRIZZI VERI, mentre si scrive. Toccarne uno
+                      riscrive il campo normalizzato: e' la correzione
+                      automatica chiesta l'8 settembre, e non chiede un tasto
+                      in piu' perche' al telefono un tasto in piu' e' un
+                      cliente che aspetta. */}
+                  {viaSugg.length > 0 && !viaOk && (
+                    <div data-viasugg="1" className="flex flex-col gap-1 mt-2">
+                      {viaSugg.map((x, i) => (
+                        <button key={i} onClick={() => prendiVia(x)}
+                          aria-label={`Usa l'indirizzo ${x.testo}`}
+                          className="text-left text-sm rounded-xl px-3 py-2"
+                          style={{ minHeight: 44, background: "#F6F8FE", border: `1px solid ${T.bordo}`, color: T.ink }}>
+                          {x.testo}</button>
+                      ))}
+                    </div>
+                  )}
+                  {viaOk && cliGeo && (
+                    <div className="mt-2">
+                      <Chip colore={T.verde} pieno><Check size={11} /> Indirizzo verificato</Chip>
+                      <MiniMappa lat={cliGeo.lat} lon={cliGeo.lon} />
+                    </div>
+                  )}
+                  {/* IL RIPIEGO, e non e' un dettaglio: col servizio giu' —
+                      o senza rete — questo tasto e' l'unico occhio che resta
+                      sull'indirizzo, e la cassa non si ferma comunque. */}
+                  {cliVia.trim() && !viaOk && (
+                    <div className="mt-2">
+                      <Bottone variante="tonale" piccolo icona={Search} onClick={apriMappa}>Vedi sulla mappa</Bottone>
+                      <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+                        {viaMuto
+                          ? "Non riesco a controllare l'indirizzo adesso: si incassa lo stesso, e questo tasto lo apre nelle mappe."
+                          : "Scrivi la via e scegli fra quelle proposte. Oppure aprila nelle mappe."}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* ── LA BARRA DELLE FASCE (gen-6.09, parole di Valerio del 7
+                     settembre: «le fasce orarie devono essere visibili tramite
+                     una barra laterale scorribile») ──
+                  Quattro tastini «fra 15′» rispondono a UNA domanda sola —
+                  «quanto ci metto» — ma al telefono la domanda e' un'altra:
+                  «per che ora lo vuole», e la risposta e' un'ora precisa che
+                  il cliente dice lui. Una barra di orari veri, a quarti d'ora,
+                  si legge come si legge un orario: si scorre e si tocca.
+                  DA ADESSO, non da mezzanotte: la prima fascia e' il primo
+                  quarto d'ora dopo quello corrente, perche' nessuno prende un
+                  ordine per un'ora gia' passata. E si tiene a portata di
+                  scorrimento tutto il resto del servizio (sei ore).
+                  LATERALE e non sotto: sta accanto al campo, alta quanto una
+                  mano, e non spinge giu' il tasto «Va bene». */}
+              <div>
+                <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Per le</span>
+                <div className="flex gap-2 items-start">
+                  <label className="flex-1 min-w-0">
+                    <input type="text" value={cliFascia} placeholder="20:30" inputMode="numeric" maxLength={5}
+                      aria-label="Per le" onChange={(e) => setCliFascia(e.target.value)}
+                      className="w-full rounded-2xl px-4 py-3 text-base font-semibold"
+                      style={{ background: "#F6F8FE", border: `1.5px solid ${T.bordo}`, color: T.ink }} />
+                    <span className="block text-xs mt-1" style={{ color: T.tenue }}>
+                      L'ora in cui lo vuole. Si legge in cucina accanto al nome.</span>
+                  </label>
+                  <div data-fasce="1" className="sc-scroll rounded-2xl shrink-0"
+                    style={{ width: "5.6rem", maxHeight: "11rem", overflowY: "auto",
+                      background: "#F6F8FE", border: `1.5px solid ${T.bordo}` }}>
+                    {(() => {
+                      /* si parte dal quarto d'ora DOPO quello corrente e si
+                         va avanti sei ore: 24 fasce, che e' quanto basta a
+                         coprire un servizio intero senza diventare un
+                         calendario. */
+                      const ora = new Date();
+                      ora.setSeconds(0, 0);
+                      ora.setMinutes(Math.floor(ora.getMinutes() / 15) * 15 + 15);
+                      return Array.from({ length: 24 }, (_, i) => {
+                        const d = new Date(ora.getTime() + i * 15 * 60000);
+                        const hh = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+                        const scelta = cliFascia.trim() === hh;
+                        return (
+                          <button key={hh} data-ora={hh} onClick={() => setCliFascia(hh)}
+                            aria-label={`Per le ${hh}`} aria-pressed={scelta}
+                            className="w-full text-center text-sm font-bold tabular-nums"
+                            style={{ minHeight: 40, background: scelta ? T.blu : "transparent",
+                              color: scelta ? "#fff" : T.dim }}>{hh}</button>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </>}
+          <Bottone icona={Check} onClick={() => setCliSu(false)}>Va bene</Bottone>
+        </div>
+      </Foglio>
+      <Foglio aperto={incasso} titolo="Incasso" onChiudi={() => setIncasso(false)}>
+        <div className="flex flex-col gap-4">
+          <div className="text-center font-extrabold text-3xl" style={{ color: T.ink }}>{fmtEuro(totale)}</div>
+          {sc && sc.problemi.length > 0 && (
+            <div className="rounded-2xl p-3 text-xs" style={{ background: "#FFF6E8", color: "#7A4A00" }}>
+              <b>La vendita passa comunque, ma:</b>
+              {sc.problemi.map((pr, i) => <div key={i} className="mt-1">· {pr}</div>)}
+            </div>
+          )}
+          <div>
+            <span className="block text-sm font-bold mb-1.5" style={{ color: T.ink }}>Metodo di pagamento</span>
+            <Segmenti valore={metodo} onCambia={setMetodo} opzioni={[
+              { id: "contanti", nome: "Contanti" }, { id: "carta", nome: "Carta" }, { id: "altro", nome: "Altro" },
+            ]} />
+          </div>
+          {/* il resto: un aiuto per chi sta al banco, e NIENTE di piu' —
+              vive nello stato della vista e muore qui: la vendita registrata
+              non porta ricevuti ne' resto, zero fiscale, zero peso sul
+              canale (gen-6.00) */}
+          {metodo === "contanti" && (
+            <div>
+              <Campo label="Ricevuti" valore={ricevuti} onCambia={setRicevuti} inputMode="decimal"
+                placeholder="I contanti che ti hanno dato"
+                suggerimento="Serve solo a fare il resto: non finisce nella vendita registrata." />
+              {(() => {
+                if (String(ricevuti).trim() === "") return null;
+                const resto = (parseFloat(String(ricevuti).replace(",", ".")) || 0) - totale;
+                return resto >= 0
+                  ? <div className="text-center mt-2">
+                      <span className="block text-xs font-bold" style={{ color: T.tenue }}>Resto</span>
+                      <span className="text-3xl font-extrabold" style={{ color: T.verde }}>{fmtEuro(resto)}</span>
+                    </div>
+                  : <p className="text-sm font-semibold text-center mt-2" style={{ color: T.ambra }}>
+                      Mancano {fmtEuro(-resto)}</p>;
+              })()}
+            </div>
+          )}
+          <Bottone icona={CheckCheck} onClick={registra}>Registra l'incasso</Bottone>
+        </div>
+      </Foglio>
+      {/* le ultime vendite, TRASLOCATE qui dalla card «Oggi» (gen-6.00): la
+          riga intera si tocca per stornare — via i cerchietti da 26 punti —
+          e tiene l'aria-label di sempre, cosi' i banchi vecchi si
+          riallineano senza riscriversi. */}
+      <Foglio aperto={ultime} titolo="Le ultime vendite" onChiudi={() => setUltime(false)}>
+        {ultime && (
+          <div className="flex flex-col gap-1">
+            {daMostrare.length === 0 && (
+              <p className="text-sm" style={{ color: T.dim }}>Nelle ultime 48 ore non è passato nessuno.</p>
+            )}
+            {daMostrare.length > 0 && (
+              <p className="text-xs mb-1" style={{ color: T.tenue }}>
+                Le ultime 48 ore. Una vendita si storna toccando la sua riga.</p>
+            )}
+            {daMostrare.map((v) => rigaVendita(v))}
+            {venditeRecenti.length > daMostrare.length && (
+              <p className="text-xs mt-1" style={{ color: T.tenue }}>
+                … e altre {venditeRecenti.length - daMostrare.length}: il CSV in Sistema le tiene tutte.</p>
+            )}
+          </div>
+        )}
+      </Foglio>
+      <Foglio aperto={!!stornoDi} titolo="Storno" onChiudi={() => setStornoDi(null)}>
+        {stornoDi && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm" style={{ color: T.dim }}>
+              {(stornoDi.righe || []).map((r) => `${r.qty}× ${r.nome}`).join(", ")} · <b style={{ color: T.ink }}>{fmtEuro(stornoDi.totale)}</b> ({stornoDi.metodo})
+            </p>
+            <p className="text-xs" style={{ color: T.tenue }}>
+              La vendita non si cancella: nasce una riga contraria, le giacenze tornano su, e resta scritto chi e perché.
+            </p>
+            <Campo label="Motivo dello storno" valore={motivo} onCambia={setMotivo}
+              placeholder="Es. errore di battitura" autoFocus />
+            {profilo.ruolo !== "admin" && (adminConPin
+              ? <Campo label="PIN di un Admin" valore={pinA} onCambia={(v) => setPinA(v.slice(0, 4))}
+                  tipo="password" inputMode="numeric" maxLength={4}
+                  suggerimento="Lo storno lo autorizza un Admin: il suo PIN resta registrato sulla riga." />
+              : <p className="text-sm font-semibold" style={{ color: T.ambra }}>
+                  Nessun profilo Admin ha un PIN: lo storno non si può autorizzare da qui.</p>)}
+            <Bottone variante="pericolo" icona={RotateCcw} onClick={storna}
+              disabilitato={profilo.ruolo !== "admin" && !adminConPin}>Conferma lo storno</Bottone>
+          </div>
+        )}
+      </Foglio>
+      <Foglio aperto={report} titolo="Report di giornata" onChiudi={() => setReport(false)}>
+        {report && (() => {
+          /* righe con gerarchia, non un blocco da terminale: questa e' la
+             schermata che si mostra al commercialista (gen-5.99). Il testo
+             grezzo resta la cosa che «Copia» mette negli appunti. */
+          const { sede, g, aliquote } = datiGiornata(stato, sedeId, oggi);
+          return (
+            <div className="flex flex-col gap-3">
+              <div className="text-xs font-extrabold uppercase tracking-wide" style={{ color: T.tenue }}>
+                {sede?.nome || "Sede"} · {new Date().toLocaleDateString("it-IT")}</div>
+              <div className="flex items-end gap-3 flex-wrap">
+                <span>
+                  <span className="block text-xs font-bold" style={{ color: T.tenue }}>Totale</span>
+                  <span className="text-3xl font-extrabold" style={{ color: T.ink }}>{fmtEuro(g?.totale || 0)}</span>
+                </span>
+                <span className="text-sm pb-1" style={{ color: T.dim }}>
+                  {g?.nVendite || 0} vendite · {g?.nStorni || 0} storni</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Chip colore={T.verde}>Contanti {fmtEuro(g?.metodi?.contanti || 0)}</Chip>
+                <Chip colore={T.blu}>Carta {fmtEuro(g?.metodi?.carta || 0)}</Chip>
+                {(g?.metodi?.altro || 0) !== 0 && <Chip colore={T.dim}>Altro {fmtEuro(g.metodi.altro)}</Chip>}
+              </div>
+              {aliquote.length > 0 && (
+                <div>
+                  <div className="text-xs font-extrabold uppercase tracking-wide mb-1" style={{ color: T.tenue }}>
+                    Scorporo IVA · informativo, ultime 48 ore</div>
+                  {aliquote.map((a) => (
+                    <div key={String(a.k)} className="flex items-center gap-2 text-sm py-1.5"
+                      style={{ borderTop: `1px solid ${T.bordo}` }}>
+                      <span className="font-bold w-16 shrink-0" style={{ color: T.ink }}>
+                        {a.k === "—" ? "Senza" : `IVA ${a.k}%`}</span>
+                      <span className="flex-1" style={{ color: T.dim }}>lordo {fmtEuro(a.lordo)}</span>
+                      {a.imponibile != null && (
+                        <span className="text-xs" style={{ color: T.tenue }}>
+                          imponibile {fmtEuro(a.imponibile)} · imposta {fmtEuro(a.imposta)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: T.tenue }}>
+                Lo scontrino fiscale resta al registratore telematico: questo report serve a cassa e magazzino.</p>
+              <Bottone variante="tonale" icona={Copy}
+                onClick={() => navigator.clipboard?.writeText(testoGiornata(stato, sedeId, oggi)).then(
+                  () => mostraToast("Copiato: ora incollalo dove serve"),
+                  () => mostraToast("Seleziona e copia a mano", "avviso"))}>Copia il report</Bottone>
+            </div>
+          );
+        })()}
+      </Foglio>
+    </div>
+  );
+}
+
+/* ── INFORMAZIONI E ASSISTENZA (gen-5.99) ──
+   La carta d'identita': versione, come si aggiorna, chi chiamare, e i
+   limiti DICHIARATI — scritti qui come sono scritti nel codice, perche'
+   un prodotto serio dice anche cosa non sa fare. */
+function VistaInformazioni({ stato, sync }) {
+  return (
+    <div>
+      <Intesta titolo="Informazioni" sotto="La carta d'identità dell'app: versione, aggiornamenti, assistenza" />
+      <Scheda className="p-4 mb-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl p-3 shrink-0" style={{ background: `${T.blu}14`, color: T.blu }}><Cloud size={20} /></div>
+          <div className="flex-1 min-w-0">
+            <div className="font-extrabold" style={{ color: T.ink }}>Supply Chain Pro · {VERSIONE}</div>
+            <div className="text-xs" style={{ color: T.dim }}>
+              {sync === "locale" ? "Modalità locale: i dati restano su questo telefono" : "Collegata alla rete condivisa"}</div>
+          </div>
+        </div>
+      </Scheda>
+      <Scheda className="p-4 mb-3">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>Come si aggiorna</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Da sola: basta chiudere e riaprire l'app. I dati si allineano fra i telefoni in qualche
+          secondo, a schermo acceso. Prima di accendere una funzione nuova (cassa, comande) fai un
+          giro di ricarica su TUTTI i telefoni, così nessuno resta sulla versione vecchia.</p>
+      </Scheda>
+      <Scheda className="p-4 mb-3">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>Se qualcosa non torna</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Ogni rilascio lascia un backup: si torna indietro in un minuto. Scrivi cosa hai visto in
+          Gestione → Memoria (data, schermata, cosa ti aspettavi): è il canale che viene riletto a
+          ogni ripresa del lavoro. Lo Storico (Gestione → Storico) tiene traccia di chi ha fatto
+          cosa, col tasto per riportare le cose com'erano.</p>
+      </Scheda>
+      <Scheda className="p-4">
+        <div className="font-extrabold mb-1" style={{ color: T.ink }}>I limiti, detti chiari</div>
+        <p className="text-sm" style={{ color: T.dim }}>
+          Lo scontrino fiscale resta al registratore telematico: la Cassa serve a magazzino,
+          comande e totali. Le comande arrivano col giro dell'app (qualche secondo) e mai a
+          schermo spento. Le vendite in dettaglio vivono 48 ore (i totali di giornata tre mesi,
+          l'export CSV sta in Sistema). Con cassa e comande accese l'app va bene fino a
+          ~50 scontrini veri al giorno su una cassa: sopra, c'è un lavoro già progettato da fare
+          prima.</p>
+      </Scheda>
+    </div>
+  );
+}
+
+/* ── COME STA QUESTO TELEFONO (gen-6.15) ──
+   diagRef era scritto in quattro punti e non era letto da NESSUNA riga di
+   tutto il repository: una scatola nera che raccoglieva e non diceva. Qui si
+   apre.
+   Il tic sta in questo componente e non accanto al ref in App(), per la
+   stessa ragione scritta su EtaVista: uno useState accanto al ref rimonta
+   l'app intera a ogni giro del poll.
+   LA LISTA DEI TELEFONI DICE ANCHE QUELLO CHE NON SA, e non e' una formalita':
+   chi apre l'app e non salva mai non compare, e un assente non e'
+   «aggiornato» — e' «non lo so». Senza quella frase la lista mente per
+   omissione proprio a chi la consulta per decidere se un rilascio e' arrivato
+   a tutti. */
+function SchedaDiagnosi({ stato, leggiDiag }) {
+  const [, tic] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tic((n) => (n + 1) % 1000000), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const d = (leggiDiag && leggiDiag()) || {};
+  const ms = d.ultimaRete ? Date.now() - d.ultimaRete : null;
+  const eta = ms == null ? null : Math.max(0, Math.round(ms / 1000));
+  const ferma = ms != null && ms > SOGLIA_VISTA_FERMA;
+  const righe = Object.entries(telefoniDi(stato)).sort((a, b) => (b[1].r || 0) - (a[1].r || 0));
+  /* ── IL CONFRONTO NON SI FA CON LA PROPRIA VERSIONE ──
+     VERSIONE e' la costante compilata nel pacchetto di CHI GUARDA, e su una
+     flotta mista — che e' la premessa di tutto questo giro — chi apre Sistema
+     e' spesso il telefono meno aggiornato: ogni riga piu' NUOVA della sua gli
+     risulterebbe diversa, e la scheda direbbe «non aggiornati» proprio dei
+     dispositivi gia' passati avanti. Il metro e' la versione piu' alta vista
+     in lista, e sta scritto sulla scheda. */
+  const piuAlta = righe.reduce((m, [, r]) => (r.v > m ? r.v : m), VERSIONE);
+  /* Una riga vecchia non dice «questo telefono e' aggiornato»: dice «l'ultima
+     volta che ha salvato lo era». Terzo stato, grigio, fuori dal conto. */
+  const GIORNI_MUTO = 7;
+  const muta = (r) => Number.isFinite(r.t) && Date.now() - r.t > GIORNI_MUTO * 86400000;
+  /* un orologio avanti stampava «adesso» per sempre, cioe' dichiarava
+     aggiornato chi non salva da una settimana: qui ha il suo ramo */
+  const quando = (r) => (Number.isFinite(r.t) ? (r.t > Date.now() + 60000 ? "orologio avanti" : tempoFa(r.t)) : "—");
+  return (
+    <Scheda className="p-5 mt-4">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="rounded-2xl p-2.5" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></div>
+        <div>
+          <div className="font-extrabold" style={{ color: T.ink }}>Come sta questo telefono</div>
+          <div className="text-xs" style={{ color: T.tenue }}>L'allineamento con la rete, visto da qui</div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 text-sm" style={{ color: T.dim }}>
+        <div>Ultimo allineamento riuscito:{" "}
+          <b style={{ color: ferma ? T.ambra : T.verde }}>{eta == null ? "mai, da quando è aperta" : `${eta} s fa`}</b></div>
+        <div>Giri leggeri consecutivi: <b style={{ color: T.ink }}>{d.giriMagri || 0} su {MAX_GIRI_MAGRI}</b></div>
+        <div>Conflitti: <b style={{ color: T.ink }}>{d.nConflitti || 0}</b> · Errori: <b style={{ color: T.ink }}>{d.nErrori || 0}</b></div>
+        {d.ultimoErrore && <div className="text-xs" style={{ color: T.ambra }}>
+          Ultimo errore: {String(d.ultimoErrore.msg).slice(0, 90)} ({tempoFa(d.ultimoErrore.t)})</div>}
+      </div>
+      <div className="mt-4">
+        <div className="text-xs font-extrabold uppercase tracking-wide mb-1.5" style={{ color: T.tenue }}>
+          I telefoni che hanno salvato · {righe.length} su un tetto di {MAX_TELEFONI}</div>
+        {righe.length === 0
+          ? <p className="text-sm" style={{ color: T.tenue }}>Nessuno ancora: la lista si riempie quando un dispositivo salva qualcosa.</p>
+          : <div className="flex flex-col gap-1.5">
+            {righe.map(([id, r]) => (
+              <div key={id} className="flex items-center gap-2 text-sm flex-wrap" style={{ color: T.dim }}>
+                <span className="text-xs font-bold" style={{ color: T.tenue }}>…{String(id).slice(-5)}</span>
+                <b style={{ color: muta(r) ? T.tenue : r.v === piuAlta ? T.verde : T.ambra }}>{r.v}</b>
+                <span className="text-xs">{quando(r)}{Number.isFinite(r.r) ? ` · rev ${r.r}` : ""}</span>
+                {muta(r)
+                  ? <Chip colore={T.tenue}>non si fa sentire</Chip>
+                  : r.v !== piuAlta && <Chip colore={T.ambra}>da ricaricare</Chip>}
+              </div>
+            ))}
+          </div>}
+        <p className="text-xs mt-2" style={{ color: T.tenue }}>
+          È un <b>conteggio parziale, non un inventario</b>. Conta solo i dispositivi che hanno
+          SALVATO qualcosa: chi apre l'app e la guarda non compare. Un dispositivo che non è in
+          lista non è «aggiornato»: è <b>non aggiornato</b>, perché non si sa. Il confronto è fatto
+          con la versione più alta vista qui ({piuAlta}), non con quella di questa scheda: su una
+          flotta mista chi guarda è spesso il più indietro. Chi non salva da {GIORNI_MUTO} giorni
+          è grigio e fuori dal conto: dice solo com'era l'ultima volta.
+          {righe.length >= MAX_TELEFONI && " Il tetto ha morso: qui manca chi salva di rado, ed è proprio chi si vorrebbe vedere."}
+          {" "}Un ripristino da backup non riporta indietro questa lista: resta quella di adesso.
+        </p>
+      </div>
+    </Scheda>
+  );
+}
+function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina, leggiDiag }) {
   const [punti, setPunti] = useState(null);
   const [nota, setNota] = useState("");
   const [creaAperto, setCreaAperto] = useState(false);
@@ -9774,8 +15623,11 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
       const dati = JSON.parse(impTesto);
       if (!Array.isArray(dati?.profili) || !Array.isArray(dati?.sedi) || !Array.isArray(dati?.prodotti))
         return mostraToast("Il testo non è un backup valido di Supply Chain Pro", "errore");
-      setImpAperto(false); setImpTesto("");
-      await ripristina(dati, "importazione manuale");
+      /* si chiude DOPO, e solo se il ripristino e' partito davvero: da gen-6.10
+         puo' dire di no (vendite non ancora salvate), e buttare il testo
+         incollato su un rifiuto vorrebbe dire farlo reincollare a mano */
+      const partito = await ripristina(dati, "importazione manuale");
+      if (partito !== false) { setImpAperto(false); setImpTesto(""); }
     } catch { mostraToast("JSON non valido: controlla il testo incollato", "errore"); }
   };
 
@@ -9821,6 +15673,42 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
   const esportaCatalogo = () => {
     scaricaCsv(`catalogo-${oggiFile()}.csv`, esportaCatalogoRighe(stato));
     mostraToast("CSV catalogo scaricato");
+  };
+  /* le vendite hanno un tetto di 48 ore nello stato: QUESTO export e la
+     tabella delle giornate sono il modo di tenerle per sempre (gen-5.96) */
+  const esportaVendite = () => {
+    /* «Aggiunte» va IN CODA, mai in mezzo: chi apre in Excel il file di ieri
+       e quello di oggi deve ritrovare le prime dieci colonne allo stesso
+       posto (filtri e formule non si spostano). «Voce» resta il nome
+       composto, che si legge da solo. (gen-6.02) */
+    /* «Cliente» e «Modo» arrivano DOPO «Aggiunte», per la stessa ragione per
+       cui «Aggiunte» arrivo' dopo «Scontrino»: le colonne vecchie non si
+       spostano mai. E portano il NOME e il modo, mai il telefono ne'
+       l'indirizzo: questo file esce dall'app e finisce in una cartella
+       condivisa, in una mail, in un foglio aperto da chiunque — la rubrica
+       resta dentro l'app (gen-6.08). */
+    const righe = [["Data", "Sede", "Operatore", "Voce", "Quantità", "Prezzo unitario", "Totale riga", "Metodo", "Stato", "Scontrino", "Aggiunte", "Cliente", "Modo"]];
+    /* la riga ESTERNA era protetta, quella interna no: una vendita senza
+       «righe» faceva cadere l'export, e le altre due copie di questo stesso
+       giro (la lista delle vendite e il Foglio dello storno) facevano una
+       cosa peggiore — pagina bianca alla cassa. Tutte e tre chiuse allo
+       stesso modo (gen-6.15). */
+    (stato.vendite || []).forEach((v) => (v.righe || []).forEach((r) => {
+      righe.push([dataIt(v.t), trova(stato.sedi, v.sedeId)?.nome, v.chi, r.nome,
+        numCsv(r.qty), numCsv(r.prezzo), numCsv(+(r.qty * r.prezzo).toFixed(2)), v.metodo, v.stato, v.id,
+        (r.agg || []).map((a) => a.nome).join(" + "),
+        v.cli?.nome || "", v.cli?.modo || "banco"]);
+    }));
+    righe.push([]);
+    righe.push(["Giornata", "Sede", "", "", "Vendite", "", "Totale", "Contanti", "Carta", "Altro"]);
+    (stato.giornate || []).forEach((g) => {
+      righe.push([g.giorno, trova(stato.sedi, g.sedeId)?.nome, "", "", numCsv(g.nVendite), "",
+        numCsv(g.totale), numCsv(g.metodi?.contanti || 0), numCsv(g.metodi?.carta || 0), numCsv(g.metodi?.altro || 0)]);
+    });
+    scaricaCsv(`vendite-${oggiFile()}.csv`, righe);
+    /* la finestra va DETTA dove si esporta, o l'export settimanale perde
+       cinque giorni di dettaglio in silenzio (revisione gen-5.96) */
+    mostraToast("CSV vendite: il dettaglio copre le ultime 48 ore, i totali di giornata 90 giorni");
   };
   const analizzaCat = () => {
     if (!impCatTesto.trim()) return mostraToast("Incolla o carica un file CSV", "errore");
@@ -9905,6 +15793,7 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
           <Bottone variante="tonale" piccolo icona={Boxes} onClick={esportaGiacenze}>Giacenze</Bottone>
           <Bottone variante="tonale" piccolo icona={Truck} onClick={esportaOrdini}>Ordini</Bottone>
           <Bottone variante="tonale" piccolo icona={History} onClick={esportaMovimenti}>Movimenti</Bottone>
+          <Bottone variante="tonale" piccolo icona={Tag} onClick={esportaVendite}>Vendite</Bottone>
         </div>
       </Scheda>
 
@@ -9921,6 +15810,8 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
           <Bottone variante="fantasma" icona={Upload} onClick={() => { setImpCatAperto(true); setImpCatTesto(""); setImpCatRep(null); }}>Importa catalogo</Bottone>
         </div>
       </Scheda>
+
+      <SchedaDiagnosi stato={stato} leggiDiag={leggiDiag} />
 
       <Foglio aperto={creaAperto} titolo="Nuovo punto di ripristino" onChiudi={() => setCreaAperto(false)}>
         <div className="flex flex-col gap-4">
@@ -9976,6 +15867,16 @@ function VistaSistema({ stato, profilo, sync, muta, mostraToast, ripristina }) {
             {impCatRep.catNuove.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuove categorie: {impCatRep.catNuove.join(", ")}</div>}
             {impCatRep.fornNuovi.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuovi fornitori: {impCatRep.fornNuovi.join(", ")}</div>}
             {impCatRep.unitaNuove.length > 0 && <div className="text-xs mt-1" style={{ color: T.dim }}>Nuove unità: {impCatRep.unitaNuove.join(", ")}</div>}
+            {/* Dire cosa il file NON contiene conta più che dire cosa contiene:
+                è l'unica informazione che permette di accorgersi di aver
+                caricato il file sbagliato PRIMA di premere Applica. */}
+            {impCatRep.aggiornati > 0 && impCatRep.nonToccati?.length > 0 && (
+              <div className="text-xs mt-2 rounded-xl px-2.5 py-2"
+                style={{ background: "#EFF7F3", border: "1px solid #CFEADD", color: T.ink }}>
+                Il file non porta <b>{impCatRep.nonToccati.join(", ")}</b>: sui prodotti che
+                esistono già <b>queste cose restano come sono</b>, non vengono azzerate.
+              </div>
+            )}
             {impCatRep.errori.length > 0 && <div className="text-xs mt-1" style={{ color: T.ambra }}>{impCatRep.errori.length} avvisi · {impCatRep.errori.slice(0, 4).join(" · ")}</div>}
           </div>
         )}
@@ -10063,7 +15964,7 @@ function FormCodice({ stato, profilo, richiesta, muta, mostraToast, onChiudi, on
               return (
                 <button key={m.id} onClick={() => setMagIds((v) => (sel ? v.filter((x) => x !== m.id) : [...v, m.id]))}
                   className="rounded-full px-3.5 py-2 text-sm font-bold flex items-center gap-1.5"
-                  style={sel ? { background: T.grad, color: "#fff" }
+                  style={sel ? { background: T.blu, color: "#fff" }
                     : { background: "#F0F3FB", color: T.dim, border: `1px solid ${T.bordo}` }}>
                   {sel && <Check size={13} />}{m.nome}
                 </button>
@@ -10105,7 +16006,7 @@ function VistaAccessi({ stato, profilo, muta, mostraToast }) {
           <div className="rounded-2xl p-2.5" style={{ background: "#EAF0FE", color: T.blu }}><UserPlus size={18} /></div>
           <div>
             <div className="font-extrabold" style={{ color: T.ink }}>Richieste di primo accesso</div>
-            <div className="text-xs" style={{ color: T.tenue }}>Dati di chi sta provando a connettersi, in tempo reale</div>
+            <div className="text-xs" style={{ color: T.tenue }}>Dati di chi sta provando a connettersi</div>
           </div>
           {attese.length > 0 && <Chip colore={T.rosso}>{attese.length} in attesa</Chip>}
         </div>
@@ -10448,8 +16349,12 @@ function VistaAnalisi({ stato, muta, mostraToast, profilo }) {
       <Intesta titolo="Analisi" sotto="Andamento della rete: copertura scorte, movimenti e fabbisogni" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard icona={TrendingUp} colore={T.blu} label="Movimenti · 7 giorni" valore={mov7} />
-        <StatCard icona={Check} colore={artTot && artOk === artTot ? T.verde : T.ambra} label="Copertura scorte"
-          valore={`${artTot ? Math.round((artOk / artTot) * 100) : 100}%`} nota={`${artOk} su ${artTot} articoli a livello`} />
+        {/* la spunta fissa accanto a «2%» era il semaforo che mentiva di
+            piu' (gen-5.99): soglie vere, e sotto il 50% la parola giusta */}
+        {(() => { const pct = artTot ? Math.round((artOk / artTot) * 100) : 100;
+          return <StatCard icona={pct >= 90 ? Check : AlertTriangle}
+            colore={pct >= 90 ? T.verde : pct >= 50 ? T.ambra : T.rosso} label="Copertura scorte"
+            valore={`${pct}%`} nota={`${artOk} su ${artTot} articoli a livello${pct < 50 ? " · critica: conta o tara le soglie" : ""}`} />; })()}
         <StatCard icona={FlaskConical} colore={T.ciano} label="Richieste evase · 7 giorni" valore={evase7} />
         <StatCard icona={Truck} colore={T.rosa} label="Righe da ordinare" valore={ordAperti.length} />
       </div>
@@ -10657,6 +16562,13 @@ export default function App() {
   const [stato, setStato] = useState(null);
   const [profiloId, setProfiloId] = useState(null);
   const [sync, setSync] = useState("init"); // ok | salvataggio | offline | locale
+  /* QUANTE VENDITE SONO ANCORA DA SALVARE (gen-6.05). Vive accanto a sync
+     perche' e' la stessa informazione da due angoli: sync dice COME va il
+     canale, questo dice COSA e' rimasto indietro. Si aggiorna dove la coda
+     cambia, cioe' dentro specchiaCoda: un posto solo, e non si dimentica. */
+  const [daSalvare, setDaSalvare] = useState(0);
+  /* le voci troppo vecchie ritrovate all'avvio: si dicono una volta, all'ingresso */
+  const fermeRef = useRef([]);
   const [toast, setToast] = useState(null);
   const statoRef = useRef(null);
   useEffect(() => { statoRef.current = stato; }, [stato]);
@@ -10670,39 +16582,200 @@ export default function App() {
   /* ── motore di sincronizzazione resiliente ──
      Ogni modifica entra in coda, si applica subito in locale e viene
      ri-applicata sull'ultimo stato remoto prima di ogni scrittura.
-     In caso di errore si riprova con attesa crescente: nessuna
-     modifica va persa, nessuna sovrascrittura tra utenti.          */
+     In caso di errore si riprova con attesa crescente.
+
+     Due telefoni che salvano nello stesso momento (gen-5.80).
+     Fra il «leggo com'è adesso» e il «scrivo com'è dopo» passa un giro di
+     rete. Se in quel mezzo secondo salva anche un altro, prima il secondo
+     arrivato riscriveva tutto sopra e il lavoro del primo spariva senza
+     un avviso: un conteggio intero, un carico, una richiesta al
+     laboratorio. In cucina, con tre o quattro telefoni accesi, non è un
+     caso di scuola.
+     Adesso insieme allo stato viaggia revBase, cioè «da quale revisione
+     sono partito». Il server accetta la scrittura SOLO se in rete c'è
+     ancora quella revisione; se nel frattempo si è mossa, rifiuta.
+     Chi viene rifiutato non perde niente: la coda non si svuota mai
+     prima della conferma, quindi le sue modifiche si riapplicano sulla
+     base aggiornata e si SOMMANO a quelle dell'altro. È la coda a
+     rendere la cosa possibile — è per questo che la correzione sta qui
+     e non in un «chi arriva dopo vince».                            */
   const modalitaRef = useRef("condivisa");   // condivisa | locale
   const baseRef = useRef(null);              // ultimo stato remoto confermato
   const codaRef = useRef([]);                // mutazioni in attesa di invio
   const inSyncRef = useRef(false);
+  /* ── IL NUMERO DI GIRO (gen-6.21) ──
+     Il watchdog qui sotto lascia partire un SECONDO ciclo di salvataggio
+     quando il primo e' appeso da piu' di dodici secondi: e' giusto, se no un
+     telefono con la rete impantanata non salverebbe piu' niente. Ma quando il
+     ciclo lento rientra si comportava come se fosse l'ultimo — rimetteva la
+     propria base vecchia, ci ricostruiva sopra la vista, azzerava il semaforo
+     e riapriva il rubinetto. Questo contatore serve a una domanda sola, e la
+     risposta si sa senza guardare i dati: «sono ancora io l'ultimo?». */
+  const giroRef = useRef(0);
   const riproveRef = useRef(0);
+  const conflittiRef = useRef(0);            // quante volte di fila ha vinto un altro
   const offlineRef = useRef(false);
   const timerRef = useRef(null);
   const diagRef = useRef({});
+  /* ── IL MITTENTE DELLA RICEVUTA (gen-6.20) ──
+     Non e' il telefono e non e' la scheda: e' IL DISPOSITIVO PIU' IL
+     CARICAMENTO, e la ragione di ciascuna meta' e' un incasso.
+     Il caricamento, perche' due schede della stessa origine condividono il
+     disco (CHIAVE_CODA) e NON si vedono fra loro — zero BroadcastChannel, zero
+     navigator.locks, zero addEventListener("storage") in tutto il file. Con un
+     nome solo, la scrittura della scheda B farebbe da garante per una voce
+     della scheda A che non e' mai partita, e quella voce uscirebbe dalla coda
+     in silenzio.
+     Il dispositivo, perche' sta nella CHIAVE e non nel valore: e' cosi' che la
+     potatura puo' tenere in corsia preferenziale le ricevute mie senza
+     chiedere niente a nessuno (vedi sfoltisciScritture). In navigazione
+     privata idDispositivo() torna null, si degrada a «anon» e si torna al
+     comportamento di prima della 6.20: non si sa, e chi non sa fa come prima.
+     Non va in localStorage: un mittente che sopravvive al ricaricamento
+     rimetterebbe in piedi esattamente il problema delle due schede. */
+  const caricamentoRef = useRef(uid("c"));
+  const mittRef = useRef((idDispositivo() || "anon") + "·" + caricamentoRef.current);
+  /* L'ULTIMO NUMERO CHE HO STAMPATO, e non «l'ultima scrittura atterrata» —
+     che NON e' conoscibile. Lo slot in rete avanza a ogni ATTERRAGGIO, compresi
+     quelli la cui risposta si e' persa, che sono l'unico caso per cui questa
+     ricevuta esiste: un ref aggiornato solo dopo un successo resterebbe
+     indietro proprio li', e il protocollo successivo riuserebbe un numero gia'
+     atterrato. Al giro dopo il mio stesso slot testimonierebbe per una
+     scrittura che non e' mai partita, e un incasso vero sparirebbe col
+     pallino verde (misurato in collaudi/protocollotest.mjs §7).
+     Si aggiorna PRIMA dell'attesa, insieme al timbro: sbagliare in alto tiene
+     la voce in coda, che e' innocuo; sbagliare in basso costa un incasso. */
+  const ultimoProtRef = useRef(0);
+  /* i lettori si tengono il GETTER, non il valore: diagRef e' un oggetto
+     stabile, quindi questa funzione resta buona anche catturata una volta
+     sola in una useEffect a dipendenze vuote (gen-6.15) */
+  const leggiDiag = () => diagRef.current;
 
   const mostraToast = (msg, tipo = "ok") => {
     setToast({ id: uid("t"), msg, tipo });
     setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), 2800);
   };
 
-  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], ...s });
+  /* Le liste che mancano diventano vuote invece di restare «non esiste».
+     Le prime dodici c'erano gia'; le sei di STRUTTURA le ho aggiunte in
+     gen-6.06 dopo che il banco ha trovato l'errore vero: quando l'accesso
+     riesce ma i dati NON arrivano (la sessione nasce, poi la rete cade fra una
+     chiamata e l'altra), lo stato si costruisce coi soli profili — e la prima
+     schermata che fa «stato.magazzini.filter(...)» muore con un errore
+     JavaScript, cioe' pagina bianca invece di «non ho i dati».
+     Il difetto c'era da prima di gen-6.06: l'ha scoperto una sezione di
+     collaudo scritta per chiudere un buco del banco, non un cambiamento del
+     codice. «...s» viene dopo, quindi i dati veri non vengono mai toccati:
+     questa riga puo' solo evitare un crollo, mai nascondere un dato. */
+  const normalizza = (s) => ({ codici: [], accessi: [], richieste: [], ordini: [], log: [], movimenti: [], applicate: [],
+    listino: [], vendite: [], giornate: [], postazioni: [], aggiunte: [], clienti: [],
+    magazzini: [], prodotti: [], sedi: [], unita: [], categorie: [], fornitori: [], profili: [],
+    /* «telefoni» e' l'unico campo a OGGETTO fra questi default, ed e' voluto:
+       e' una mappa {idDispositivo: {v, t}}, non una collezione. Sta qui
+       perche' un bundle vecchio scrive stati che non ce l'hanno, e la prima
+       schermata che ci itera morirebbe (gen-6.15). */
+    telefoni: {},
+    /* la mappa delle ricevute (gen-6.20), gemella di «telefoni» e per lo
+       stesso motivo: un bundle vecchio scrive stati che non ce l'hanno, e la
+       prima riga che ci itera morirebbe. «...s» viene dopo, quindi un client
+       che non la conosce la porta AVANTI intatta — ed e' cosi' che la
+       riparazione avanza per dispositivo, senza nessun momento in cui la
+       flotta debba essere allineata (misurato in protocollotest §8). */
+    scritture: {}, ...s });
+
+  /* Quante, fra quelle in coda, non risultano ancora registrate in rete. */
+  const nuoveInCoda = (base) => {
+    const gia = new Set(base?.applicate || []);
+    return codaRef.current.filter((m) => !(m.logId && gia.has(m.logId))).length;
+  };
 
   const applicaCoda = (base) => {
     if (!codaRef.current.length) return base;
     const b = clona(base);
+    const gia = new Set(b.applicate || []);
     for (const m of codaRef.current) {
+      /* Il nome di questa modifica e' gia' scritto nello stato: vuol dire che
+         era gia' arrivata e si era persa solo la risposta. Riapplicarla
+         conterebbe due volte un «aggiungi 3» — tre teglie prodotte che ne
+         diventano sei. Per un «metti a 7» non cambierebbe niente, ed e' per
+         questo che il difetto e' rimasto invisibile cosi' a lungo. */
+      if (m.logId && gia.has(m.logId)) continue;
       /* la fotografia di prima serve solo se questa mutazione finisce nello
          storico: le altre non hanno niente da ripristinare */
-      const pri = m.descr ? fotoCaselle(b) : null;
-      try { m.fn(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
-      if (m.descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      const pri = m.descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
+      /* una voce SALVATA non ha una funzione: ha un tipo e dei dati, e si
+         rigioca dal registro. Un tipo sconosciuto (arrivato da una versione
+         piu' nuova rimasta in coda) si SALTA invece di far cadere il giro:
+         meglio una riga non applicata che una serata persa. */
+      const esegui = m.fn || (m.tipo && ESECUTORI[m.tipo] ? (x) => ESECUTORI[m.tipo](x, m.dati) : null);
+      if (!esegui) { console.warn("Mutazione salvata di tipo sconosciuto, saltata:", m.tipo); continue; }
+      /* L'ESECUTORE RIFERISCE (gen-6.07). La voce di storico si scrive QUI,
+         fuori dall'esecutore: un «return» dentro applicaVendita non la
+         fermava, e voceLog usa lo stesso m.logId, quindi le due righe hanno la
+         stessa chiave e sfoltisci non le distingue. Senza questa riga la
+         guardia contro il doppione spostava il difetto invece di chiuderlo:
+         niente vendita doppia, ma «Vendita in cassa: € 6,50» scritto due volte
+         nello storico, che e' una bugia su carta. Il timbro del logId qui
+         sotto resta INCONDIZIONATO: la mutazione e' stata gestita comunque.
+         Il caso dell'eccezione resta com'era, per non cambiare piu' del
+         necessario. */
+      let esito;
+      try { esito = esegui(b); } catch (e) { console.warn("Mutazione ignorata per errore:", e); }
+      if (m.descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      if (m.logId) { gia.add(m.logId); b.applicate = [m.logId, ...(b.applicate || [])].slice(0, MAX_APPLICATE); }
     }
     /* la finestra degli ordini si applica qui, dove passa ogni scrittura:
        metterla nei singoli punti che creano ordini vorrebbe dire dimenticarsene
        nel prossimo che si aggiunge */
     b.ordini = sfoltisciOrdini(b.ordini);
+    /* e per la stessa identica ragione le vendite e le giornate (gen-5.96):
+       la prima stesura le potava solo dentro applicaVendita, e 300 righe
+       scadute avrebbero viaggiato in rete finche' qualcuno non batteva la
+       vendita successiva — trovato dalla revisione, non da me */
+    b.vendite = sfoltisciVendite(b.vendite);
+    b.giornate = sfoltisciGiornate(b.giornate);
+    /* la rubrica si pota qui come le vendite, e per la stessa ragione: se lo
+       facesse solo applicaVendita, trecento clienti di troppo viaggerebbero in
+       rete finche' qualcuno non batte l'ordine successivo (gen-6.08) */
+    b.clienti = sfoltisciClienti(b.clienti);
+    /* e le richieste, per la terza volta la stessa ragione (gen-6.10): erano
+       l'unica collezione senza potatura, e 147 righe chiuse da settimane
+       viaggiavano in rete a ogni salvataggio verso ogni telefono acceso */
+    b.richieste = sfoltisciRichieste(b.richieste);
     return b;
+  };
+
+  /* ── IL FILTRO (gen-6.20) ──
+     Toglie dalla coda SOLO le voci di cui lo stato in rete DIMOSTRA la
+     consegna. Non parcheggia niente e non puo' parcheggiare niente: se la
+     mappa manca, e' sporca o lo slot e' stato sfrattato, consegnata() torna
+     false e la coda non si muove.
+     LA GUARDIA DEL GUSCIO STA QUI DENTRO e non solo nei chiamanti: un guscio
+     (gen-6.16) ha le liste vuote, quindi anche la mappa vuota, quindi
+     giudicherebbe «mai consegnata» tutto — innocuo oggi, ma il giorno in cui
+     qualcuno passasse di qui una base diversa sarebbe una decisione presa sul
+     niente. Stessa disciplina della guardia di sincronizza.
+     Il try/catch non e' pudore: l'IIFE d'avvio NON ha un catch esterno, quindi
+     un lancio da qui lascerebbe l'app sulla schermata di caricamento invece di
+     degradare al comportamento di prima.
+     L'ORDINE DELLE TRE RIGHE FINALI E' VOLUTO: prima si conta, poi si assegna,
+     poi si scrive il diario, e lo specchio per ultimo. Se lo specchio lanciasse
+     (navigazione privata), il catch tornerebbe 0 — ma il conto e' gia' nel
+     diario e la coda in memoria e' gia' giusta; lo specchio lungo si ripara da
+     solo alla prima scrittura riuscita, mentre l'ordine inverso avrebbe
+     lasciato «zero tolte» accanto a una coda gia' potata. */
+  const cernitaConsegnate = (base) => {
+    try {
+      if (!codaRef.current.length || !base) return 0;
+      if (base.__guscio || base.__prelogin) return 0;
+      const restano = codaRef.current.filter((m) => !consegnata(base, m));
+      const tolte = codaRef.current.length - restano.length;
+      if (!tolte) return 0;
+      codaRef.current = restano;
+      diagRef.current = { ...diagRef.current, nConsegnate: (diagRef.current.nConsegnate || 0) + tolte };
+      specchiaCoda();
+      return tolte;
+    } catch { return 0; }
   };
 
   const pianifica = (ms) => { clearTimeout(timerRef.current); timerRef.current = setTimeout(sincronizza, ms); };
@@ -10712,30 +16785,222 @@ export default function App() {
     if (inSyncRef.current && Date.now() - inSyncRef.current < 12000) return;
     if (modalitaRef.current !== "condivisa" || !codaRef.current.length) { inSyncRef.current = 0; return; }
     inSyncRef.current = Date.now();
+    const mio = ++giroRef.current;
     try {
       const letto = await leggiRemoto();
+      /* «> 1» e non «> 0», ed e' deliberato: uno stato appena seminato ha
+         rev 1, e il ramo del primo avvio (piu' sotto) quando la scrittura del
+         seme fallisce ACCODA un lavoro vuoto e chiama qui. Con «> 0» quella
+         chiamata arrossirebbe per sempre e un'installazione nuova non
+         finirebbe mai di nascere. Sembra una maglia larga e non lo e': il
+         guscio, che era il vero buco, lo prende la guardia sotto (gen-6.16). */
       if (!letto && (baseRef.current?.rev || 0) > 1) throw new Error("lettura non riuscita");
       const remoto = letto ? normalizza(letto) : null;
-      /* letture stantie (rev più vecchia della mia base) vengono ignorate */
-      const base = remoto && (remoto.rev || 0) >= (baseRef.current?.rev || 0)
-        ? remoto : (baseRef.current || statoRef.current);
+      /* Si riparte SEMPRE da quello che c'è scritto in rete. Prima si
+         teneva la propria copia quando aveva un numero di revisione più
+         alto, ma quel numero veniva dall'orologio del telefono: un
+         telefono avanti di qualche minuto scartava per principio il
+         lavoro di tutti gli altri. La rete è l'unica verità. */
+      const base = remoto || baseRef.current || statoRef.current;
+      /* ── NON SI SCRIVE SU UN GUSCIO (gen-6.16) ──
+         La guardia qui sopra chiede una REV, e un guscio la rev non ce l'ha:
+         rispondeva 0 e passava. Da li' bastava UNA mutazione qualsiasi — un
+         admin che, vedendo le liste vuote, crea una sede — per mandare in
+         rete uno stato senza magazzini e senza prodotti, con revBase 0. Il
+         banco lo misura: 5 magazzini e 103 prodotti diventavano 0.
+         In produzione lo ferma il cancello dentro il database, ma
+         strumenti/server/app_kv_set.sql avverte da solo che se il database
+         venisse ricostruito senza di lui «si tornerebbe al difetto di prima
+         SENZA che niente diventi rosso». Questa e' la difesa che mancava
+         DENTRO l'app, e non chiede niente al trasporto: chiede alla base da
+         dove viene. Va DOPO la scelta della base, non prima, perche' quando
+         baseRef e' nullo si ricade su statoRef — che e' lo stesso guscio. */
+      if (base && (base.__guscio || base.__prelogin))
+        throw new Error("base non attendibile: non si e' letta la rete");
+      /* ── LA LETTURA VECCHIA NON LANCIA, SPEGNE (gen-6.20) ──
+         Una lettura piu' VECCHIA della mia base capita davvero (il commento del
+         poll lo dice: «una lettura stantia o in cache subito dopo una
+         scrittura»). Ma farne un errore creerebbe una trappola che prima non
+         c'era: se la rev in rete SCENDE per davvero — database ricostruito,
+         riga cancellata, seme nuovo che nasce con rev 1 — ogni giro
+         lancerebbe, si finirebbe su «offline» con backoff fino a 8 s, e niente
+         riabbasserebbe baseRef: il tablet non scriverebbe piu' per tutta la
+         serata e la coda finirebbe nello steccato delle 48 ore, cioe' in una
+         chiave senza lettori. Oggi lo stesso telefono scrive revBase 1 su una
+         rete a rev 1, il cancello accetta e la situazione si cura da sola
+         (protocollotest §7b).
+         Quindi la scrittura si costruisce come sempre — decide il cancello del
+         server, che e' il suo mestiere — e la lettura vecchia spegne la SOLA
+         cosa che ne dipende: la cernita, che ha bisogno di slot freschi.
+         Il pavimento prende tutti e due gli ancoraggi, perche' baseRef puo'
+         essere un guscio (che rev non ne ha) mentre il mio ultimo protocollo
+         c'e' sempre. */
+      const pav = Math.max(baseRef.current?.rev || 0, ultimoProtRef.current || 0);
+      const stantia = !!remoto && (remoto.rev || 0) < pav;
+      /* L'ORDINE E' OBBLIGATO: «inviate» fotografa la lunghezza della coda, e
+         presa prima del filtro conterebbe voci gia' consegnate. E si cerne
+         SOLO con la rete che ha davvero risposto: giudicare sulla propria copia
+         vorrebbe dire chiedere alla vendita se e' arrivata. */
+      if (remoto && !stantia) cernitaConsegnate(remoto);
       const inviate = codaRef.current.length;
+      /* ── LE VOCI CHE PARTONO SI CONTANO PER NOME (gen-6.21) ──
+         «inviate» e' una LUNGHEZZA, e al ritorno serviva a tagliare la coda
+         per POSIZIONE. Fra la partenza e il ritorno c'e' un await, e con due
+         cicli che convivono la coda in mezzo cambia: il ciclo lento tagliava
+         un numero di posizioni calcolato su una coda gia' accorciata
+         dall'altro, e le voci che cadevano erano le PIU' NUOVE — gli scontrini
+         battuti nel frattempo. Misurato in collaudi/sorpassatotest.mjs §1: la
+         giornata si ferma a due vendite su tre, senza una riga e col pallino
+         verde.
+         La fotografia si prende QUI, dove nasce «inviate», e non piu' in
+         basso accanto al timbro: il ramo della scorciatoia (poche righe sotto)
+         la userebbe prima che sia dichiarata, e sarebbe un ReferenceError in
+         una strada che si percorre tutti i giorni. */
+      const partite = codaRef.current.slice(0, inviate);
+      /* In rete ci sono gia' TUTTE le modifiche che ho in coda: la scrittura
+         di prima era arrivata, si era persa solo la risposta. Qui non si
+         riscrive niente — riscrivere vorrebbe dire riapplicarle sopra a se
+         stesse. Si prende quello che c'e' e si svuota la coda.
+         La condizione richiede «remoto», cioe' di aver DAVVERO letto la rete:
+         senza quella lettura la mia copia contiene comunque quelle modifiche
+         (e' la vista che sto mostrando), e ripiegarci sopra vorrebbe dire
+         buttare via il lavoro credendolo gia' salvato. */
+      if (remoto && !nuoveInCoda(base)) {
+        /* stessa forma del taglio di sotto, e qui e' una scelta di
+           leggibilita' e non una riparazione: fra «inviate» e questa riga non
+           c'e' nessun await, quindi «partite» e' tutta la coda e le due forme
+           sono identiche. Si scrive uguale perche' la regola sia UNA, e chi
+           legge non debba ricordarsi quale dei due rami e' quello al sicuro. */
+        codaRef.current = codaRef.current.filter((m) => !partite.includes(m));
+        specchiaCoda();
+        /* e un ciclo sorpassato si ferma qui: ha tolto le sue voci, e tutto
+           quello che viene dopo e' roba da ultimo arrivato (vedi giroRef) */
+        if (mio !== giroRef.current) return;
+        baseRef.current = base; statoRef.current = base; setStato(base);
+        riproveRef.current = 0; conflittiRef.current = 0;
+        /* ultimaRete si timbra anche QUI, e non e' un di piu' (gen-6.15).
+           Il poll esce subito quando inSyncRef e' vero, cioe' per tutto il
+           tempo in cui la cassa sta salvando: un sabato sera di scritture
+           continue salterebbe giro dopo giro, e l'eta' della lista in cima a
+           Comande andrebbe in ambra mentre la rete funziona benissimo — un
+           avviso falso proprio nel momento in cui deve essere creduto. Quello
+           che serve e' «l'ultimo contatto riuscito con la rete», e un ciclo di
+           scrittura andato a buon fine E' un contatto riuscito. */
+        diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimaRete: Date.now(), ultimoErrore: null,
+          nRitrovate: (diagRef.current.nRitrovate || 0) + 1 };
+        if (offlineRef.current) { offlineRef.current = false; mostraToast("Connessione ripristinata: dati allineati in rete"); }
+        inSyncRef.current = 0;
+        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        if (codaRef.current.length) pianifica(80);
+        return;
+      }
       const nuovo = applicaCoda(base);
-      /* rev = timestamp in µs + casuale: crescente e senza collisioni */
-      nuovo.rev = Math.max((base.rev || 0) + 1, Date.now() * 1000 + Math.floor(Math.random() * 1000));
+      /* rev = contatore semplice, un passo per scrittura: niente più
+         orologi, e il numero da cui si è partiti viaggia insieme allo
+         stato perché il server possa rifiutare chi arriva secondo. */
+      nuovo.revBase = base.rev || 0;          // il cancello del server vuole la rev DELLA BASE
+      /* IL NUMERO NON NASCE DALLA SOLA LETTURA (gen-6.20). Se nascesse da
+         base.rev e la lettura fosse vecchia, questo numero potrebbe essere PIU'
+         BASSO di una rev che ho gia' fatto atterrare — e al giro dopo il mio
+         stesso slot testimonierebbe per una scrittura che non e' mai partita.
+         Il Math.max non fa passare la scrittura (revBase resta quello vero e il
+         cancello rifiuta lo stesso, ed e' giusto): serve solo a non stampare
+         sulla ricevuta un numero gia' usato. */
+      nuovo.rev = Math.max(base.rev || 0, ultimoProtRef.current || 0) + 1;
       nuovo.mtime = Date.now();
-      if (!(await scriviRemoto(nuovo))) throw new Error("scrittura non riuscita");
-      codaRef.current = codaRef.current.slice(inviate);
+      /* LA RICEVUTA CERTIFICA I DATI DI QUESTA BOZZA, quindi si costruisce
+         dalla BOZZA e mai dalla lettura che l'ha preceduta. Non e' pignoleria:
+         se dentro la coda c'e' un ripristino, la sua fn ha appena cancellato
+         ogni chiave e rimesso il backup — «vendite» e «applicate» sono tornate
+         indietro. Ripartire da base.scritture rimetterebbe sopra la mappa VIVA,
+         e lo slot sopravvivrebbe al ripristino: da li' la voce di un altro
+         telefono uscirebbe dalla coda certificata da uno slot che parla di dati
+         che non esistono piu' (protocollotest §12). */
+      nuovo.scritture = sfoltisciScritture({ ...(nuovo.scritture || {}), [mittRef.current]: nuovo.rev }, mittRef.current);
+      /* IL TIMBRO VA SUL DISCO PRIMA DELL'ATTESA, perche' il caso che conta e'
+         il telefono che muore DENTRO l'await qui sotto: al risveglio deve poter
+         chiedere «la mia 812 e' atterrata?». Se lo specchio finisse dopo
+         l'await, la coda ritrovata sarebbe senza numero — cioe' la via 4, cioe'
+         il comportamento di prima — proprio nel caso per cui la tessera esiste.
+         Fra la scelta della base e qui NON c'e' nessun await, quindi nessuna
+         voce puo' entrare in coda in mezzo e prendersi un numero che non le
+         spetta; se un domani qualcuno ne infila uno, va timbrata solo
+         codaRef.current.slice(0, inviate).
+         E il ref si aggiorna QUI, non dopo il successo: vedi la sua lapide. */
+      ultimoProtRef.current = nuovo.rev;
+      for (const m of codaRef.current) { m.mitt = mittRef.current; m.prot = nuovo.rev; }
+      specchiaCoda();
+      /* IL TIMBRO NON SI TOGLIE MAI guardando revRemota: scriviRemoto scrive
+         CHIAVE_REV DOPO lo stato, fuori transazione e dentro un catch vuoto, e
+         su risposta persa lo stato e' passato mentre la spia e' rimasta
+         indietro. Il numero non ha bisogno di essere tolto: se la scrittura non
+         e' atterrata lo slot non si muove, e la via 2 rigioca da sola. */
+      if (!(await scriviRemoto(nuovo))) {
+        /* Distinguere «ha vinto un altro» da «è caduta la linea»: se il
+           numero di revisione in rete si è mosso, la rete c'è ed è stata
+           una gara persa. Si riprova subito, ripartendo dalla base nuova.
+           Se invece non si riesce a saperlo, si tratta come un guasto:
+           l'attesa è più lunga, ma non si perde niente lo stesso. */
+        const rr = await revRemota();
+        if (rr != null && rr !== (base.rev || 0))
+          throw Object.assign(new Error("ha salvato prima un altro telefono"), { conflitto: true });
+        throw new Error("scrittura non riuscita");
+      }
+      codaRef.current = codaRef.current.filter((m) => !partite.includes(m));
+      specchiaCoda();                          // salvate: lo specchio si accorcia con la coda
+      /* ── UN CICLO SORPASSATO NON COMANDA PIU' (gen-6.21) ──
+         Ha fatto il suo mestiere: la sua scrittura e' atterrata e le sue voci
+         sono uscite dalla coda. Tutto quello che viene dopo parla di ADESSO —
+         qual e' la base, cosa si vede a schermo, che colore ha il pallino,
+         quando parte il prossimo giro — e di adesso sa qualcosa solo l'ultimo
+         ciclo. Prima di questa riga il ciclo lento rimetteva una base piu'
+         vecchia, ci ricostruiva sopra la vista, scriveva «ok» e con pianifica
+         faceva partire un TERZO ciclo mentre il secondo era ancora in volo
+         (misurato in sorpassatotest §2: tre ingressi nella scrittura dove ne
+         bastano due).
+         E NON si azzera inSyncRef: il guinzaglio del watchdog e' dell'ultimo
+         ciclo, non di questo. */
+      if (mio !== giroRef.current) return;
+      conflittiRef.current = 0;
       baseRef.current = nuovo;
       const vista = codaRef.current.length ? applicaCoda(nuovo) : nuovo;
       statoRef.current = vista; setStato(vista);
       riproveRef.current = 0;
-      diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimoErrore: null };
+      diagRef.current = { ...diagRef.current, ultimoOk: Date.now(), ultimaRete: Date.now(), ultimoErrore: null };
       if (offlineRef.current) { offlineRef.current = false; mostraToast("Connessione ripristinata: dati allineati in rete"); }
       inSyncRef.current = 0;
       if (codaRef.current.length) pianifica(80); else setSync("ok");
     } catch (e) {
+      /* un ciclo sorpassato non parla nemmeno quando fallisce: il semaforo, il
+         conto delle riprove e il prossimo appuntamento sono dell'ultimo ciclo,
+         che e' ancora in volo e sa piu' cose di lui (gen-6.21). La coda qui
+         non si tocca in nessuno dei due casi, quindi non c'e' niente da
+         rimettere a posto. */
+      if (mio !== giroRef.current) return;
       inSyncRef.current = 0;
+      /* IL CONFLITTO NON PUO' DURARE PER SEMPRE (gen-6.07). Il ramo qui sotto
+         esce PRIMA del contatore delle riprove e prima dell'offline, e
+         conflittiRef si azzera solo su un successo: un rifiuto permanente che
+         venga classificato «conflitto» — la sessione scaduta mentre un altro
+         telefono salva, per esempio — lasciava il semaforo su «salvataggio»
+         per tutta la serata, cioe' la parola rassicurante mentre non partiva
+         niente. Dopo sei di fila si passa dall'altra parte, dove c'e' l'avviso
+         vero. La coda non si tocca in nessuno dei due rami. */
+      if (e?.conflitto && conflittiRef.current < 6) {
+        /* La coda NON si svuota: le stesse modifiche si riapplicano sulla
+           base aggiornata, quindi si sommano a quelle dell'altro invece di
+           cancellarle. L'attesa è corta e casuale, se no due telefoni che
+           riprovano insieme continuano a ripestarsi i piedi. */
+        conflittiRef.current += 1;
+        diagRef.current = {
+          ...diagRef.current, nConflitti: (diagRef.current.nConflitti || 0) + 1,
+          ultimoConflitto: Date.now(),
+        };
+        setSync("salvataggio");
+        pianifica(90 + Math.random() * 260 + Math.min(1500, 150 * Math.max(0, conflittiRef.current - 3)));
+        return;
+      }
+      conflittiRef.current = 0;
       riproveRef.current += 1;
       diagRef.current = {
         ...diagRef.current, nErrori: (diagRef.current.nErrori || 0) + 1,
@@ -10756,10 +17021,23 @@ export default function App() {
     const m = { fn, descr, chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l") };
     if (modalitaRef.current === "locale") {
       const b = clona(statoRef.current);
-      const pri = descr ? fotoCaselle(b) : null;
-      try { fn(b); } catch {}
-      if (descr) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
+      /* L'ESECUTORE RIFERISCE ANCHE QUI (gen-6.15). Il ramo di rete lo fa da
+         gen-6.07 (applicaCoda: «m.descr && esito !== false»); i due rami
+         locali — questo e quello di mutaDato — buttavano via l'esito e
+         scrivevano la riga di storico anche per un lavoro non fatto. Oggi
+         nessuna closure passata a muta dice «no», quindi qui e' latente: ma
+         era latente allo stesso modo in mutaDato prima di gen-6.07, e la
+         regola dev'essere UNA nei tre posti che eseguono una mutazione, se
+         no il prossimo che ne legge uno impara quella sbagliata. */
+      let esito;
+      try { esito = fn(b); } catch {}
+      if (descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
       b.ordini = sfoltisciOrdini(b.ordini);
+      b.vendite = sfoltisciVendite(b.vendite);
+      b.giornate = sfoltisciGiornate(b.giornate);
+      b.clienti = sfoltisciClienti(b.clienti);
+      b.richieste = sfoltisciRichieste(b.richieste);
       b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
       setStato(b);
       return true;
@@ -10771,9 +17049,107 @@ export default function App() {
     return true;
   };
 
+  /* ── LA CODA CHE SOPRAVVIVE AL RIAVVIO (gen-6.05) ──
+     Si specchia sul TELEFONO, non nello stato: zero byte sul canale. E si
+     salva solo quello che e' serializzabile — le voci con un tipo. Le
+     closure non ci provano nemmeno: fingere di salvarle sarebbe peggio che
+     dire che non si salvano. Ogni scrittura su disco e' avvolta in un
+     try/catch, perche' in navigazione privata localStorage puo' rifiutare,
+     e un salvataggio impossibile non deve impedire la vendita. */
+  const specchiaCoda = () => {
+    const salvabili = codaRef.current.filter((m) => m.tipo);
+    setDaSalvare(salvabili.length);
+    try {
+      if (salvabili.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(salvabili));
+      else localStorage.removeItem(CHIAVE_CODA);
+    } catch {}
+  };
+  /* le tre mutazioni che portano soldi e ordini. Stessa forma di muta(), ma
+     la voce e' un DATO: {tipo, dati} invece di una funzione. */
+  const mutaDato = (tipo, dati, descr) => {
+    if (!statoRef.current) return true;
+    if (!ESECUTORI[tipo]) { console.warn("mutaDato: tipo sconosciuto", tipo); return false; }
+    const m = { tipo, dati, descr, chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l") };
+    if (modalitaRef.current === "locale") {
+      const b = clona(statoRef.current);
+      const pri = descr ? { caselle: fotoCaselle(b), prodotti: fotoProdotti(b) } : null;
+      /* la gemella della riga in muta, e per la stessa ragione (gen-6.15) */
+      let esito;
+      try { esito = ESECUTORI[tipo](b, dati); } catch {}
+      if (descr && esito !== false) b.log = sfoltisci([voceLog(m, pri, b), ...(b.log || [])].slice(0, 50));
+      b.ordini = sfoltisciOrdini(b.ordini);
+      b.vendite = sfoltisciVendite(b.vendite);
+      b.giornate = sfoltisciGiornate(b.giornate);
+      b.clienti = sfoltisciClienti(b.clienti);
+      b.richieste = sfoltisciRichieste(b.richieste);
+      b.rev = (b.rev || 0) + 1; b.mtime = Date.now();
+      setStato(b);
+      return true;
+    }
+    codaRef.current.push(m);
+    specchiaCoda();
+    setStato(applicaCoda(baseRef.current || statoRef.current));
+    setSync("salvataggio");
+    pianifica(0);
+    return true;
+  };
+
   /* avvio: carica o inizializza */
   useEffect(() => {
     (async () => {
+      /* ── IL RITROVAMENTO (gen-6.05), RIPARATO (gen-6.06) ──
+         A gen-6.05 questo blocco stava DOPO il bivio qui sotto, cioe' solo nel
+         ramo classico. Il ramo sicuro fa «return» prima di arrivarci, ed
+         entra() non lo rileggeva: in produzione — che gira in modo sicuro — la
+         coda si scriveva sul telefono e non si rileggeva PIU'. Il difetto che
+         avevo annunciato chiuso era chiuso a meta', e trentadue controlli verdi
+         non l'hanno visto perche' il banco fingeva una rete senza login.
+         Adesso sta PRIMA del bivio, ed e' il posto giusto anche per ragione:
+         leggere il proprio disco non dipende dalla rete, quindi non ha nessun
+         motivo di vivere dentro un ramo che parla di rete.
+         Qui si ripesca e si accende la spia, e basta. In modo sicuro lo stato
+         vero non c'e' ancora (prima del login c'e' solo l'elenco dei nomi):
+         rigiocare una vendita su quello non vorrebbe dire niente, e scrivere e'
+         impossibile perche' senza token le RPC rifiutano — tre tentativi
+         falliti direbbero «offline» sulla schermata dei nomi, dove nessuno ha
+         ancora sbagliato niente. La coda si rigioca dentro entra(). */
+      let ritrovate = 0;
+      try {
+        const grezza = localStorage.getItem(CHIAVE_CODA);
+        const rimaste = grezza ? JSON.parse(grezza) : null;
+        if (Array.isArray(rimaste) && rimaste.length) {
+          const buone = rimaste.filter((m) => m && m.tipo && ESECUTORI[m.tipo]);
+          /* ── LO STECCATO D'ETA' (gen-6.07) ──
+             Oltre le 48 ore il telefono ha perso TUTTI E DUE i testimoni: il
+             logId e' uscito da s.applicate (tetto MAX_APPLICATE) e la riga e' uscita da
+             s.vendite (sfoltisciVendite). Rigiocare al buio una vendita cosi'
+             vecchia non e' «recuperare un incasso»: e' scommettere. E il banco
+             ha misurato cosa succede quando la scommessa e' sbagliata — la
+             riga viene subito potata perche' vecchia, ma la GIORNATA di
+             allora resta gonfiata per novanta giorni, senza nessuna riga che
+             spieghi perche'. Un incasso di venerdi' rifatto lunedi' di
+             nascosto e' peggio di un incasso mancante che si vede.
+             Quindi si mettono da parte, restano sul telefono, e all'ingresso
+             l'app scrive nello storico quante sono e quanto valgono: chi ha il
+             quaderno decide se ribatterle. */
+          const limite = Date.now() - ORE_VENDITE * 3600000;
+          const fresche = buone.filter((m) => !(m.t && m.t < limite));
+          const ferme = buone.filter((m) => m.t && m.t < limite);
+          if (ferme.length) {
+            try {
+              const gia = JSON.parse(localStorage.getItem(CHIAVE_FERMA) || "[]");
+              localStorage.setItem(CHIAVE_FERMA, JSON.stringify([...(Array.isArray(gia) ? gia : []), ...ferme].slice(-50)));
+            } catch {}
+            fermeRef.current = ferme;
+          }
+          codaRef.current = fresche;
+          ritrovate = fresche.length;
+          if (ritrovate) { setSync("salvataggio"); setDaSalvare(ritrovate); }
+          if (ferme.length || fresche.length !== rimaste.length) {
+            try { if (fresche.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(fresche)); else localStorage.removeItem(CHIAVE_CODA); } catch {}
+          }
+        }
+      } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
       if (auth) {
         /* modalità sicura: prima del login si mostra SOLO l'elenco
            dei nomi (niente dati, niente PIN). Lo stato completo si
@@ -10781,11 +17157,23 @@ export default function App() {
         try {
           const lista = await auth.loginList();
           const pre = normalizza({ profili: Array.isArray(lista) ? lista : [], __prelogin: true });
-          baseRef.current = null; statoRef.current = pre; setStato(pre); setSync("ok");
+          baseRef.current = null; statoRef.current = pre; setStato(pre);
+          /* la spia vince sul verde: con delle vendite in attesa non si scrive
+             «tutto a posto» nemmeno sulla schermata dei nomi */
+          setSync(ritrovate ? "salvataggio" : "ok");
         } catch { setSync("offline"); }
         return;
       }
       if (!haStorage()) {
+        /* SENZA ARCHIVIAZIONE CONDIVISA LA CODA NON PUO' PARTIRE MAI, e tenerla
+           in mano vorrebbe dire mostrare per sempre «N da salvare» a chi non ha
+           nessun posto dove salvare: una promessa che nessuno puo' mantenere.
+           Qui il ritrovamento si annulla, e la coda resta sul disco per il
+           giorno in cui quel telefono ritrova la rete vera.
+           (Prima di gen-6.06 questo caso non esisteva perche' il ritrovamento
+           stava piu' in basso; spostandolo sopra il bivio l'ho creato io, e me
+           l'ha fatto vedere il ramo, non un collaudo.) */
+        codaRef.current = []; setDaSalvare(0);
         modalitaRef.current = "locale";
         const s = normalizza(await creaSeed());
         baseRef.current = s; setStato(s); setSync("locale");
@@ -10794,9 +17182,35 @@ export default function App() {
       const letto = await leggiRemoto();
       if (letto) {
         const s = normalizza(letto);
-        baseRef.current = s; setStato(s); setSync("ok");
+        baseRef.current = s;
+        /* ── LA CERNITA ANCHE QUI, E SI SA ESATTAMENTE QUANTO PESA (gen-6.20) ──
+           Va PRIMA del setStato qui sotto, cosi' la vista e il semaforo nascono
+           gia' coerenti: senza, per il secondo che passa fra l'avvio e il primo
+           giro di rete, la giornata mostrerebbe due volte un incasso che e' gia'
+           in cassa — e chi guarda il totale in quel momento non ha modo di
+           sapere che si sta per aggiustare da solo.
+           MA I SOLDI NON LI REGGE QUESTA RIGA, e va detto invece di lasciarlo
+           credere: li regge la cernita dentro sincronizza, che gira prima di
+           applicaCoda e prima di OGNI scrittura. Misurato: togliendo questa riga
+           (sabotaggio 19) non diventa rossa nessuna sezione, perche' la voce
+           esce comunque al primo giro. Quindi e' difesa in profondita' piu' una
+           vista onesta, non l'argine — e nessun banco misura il primo disegno
+           della schermata: e' un limite dichiarato, scritto anche in
+           PASSAGGIO.md. */
+        cernitaConsegnate(s);
+        /* anche questa e' una lettura piena andata a buon fine, e senza il
+           timbro la riga in cima a Comande direbbe «non ancora arrivata» per
+           i primi trenta secondi di ogni avvio — falso, e proprio all'inizio
+           del servizio (gen-6.15) */
+        diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now() };
+        setStato(codaRef.current.length ? applicaCoda(s) : s);
+        setSync(codaRef.current.length ? "salvataggio" : "ok");
+        if (codaRef.current.length) pianifica(0);
       } else {
         const seed = normalizza(await creaSeed());
+        /* dichiara di partire dal nulla: se nel frattempo un altro telefono
+           ha creato lo stato, il server rifiuta e i dati veri restano */
+        seed.revBase = 0;
         baseRef.current = seed; setStato(seed);
         if (await scriviRemoto(seed)) setSync("ok");
         else {
@@ -10811,15 +17225,50 @@ export default function App() {
 
   /* allineamento continuo (3s, immediato al ritorno sulla scheda) */
   useEffect(() => {
+    let giriMagri = 0;
     const aggiorna = async () => {
       if (modalitaRef.current !== "condivisa" || document.hidden || inSyncRef.current || !baseRef.current) return;
+      /* Prima si chiede solo il numero di revisione: venti byte invece di
+         centosettanta kilobyte. Se non e' cambiato niente si esce di qui.
+         Il giro leggero non si fa piu' di dieci volte di fila: l'undicesimo
+         scarica comunque tutto, cosi' anche se la spia rimanesse indietro il
+         ritardo massimo e' mezzo minuto, non «per sempre». */
+      if (giriMagri < MAX_GIRI_MAGRI) {
+        const rr = await revRemota();
+        /* ── DUE ISTANTI DIVERSI, E NON SONO LA STESSA COSA (gen-6.15) ──
+           «ultimaSpia» e' l'ultima volta che il server ha risposto qualcosa;
+           «ultimaRete» e' l'ultima volta che la LISTA e' arrivata davvero.
+           Un giro magro prova solo che scp:rev:v1 risponde: leggiRemoto non
+           viene nemmeno chiamata. Timbrare ultimaRete qui avrebbe fatto
+           scrivere «lista confermata adesso» al tablet ripreso in mano dopo
+           venti minuti — il risveglio chiama aggiorna(), che ricade nel ramo
+           magro — cioe' una bugia nell'istante di rischio massimo. La riga in
+           cima a Comande legge ultimaRete, e solo quella. */
+        if (rr != null && rr <= (baseRef.current.rev || 0)) {
+          giriMagri++;
+          diagRef.current = { ...diagRef.current, ultimaSpia: Date.now(), giriMagri };
+          return;
+        }
+        if (rr != null) diagRef.current = { ...diagRef.current, ultimaSpia: Date.now() };
+      }
+      giriMagri = 0;
       const letto = await leggiRemoto();
       if (!letto) return;
       const r = normalizza(letto);
       /* Si accettano SOLO revisioni più nuove: una lettura stantia o
          in cache (rev più vecchia) subito dopo una scrittura faceva
          tornare indietro la vista (evasioni e ordini «spariti»).
-         Con le rev-timestamp, più nuovo = rev maggiore, sempre. */
+         La rev è un contatore che sale di uno a ogni scrittura andata a
+         buon fine, quindi più alta = più nuova, sempre e per tutti. */
+      /* UNA LETTURA SCARTATA NON CONFERMA NIENTE (gen-6.15). Il poll accetta
+         solo revisioni piu' nuove — e' la regola del 14 luglio contro le
+         letture in cache che facevano tornare indietro la vista. Una risposta
+         PIU' VECCHIA della base e' stata buttata via: timbrarla come «lista
+         confermata» vorrebbe dire scrivere «confermata due secondi fa» sopra
+         una risposta scartata perche' stantia. Rev UGUALE invece conferma
+         davvero: vuol dire che in rete non e' cambiato niente. */
+      if ((r.rev || 0) >= (baseRef.current.rev || 0))
+        diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now(), giriMagri: 0 };
       if ((r.rev || 0) > (baseRef.current.rev || 0)) {
         baseRef.current = r;
         setStato(codaRef.current.length ? applicaCoda(r) : r);
@@ -10845,8 +17294,104 @@ export default function App() {
     if (auth) {
       try {
         const letto = await leggiRemoto();
-        const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [] });
-        baseRef.current = s; statoRef.current = s; setStato(s); setSync("ok");
+        /* ── IL GUSCIO SI MARCA (gen-6.16) ──
+           Quando il PIN passa ma i dati no, questo non e' uno stato: e' un
+           guscio, le liste vuote di normalizza piu' i soli nomi. Il guscio
+           della schermata dei nomi porta gia' «__prelogin»; questo, che e'
+           l'unico che finisce in baseRef, non portava niente — e una base
+           senza nome e' una base che qualcuno prima o poi usa. */
+        const s = letto ? normalizza(letto) : normalizza({ profili: statoRef.current?.profili || [], __guscio: true });
+        baseRef.current = s;
+        /* ── LA CERNITA PRIMA DEL RIGIOCO (gen-6.20) ──
+           In modo sicuro questo e' il primo momento in cui esiste uno stato
+           vero, quindi e' anche il primo in cui la ricevuta si puo' leggere: le
+           voci gia' atterrate escono QUI, prima che applicaCoda le rimetta
+           dentro la vista. Mai sul guscio dei soli nomi — lo dice anche la
+           guardia dentro cernitaConsegnate, e le due righe si coprono a vicenda.
+           Come la gemella dell'avvio classico, questa riga regge la VISTA e non
+           i soldi: il sabotaggio 20 la toglie e non arrossisce niente, perche'
+           la scrittura passa comunque dalla cernita di sincronizza. Sta qui
+           perche' il cassiere che rientra non deve leggere, nemmeno per un
+           secondo, una giornata che conta due volte il suo incasso. */
+        if (letto) cernitaConsegnate(s);
+        /* come sopra: in modo sicuro questa e' la PRIMA lista vera che arriva,
+           e il cuoco che entra non deve leggere «non ancora arrivata» (gen-6.15) */
+        if (letto) diagRef.current = { ...diagRef.current, ultimaRete: Date.now(), ultimaSpia: Date.now() };
+        /* ── LA CODA RITROVATA SI RIGIOCA QUI (gen-6.06) ──
+           In modo sicuro questo e' il PRIMO momento in cui esiste uno stato
+           vero su cui applicarla. Da qui in poi il cassiere che riapre vede
+           gia' le sue vendite nel conto della giornata e non le ribatte, e
+           l'invio riparte da solo. Il dedup per logId dentro applicaCoda le
+           salta se erano gia' arrivate: ritrovarle non le conta due volte.
+           Solo se la lettura e' RIUSCITA: applicare una vendita al guscio dei
+           soli nomi darebbe una vista falsa, e farebbe partire una scrittura
+           costruita sul niente. Se la rete non ha risposto, la coda resta dov'e'
+           — sul disco e in memoria — e la spia continua a dirlo. */
+        const conCoda = !!letto && codaRef.current.length > 0;
+        const vista = conCoda ? applicaCoda(s) : s;
+        statoRef.current = vista; setStato(vista);
+        /* e la pastiglia dice quello che SA. Senza la lettura, «ok» e' una
+           bugia: le liste sono vuote perche' non si e' riusciti a leggerle,
+           non perche' non ci sia niente. Non «salvataggio», che in questa
+           casa vuol dire «c'e' lavoro in volo»: «offline» (gen-6.16). */
+        setSync(!letto ? "offline" : (codaRef.current.length ? "salvataggio" : "ok"));
+        if (conCoda) pianifica(0);
+        /* QUELLO CHE SI E' FERMATO SI DICE (gen-6.07). Una volta sola, appena
+           c'e' uno stato vero su cui scriverlo, e con dentro il totale: senza
+           la cifra la riga non serve a decidere se ribattere. */
+        if (fermeRef.current.length && letto) {
+          /* IL NUMERO DELLE RIGHE E GLI EURO PARLANO DI COSE DIVERSE
+             (gen-6.18). Prima questa riga diceva «N vendite ferme (€ X)»
+             sommando m.dati.totale su TUTTA la coda: una spunta di cucina o un
+             ingrediente esaurito non hanno un totale, contavano zero, e chi
+             leggeva nello storico condiviso cercava un incasso che non c'era.
+             Adesso le righe si contano tutte e gli euro solo dove ci sono. */
+          const q = fermeRef.current; fermeRef.current = [];
+          /* ── E NON SI DICE UNA COSA CHE PUO' ESSERE FALSA (gen-6.20) ──
+             Lo steccato d'eta' vive nel ritrovamento, SOPRA il bivio: taglia
+             prima che qualunque slot sia consultabile, e li' ha ragione. Ma
+             questa frase gira molto piu' tardi, e qui lo stato di rete e' in
+             mano: dichiarare «NON sono state rispedite, vanno controllate a
+             mano» per voci che la ricevuta DIMOSTRA atterrate sarebbe una bugia
+             scritta nello storico condiviso — la stessa classe di difetto che
+             gen-6.07 ha gia' trattato come tale — e gli euro sommati
+             manderebbero a ribattere un incasso gia' in cassa. */
+          const gia = q.filter((m) => consegnata(s, m));
+          const restano = q.filter((m) => !consegnata(s, m));
+          /* e la stessa cernita rilegge la chiave delle ferme: ha zero lettori
+             e «.slice(-50)» butta le piu' vecchie, quindi una voce dimostrata
+             consegnata ci resterebbe per sempre, a gonfiare un accumulatore che
+             nessuno azzera */
+          try {
+            const dentro = JSON.parse(localStorage.getItem(CHIAVE_FERMA) || "[]");
+            if (Array.isArray(dentro) && dentro.length) {
+              const puliti = dentro.filter((m) => !consegnata(s, m));
+              if (puliti.length !== dentro.length) {
+                if (puliti.length) localStorage.setItem(CHIAVE_FERMA, JSON.stringify(puliti));
+                else localStorage.removeItem(CHIAVE_FERMA);
+              }
+            }
+          } catch {}
+          /* IL NUMERO DELLE RIGHE E GLI EURO PARLANO DI COSE DIVERSE
+             (gen-6.18). Le righe si contano tutte, gli euro solo dove ci sono —
+             e da gen-6.20 solo su quelle che qualcuno deve davvero guardare. */
+          const euroDi = (lista) => {
+            const conSoldi = lista.filter((m) => Number(m?.dati?.totale) > 0);
+            if (!conSoldi.length) return "";
+            const somma = conSoldi.reduce((x, m) => x + Number(m.dati.totale), 0);
+            return ` (di cui ${conSoldi.length === 1 ? "1 vendita" : conSoldi.length + " vendite"} per ${fmtEuro(somma)})`;
+          };
+          const quante = q.length === 1 ? "Una modifica ferma" : q.length + " modifiche ferme";
+          const testa = `${quante} da piu' di ${ORE_VENDITE} ore su questo telefono`;
+          /* quando il protocollo non ha niente da dire, la frase e' quella di
+             gen-6.18 parola per parola: una riparazione non deve cambiare
+             quello che gia' andava bene */
+          muta(() => {}, !gia.length
+            ? `${testa}${euroDi(q)}: NON sono state rispedite, vanno controllate a mano`
+            : (!restano.length
+              ? `${testa}: risultano GIA' in rete, NON ribatterle`
+              : `${testa}: ${gia.length} ${gia.length === 1 ? "risulta" : "risultano"} gia' in rete (NON ribatterle), ${restano.length} da controllare a mano${euroDi(restano)}`));
+        }
       } catch {}
     }
     setProfiloId(pid);
@@ -10865,9 +17410,52 @@ export default function App() {
 
   /* ripristino completo (backup / importazione): passa dalla stessa coda */
   const ripristina = async (dati, origine) => {
+    /* ── IL RIPRISTINO NON PASSA SOPRA A UNA VENDITA NON SALVATA (gen-6.10) ──
+       Piu' sotto c'e' «codaRef.current = [m]»: UN'ASSEGNAZIONE, non una
+       aggiunta. Tutto quello che era in fila per partire — vendite, storni,
+       spunte di cucina — spariva li' dentro senza una parola. E' lo stesso
+       modo di perdere soldi in silenzio che gen-6.05 e gen-6.07 hanno chiuso
+       da altre due parti: il telefono che crede di aver salvato e cancella.
+       Qui il rimedio e' un no detto a voce, non un salvataggio in piu': chi
+       ripristina un backup lo fa da fermo, e aspettare che il pallino torni
+       verde costa dieci secondi — mentre una serata di incassi non torna. */
+    const inFila = codaRef.current.length;
+    if (inFila > 0) {
+      /* SI CONTA TUTTA LA CODA, e non piu' solo le voci con un tipo
+         (gen-6.21). Due righe sotto c'e' «codaRef.current = [m]»,
+         UN'ASSEGNAZIONE che butta TUTTO: anche le mutazioni a closure — una
+         evasione, una produzione, un conteggio, la riga stessa delle ferme —
+         che non hanno tipo e non stanno sul disco, quindi sparirebbero senza
+         lasciare niente da nessuna parte. La guardia era piu' stretta del
+         danno che previene, ed e' un difetto vecchio quanto gen-6.10: quella
+         generazione aveva chiuso il buco per le vendite e le spunte, non per
+         il resto. Il sostantivo dice gia' «modifiche», quindi chi ripristina
+         legge la stessa frase di prima. */
+      mostraToast(inFila === 1
+        ? "Non ripristino: c'è 1 modifica ancora da salvare. Aspetta che il pallino in alto torni verde."
+        : `Non ripristino: ci sono ${inFila} modifiche ancora da salvare. Aspetta che il pallino in alto torni verde.`,
+        "errore");
+      return false;
+    }
     const pulito = normalizza(clona(dati));
     const m = {
-      fn: (s) => { for (const k of Object.keys(s)) delete s[k]; Object.assign(s, clona(pulito)); },
+      /* IL BATTITO NON E' UN DATO DI DOMINIO, E' UNA SPIA DI ADESSO
+         (gen-6.15). Il ripristino cancella ogni chiave e ci mette sopra il
+         backup: senza questa riga un backup vecchio azzererebbe la lista dei
+         telefoni (e la scheda direbbe «non aggiornati» di quattro telefoni
+         su cinque), e un backup recente RESUSCITEREBBE righe di tre giorni
+         fa con la versione di allora (e accuserebbe di essere indietro
+         telefoni che nel frattempo hanno ricaricato). In tutti e due i casi
+         la frase scritta sulla scheda diventerebbe falsa proprio nel momento
+         in cui qualcuno la guarda davvero: durante un guasto. */
+      /* «scritture» si azzera insieme al resto, ed e' IGIENE e non la cura: la
+         cura e' che la ricevuta si costruisce dalla bozza (vedi sincronizza).
+         Va scritto qui perche' il prossimo che legge non ripari meta' e creda
+         di aver finito: un backup vecchio porterebbe dentro slot che parlano di
+         revisioni di un altro mondo, e il battito dei telefoni resta invece
+         perche' quello e' una spia di ADESSO (gen-6.15). */
+      fn: (s) => { const tel = telefoniDi(s); for (const k of Object.keys(s)) delete s[k];
+        Object.assign(s, clona(pulito)); s.telefoni = tel; s.scritture = {}; },
       descr: `Dati ripristinati (${origine})`,
       chi: profiloRef.current?.nome || "Sistema", t: Date.now(), logId: uid("l"),
     };
@@ -10909,10 +17497,10 @@ export default function App() {
         style={{ width: 380, height: 380, bottom: -140, left: -120, background: "radial-gradient(circle,#D96AC024,transparent 65%)", filter: "blur(10px)", animation: "scBlob 18s ease-in-out infinite reverse" }} />
 
       {!profilo ? (
-        <SchermataLogin stato={stato} sync={sync} muta={muta} onEntra={entra} auth={auth} />
+        <SchermataLogin stato={stato} sync={sync} daSalvare={daSalvare} muta={muta} onEntra={entra} auth={auth} />
       ) : (
-        <Struttura stato={stato} profilo={profilo} muta={muta} sync={sync}
-          esci={esci} mostraToast={mostraToast} ripristina={ripristina} />
+        <Struttura stato={stato} profilo={profilo} muta={muta} mutaDato={mutaDato} sync={sync} daSalvare={daSalvare}
+          esci={esci} mostraToast={mostraToast} ripristina={ripristina} leggiDiag={leggiDiag} />
       )}
 
       {toast && (

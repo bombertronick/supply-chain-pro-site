@@ -1,0 +1,16 @@
+/* La fascia dell'intestazione resta libera a QUALUNQUE larghezza. Da gen-5.72
+   l'intestazione sta sopra i fogli, e sul telefono le avevo lasciato solo tre
+   pixel di margine: 68 contro 65, misurati in un browser senza barre. Sul
+   telefono vero — con la barra dell'indirizzo e la tacca — quei tre pixel non
+   ci sono, e il titolo della scheda finiva sotto l'intestazione. Segnalato con
+   una fotografia, non trovato da me.
+   L'altezza massima adesso e' il 100% del riquadro GIA' scontato della fascia,
+   non una percentuale di vh: sul telefono vh conta anche la parte coperta
+   dalla barra del browser, ed e' proprio li' che il conto sbagliava.
+   La fascia e' 5rem, non 4,2: con 4,2 il margine tornava a essere di due pixel,
+   e un margine di due pixel non e' un margine. */
+.sc-foglio{padding-top:calc(5rem + env(safe-area-inset-top))}
+.sc-foglio>.sc-su{max-height:100%}
+@media (min-width:768px){
+  .sc-foglio{padding-bottom:2rem}
+}

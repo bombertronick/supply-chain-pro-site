@@ -56,7 +56,9 @@ async function login(p, state) {
   /* da gen-5.52 queste azioni stanno dentro «Gestione rapida»: prima erano
      tasti in chiaro nella pagina del magazzino */
   await p.getByRole("button", { name: /Gestione rapida/ }).click(); await p.waitForTimeout(500);
-  await p.locator(".fixed.inset-0.z-50").last().getByRole("button", { name: /Copia da/ }).click();
+  /* gen-5.71: la voce si chiama «Copia da un altro magazzino», con le stesse
+     parole che usa la ricerca. Prima era «Copia da un magazzino» e basta. */
+  await p.locator(".fixed.inset-0.z-50").last().getByRole("button", { name: /Copia da un altro/ }).click();
   await p.waitForTimeout(500);
   // source select is the first select in the dialog; pick src
   await p.locator(".sc-su select").first().selectOption(src.id).catch(()=>{});

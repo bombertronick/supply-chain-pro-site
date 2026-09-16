@@ -1,0 +1,2 @@
+          placeholder="Scrivi un prodotto: guanciale, provola…"
+          aria-label="Cerca un prodotto ovunque"

@@ -1,0 +1,1 @@
+"Il pulsante «Gestione rapida» è il pannello di comando del magazzino, diviso in tre gruppi. AGGIUNGERE: aggiungi più prodotti, oppure copia da un altro magazzino. SPOSTARE: sposta o rimuovi prodotti, trasferisci le scorte. LIVELLI: livello previsto in blocco, soglie per giorno. Sono gli stessi nomi che trovi cercando con la lente in alto."

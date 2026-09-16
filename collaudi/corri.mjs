@@ -18,7 +18,7 @@
    con zero e non stampa nemmeno un controllo e' MUTO, e per mesi l'ho contato
    come verde. Non prova niente. Chiamarlo col suo nome e' tutto il punto. */
 import { spawnSync } from "child_process";
-import { readdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 
 /* ── LA BANDIERINA ──
    Il bundle è una risorsa sola e condivisa: se qualcuno lo ricostruisce mentre
@@ -32,6 +32,37 @@ const BANDIERINA = ".censimento-in-corso";
 const arg = process.argv.slice(2);
 const censimento = arg.includes("--censimento");
 const tutti = arg.includes("--tutte") || censimento;
+/* ── LA RIPRESA (7 settembre) ──
+   Il 7 settembre il container si e' riavviato TRE volte, e ogni volta il
+   censimento e' ripartito da zero: la terza si e' fermato a 5 file su 99
+   dopo aver girato per ore, e me ne sono accorto solo perche' il diario era
+   vecchio di quattordici ore. Il rimedio non e' sperare che non risucceda:
+   e' rendere la ripartenza a buon mercato. corri.mjs stampa il risultato di
+   ogni file APPENA finisce, quindi un diario di un giro morto dice gia' cosa
+   e' stato provato; con --riprendi <diario> si rilegge quel diario e si
+   girano solo i file che mancano. Costo di un riavvio: il file in volo, non
+   l'intero censimento.
+   Si legge il diario e non una lista mia, perche' il diario e' quello che
+   verra' letto anche per fare i conti alla fine: una fonte sola. */
+const iRiprendi = arg.indexOf("--riprendi");
+const diarioVecchio = iRiprendi >= 0 ? arg[iRiprendi + 1] : null;
+const gia = new Set();
+if (diarioVecchio && existsSync(diarioVecchio)) {
+  /* «ROSSA» e' MAIUSCOLA nel rapporto. Il 6 settembre ho annunciato «zero
+     rosse» a Valerio per aver cercato «rosso» minuscolo: erano tre. Qui si
+     prendono tutte e quattro le parole, e il collaudo di questa riga e' che
+     il conto della ripresa torni con quello del rapporto. */
+  for (const r of readFileSync(diarioVecchio, "utf8").split("\n")) {
+    /* «MUTA » e' come il rapporto la scrive DAVVERO (riga sopra: `muto ?
+       "MUTA "`), e qui cercavo «muto» minuscolo: un file muto non risultava
+       mai gia' fatto e si rigirava a ogni ripresa, finendo nel diario due
+       volte. E' la gemella esatta dello sbaglio del 6 settembre con «rosso»
+       minuscolo — stessa riga, stessa lezione: si copia la parola dal posto
+       che la stampa, non dalla memoria. (14 settembre) */
+    const m = r.match(/^(verde|ROSSA|MUTA|SALTA) +([a-z0-9-]+test\.mjs)/);
+    if (m) gia.add(m[2]);
+  }
+}
 /* navtest.mjs finisce nel filtro per via del nome ma non e' un collaudo: e' la
    libreria che tutti gli altri importano per navigare. Girava, non provava
    niente (giustamente) e mi risultava MUTA a ogni censimento — un falso
@@ -40,20 +71,61 @@ const NON_COLLAUDI = new Set([
   "navtest.mjs",     // la libreria che tutti importano per navigare
   "render-test.mjs", // fa il giro dell'app e scatta fotografie: e' un attrezzo, non un collaudo
 ]);
-const lista = tutti
+/* ── QUATTRO ESITI, NON TRE ──
+   Sette collaudi leggono i dati VERI di produzione: nomi dei prodotti,
+   fornitori, ordini, giacenze. Quei file non stanno nel repository — e' un
+   repository pubblico — quindi su una macchina che non sia la mia non ci sono.
+   Prima diventavano ROSSI, e un rosso che non e' un difetto e' la cosa peggiore
+   che si possa mettere in un rapporto automatico: insegna a ignorare i rossi.
+   Adesso si chiamano SALTATE e dicono che file gli manca. Non contano come
+   difetto, ma non spariscono nemmeno dal conto. */
+const DATI_RICHIESTI = {
+  "catalogotest.mjs": "stato-vero.json",
+  "conv551test.mjs": "stato-vero.json",
+  "convtest.mjs": "stato-vero.json",
+  "gen552test.mjs": "stato-vero-conv.json",
+  "mappatest.mjs": "topologia-vera.json",
+  "pesotest.mjs": "topologia-vera.json",
+  "ripristinotest.mjs": "topologia-vera.json",
+};
+
+const lista = (tutti
   ? readdirSync(".").filter((f) => /test\.mjs$/.test(f) && !NON_COLLAUDI.has(f)).sort()
-  : arg.filter((a) => !a.startsWith("--"));
+  : arg.filter((a, i) => !a.startsWith("--") && arg[i - 1] !== "--riprendi")
+).filter((f) => !gia.has(f));
+if (diarioVecchio) console.log(`ripresa da «${diarioVecchio}»: ${gia.size} gia' fatti, ne restano ${lista.length}`);
 
 if (tutti) { try { writeFileSync(BANDIERINA, String(process.pid)); } catch {} }
 const giu = () => { try { if (existsSync(BANDIERINA)) unlinkSync(BANDIERINA); } catch {} };
 process.on("exit", giu); process.on("SIGINT", () => { giu(); process.exit(130); });
 process.on("SIGTERM", () => { giu(); process.exit(143); });
 
+/* ── L'OUTPUT DEI ROSSI SI CONSERVA ──
+   Finora, in censimento, di una suite rossa restava una riga sola. Di una che
+   cade solo sotto carico non si riusciva a sapere QUALE controllo fosse
+   caduto, e la diagnosi era impossibile. Adesso che il censimento gira di
+   notte da solo, questa non e' piu' una scomodita': senza, il rapporto della
+   mattina dice «rossa» e nessuno puo' farci niente. */
+const CARTELLA_ROSSI = "rossi";
 let rossa = null;
 const esiti = [];
 for (const f of lista) {
+  const manca = DATI_RICHIESTI[f];
+  if (manca && !existsSync(manca)) {
+    esiti.push({ f, nOk: 0, nKo: 0, sec: 0, male: false, muto: false, saltata: manca });
+    console.log(`SALTA  ${f.padEnd(22)} manca «${manca}» — i dati veri non stanno nel repository`);
+    continue;
+  }
   const t0 = Date.now();
-  const r = spawnSync("node", [f], { encoding: "utf8", timeout: 900000 });
+  /* IL TETTO DI TEMPO E' PER FILE, non uguale per tutti (31/08, gen-5.98):
+     generaletest apre OGNI vista e ogni scheda per tre ruoli su due
+     schermi, e l'app e' cresciuta — gen-5.96/97/98 le hanno dato Listino,
+     Cassa e Comande da aprire. Misurato due volte il 31/08: 900s non gli
+     bastano piu' NEMMENO DA SOLO (35-40 ok, 0 KO, ucciso dal tetto — tempo,
+     non difetti). Il tetto degli altri resta stretto: e' il guinzaglio che
+     smaschera una suite appesa. */
+  const TETTO_MS = { "generaletest.mjs": 1800000 };
+  const r = spawnSync("node", [f], { encoding: "utf8", timeout: TETTO_MS[f] || 900000 });
   const out = (r.stdout || "") + (r.stderr || "");
   /* Le suite non parlano tutte la stessa lingua: le piu' nuove stampano
      «  ok  » / «  KO  », le vecchie infilano PASS o CHECK in fondo alla riga.
@@ -70,6 +142,9 @@ for (const f of lista) {
     ? (out.match(/^(?:.*(?:Error|error:|Timeout).*)$/m) || [""])[0].trim().slice(0, 110)
     : "";
   esiti.push({ f, nOk, nKo, sec, male, muto, perche });
+  if (male && censimento) {
+    try { mkdirSync(CARTELLA_ROSSI, { recursive: true }); writeFileSync(`${CARTELLA_ROSSI}/${f}.txt`, out); } catch {}
+  }
   console.log(`${male ? "ROSSA" : muto ? "MUTA " : "verde"}  ${f.padEnd(22)} `
     + `${String(nOk).padStart(3)} ok  ${nKo} KO  ${String(sec).padStart(3)}s`
     + (male && censimento ? `  ← ${perche}` : ""));
@@ -85,9 +160,15 @@ if (rossa) {
 
 const mute = esiti.filter((e) => e.muto);
 const rosse = esiti.filter((e) => e.male);
-const verdi = esiti.filter((e) => !e.male && !e.muto);
+const saltate = esiti.filter((e) => e.saltata);
+const verdi = esiti.filter((e) => !e.male && !e.muto && !e.saltata);
 console.log(`\n${verdi.length} verdi (${verdi.reduce((a, e) => a + e.nOk, 0)} controlli veri)`
-  + ` · ${mute.length} mute · ${rosse.length} rosse · ${esiti.length} file in tutto`);
+  + ` · ${mute.length} mute · ${rosse.length} rosse · ${saltate.length} saltate`
+  + ` · ${esiti.length} file in tutto`);
+if (saltate.length) {
+  console.log(`\nSALTATE — non sono difetti: gli manca un file di dati che non sta nel repository:`);
+  for (const e of saltate) console.log(`  ${e.f.padEnd(22)} manca «${e.saltata}»`);
+}
 if (mute.length) {
   console.log(`\nMUTE — girano senza provare niente, escono col verde comunque vada:`);
   for (const e of mute) console.log(`  ${e.f}`);
@@ -95,5 +176,15 @@ if (mute.length) {
 if (rosse.length) {
   console.log(`\nROSSE:`);
   for (const e of rosse) console.log(`  ${e.f.padEnd(22)} ${e.perche}`);
+  if (censimento) {
+    console.log(`\nL'output completo di ognuna sta in «${CARTELLA_ROSSI}/». Le ultime righe:`);
+    for (const e of rosse) {
+      console.log(`\n──────── ${e.f} ────────`);
+      try {
+        const t = readFileSync(`${CARTELLA_ROSSI}/${e.f}.txt`, "utf8").split("\n");
+        console.log(t.slice(-25).join("\n"));
+      } catch { console.log("  (output non conservato)"); }
+    }
+  }
 }
 process.exit(rosse.length ? 1 : 0);

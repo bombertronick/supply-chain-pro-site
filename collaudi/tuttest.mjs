@@ -49,7 +49,7 @@ for (let i = 0; i < await nav.count(); i++) { if (await nav.nth(i).isVisible()) 
 await p.waitForTimeout(500);
 await p.getByText(mag.nome, { exact: false }).first().click(); await p.waitForTimeout(600);
 await p.getByRole("button", { name: /Gestione rapida/ }).click(); await p.waitForTimeout(400);
-const gestOpen = await p.getByText("Aggiungi più prodotti").count() > 0 && await p.getByText("Copia da un magazzino").count() > 0;
+const gestOpen = await p.getByText("Aggiungi più prodotti").count() > 0 && await p.getByText("Copia da un altro magazzino").count() > 0;
 console.log("Gestione rapida menu open with actions:", gestOpen);
 await p.screenshot({ path: "tut-3-gestione.png" });
 

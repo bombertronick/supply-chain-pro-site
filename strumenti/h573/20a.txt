@@ -1,0 +1,11 @@
+function testoDaMandare(stato, sede, righeLab, perForn) {
+  const riga = (x) => "- " + (trova(stato.prodotti, x.prodottoId)?.nome || "?")
+    + ": " + fmtQ(x.qty) + " " + simboloU(stato, x.uomId);
+  const r = [sede.nome.toUpperCase() + " · " + new Date().toLocaleDateString("it-IT")];
+  if (righeLab.length) { r.push("", "AL LABORATORIO"); righeLab.forEach((x) => r.push(riga(x))); }
+  for (const g of perForn) {
+    r.push("", g.f ? g.f.nome.toUpperCase() : "SENZA FORNITORE");
+    g.righe.forEach((x) => r.push(riga(x)));
+  }
+  return r.join("\n");
+}

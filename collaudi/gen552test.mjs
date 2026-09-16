@@ -21,13 +21,22 @@ const s = { ...st, codici: [], accessi: [], profili: [
 ]};
 /* uno storico vero, con persone e giorni diversi, per provare i filtri */
 const GG = 86400000;
+/* ── UN COLLAUDO NON DEVE DIPENDERE DALL ORA IN CUI GIRA ──
+   Qui c era scritto Date.now() - 3 * 3600000 e lo si chiamava «oggi». Alle
+   01:37 di notte «tre ore fa» e ieri, e il controllo diventava rosso — sulla
+   versione in produzione da giorni, non su una nuova. L ho scoperto perche un
+   censimento e capitato dopo mezzanotte, ed e il peggior tipo di falso
+   allarme: manda a cercare un difetto che non c e.
+   Adesso i tempi sono ancorati alla mezzanotte di oggi, non a «adesso meno
+   qualcosa»: quello che deve essere di oggi lo e a qualunque ora si giri. */
+const MEZZANOTTE = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
 s.log = [
-  { id: "l1", t: Date.now() - 60000, chi: "Admin", msg: "Soglie aggiornate su «Linea fm»" },
-  { id: "l2", t: Date.now() - 3 * 3600000, chi: "Gigi", msg: "Conteggio Linea fm chiuso" },
-  { id: "l3", t: Date.now() - GG - 3600000, chi: "Admin", msg: "Prezzi aggiornati" },
-  { id: "l4", t: Date.now() - GG - 7200000, chi: "Gigi", msg: "Ricezione in blocco" },
-  { id: "l5", t: Date.now() - 4 * GG, chi: "Valerio", msg: "Catalogo importato" },
-  { id: "l6", t: Date.now() - 20 * GG, chi: "Valerio", msg: "Magazzini creati" },
+  { id: "l1", t: MEZZANOTTE + 3 * 60000, chi: "Admin", msg: "Soglie aggiornate su «Linea fm»" },
+  { id: "l2", t: MEZZANOTTE + 60000, chi: "Gigi", msg: "Conteggio Linea fm chiuso" },
+  { id: "l3", t: MEZZANOTTE - 3600000, chi: "Admin", msg: "Prezzi aggiornati" },
+  { id: "l4", t: MEZZANOTTE - 7200000, chi: "Gigi", msg: "Ricezione in blocco" },
+  { id: "l5", t: MEZZANOTTE - 4 * GG, chi: "Valerio", msg: "Catalogo importato" },
+  { id: "l6", t: MEZZANOTTE - 20 * GG, chi: "Valerio", msg: "Magazzini creati" },
 ];
 
 const URL = "file://" + path.resolve("index.html");
@@ -112,12 +121,17 @@ ok(/Valore della merce ferma/.test(await A.p.locator("body").innerText()),
   "e toccandola ci si arriva davvero (Analisi)");
 
 /* ─────────── 3. CERCA OVUNQUE ─────────── */
+/* gen-5.71: la lente si chiama «Cerca un prodotto o una funzione», tasto e
+   campo insieme. In gen-5.70 avevo cambiato l etichetta del campo e non quella
+   del tasto: due nomi per la stessa lente, e chi usa un lettore di schermo
+   sentiva ancora «cerca un prodotto» su una cosa che ormai trova anche le
+   funzioni. Questo collaudo se n e accorto prima di me. */
 console.log("\n— 3. cerca un prodotto ovunque —");
-const cercaBtn = A.p.getByRole("button", { name: "Cerca un prodotto ovunque" });
+const cercaBtn = A.p.getByRole("button", { name: "Cerca un prodotto o una funzione" });
 ok(await cercaBtn.count() === 1, "la lente sta nell'intestazione, non nella barra");
 await cercaBtn.click(); await A.p.waitForTimeout(900);
 const fg = A.p.locator(".fixed.inset-0.z-50").last();
-const campo = fg.locator('input[aria-label="Cerca un prodotto ovunque"]');
+const campo = fg.locator('input[aria-label="Cerca un prodotto o una funzione"]');
 await campo.fill("guanci"); await A.p.waitForTimeout(800);
 const tR = await fg.innerText();
 ok(/Guanciale/i.test(tR), "cercando «guanci» esce il Guanciale");
@@ -136,11 +150,11 @@ await A.p.locator('[aria-label="Chiudi"]').last().click(); await A.p.waitForTime
 
 /* LA PROVA CHE CONTA: l'operatore non deve vedere le giacenze altrui */
 const O = await apri("Op", "2222", 360);
-ok(await O.p.getByRole("button", { name: "Cerca un prodotto ovunque" }).count() === 1,
+ok(await O.p.getByRole("button", { name: "Cerca un prodotto o una funzione" }).count() === 1,
   "la lente c'è anche per l'operatore");
-await O.p.getByRole("button", { name: "Cerca un prodotto ovunque" }).click(); await O.p.waitForTimeout(900);
+await O.p.getByRole("button", { name: "Cerca un prodotto o una funzione" }).click(); await O.p.waitForTimeout(900);
 const fgO = O.p.locator(".fixed.inset-0.z-50").last();
-await fgO.locator('input[aria-label="Cerca un prodotto ovunque"]').fill("guanci");
+await fgO.locator('input[aria-label="Cerca un prodotto o una funzione"]').fill("guanci");
 await O.p.waitForTimeout(800);
 const tO = await fgO.innerText();
 ok(!/Magazzino centrale/.test(tO),
