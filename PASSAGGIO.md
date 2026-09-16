@@ -454,47 +454,56 @@ gen-6.20: `file` sabota il **banco** (e lo rimette a posto sempre) e
 `sorgenteGit` costruisce il pacchetto da una **revisione passata**, che è
 l'unico modo di dimostrare che una riga del banco è portante.
 
-## IL RAMO PREDEFINITO È FERMO AL 1° AGOSTO — e nessuno se n'era accorto
+## Il ramo predefinito era fermo al 1° agosto — CHIUSO il 16 settembre
 
-**Verificato il 16 settembre, con `git ls-tree origin/main` e con l'API di
-GitHub. Non è una supposizione.**
+**Com'era.** `origin/main` era a `2edbf21`, **1 agosto 2026**, e non conteneva
+`CLAUDE.md`, `PASSAGGIO.md`, `memoria.json` né `.github/workflows/collaudi.yml`.
+Sei settimane di lavoro vivevano tutte sul ramo, mai fuse. Tre conseguenze, tutte
+misurate prima di ripararle:
 
-`origin/main` è a `2edbf21`, **1 agosto 2026**, e NON contiene:
+1. **Il censimento notturno non era mai partito.** GitHub fa scattare `schedule`
+   **solo dal ramo predefinito**. Prova: `event=schedule` → `total_count: 0`, e
+   tutte le 119 esecuzioni esistenti erano `event=push`. Quel workflow era nato
+   apposta perché *«tre collaudi erano rimasti rotti per mesi senza che nessuno
+   se ne accorgesse»*: la riparazione non aveva mai funzionato, e a dirlo non era
+   stato nessun rosso, perché nessuno l'aveva chiesto.
+2. Chi clonava il ramo predefinito non trovava bussola, passaggio né memoria.
+3. `index.html` — la vetrina pubblica — si fermava a «Gen 4».
 
-| file | cos'è | c'è su main? |
-|---|---|---|
-| `CLAUDE.md` | la bussola per chi arriva | **no** |
-| `PASSAGGIO.md` | questo documento | **no** |
-| `memoria.json` | lo storico per la macchina | **no** |
-| `.github/workflows/collaudi.yml` | il censimento notturno | **no** |
+**La scoperta che ha cambiato la forma della riparazione.** I due rami **non
+avevano nessun antenato in comune**: dopo la fusione del 1° agosto (#6) il ramo
+era stato ricreato da zero, e `git` si rifiutava di fonderli. E su `main` c'era
+**un'altra applicazione**: l'inventario offline di luglio, con `.nojekyll`,
+`inventario.html` e il guscio PWA (`app/index.html`, `sw.js`, `manifest`, tre
+icone). Una fusione fatta al volo l'avrebbe cancellata.
 
-Tutto il lavoro di sei settimane vive su `claude/supabase-app-improvements-5hx3ge`
-e non è mai stato fuso. Tre conseguenze, tutte misurate:
+**Come è stata fatta, e perché in quel verso.** `main` è entrato **dentro il
+ramo** (`--allow-unrelated-histories -X ours`), simulato prima in una copia di
+lavoro: zero conflitti irrisolti, **otto sole aggiunte**, niente del ramo
+cambiato di un byte. Così `main` è diventato un **antenato** del ramo, e portarlo
+al passo è stato un avanzamento puro — **82 commit guadagnati, 0 persi** — invece
+di una riscrittura. Poi PR #7, fusa.
 
-1. **IL CENSIMENTO NOTTURNO NON È MAI PARTITO.** GitHub fa scattare `schedule`
-   **solo dal ramo predefinito**, e lì il file non c'è. Prova:
-   `list_workflow_runs` filtrato su `event=schedule` → **`total_count: 0`**. Le
-   114 esecuzioni che esistono sono **tutte** `event=push`, cioè partite dal
-   ramo. Il file di quel workflow si apre con: *«i collaudi partono solo quando
-   li lancio io — ed è esattamente per questo che tre erano rimasti rotti per
-   mesi senza che nessuno se ne accorgesse»*. Quella riparazione **non ha mai
-   funzionato**, e a dirlo non è stato nessun rosso: nessuno l'aveva chiesto.
-2. **CHI ARRIVA NON TROVA NIENTE.** Una sessione nuova che clona il ramo
-   predefinito non ha bussola, non ha passaggio, non ha memoria: ha il codice di
-   sei settimane fa e `CONSEGNA.md`, che è dell'era gen-5.73.
-3. **LA VETRINA PUBBLICA** (`index.html`, servita da GitHub Pages con
-   `.nojekyll`) si fermava a «Gen 4 · Analisi e tracciabilità» e non nominava
-   mai gen-6: ventuno generazioni, la Cassa, le comande, il cliente col suo
-   ordine, di cui non diceva una parola. Corretta sul ramo — ma finché non si
-   fonde, il pubblico vede ancora Gen 4.
+Verificato prima: nessuno di quei file carica `app/app.jsx` (il service worker
+mette in cache solo il proprio guscio), quindi portarlo da 633 KB a 1.055 KB non
+cambia niente per nessun dispositivo. E prima di spingere sul ramo predefinito di
+un repository pubblico: nessuna chiave, nessun token, i dati veri del magazzino
+fuori dal repository come impone `.gitignore`, nessun PIN oltre a quelli del seme.
 
-**QUESTA È UNA DECISIONE DI VALERIO, NON MIA**: fondere su `main` è un gesto
-verso l'esterno su un repository pubblico, e la regola di casa dice che su
-`main` non si spinge senza permesso esplicito. Il giorno che si fonde, la prova
-che ha funzionato si misura da sola: `event=schedule` passa da `0` a un numero.
+**Com'è adesso.** `main` è `48ad9ae`, porta tutto (bussola, passaggio, memoria,
+banchi, attrezzi, CI) **e** l'app di luglio intatta; `app/app.jsx` su `main` ha
+md5 `c230922976fc1191d6f38b868edb753f`, cioè gen-6.21. Il censimento è partito su
+`main` alla prima occasione (esecuzione 122).
 
-**Finché non è fusa, qualsiasi cosa scritta qui dentro vale solo per chi sa già
-che deve guardare su questo ramo.**
+> **LA COSA CHE RESTA DA GUARDARE, ed è l'unica prova che conta:** il censimento
+> **a orario** non è ancora mai partito. Scatta alle 03:10 UTC. La prova che
+> questo lavoro è servito è che `event=schedule` passi da `0` a `1`. Finché non
+> l'hai visto, non dire che funziona: è esattamente l'errore che questa sezione
+> racconta.
+
+**E la lezione, che vale più della riparazione:** quando si scrive che qualcosa
+gira **da solo**, si va a guardare che sia partito **almeno una volta**. Un
+automatismo non provato è una speranza scritta al futuro.
 
 ## I due cancelli nuovi, e la rete che avevo perso (16 settembre)
 

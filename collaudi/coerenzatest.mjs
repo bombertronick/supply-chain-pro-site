@@ -34,6 +34,7 @@
    cancello md5 del rilascio, e quello vive dentro una sessione. Sono due
    cancelli diversi e servono tutti e due. */
 import { readFileSync, existsSync, readdirSync } from "fs";
+import { execFileSync } from "child_process";
 import { createHash } from "crypto";
 import path from "path";
 
@@ -218,6 +219,41 @@ if (c_e("index.html")) {
   ok(!mNum || PAROLE[mNum[1].toLowerCase()] === generazioni.length,
     mNum ? `e il conto a parole combacia con le voci elencate (dice «${mNum[1]}», le voci sono ${generazioni.length})`
          : "e non dichiara un conto a parole che possa invecchiare");
+}
+
+/* ═══ 11. IL RAMO PREDEFINITO SERVE QUELLO CHE DICIAMO ═══
+   Il 16 settembre si è scoperto che `main` era fermo al 1° agosto e non portava
+   né la bussola, né il passaggio, né la memoria, né il file della CI. La
+   conseguenza peggiore non si vedeva: GitHub fa scattare i lavori A ORARIO
+   **solo dal ramo predefinito**, quindi il censimento notturno — scritto apposta
+   perché «tre collaudi erano rimasti rotti per mesi senza che nessuno se ne
+   accorgesse» — NON ERA MAI PARTITO. Zero esecuzioni, da sempre.
+   Questa sezione guarda che non torni a succedere. Non pretende che il ramo
+   predefinito sia allineato su tutto (mentre si lavora è normale che il ramo sia
+   avanti): pretende che porti le QUATTRO cose senza le quali chi arriva non
+   trova niente e i collaudi non partono.
+   DOVE NON SI PUÒ GUARDARE, NON SI DICE «ok»: se il riferimento al ramo
+   predefinito non c'è (una copia superficiale), si stampa una riga che NON
+   comincia con «  ok  », così non gonfia il conto dei controlli veri — che è
+   esattamente la trappola del «quarto esito» che ho scartato altrove. */
+console.log("\n— 11. il ramo predefinito porta quello che diciamo —");
+const gitDice = (args) => {
+  try { return execFileSync("git", args, { cwd: RAD, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+  catch { return null; }
+};
+/* il riferimento si puo' scegliere (RAMO_PREDEFINITO): serve a PROVARE questa
+   sezione puntandola al vecchio ramo predefinito, dove quei file davvero non
+   c'erano — una guardia che nessuno prova a spegnere e' una speranza */
+const rifPred = [process.env.RAMO_PREDEFINITO, "origin/main", "refs/remotes/origin/main", "main"].filter(Boolean)
+  .map((r) => ({ r, sha: gitDice(["rev-parse", "--verify", "--quiet", r]) }))
+  .find((x) => x.sha);
+if (!rifPred) {
+  console.log("  ··  non verificabile qui: manca un riferimento al ramo predefinito (copia superficiale)");
+  console.log("  ··  in CI serve «fetch-depth: 0» nel passo di checkout");
+} else {
+  for (const f of ["CLAUDE.md", "PASSAGGIO.md", "memoria.json", ".github/workflows/collaudi.yml"])
+    ok(gitDice(["cat-file", "-e", `${rifPred.sha}:${f}`]) !== null,
+      `${f} c'è anche su ${rifPred.r}`);
 }
 
 console.log(`\n${ko ? "!! " + ko + " rosse" : "tutto verde"} — ${ko ? "coerenza ROTTA" : "i documenti dicono quello che dice la sorgente"}`);
