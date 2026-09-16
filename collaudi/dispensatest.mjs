@@ -18,7 +18,7 @@
    5. LO SNAPSHOT E' UNA SORGENTE SOLA e si valida: rev e voci insieme,
       mai piu' spezzati fra riga di comando e file condiviso. */
 import { TETTI, idValido, misura, ripulisci, leggiSnapshot, vociDopoScrittura, controllaTetti,
-  sqlScrivi, sqlTogli, sqlCompatta, sqlLeggi } from "../strumenti/dispensa.mjs";
+  sqlScrivi, sqlTogli, sqlCompatta, sqlLeggi, sqlUltima, sqlVerifica } from "../strumenti/dispensa.mjs";
 let ko = 0; const ok = (c, m) => { console.log((c ? "  ok  " : "  KO  ") + m); if (!c) ko++; };
 const rifiuta = (f) => { try { f(); return false; } catch { return true; } };
 
@@ -85,7 +85,15 @@ console.log("\n— 4. il giro base64 e' fedele, e «mostra» non si fa contraffa
 const testo = "È l'unità « perché » — con /[\\u0300-\\u036f]/ dentro.";
 const sql3 = sqlScrivi({ rev: 0, voci: [] }, { id: "fedele", tag: "prova", titolo: "F", testo });
 const dentro = [...sql3.matchAll(/decode\('([A-Za-z0-9+/=]+)', 'base64'\)/g)];
-ok(dentro.length === 2, "testo e indice viaggiano ENTRAMBI in base64, non in chiaro");
+/* contava i blocchi base64 e ne pretendeva DUE. Col secondo cancello (16
+   settembre) sono tre — indice nuovo, voci vecchie da confrontare, testo — e
+   l'asserzione e' diventata rossa per un motivo che non c'entrava niente col
+   suo mestiere. Un'asserzione che conta i pezzi invece di dire l'invariante si
+   rompe ogni volta che il pezzo in piu' e' un miglioramento. L'invariante vero
+   e' questo: niente di lungo viaggia IN CHIARO. */
+ok(dentro.length >= 2, `testo e indice viaggiano in base64 (${dentro.length} blocchi)`);
+ok(!sql3.includes(testo), "e il testo non compare in chiaro da nessuna parte nello statement");
+ok(!/'\{"rev"/.test(sql3), "e nemmeno il corpo dell'indice");
 ok(dentro.some((m) => Buffer.from(m[1], "base64").toString("utf8") === testo),
   "e decodificato torna IDENTICO, apostrofi e accenti compresi");
 const esc = String.fromCharCode(27);
@@ -101,6 +109,60 @@ ok(rifiuta(() => leggiSnapshot('{"voci":[]}')), "senza revisione si rifiuta");
 ok(rifiuta(() => leggiSnapshot('{"rev":1}')), "senza voci si rifiuta");
 ok(rifiuta(() => leggiSnapshot('{"rev":1,"voci":[{"id":"x1","titolo":"X"}]}')),
   "una voce senza misura si rifiuta: non si scrive alla cieca su un indice malformato");
+
+console.log("\n— 6. lo snapshot ricopiato a mano non puo' riscrivere le voci vecchie —");
+/* IL PASSO PIU' PERICOLOSO DI TUTTO IL RITUALE, misurato il 16 settembre.
+   Lo snapshot dell'indice va ricopiato A MANO dal risultato di execute_sql a un
+   file locale: oggi sono 7.363 caratteri su una riga sola, di cui il 64% sono
+   TITOLI di voci vecchie. Se chi ricopia sbaglia UN carattere dentro il titolo
+   di una voce vecchia, leggiSnapshot lo accetta (valida solo rev, l'array e la
+   misura), vociDopoScrittura ricicla le voci verbatim, e l'UPDATE le riscrive
+   TUTTE in produzione col refuso dentro. L'esito stampato dice «scritto: …
+   rev N+1», che e' vero. Il danno e' IRREVERSIBILE: kv_store non ha storico.
+   Prima di oggi non se ne accorgeva nessuno — nemmeno questo banco.
+   Adesso il cancello dello statement pretende che le voci vecchie del file
+   siano ESATTAMENTE quelle in rete, e in conflitto non tocca niente. */
+const vecchieVere = [{ id: "aa", t: 1, tag: "x", titolo: "Titolo vecchio", car: 10 },
+                     { id: "cc", t: 2, tag: "y", titolo: "Un altro", car: 20 }];
+const sqlG = sqlScrivi({ rev: 5, voci: vecchieVere }, { id: "nuova", tag: "sapere", titolo: "N", testo: "testo" });
+ok(/md5\(\(value::jsonb->'voci'\)::text\)/.test(sqlG),
+  "l'UPDATE confronta le voci in rete con quelle del file, non solo la revisione");
+const impronte = [...sqlG.matchAll(/decode\('([A-Za-z0-9+/=]+)', 'base64'\)/g)]
+  .map((m) => Buffer.from(m[1], "base64").toString("utf8"));
+ok(impronte.some((t) => { try { return JSON.stringify(JSON.parse(t)) === JSON.stringify(vecchieVere); } catch { return false; } }),
+  "e le voci vecchie viaggiano nello statement per essere confrontate in rete");
+ok(/SNAPSHOT DIVERSO/.test(sqlG),
+  "e quando non combaciano l'esito lo DICE, invece di dire «conflitto» e mandare a cercare la persona sbagliata");
+ok(/CONFLITTO/.test(sqlG) && /SNAPSHOT DIVERSO/.test(sqlG),
+  "e i due casi restano distinti: «un altro ha scritto» non e' «hai ricopiato male»");
+ok((sqlG.match(/;/g) || []).length === 1,
+  `ed e' ancora UN solo statement (${(sqlG.match(/;/g) || []).length} «;»): il cancello non si e' spezzato in due`);
+
+console.log("\n— 7. si puo' chiedere qual e' l'ULTIMA voce, invece di tenerlo a mente —");
+/* Il puntatore all'ultima voce era tenuto a mano in prosa dentro PASSAGGIO.md,
+   in DUE posti, e il 16 settembre erano gia' diversi: il primo messaggio da
+   incollare mandava alla penultima. Un dato che si puo' chiedere non si tiene
+   a mente. */
+ok(typeof sqlUltima === "function", "il comando «ultima» esiste");
+const su = sqlUltima();
+/* ── APERTO DAL SABOTAGGIO 5 ──
+   Prima qui c'era «la stringa contiene voci'->-1», e restava VERDE spostando
+   l'ID alla posizione 0: gli altri campi continuavano a dire -1 e il test
+   trovava lo stesso quello che cercava. Un'asserzione che cerca una sottostringa
+   «da qualche parte» non sta guardando il campo che le interessa. Adesso ogni
+   campo dell'ultima voce deve venire dalla POSIZIONE -1, uno per uno. */
+for (const campo of ["id", "titolo", "tag"])
+  ok(su.includes(`value::jsonb->'voci'->-1->>'${campo}'`),
+    `«${campo}» dell'ultima voce viene dalla POSIZIONE -1, non da un timestamp`);
+ok(!/->'voci'->[0-9]+->>/.test(su),
+  "e nessun campo viene pescato da una posizione fissa dall'inizio");
+ok(/jsonb_array_length/.test(su), "e dice anche quante voci ci sono");
+
+console.log("\n— 8. si puo' verificare l'indice senza riscriverlo —");
+ok(typeof sqlVerifica === "function", "il comando «verifica» esiste");
+const sv = sqlVerifica();
+ok(/md5\(v->>'titolo'\)/.test(sv), "e chiede l'impronta del titolo, che e' la parte piu' esposta al refuso");
+ok(!/update|insert|delete/i.test(sv), "e non scrive niente: e' una domanda, non una mutazione");
 
 console.log(ko ? `\n${ko} CONTROLLI FALLITI` : "\nTUTTI I CONTROLLI PASSATI");
 process.exit(ko ? 1 : 0);

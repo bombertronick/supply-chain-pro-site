@@ -45,6 +45,16 @@
    "gen": null,
    "quando": "16 settembre",
    "chiude": [],
+   "prova": "dispensatest.mjs",
+   "soloCollaudi": true,
+   "_soloCollaudi_perche": "Non tocca l app di Valerio: e l attrezzo della dispensa (strumenti/dispensa.mjs) e le chiavi ctx:v1:* nel kv_store. Nessuna generazione.",
+   "cosa": "IL SECONDO CANCELLO DELLA DISPENSA. Il passo piu pericoloso del rituale era lo snapshot dell indice ricopiato A MANO dal risultato di execute_sql a un file: oggi 7.363 caratteri su una riga sola, di cui il 64% sono TITOLI di voci vecchie. Un carattere sbagliato dentro il titolo di una voce vecchia passava TUTTE le validazioni (leggiSnapshot guarda solo rev, l array e la misura), vociDopoScrittura riciclava le voci verbatim, e l UPDATE le riscriveva tutte in produzione col refuso dentro. L esito stampato diceva «scritto: … rev N+1», che e vero. Il danno era IRREVERSIBILE: kv_store ha tre colonne e nessuno storico. Nemmeno dispensatest, con i suoi 34 controlli verdi, lo vedeva. Adesso l UPDATE si apre solo se le voci vecchie del file sono ESATTAMENTE quelle in rete — il confronto lo fa Postgres su tutti e due i lati (jsonb::text canonico), quindi non dipende da come JavaScript serializza — e resta UN SOLO statement. E l esito distingue CONFLITTO (un altro ha scritto prima) da SNAPSHOT DIVERSO (hai ricopiato male): sono due problemi diversi e mandano a cercare persone diverse. Due comandi nuovi tolgono altrettanti passi tenuti a memoria: «ultima» dice qual e l ultima voce (per POSIZIONE nell array, non per timestamp: i t sono stati scritti a mano e in rete non sono monotoni) e «verifica» stampa l impronta id|t|car|tag|md5(titolo) di ogni voce, di qua e di la. Da 34 a 47 controlli, tutti verdi. 6 sabotaggi, 0 muti dopo averne aperto uno.",
+   "_nota": "IL MUTO APERTO: §7 controllava che la stringa dell SQL contenesse «voci->-1» DA QUALCHE PARTE. Spostando il solo ID alla posizione 0 gli altri campi continuavano a dire -1, e il controllo restava verde: un asserzione che cerca una sottostringa da qualche parte non sta guardando il campo che le interessa. Adesso ogni campo si verifica per conto suo. E il PUNTATORE ALL ULTIMA VOCE non si tiene piu a mente: il primo messaggio di PASSAGGIO.md adesso dice di chiederlo con «ultima», e il nome scritto resta solo per quando il database non c e."
+  },
+  {
+   "gen": null,
+   "quando": "16 settembre",
+   "chiude": [],
    "prova": "coerenzatest.mjs",
    "soloCollaudi": true,
    "_soloCollaudi_perche": "Non tocca l app di Valerio: e infrastruttura mia (documenti, bussola e cancelli della catena di rilascio). app/app.jsx non cambia di un byte, quindi nessuna generazione e nessun rilascio.",

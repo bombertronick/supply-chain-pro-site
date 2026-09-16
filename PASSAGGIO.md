@@ -28,10 +28,12 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260915-notte` (è l'ULTIMA: la sezione «Dispensa» qui sotto dice
-> sempre qual è, e `collaudi/coerenzatest.mjs` §3 diventa rosso se queste due
-> righe smettono di dire lo stesso nome). Non cambiare niente prima di aver
-> letto tutto. Poi
+> `chk-20260915-notte`. **Non fidarti di questo nome: chiedilo.**
+> `node strumenti/dispensa.mjs ultima` → esegui l'SQL, e la risposta è
+> l'ultima voce per davvero. (Il nome resta scritto qui per quando il database
+> non c'è, e `collaudi/coerenzatest.mjs` §3 diventa rosso se questa riga e la
+> sezione «Dispensa» smettono di dire lo stesso.) Non cambiare niente prima di
+> aver letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -77,12 +79,18 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
-  E si verifica anche che le voci VECCHIE non si siano mosse: lo snapshot va
-  ricopiato a mano e una svista lì riscriverebbe l'indice di tutti. Il modo che
-  costa un secondo: prima di scrivere, farsi dare dal database
-  `id|t|car|tag|md5(titolo)` di ogni voce, rifarlo in locale sullo snapshot e
-  confrontare; dopo, `md5` dell'array senza la voce nuova contro quello di
-  prima.
+  **Le voci vecchie non le può più rovinare una svista** (16 settembre): lo
+  snapshot va ricopiato a mano — oggi 7.363 caratteri, di cui il 64% sono
+  titoli — e un carattere sbagliato dentro il titolo di una voce vecchia
+  passava tutte le validazioni e riscriveva l'indice di tutti, in modo
+  **irreversibile** (`kv_store` non ha storico) e con l'esito verde. Adesso
+  l'`UPDATE` si apre solo se le voci vecchie del file sono **esattamente**
+  quelle in rete, e l'esito distingue «CONFLITTO» (un altro ha scritto prima)
+  da «SNAPSHOT DIVERSO» (hai ricopiato male): sono due problemi diversi.
+  Due comandi nuovi tolgono altrettanti passi a memoria:
+  `node strumenti/dispensa.mjs ultima` dice qual è l'ultima voce — **non
+  tenerlo a mente, chiedilo** — e `… verifica <file-indice>` stampa l'impronta
+  di ogni voce di qua e di là, da confrontare prima di scrivere.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL;
   gen-6.21 e' la **Versione 32**). Prima di ripubblicare si passa da

@@ -58,6 +58,7 @@
    controllo cosi' nessuna voce puo' contraffare il banner o il terminale. */
 
 import { readFileSync } from "fs";
+import { createHash } from "crypto";
 
 export const TETTI = { VOCE: 16000, VOCI: 500, TOTALE: 3000000 };
 const K_INDICE = "ctx:v1:indice";
@@ -115,16 +116,40 @@ export function vociDopoScrittura(voci, { id, tag, titolo, car, assorbe }) {
    SOLO se agg ha toccato una riga; l'esito conta le righe di agg — le MIE,
    non lo stato che un vincitore concorrente puo' aver reso vero. In
    conflitto non cambia niente da nessuna parte, e l'esito lo dice. */
+/* ── IL SECONDO CANCELLO: LE VOCI VECCHIE DEVONO ESSERE QUELLE IN RETE ──
+   (16 settembre)
+
+   Il primo cancello guarda la REVISIONE, e protegge da un'altra mano. Non
+   protegge dalla MIA: lo snapshot va ricopiato a mano dal risultato di
+   execute_sql a un file, oggi 7.363 caratteri su una riga sola, di cui il 64%
+   sono TITOLI di voci vecchie. Sbagliare un carattere dentro il titolo di una
+   voce vecchia passava tutte le validazioni — leggiSnapshot guarda solo rev,
+   l'array e la misura — e vociDopoScrittura ricicla le voci VERBATIM: l'UPDATE
+   le riscriveva tutte in produzione col refuso dentro, l'esito diceva
+   «scritto: … rev N+1» (vero), e il danno era IRREVERSIBILE perche' kv_store
+   non ha storico. Nemmeno il banco se ne accorgeva.
+
+   Adesso l'UPDATE si apre solo se le voci vecchie del file sono ESATTAMENTE
+   quelle in rete. Il confronto lo fa Postgres su tutti e due i lati
+   (jsonb::text canonico), cosi' non dipende da come JavaScript serializza.
+
+   E l'esito distingue i due casi: «un altro ha scritto prima» e «hai ricopiato
+   male» sono problemi diversi e mandano a cercare persone diverse. */
 const conCancello = (snapshot, vociNuove, dentro, esitoOk) => {
   const corpo = JSON.stringify({ rev: snapshot.rev + 1, voci: vociNuove });
+  const vecchie = JSON.stringify(snapshot.voci);
   return `with agg as (
   update kv_store set value = ${b64(corpo)}
-  where key = ${q(K_INDICE)} and (value::jsonb->>'rev')::int = ${snapshot.rev}
+  where key = ${q(K_INDICE)}
+    and (value::jsonb->>'rev')::int = ${snapshot.rev}
+    and md5((value::jsonb->'voci')::text) = md5(((${b64(vecchie)})::jsonb)::text)
   returning 1
 )${dentro}
-select case when exists (select 1 from agg)
-  then ${q(esitoOk)}
-  else 'CONFLITTO: un altro ha scritto prima — non e'' stato toccato NIENTE. Rileggi l''indice e riprova.' end as esito;`;
+select case when exists (select 1 from agg) then ${q(esitoOk)}
+  when (select (value::jsonb->>'rev')::int from kv_store where key = ${q(K_INDICE)}) <> ${snapshot.rev}
+    then 'CONFLITTO: un altro ha scritto prima — non e'' stato toccato NIENTE. Rileggi l''indice e riprova.'
+  else 'SNAPSHOT DIVERSO: le voci vecchie del tuo file non sono quelle in rete — un refuso mentre lo ricopiavi, o una voce saltata. NON e'' stato toccato NIENTE. Rileggi l''indice e rifai.'
+  end as esito;`;
 };
 
 export function sqlScrivi(snapshot, { id, tag, titolo, testo }) {
@@ -177,6 +202,38 @@ export function sqlCompatta(snapshot, { id, tag, titolo, testo, assorbite }) {
 }
 
 export const sqlLeggiIndice = () => `select value from kv_store where key = ${q(K_INDICE)};`;
+
+/* ── QUAL E' L'ULTIMA VOCE ──
+   Era tenuto a mente, scritto in prosa dentro PASSAGGIO.md, in DUE posti — e il
+   16 settembre erano gia' diversi: il primo messaggio da incollare in una
+   sessione nuova mandava alla PENULTIMA, cioe' faceva ripartire dalla
+   generazione prima. Un dato che si puo' chiedere non si tiene a mente.
+   Si prende per POSIZIONE (l'ultima dell'array, dove vociDopoScrittura la
+   mette) e non per timestamp: i «t» sono stati scritti a mano in piu' di
+   un'occasione e in rete oggi non sono monotoni. */
+export const sqlUltima = () => `select (value::jsonb->'voci'->-1->>'id') as ultima,
+       (value::jsonb->'voci'->-1->>'titolo') as titolo,
+       (value::jsonb->'voci'->-1->>'tag') as tag,
+       jsonb_array_length(value::jsonb->'voci') as quante,
+       (value::jsonb->>'rev')::int as rev
+from kv_store where key = ${q(K_INDICE)};`;
+
+/* ── VERIFICARE SENZA RISCRIVERE ──
+   Una domanda, non una mutazione: l'impronta di ogni voce, nell'ordine in cui
+   sta in rete. Il titolo si chiede in md5 perche' e' la parte piu' esposta al
+   refuso ed e' anche il 64% del testo da ricopiare. Confrontandola con la
+   stessa riga calcolata sul file locale si sa, prima di scrivere, se lo
+   snapshot e' fedele. */
+export const sqlVerifica = () => `select string_agg(
+  (v->>'id') || '|' || (v->>'t') || '|' || (v->>'car') || '|' || (v->>'tag') || '|' || md5(v->>'titolo'),
+  E'\\n' order by ord) as righe
+from kv_store, jsonb_array_elements(value::jsonb->'voci') with ordinality as x(v, ord)
+where key = ${q(K_INDICE)};`;
+
+/* la stessa riga, calcolata in locale su uno snapshot: si confrontano a occhio
+   o con «diff», e combaciano solo se il file e' fedele */
+export const righeLocali = (snapshot) => snapshot.voci.map((v) =>
+  [v.id, v.t, v.car, v.tag, createHash("md5").update(String(v.titolo), "utf8").digest("hex")].join("|")).join("\n");
 export function sqlLeggi(ids) {
   for (const i of ids) if (!idValido(i)) throw new Error(`id non valido: «${i}»`);
   return `select key, value from kv_store where key in (${ids.map((i) => q(K_VOCE(i))).join(", ")}) order by key;`;
@@ -193,6 +250,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error("\n·· il VALORE che torna va salvato cosi' com'e' in un file: e' lo snapshot (rev+voci insieme).");
       console.error("·· se l'indice non esiste ancora:\n");
       console.error(`insert into kv_store(key, value) values(${q(K_INDICE)}, '{"rev":0,"voci":[]}') on conflict (key) do nothing;`);
+    } else if (cmd === "ultima") {
+      console.log(sqlUltima());
+      console.error("\n·· serve a non tenere a mente qual e' l'ultimo checkpoint: si chiede.");
+    } else if (cmd === "verifica") {
+      if (!arg[0]) esci("verifica <file-indice>");
+      const sn = snapshotDa(arg[0]);
+      console.log(sqlVerifica());
+      console.error("\n·· esegui la select qui sopra e confronta la colonna «righe» con questo,");
+      console.error("·· che e' la stessa cosa calcolata sul TUO file. Combaciano solo se e' fedele:");
+      console.error("");
+      console.error(righeLocali(sn));
+      console.error("");
+      console.error(`·· ${sn.voci.length} voci, rev ${sn.rev}.`);
+      console.error("·· (dal 16 settembre non e' piu' obbligatorio: lo stesso confronto lo fa il");
+      console.error("··  cancello dentro lo statement di «scrivi», che rifiuta e non tocca niente.)");
     } else if (cmd === "leggi") {
       if (!arg.length) esci("leggi <id> [id2 ...]");
       console.log(sqlLeggi(arg));
@@ -218,7 +290,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         console.log();
       }
     } else {
-      esci("comandi: indice · leggi · scrivi · togli · compatta · mostra");
+      esci("comandi: indice · ultima · verifica · leggi · scrivi · togli · compatta · mostra");
     }
   } catch (e) { esci(e.message); }
 }
