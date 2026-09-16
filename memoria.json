@@ -45,6 +45,16 @@
    "gen": null,
    "quando": "16 settembre",
    "chiude": [],
+   "prova": "coerenzatest.mjs",
+   "soloCollaudi": true,
+   "_soloCollaudi_perche": "Non tocca l app di Valerio: e la struttura del repository e la CI. app/app.jsx non cambia di un byte.",
+   "cosa": "IL RAMO PREDEFINITO TORNA A ESSERE QUELLO VERO. main era fermo al 1 agosto (2edbf21) e non portava CLAUDE.md, PASSAGGIO.md, memoria.json ne .github/workflows/collaudi.yml: sei settimane di lavoro vivevano tutte sul ramo. La conseguenza peggiore non si vedeva: GitHub fa scattare i lavori a orario SOLO dal ramo predefinito, quindi il censimento notturno — scritto apposta perche tre collaudi erano rimasti rotti per mesi senza che nessuno se ne accorgesse — NON ERA MAI PARTITO. event=schedule dava total_count 0, e tutte le 119 esecuzioni esistenti erano event=push. LA SCOPERTA CHE HA CAMBIATO LA FORMA DELLA RIPARAZIONE: i due rami non avevano NESSUN ANTENATO IN COMUNE (dopo la fusione del 1 agosto il ramo era stato ricreato da zero) e su main c era UN ALTRA APPLICAZIONE, l inventario offline di luglio col suo guscio PWA. Una fusione fatta al volo l avrebbe cancellata. Fatta al contrario — main DENTRO il ramo, risolto in favore del ramo, simulata prima in una copia di lavoro: zero conflitti irrisolti e OTTO SOLE AGGIUNTE. Cosi main e diventato un ANTENATO del ramo e portarlo al passo e stato un avanzamento puro, 82 commit guadagnati e 0 persi, invece di una riscrittura. PR #7, fusa: main e 48ad9ae, con app/app.jsx a md5 c230922976fc1191d6f38b868edb753f cioe gen-6.21, e l app di luglio intatta. Il censimento e partito su main alla prima occasione (esecuzione 122). NUOVA SEZIONE coerenzatest §11: il ramo predefinito deve portare bussola, passaggio, memoria e il file della CI; dove non si puo guardare (copia superficiale) stampa una riga che NON comincia con due spazi e ok, cosi non gonfia il conto dei controlli veri. Piu fetch-depth: 0 nel workflow, se no quella sezione non guarderebbe mai il caso per cui e nata. 17 sabotaggi, 0 muti.",
+   "_nota": "IL SABOTAGGIO 17 E IL PRIMO DELLA CASA CHE USA LA STORIA VERA COME BERSAGLIO: punta §11 al commit 2edbf21, cioe al main del 1 agosto, che sta ancora nella storia — quattro rosse. E la prova piu onesta che esista, perche la situazione sabotata e ESATTAMENTE quella reale di stamattina. Al primo giro era uscito MUTO perche girava sulla copia in /tmp, che non e un repository git: §11 si dichiarava non verificabile e non provava niente. Aperto facendolo girare sul repository vero, dove non modifica nulla e cambia solo il riferimento guardato. LA COSA CHE RESTA DA GUARDARE: il censimento A ORARIO non e ancora mai partito. Scatta alle 03:10 UTC. La prova che questo lavoro e servito e che event=schedule passi da 0 a 1 — finche non lo si e visto, non si dice che funziona."
+  },
+  {
+   "gen": null,
+   "quando": "16 settembre",
+   "chiude": [],
    "prova": "ricordatest.mjs",
    "soloCollaudi": true,
    "_soloCollaudi_perche": "Non tocca l app di Valerio: e un attrezzo che interroga memoria.json. Nessuna generazione.",

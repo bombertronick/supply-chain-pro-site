@@ -137,6 +137,19 @@ const SABOTAGGI = [
   { n: 16, nome: "il conto a parole della vetrina non combacia piu' con le voci",
     attesa: "§10 rossa: «Sei generazioni» sopra un elenco che ne ha altre e' il modo in cui quella frase e' invecchiata la prima volta",
     fai: () => sostituisci("index.html", "Sei generazioni di sviluppo", "Nove generazioni di sviluppo") },
+
+  { n: 17, nome: "il ramo predefinito torna a essere quello del 1 agosto",
+    attesa: "§11 rossa quattro volte: e' la situazione VERA di stamattina — main senza bussola, senza passaggio, senza memoria e senza il file della CI, con il censimento notturno mai partito una volta. Si prova puntando la sezione al commit vero 2edbf21, che sta ancora nella storia",
+    sezioni: "11",
+    /* questo non tocca l'albero: cambia il riferimento che §11 guarda, ed e'
+       l'unico sabotaggio della casa che usa la STORIA VERA come bersaglio */
+    ambiente: { RAMO_PREDEFINITO: "2edbf21" },
+    /* gira sul repository VERO e non sulla copia: §11 interroga git, e l'albero
+       finto non e' un repository — la' si dichiarerebbe «non verificabile» e il
+       sabotaggio uscirebbe muto senza aver provato niente. Non modifica nulla:
+       cambia solo il riferimento che la sezione guarda. */
+    sulVero: true,
+    fai: () => {} },
 ];
 
 const quale = process.argv[2] ? +process.argv[2] : null;
@@ -155,7 +168,8 @@ for (const s of daFare) {
   alberoIntegro();
   try { s.fai(); } catch (e) { console.log(`\nS${s.n} — ${s.nome}\n   !! non ho potuto sabotare: ${e.message}`); muti++; continue; }
   let rosse = 0, uscita = "";
-  try { uscita = execFileSync("node", [path.join(BASE, "collaudi", "coerenzatest.mjs")], { encoding: "utf8" }); }
+  const banco = s.sulVero ? path.join(QUI, "coerenzatest.mjs") : path.join(BASE, "collaudi", "coerenzatest.mjs");
+  try { uscita = execFileSync("node", [banco], { encoding: "utf8", env: { ...process.env, ...(s.ambiente || {}) } }); }
   catch (e) { uscita = e.stdout || ""; }
   rosse = (uscita.match(/^  KO  /gm) || []).length;
   const righe = uscita.split("\n").filter((r) => r.startsWith("  KO  ")).map((r) => r.slice(6));

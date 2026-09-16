@@ -45,6 +45,15 @@ jobs:
     steps:
       - name: Prendi il repository
         uses: actions/checkout@v4
+        with:
+          # Serve a coerenzatest §11, che guarda se il RAMO PREDEFINITO porta la
+          # bussola, il passaggio, la memoria e questo stesso file. Con la copia
+          # superficiale di default il riferimento a «main» non esiste, e quella
+          # sezione si dichiara non verificabile invece di mentire — ma allora
+          # non guarda proprio il caso per cui e' nata: il 16 settembre si e'
+          # scoperto che main era fermo al 1 agosto e che percio' questo lavoro
+          # a orario NON ERA MAI PARTITO, zero esecuzioni da sempre.
+          fetch-depth: 0
 
       - name: Prepara Node
         uses: actions/setup-node@v4
