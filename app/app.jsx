@@ -719,7 +719,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.21";
+const VERSIONE = "gen-6.22";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -17056,13 +17056,54 @@ export default function App() {
      dire che non si salvano. Ogni scrittura su disco e' avvolta in un
      try/catch, perche' in navigazione privata localStorage puo' rifiutare,
      e un salvataggio impossibile non deve impedire la vendita. */
-  const specchiaCoda = () => {
-    const salvabili = codaRef.current.filter((m) => m.tipo);
-    setDaSalvare(salvabili.length);
+  /* ── CHI SCRIVE SUL DISCO FONDE, NON SOSTITUISCE (gen-6.22) ──
+     Due schede della stessa origine — l'app installata e il sito nel browser —
+     si dividono CHIAVE_CODA e non si vedono fra loro. Fino a qui questa
+     funzione scriveva la PROPRIA coda sulla chiave, e se la propria coda era
+     vuota RIMUOVEVA la chiave: la fila dell'altra scheda spariva dal telefono.
+     MISURATO in protocollotest §16 e §18, sul codice di gen-6.21: un incasso
+     intero perso (la giornata dice 6,50 con una vendita invece di 13,00 con
+     due), e con tutte e due le schede senza rete due incassi su tre.
+     E NON VINCE CHI SALVA PER ULTIMO: la scheda senza rete RIPROVA a ogni
+     backoff, e ogni riprova rispecchia la sola coda propria — quindi a
+     cancellare e' quella che ha il guasto, e a perdere e' quella che funziona.
+     La cura non ha bisogno di sapere chi e' vivo, e non deve: basta che nessuno
+     tocchi le voci che non ha messo lui. L'identita' c'e' gia' ed e' m.logId.
+     Qui si tiene il registro di quello di cui QUESTO caricamento si e' preso
+     carico. NON HA TETTO, ed e' voluto: una voce che ne uscisse tornerebbe «di
+     un altro» e verrebbe risuscitata sul disco dopo essere stata consegnata,
+     cioe' un incasso rigiocato. Una serata da trecento scontrini costa qualche
+     kilobyte nella memoria della pagina. */
+  const mieRef = useRef(new Set());
+  /* LA SOLA MANO CHE SCRIVE scp:coda:v1. Dichiarata PRIMA di specchiaCoda: la
+     zona morta temporale e' la trappola che gen-6.21 ha gia' pagato una volta.
+     Le altrui vanno PRIMA delle mie perche' sono arrivate prima, e applicaCoda
+     le rigioca nell'ordine dell'array. */
+  const scriviCoda = (miei) => {
     try {
-      if (salvabili.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(salvabili));
+      let altrui = [];
+      try {
+        const g = localStorage.getItem(CHIAVE_CODA);
+        const dentro = g ? JSON.parse(g) : null;
+        if (Array.isArray(dentro))
+          altrui = dentro.filter((m) => m && m.tipo && m.logId && !mieRef.current.has(m.logId));
+      } catch {}
+      const tutte = [...altrui, ...miei];
+      /* la rimozione non sparisce, CAMBIA SOGGETTO: si toglie la chiave solo
+         quando dopo la fusione non resta niente DI NESSUNO — che e' la cosa che
+         quella riga ha sempre voluto dire */
+      if (tutte.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(tutte));
       else localStorage.removeItem(CHIAVE_CODA);
     } catch {}
+  };
+  const specchiaCoda = () => {
+    const salvabili = codaRef.current.filter((m) => m.tipo);
+    /* resta la PRIMA riga e gira sempre: il numero in alto parla della coda di
+       QUESTA scheda, come promette la sua lapide, e nessuna guardia gli va
+       davanti */
+    setDaSalvare(salvabili.length);
+    for (const m of salvabili) if (m.logId) mieRef.current.add(m.logId);
+    scriviCoda(salvabili);
   };
   /* le tre mutazioni che portano soldi e ordini. Stessa forma di muta(), ma
      la voce e' un DATO: {tipo, dati} invece di una funzione. */
@@ -17138,15 +17179,38 @@ export default function App() {
           if (ferme.length) {
             try {
               const gia = JSON.parse(localStorage.getItem(CHIAVE_FERMA) || "[]");
-              localStorage.setItem(CHIAVE_FERMA, JSON.stringify([...(Array.isArray(gia) ? gia : []), ...ferme].slice(-50)));
+              /* ── UNA FERMA NON SI APPENDE DUE VOLTE (gen-6.22) ──
+                 Era una concatenazione pura con un tetto sulla coda dell'array: con
+                 due schede ogni doppione spingeva fuori in silenzio una ferma vera, e
+                 l'annuncio all'ingresso sommava gli stessi euro due volte, mandando a
+                 ribattere uno scontrino gia' incassato.
+                 IL VERSO E' L'OPPOSTO DI scriviCoda, E APPOSTA: una ferma SENZA logId
+                 si appende lo stesso. La coda sul disco e' merce che si rigioca da
+                 sola, e li' un doppione e' un incasso contato due volte; le ferme sono
+                 un BIGLIETTO PER UNA PERSONA, e li' un biglietto di troppo si legge,
+                 uno di meno e' un incasso che nessuno va a guardare. */
+              const avanti = Array.isArray(gia) ? gia : [];
+              const nuoveFerme = ferme.filter((m) => !(m.logId && avanti.some((x) => x && x.logId === m.logId)));
+              if (nuoveFerme.length)
+                localStorage.setItem(CHIAVE_FERMA, JSON.stringify([...avanti, ...nuoveFerme].slice(-50)));
             } catch {}
             fermeRef.current = ferme;
           }
           codaRef.current = fresche;
+          /* ── ME NE PRENDO CARICO NELLO STESSO GESTO IN CUI LE ADOTTO (gen-6.22) ──
+             tutte le «buone», non le sole fresche: le ferme le ho spostate io
+             nell'altra chiave, e se restassero fuori dal registro tornerebbero
+             «di un altro» e verrebbero risuscitate sul disco. Senza questa riga
+             le fresche finirebbero sia fra le mie sia fra le altrui alla
+             fusione, e si sdoppierebbero. */
+          for (const m of buone) if (m.logId) mieRef.current.add(m.logId);
           ritrovate = fresche.length;
           if (ritrovate) { setSync("salvataggio"); setDaSalvare(ritrovate); }
           if (ferme.length || fresche.length !== rimaste.length) {
-            try { if (fresche.length) localStorage.setItem(CHIAVE_CODA, JSON.stringify(fresche)); else localStorage.removeItem(CHIAVE_CODA); } catch {}
+            /* anche qui si FONDE: fra il getItem qui sopra e questa riga
+               l'altra scheda puo' aver accodato uno scontrino, e la vecchia
+               scrittura «la mia coda e' la verita'» glielo cancellava */
+            scriviCoda(fresche);
           }
         }
       } catch { try { localStorage.removeItem(CHIAVE_CODA); } catch {} }
@@ -17419,7 +17483,23 @@ export default function App() {
        Qui il rimedio e' un no detto a voce, non un salvataggio in piu': chi
        ripristina un backup lo fa da fermo, e aspettare che il pallino torni
        verde costa dieci secondi — mentre una serata di incassi non torna. */
-    const inFila = codaRef.current.length;
+    /* ── IL RIPRISTINO CONTA IL TELEFONO, NON LA SCHEDA (gen-6.22) ──
+       Contava la coda di QUESTA scheda, e la fila dell'altra non la vedeva
+       nessuno. La fusione di scriviCoda allunga la vita di quella fila —
+       prima veniva cancellata, adesso resta — quindi il buco diventa piu'
+       raggiungibile proprio per merito della cura: si chiude insieme, non
+       dopo. Il ripristino azzera tutto e scrive «s.scritture = {}», cioe'
+       butta ogni ricevuta: le voci ancora in mano all'altra scheda si
+       rigiocherebbero al buio, senza ricevuta e senza testimoni. */
+    const fuoriDaMe = () => {
+      try {
+        const g = localStorage.getItem(CHIAVE_CODA);
+        const dentro = g ? JSON.parse(g) : null;
+        if (!Array.isArray(dentro)) return 0;
+        return dentro.filter((m) => m && m.tipo && m.logId && !mieRef.current.has(m.logId)).length;
+      } catch { return 0; }
+    };
+    const inFila = codaRef.current.length + fuoriDaMe();
     if (inFila > 0) {
       /* SI CONTA TUTTA LA CODA, e non piu' solo le voci con un tipo
          (gen-6.21). Due righe sotto c'e' «codaRef.current = [m]»,
@@ -17432,8 +17512,15 @@ export default function App() {
          il resto. Il sostantivo dice gia' «modifiche», quindi chi ripristina
          legge la stessa frase di prima. */
       mostraToast(inFila === 1
-        ? "Non ripristino: c'è 1 modifica ancora da salvare. Aspetta che il pallino in alto torni verde."
-        : `Non ripristino: ci sono ${inFila} modifiche ancora da salvare. Aspetta che il pallino in alto torni verde.`,
+        /* la seconda frase e' nuova e serve: il numero adesso puo' contare
+           anche roba di un'altra scheda, che QUESTA non spedira' mai — senza
+           quella riga il messaggio manderebbe ad aspettare un pallino che non
+           tornera' verde. L'istruzione vale in tutti e due i casi: se l'altra
+           scheda e' viva la si chiude, se e' morta basta riaprire e il
+           ritrovamento adotta e spedisce. La sottostringa «1 modifica ancora
+           da salvare» resta intatta apposta (sorpassatotest §4). */
+        ? "Non ripristino: c'è 1 modifica ancora da salvare su questo telefono. Aspetta che il pallino in alto torni verde; se resta verde, chiudi le altre schede dell'app e riapri."
+        : `Non ripristino: ci sono ${inFila} modifiche ancora da salvare su questo telefono. Aspetta che il pallino in alto torni verde; se resta verde, chiudi le altre schede dell'app e riapri.`,
         "errore");
       return false;
     }

@@ -947,6 +947,22 @@ await prova("§12", async () => {
   const protA = inCoda[0] && inCoda[0].prot;
   ok(protA == null || Number(protA) <= ((await salvato(pA)).rev || 0),
     `§12: col telefono muto il numero della voce resta quello dell'atterraggio (prot ${protA}, rev in rete ${(await salvato(pA)).rev}) — se sale, la scena si e' riparata da sola e la sezione non prova piu' niente`);
+  /* ── QUESTO BANCO HA UN DISCO SOLO, E DA gen-6.22 LA DIFFERENZA SI VEDE ──
+     «Un altro telefono», qui, e' una seconda PAGINA nello stesso contesto, e
+     in questo banco lo stesso localStorage fa DUE mestieri: e' il finto
+     server (le chiavi «db:») ed e' il disco del telefono (scp:coda:v1). Su un
+     altro telefono vero la coda di A sta sul disco di A e B non la vede; qui
+     B la vede, e la guardia nuova del ripristino — giustamente — si rifiuta.
+     Lasciandola li', questa sezione misurerebbe §21, che ha gia' la sua
+     scena: quindi si toglie di mezzo il DISCO di A, non la sua coda in
+     MEMORIA, che e' l'unica cosa che serve qui. A e' cieca in lettura
+     (__mutoDopoPersa), quindi il suo ciclo muore sulla lettura e non ripassa
+     mai dal timbro: la chiave non se la riscrive da sola.
+     E' una correzione del BANCO, non della cura: la proprieta' che questa
+     sezione difende — nessuno slot puo' certificare dati che il ripristino ha
+     portato via — non cambia di una virgola, e il sabotaggio 21 di gen-6.20
+     la fa ancora arrossire. */
+  await B.p.evaluate(() => { try { localStorage.removeItem("scp:coda:v1"); } catch {} });
   await vaiA(B.p, "Sistema");
   await B.p.getByRole("button", { name: "Ripristina" }).first().click();
   await B.p.waitForTimeout(700);
@@ -1172,6 +1188,475 @@ await prova("§15", async () => {
   ok(Array.isArray(ferme) && ferme.some((m) => m && m.logId === "l-fb"),
     "§15: mentre quella non consegnata ci resta: e' l'unica che qualcuno deve guardare");
   await finita(g);
+});
+
+/* ═══ 16. LA SCHEDA CHE SALVA NON CANCELLA LA FILA DELL'ALTRA ═══
+   IL DANNO PIU' FACILE DA PROVOCARE DI TUTTO IL DIFETTO «schede-gemelle», e non
+   serve nessuna corsa: basta che la seconda scheda salvi UNA volta.
+   specchiaCoda scrive la PROPRIA coda su CHIAVE_CODA e, se la propria coda e'
+   vuota, RIMUOVE la chiave. La scheda B che incassa e consegna si ritrova la
+   coda vuota, rimuove la chiave, e con quella se ne va la fila della scheda A —
+   che di quella fila aveva solo quella copia.
+   LA SCENA E' ORDINATA APPOSTA: B apre col disco VUOTO, cosi' non adotta niente
+   e questa sezione misura SOLO la cancellazione. Il rigioco per adozione e'
+   l'altro danno, ed e' §17.
+   LA PRETESA CHE CONTA E' LA SECONDA: non «la chiave c'e' ancora» ma «i soldi
+   ci sono ancora». Si chiude la scheda A — che e' quello che fa una persona —
+   e si guarda se quell'incasso esiste ancora da qualche parte. */
+console.log("\n— 16. la scheda che salva non cancella la fila dell'altra —");
+await prova("§16", async () => {
+  const g1 = await apri({ seme: semeCon((s) => { s.scritture = {}; }) });
+  await login(g1.p);
+  /* B apre ORA, col disco ancora vuoto: non ha niente da adottare */
+  const p2 = await g1.ctx.newPage();
+  p2.on("pageerror", (e) => errs.push(e.message));
+  await vai(p2);
+  await login(p2, "OpCassa", "2222");
+  await p2.waitForTimeout(800);
+
+  await g1.p.evaluate(() => window.__uccidiRete(true));
+  await battiEIncassa(g1.p);
+  const inFila = await finche(g1.p, async () => {
+    const q = await codaSalvata(g1.p);
+    return Array.isArray(q) && q.length === 1;
+  }, 20000);
+  ok(inFila, "§16: la scheda A, senza rete, ha la sua vendita in fila sul disco");
+
+  /* B incassa con la rete viva: consegna, la sua coda si svuota, e specchiaCoda
+     rimuove la chiave — portandosi via la fila di A */
+  await battiEIncassa(p2);
+  await finche(p2, async () => ((await salvato(p2)).vendite || []).length >= 1, 25000);
+  const dopo = await codaSalvata(p2);
+  ok(Array.isArray(dopo) && dopo.length >= 1,
+    `§16: dopo che B ha salvato, la fila di A e' ANCORA sul disco (letto: ${Array.isArray(dopo) ? dopo.length + " voci" : String(dopo)})`);
+
+  /* LA PRETESA SUI SOLDI: si chiude A, che e' il gesto vero di una persona, e
+     si guarda se quell'incasso riesce ancora ad arrivare in rete */
+  await g1.p.close();
+  const p3 = await g1.ctx.newPage();
+  p3.on("pageerror", (e) => errs.push(e.message));
+  await vai(p3);
+  await login(p3, "OpCassa", "2222");
+  await finche(p3, async () => {
+    const r = await salvato(p3);
+    const gg = giornDi(r, Date.now());
+    return !!gg && gg.nVendite >= 2;
+  }, 25000);
+  const r3 = await salvato(p3);
+  const gg3 = giornDi(r3, Date.now());
+  ok(!!gg3 && gg3.nVendite === 2 && gg3.totale === 13,
+    `§16: i due incassi ci sono tutti e due — quello di A non e' sparito con la sua scheda (letto: ${gg3 && gg3.totale} / ${gg3 && gg3.nVendite})`);
+  await finita(g1);
+});
+
+/* ═══ 17. LA COPIA PRESA PRIMA DEL TIMBRO NON SI RIGIOCA ═══
+   E' l'altra meta' di §12b, quella che §12b dichiara di NON coprire: «la copia
+   presa PRIMA del primo timbro non e' riparabile da questa tessera».
+   Una voce senza mitt e senza prot non ha ricevuta: consegnata() non puo'
+   dimostrare niente su di lei. Se due schede della stessa origine la adottano
+   tutte e due dal disco, partono tutte e due, e lo slot della prima non
+   testimonia per la scrittura della seconda — il mittente e' per CARICAMENTO.
+   Risultato: lo stesso incasso nella giornata due volte.
+   SI SEMINA UNA VOCE NUDA invece di correre dietro a una corsa vera: la copia
+   presa prima del timbro E' esattamente una voce senza mitt e senza prot, e
+   inseguire l'istante fra il ritrovamento e il primo giro renderebbe la scena
+   ballerina — cioe' inservibile — per misurare la stessa identica cosa. */
+/* ═══ 16b. CONTRO-CONTROLLO: UNA SCHEDA SOLA CHE SI RIAPRE RITROVA I SUOI ═══
+   VERDE PRIMA E VERDE DOPO, ed e' qui apposta.
+   La cura di §16 e §17 dira' «non toccare la fila di un'altra scheda» e «non
+   adottare la fila di un altro». La correzione sbagliata piu' facile da fare —
+   e la piu' silenziosa — e' vietare anche a ME di ritrovare la MIA: al
+   ricaricamento il mittente CAMBIA (mittRef e' dispositivo·CARICAMENTO, non
+   sopravvive apposta, lo dice il suo commento), quindi la scheda riaperta e'
+   un «altro» per qualunque regola scritta male. Quel giorno la riparazione di
+   gen-6.05 — le vendite in attesa che tornano da sole alla riaccensione, che e'
+   la cosa piu' importante che questa app faccia coi soldi — smetterebbe di
+   funzionare senza che niente diventi rosso.
+   Questa sezione e' il chiodo che lo impedisce. Se un giorno diventa rossa, la
+   cura ha mancato il bersaglio: non si aggiusta questa, si aggiusta la cura. */
+console.log("\n— 16b. contro-controllo: una scheda sola che si riapre ritrova i suoi —");
+await prova("§16b", async () => {
+  const g = await apri({ seme: semeCon((s) => { s.scritture = {}; }) });
+  await login(g.p);
+  await g.p.evaluate(() => window.__uccidiRete(true));
+  await battiEIncassa(g.p);
+  const suDisco = await finche(g.p, async () => {
+    const q = await codaSalvata(g.p);
+    return Array.isArray(q) && q.length === 1;
+  }, 20000);
+  ok(suDisco, "§16b: senza rete la vendita e' sul telefono");
+
+  /* si chiude l'unica scheda: da qui in poi esiste SOLO la copia sul disco */
+  await g.p.close();
+  const p2 = await g.ctx.newPage();
+  p2.on("pageerror", (e) => errs.push(e.message));
+  await vai(p2);
+  await login(p2, "OpCassa", "2222");
+  const tornata = await finche(p2, async () => {
+    const r = await salvato(p2);
+    const gg = giornDi(r, Date.now());
+    return !!gg && gg.nVendite >= 1;
+  }, 25000);
+  ok(tornata, "§16b: riaperta l'app, quell'incasso torna da solo e arriva in rete");
+  const r = await salvato(p2);
+  const gg = giornDi(r, Date.now());
+  ok(!!gg && gg.nVendite === 1 && gg.totale === 6.5,
+    `§16b: e ci arriva UNA volta sola (letto: ${gg && gg.totale} / ${gg && gg.nVendite})`);
+  await finita(g);
+});
+
+console.log("\n— 17. la copia presa prima del timbro non si rigioca —");
+await prova("§17", async () => {
+  const Vnuda = vendita("ve-nuda", MIN(2), 6.5);
+  /* A apre e RITROVA la voce nuda, ma NON fa ancora il login: il timbro nasce
+     dentro il primo giro di sincronizza, che parte da entra(). Fino ad allora
+     sul disco c'e' una voce SENZA mitt e SENZA prot — ed e' esattamente «la
+     copia presa prima del primo timbro» di cui parla §12b. */
+  const g1 = await apri({
+    seme: semeCon((s) => { s.scritture = {}; }),
+    coda: [voceVendita(Vnuda)],
+  });
+  const nuda = await codaSalvata(g1.p);
+  ok(Array.isArray(nuda) && nuda.length === 1 && !nuda[0].mitt && !nuda[0].prot,
+    `§17: prima del login la voce sul disco e' NUDA, senza mitt e senza prot (letto: ${Array.isArray(nuda) ? JSON.stringify({ mitt: nuda[0] && nuda[0].mitt, prot: nuda[0] && nuda[0].prot }) : String(nuda)})`);
+
+  /* B apre ADESSO e ritrova dal disco la stessa voce nuda: da qui in poi vive
+     in due code, e nessuna delle due copie ha una ricevuta */
+  const p2 = await g1.ctx.newPage();
+  p2.on("pageerror", (e) => errs.push(e.message));
+  await vai(p2);
+  await p2.waitForTimeout(800);
+
+  /* A entra e consegna */
+  await login(g1.p);
+  await finche(g1.p, async () => ((await salvato(g1.p)).vendite || []).some((v) => v.id === "ve-nuda"), 25000);
+  ok(true, "§17: la scheda A ha consegnato la voce nuda");
+
+  /* ── LE LISTE SI CONSUMANO, ED E' LA PREMESSA DEL DIFETTO 40 ──
+     Senza questo la sezione e' VERDE, e non perche' il rigioco non avvenga: a
+     fermarlo e' la SECONDA rete, cioe' il logId dentro s.applicate
+     (MAX_APPLICATE = 1200) piu' la riga in s.vendite, che gen-6.20 ha tenuto
+     apposta. In una serata piena quelle liste si consumano — e' esattamente il
+     difetto 40 — e allora la voce nuda non ha piu' NESSUN testimone: non ha
+     ricevuta perche' e' senza timbro, e non ha piu' il logId perche' e' stato
+     potato. Si consuma a mano come in §12b: battere trecento scontrini veri
+     costerebbe dieci minuti per misurare la stessa identica cosa.
+     LA GIORNATA NON SI TOCCA: e' lei il metro, ed e' l'unico numero che in
+     cucina qualcuno guarda. */
+  await g1.p.evaluate(() => {
+    const v = JSON.parse(localStorage.getItem("db:scp:stato:v1"));
+    v.applicate = []; v.vendite = []; v.rev = (v.rev || 0) + 1;
+    localStorage.setItem("db:scp:stato:v1", JSON.stringify(v));
+  });
+
+  await login(p2, "OpCassa", "2222");
+  await p2.waitForTimeout(6000);
+  const r = await salvato(p2);
+  const gg = giornDi(r, MIN(2));
+  /* ── LIMITE DICHIARATO, ED E' LA SUA SVEGLIA ──
+     Questa riga pretende IL DIFETTO, non la cura, e lo fa apposta: il danno e'
+     reale e misurato, e chiuderlo richiederebbe di sapere se l'altra scheda e'
+     viva — cosa che senza un canale fra schede non si puo' SAPERE, si puo' solo
+     indovinare. Un disegno che indovina e chiama cura il proprio indovinello e'
+     peggio del difetto, perche' lo nasconde. Cosi' invece resta visibile e
+     misurato. IL GIORNO IN CUI ESISTE UN CANALE FRA SCHEDE QUESTA RIGA SI
+     INVERTE: 6,50 con una vendita.
+     E l'altra meta' della misura e' una premessa, non un dettaglio: perche' il
+     doppione si veda servono ANCHE le liste consumate (MAX_APPLICATE = 1200 e
+     MAX_VENDITE = 300). Finche' reggono, il danno e' coperto dalla seconda
+     rete — ed e' il motivo per cui e' un limite e non un incendio, e insieme il
+     motivo per cui va misurato lo stesso: in una serata piena si consumano. */
+  ok(!!gg && gg.nVendite === 2 && gg.totale === 13,
+    `§17: LIMITE DICHIARATO — la copia presa prima del timbro si rigioca ancora, e la giornata la conta due volte (letto: ${gg && gg.totale} / ${gg && gg.nVendite})`);
+  await finita(g1);
+});
+
+/* ═══ 18. E NON LE SCRIVE SOPRA ═══
+   §16 esercita la removeItem (17064): la coda di B si svuota e la chiave
+   sparisce. Questa esercita l'ALTRA riga, la 17063 — la setItem — dove B non
+   cancella niente: SCRIVE la propria coda sopra quella di A. Senza questa
+   sezione la cura sarebbe misurata a meta', e la meta' non misurata e' quella
+   che si rompe per prima quando qualcuno tocca specchiaCoda.
+   LA RETE E' SPENTA A TUTTE E DUE APPOSTA: cosi' nessuna delle due consegna e
+   nessuna coda si svuota. L'unica cosa che succede sul disco e' una scrittura
+   che copre l'altra.
+   E QUELLO CHE HA MISURATO AL PRIMO GIRO VALE PIU' DELLA SEZIONE: non vince
+   «chi salva per ultimo». La scheda senza rete RIPROVA in continuazione — su
+   errore si ripianifica col backoff — e ogni riprova passa dal timbro (16932)
+   e rispecchia la SOLA coda propria. Quindi a cancellare gli incassi dell'altra
+   e' la scheda che ha il guasto, ripetutamente, e a perderli e' quella che sta
+   funzionando. Misurato: il disco resta con la sola voce di A e in cassa
+   arrivano 6,50 su 19,50 — due incassi su tre. */
+console.log("\n— 18. e non le scrive sopra —");
+await prova("§18", async () => {
+  const g1 = await apri({ seme: semeCon((s) => { s.scritture = {}; }) });
+  await login(g1.p);
+  const p2 = await g1.ctx.newPage();
+  p2.on("pageerror", (e) => errs.push(e.message));
+  await vai(p2);
+  await login(p2, "OpCassa", "2222");
+  await p2.waitForTimeout(800);
+
+  await g1.p.evaluate(() => window.__uccidiRete(true));
+  await p2.evaluate(() => window.__uccidiRete(true));
+
+  await battiEIncassa(g1.p);
+  await finche(g1.p, async () => {
+    const q = await codaSalvata(g1.p);
+    return Array.isArray(q) && q.length === 1;
+  }, 20000);
+
+  /* B incassa due volte: la SUA specchiaCoda scrive la propria coda sulla
+     chiave condivisa, e oggi quella di A non c'e' piu' */
+  await battiEIncassa(p2);
+  await battiEIncassa(p2);
+  await p2.waitForTimeout(1500);
+  const disco = await codaSalvata(p2);
+  ok(Array.isArray(disco) && disco.length === 3,
+    `§18: sul disco ci sono tutte e tre le voci, di tutte e due le schede (letto: ${Array.isArray(disco) ? disco.length : String(disco)})`);
+
+  /* si chiudono tutte e due le schede: resta solo il disco. Poi si riapre con
+     la rete viva e si guarda quanto arriva in cassa */
+  await g1.p.close();
+  await p2.close();
+  const p3 = await g1.ctx.newPage();
+  p3.on("pageerror", (e) => errs.push(e.message));
+  await vai(p3);
+  await login(p3, "OpCassa", "2222");
+  await finche(p3, async () => {
+    const r = await salvato(p3);
+    const gg = giornDi(r, Date.now());
+    return !!gg && gg.nVendite >= 3;
+  }, 30000);
+  const r = await salvato(p3);
+  const gg = giornDi(r, Date.now());
+  ok(!!gg && gg.nVendite === 3 && gg.totale === 19.5,
+    `§18: e in cassa arrivano tutti e tre gli incassi (letto: ${gg && gg.totale} / ${gg && gg.nVendite})`);
+  await finita(g1);
+});
+
+/* ═══ 19. E NON SERVE CHE LA SECONDA SCHEDA INCASSI NIENTE ═══
+   L'innesco piu' economico di tutto il difetto, e quello che smentisce la
+   frase che avevo detto per prima («basta che l'altra scheda salvi una
+   volta», sottintendendo un incasso). Non serve incassare: basta una
+   mutazione a CLOSURE, che non ha tipo e quindi non finisce sul disco — e la
+   riga che l'app scrive DA SOLA all'ingresso quando trova vendite messe da
+   parte e' una di quelle. Con le scritture spente resta in coda e fa
+   ripartire sincronizza a ogni backoff: ogni riprova passava dal timbro e
+   rispecchiava una coda salvabile VUOTA, cioe' rimuoveva la chiave. */
+console.log("\n— 19. e non serve che la seconda scheda incassi niente —");
+await prova("§19", async () => {
+  const Fvecchia = vendita("ve-vecchia", ORE(50), 9);
+  const g1 = await apri({
+    seme: semeCon((s) => { s.scritture = {}; }),
+    coda: [voceVendita(Fvecchia, { logId: "l-ve-vecchia" })],
+  });
+  await g1.p.evaluate(() => window.__uccidiRete(true));
+  await login(g1.p);
+  await g1.p.waitForTimeout(2500);
+
+  /* A apre ADESSO: il disco non ha piu' la ferma (B l'ha spostata), quindi A
+     non adotta niente ed e' l'unica ad avere qualcosa da salvare */
+  const pA = await g1.ctx.newPage();
+  pA.on("pageerror", (e) => errs.push(e.message));
+  await vai(pA);
+  await login(pA, "OpCassa", "2222");
+  await pA.evaluate(() => window.__uccidiRete(true));
+  await battiEIncassa(pA);
+  const suDisco = await finche(pA, async () => {
+    const q = await codaSalvata(pA);
+    return Array.isArray(q) && q.some((m) => m && m.tipo === "vendita" && m.dati && m.dati.totale === 6.5);
+  }, 20000);
+  ok(suDisco, "§19: l'incasso di A e' sul disco");
+
+  /* A SI CHIUDE QUI, e non e' una comodita': da questo momento l'unica pagina
+     che puo' toccare il disco e' B, quindi ogni scrittura che il finto server
+     conta e' SUA. Senza questo, un'attesa a tempo misura solo la fortuna: al
+     primo giro sei secondi non bastavano — il backoff di B arriva a otto — e la
+     sezione restava verde perche' la riprova non era ancora partita. */
+  await pA.close();
+  const setDiB = () => g1.p.evaluate(() => (window.__conta().set || 0));
+  const n0 = await setDiB();
+  const riprovata = await finche(g1.p, async () => (await setDiB()) >= n0 + 3, 40000, 400);
+  ok(riprovata,
+    `§19: B ha riprovato a salvare almeno tre volte, senza aver incassato niente (scritture: ${n0} → ${await setDiB()})`);
+  const dopo = await g1.p.evaluate(() => { try { return JSON.parse(localStorage.getItem("scp:coda:v1") || "null"); } catch { return "ILLEGGIBILE"; } });
+  ok(Array.isArray(dopo) && dopo.some((m) => m && m.dati && m.dati.totale === 6.5),
+    `§19: e le sue riprove non hanno cancellato l'incasso di A (letto: ${Array.isArray(dopo) ? dopo.length + " voci" : String(dopo)})`);
+
+  const p3 = await g1.ctx.newPage();
+  p3.on("pageerror", (e) => errs.push(e.message));
+  await vai(p3);
+  await login(p3, "OpCassa", "2222");
+  await finche(p3, async () => {
+    const r = await salvato(p3);
+    const gg = giornDi(r, Date.now());
+    return !!gg && gg.nVendite >= 1;
+  }, 30000);
+  const r = await salvato(p3);
+  const gg = giornDi(r, Date.now());
+  ok(!!gg && gg.nVendite === 1 && gg.totale === 6.5,
+    `§19: e chiusa A quell'incasso arriva in cassa (letto: ${gg && gg.totale} / ${gg && gg.nVendite})`);
+  await finita(g1);
+});
+
+/* ═══ 20. LA STESSA FERMA NON SI APPENDE DUE VOLTE ═══
+   CHIAVE_FERMA e' il secondo disco conteso. L'append era una concatenazione
+   pura con un tetto di 50 sulla coda dell'array: ogni doppione spinge fuori in
+   silenzio una ferma VERA, e l'annuncio all'ingresso somma gli stessi euro due
+   volte mandando a ribattere uno scontrino gia' incassato.
+   IL DOPPIONE VERO nasce da una gara fra il getItem di una scheda e il setItem
+   dell'altra, e quella gara non la so guidare: si SEMINA il suo esito, che e'
+   deterministico — la stessa voce gia' fra le ferme e ancora in coda. */
+console.log("\n— 20. la stessa ferma non si appende due volte —");
+await prova("§20", async () => {
+  const F = vendita("ve-doppia", ORE(52), 11);
+  const voce = voceVendita(F, { logId: "l-ve-doppia" });
+  const g = await apri({
+    seme: semeCon((s) => { s.scritture = {}; }),
+    coda: [voce],
+    disco: { "scp:coda-ferma:v1": JSON.stringify([voce]) },
+  });
+  await login(g.p);
+  await g.p.waitForTimeout(2500);
+  const ferme = await fermeSalvate(g.p);
+  const quante = Array.isArray(ferme) ? ferme.filter((m) => m && m.logId === "l-ve-doppia").length : -1;
+  ok(quante === 1,
+    `§20: quella ferma sta fra le messe da parte UNA volta sola (letto: ${quante})`);
+  await finita(g);
+});
+
+/* ═══ 21. IL RIPRISTINO VEDE LA FILA DELL'ALTRA SCHEDA ═══
+   L'ultima tessera, e la piu' cattiva delle quattro. Il ripristino azzera lo
+   stato e ci scrive «s.scritture = {}»: butta OGNI ricevuta. Se in quel
+   momento un'altra scheda ha ancora un incasso in mano, quell'incasso si
+   rigiochera' al buio, senza ricevuta e senza testimoni — cioe' il difetto 40
+   che gen-6.20 aveva chiuso, riaperto da un bottone.
+   La guardia di gen-6.21 contava codaRef, che e' la fila di QUESTA scheda: la
+   fila dell'altra non la vedeva nessuno. E la fusione di scriviCoda peggiora
+   il caso prima di migliorarlo — prima quella fila la cancellava il primo
+   giro dell'altra scheda, adesso resta — quindi le due tessere si chiudono
+   insieme o non si chiudono.
+   IL NUMERO E' L'ASSERZIONE: «1 modifica» prova due cose in una riga sola —
+   che la coda di B e' vuota (se no sarebbero due) e che quella di A e' stata
+   contata (se no sarebbe zero, e il ripristino partirebbe). */
+console.log("\n— 21. il ripristino vede la fila dell'altra scheda —");
+await prova("§21", async () => {
+  const backup = semeCon((s) => { s.rev = 90; });
+  const meta = { id: "bk-prova", chiave: "scp:backup:bk-prova", t: MIN(240), rev: 90, di: "Admin", nota: "Stamattina" };
+  const B = await apri({
+    seme: semeCon((s) => { s.scritture = {}; }),
+    extra: { "scp:backup:bk-prova": JSON.stringify({ ...meta, dati: backup }),
+      "scp:backup-indice": JSON.stringify([meta]) },
+    chi: "Admin",
+  });
+  await login(B.p, "Admin", "1234");
+  /* B non ha niente in mano: la rete le funziona e ha gia' consegnato tutto */
+  await finche(B.p, async () => {
+    const q = await codaSalvata(B.p);
+    return q == null || (Array.isArray(q) && q.length === 0);
+  }, 20000);
+
+  /* A apre in una seconda scheda, le si spegne la rete e incassa: sul disco
+     condiviso resta una voce che B non ha mai adottato e non spedira' mai */
+  const pA = await B.ctx.newPage();
+  pA.on("pageerror", (e) => errs.push(e.message));
+  await vai(pA);
+  await login(pA, "OpCassa", "2222");
+  await pA.evaluate(() => window.__uccidiRete(true));
+  await battiEIncassa(pA);
+  const suDisco = await finche(pA, async () => {
+    const q = await codaSalvata(pA);
+    return Array.isArray(q) && q.length === 1 && q[0].tipo === "vendita";
+  }, 20000);
+  ok(suDisco, "§21: sul disco c'e' l'incasso della scheda A, che B non ha mai adottato");
+
+  await vaiA(B.p, "Sistema");
+  await B.p.getByRole("button", { name: "Ripristina" }).first().click();
+  await B.p.waitForTimeout(700);
+  await B.p.getByRole("button", { name: "Ripristina", exact: true }).last().click();
+  let detto = "";
+  await finche(B.p, async () => {
+    const t = await testoDi(B.p);
+    if (/Non ripristino/i.test(t)) { detto = "rifiutato"; return true; }
+    if (/Ripristino avviato/i.test(t)) { detto = "avviato"; return true; }
+    return false;
+  }, 8000, 100);
+  ok(detto === "rifiutato",
+    `§21: B si rifiuta di ripristinare, perche' l'incasso di un'altra scheda e' ancora da salvare (detto: «${detto || "niente"}»)`);
+  const t = await testoDi(B.p);
+  ok(/1 modifica ancora da salvare/i.test(t),
+    `§21: e lo dice col numero giusto — UNA, quella di A, non una sua (letto: «${(t.match(/Non ripristino[^.]*\./) || ["niente"])[0]}»)`);
+  ok(/chiudi le altre schede/i.test(t),
+    "§21: e dice cosa fare, perche' il pallino di QUESTA scheda e' gia' verde e da solo non cambiera'");
+
+  /* e l'incasso di A non e' stato buttato per strada: sta ancora sul disco */
+  const q = await codaSalvata(B.p);
+  ok(Array.isArray(q) && q.length === 1,
+    `§21: e quell'incasso e' ancora li', intatto (letto: ${Array.isArray(q) ? q.length + " voci" : String(q)})`);
+  await finita(B);
+});
+
+/* ═══ 21b. E LE CONTA UNA VOLTA SOLA ═══
+   Il numero somma due cose che vivono in posti diversi: la coda in memoria di
+   QUESTA scheda e quello che sta sul disco. La stessa voce sta in tutti e due
+   — ce la mette specchiaCoda — ed e' per questo che fuoriDaMe filtra su
+   mieRef. Senza quel filtro il rifiuto direbbe TRE dove sono DUE, e un numero
+   gonfiato dentro un messaggio che chiede di aspettare e' peggio della frase
+   generica di prima: manda a cercare una modifica che non esiste.
+   Senza questa sezione, togliere quel filtro non farebbe arrossire niente.
+   B E' L'AMMINISTRATORE e la cassa non ce l'ha: il suo incasso in attesa
+   glielo mette in mano il RITROVAMENTO, con le scritture gia' spente, che e'
+   la stessa strada di sorpassatotest §4 e una scena vera quanto l'altra — il
+   telefono che riapre l'app con dentro quello che non era partito. */
+console.log("\n— 21b. e le conta una volta sola —");
+await prova("§21b", async () => {
+  const Fb = vendita("ve-di-b", MIN(5), 7);
+  const backup = semeCon((s) => { s.rev = 90; });
+  const meta = { id: "bk-prova", chiave: "scp:backup:bk-prova", t: MIN(240), rev: 90, di: "Admin", nota: "Stamattina" };
+  const B = await apri({
+    seme: semeCon((s) => { s.scritture = {}; }),
+    coda: [voceVendita(Fb, { logId: "l-ve-di-b" })],
+    extra: { "scp:backup:bk-prova": JSON.stringify({ ...meta, dati: backup }),
+      "scp:backup-indice": JSON.stringify([meta]) },
+    chi: "Admin",
+  });
+  await B.p.evaluate(() => window.__uccidiRete(true));
+  await login(B.p, "Admin", "1234");
+  await B.p.waitForTimeout(2500);
+
+  /* A entra con le scritture gia' spente: adotta anche lei la voce dal disco
+     (e' il limite dichiarato di §17, qui e' solo l'arredamento) e ci aggiunge
+     il SUO incasso, che B non ha mai visto */
+  const pA = await B.ctx.newPage();
+  pA.on("pageerror", (e) => errs.push(e.message));
+  await vai(pA);
+  await pA.evaluate(() => window.__uccidiRete(true));
+  await login(pA, "OpCassa", "2222");
+  await battiEIncassa(pA);
+  const due = await finche(B.p, async () => {
+    const q = await codaSalvata(B.p);
+    return Array.isArray(q) && q.length === 2;
+  }, 25000);
+  const suDisco = await codaSalvata(B.p);
+  ok(due, `§21b: sul disco ci sono due incassi (letto: ${Array.isArray(suDisco) ? suDisco.length + " voci" : String(suDisco)})`);
+
+  await vaiA(B.p, "Sistema");
+  await B.p.getByRole("button", { name: "Ripristina" }).first().click();
+  await B.p.waitForTimeout(700);
+  await B.p.getByRole("button", { name: "Ripristina", exact: true }).last().click();
+  let detto = "";
+  await finche(B.p, async () => {
+    const t = await testoDi(B.p);
+    if (/Non ripristino/i.test(t)) { detto = "rifiutato"; return true; }
+    if (/Ripristino avviato/i.test(t)) { detto = "avviato"; return true; }
+    return false;
+  }, 8000, 100);
+  ok(detto === "rifiutato", `§21b: il ripristino si rifiuta (detto: «${detto || "niente"}»)`);
+  const t = await testoDi(B.p);
+  ok(/ci sono 2 modifiche ancora da salvare/i.test(t),
+    `§21b: e sono DUE, non tre: la sua sta in memoria E sul disco, e si conta una volta sola (letto: «${(t.match(/Non ripristino[^.]*\./) || ["niente"])[0]}»)`);
+  await finita(B);
 });
 
 if (!SOLO.length)

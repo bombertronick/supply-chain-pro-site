@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 15 settembre 2026
+# Passaggio di consegne fra sessioni · 16 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -32,7 +32,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > per la storia, non per le istruzioni. Poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260915-notte`. **Non fidarti di questo nome: chiedilo.**
+> `chk-20260916-notte`. **Non fidarti di questo nome: chiedilo.**
 > `node strumenti/dispensa.mjs ultima` → esegui l'SQL, e la risposta è
 > l'ultima voce per davvero. (Il nome resta scritto qui per quando il database
 > non c'è, e `collaudi/coerenzatest.mjs` §3 diventa rosso se questa riga e la
@@ -45,14 +45,14 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.21, `app:jsx:src` len 1047212, md5
-  `c230922976fc1191d6f38b868edb753f`, meta `{"len":1047212,"ver":"gen-6.21"}`.
-  Backup: `backup:pre-gen621` = gen-6.20, `backup:pre-gen620` = gen-6.19,
-  `backup:pre-gen619` = gen-6.18. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.22, `app:jsx:src` len 1052950, md5
+  `5319ff40121d588ae12991f6178128e2`, meta `{"len":1052950,"ver":"gen-6.22"}`.
+  Backup: `backup:pre-gen622` = gen-6.21, `backup:pre-gen621` = gen-6.20,
+  `backup:pre-gen620` = gen-6.19. Verificare con una `select` prima di toccare.
   (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
-  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen621` è il codice di
-  PRIMA di gen-6.21, cioè gen-6.20. `backup:pre-gen622` nascerà col rilascio di
-  gen-6.22, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen622` è il codice di
+  PRIMA di gen-6.22, cioè gen-6.21. `backup:pre-gen623` nascerà col rilascio di
+  gen-6.23, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
   sopra è il motivo per cui non è finito in produzione.)
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
@@ -63,7 +63,20 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   gen-6.17 a **99 verdi / 2086 controlli**; gen-6.18 a **101 verdi / 2172 controlli, 0 rosse, 0 mute, 7 saltate, 108 file**;
   gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**;
   gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**;
-  gen-6.21 a **105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file** (il banco in più è `sorpassatotest`)
+  gen-6.21 a **105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file** (il banco in più è `sorpassatotest`);
+  gen-6.22 a **PRIMO GIRO: 106 verdi / 2361 controlli veri, 0 mute, 7 saltate, 115 file, 2 rosse** — e tutte e due valevano la pena.
+  La prima, `coerenzatest §5`, è la riga che stai leggendo: pretende il censimento
+  di questa generazione dentro questo file, e non può esistere prima del censimento.
+  La seconda, `protocollotest §12`, **era il banco e non la cura**, ed è uscita solo
+  nel giro intero perché i giri a sezioni non la toccavano: §12 si chiama «il
+  ripristino di un ALTRO TELEFONO», ma un altro telefono qui è una seconda **pagina**
+  dello stesso contesto, e in quel banco lo stesso `localStorage` fa due mestieri —
+  è il finto server (`db:*`) **ed è il disco del telefono** (`scp:coda:v1`). Da
+  gen-6.22 il ripristino quella differenza la vede, e si rifiutava: giustamente. Tolto
+  di mezzo il **disco** di A (non la sua coda in memoria, che è quello che la sezione
+  misura), §12 è verde con tutte le sue asserzioni, e il **sabotaggio 21 di gen-6.20**
+  — la ricevuta costruita dalla lettura invece che dalla bozza — la fa ancora
+  arrossire: 2 rossi. Il banco non è stato ammorbidito
   (i due banchi in più sono `protocollotest` e `protopurotest`; il file in più è
   `mkprotolib.mjs`, che è una libreria e non un banco). **ATTENZIONE alla
   sequenza, che stavolta non è stata quella giusta**: il censimento di gen-6.20 è
@@ -78,8 +91,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260915-notte` (il checkpoint
-  completo, l'ultimo: gen-6.21), `chk-20260915-sera` (quello prima: gen-6.20) e
+- **Dispensa**: le voci che servono: `chk-20260916-notte` (il checkpoint
+  completo, l'ultimo: gen-6.22), `chk-20260915-notte` (quello prima: gen-6.21) e
   `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
@@ -454,6 +467,87 @@ gen-6.20: `file` sabota il **banco** (e lo rimette a posto sempre) e
 `sorgenteGit` costruisce il pacchetto da una **revisione passata**, che è
 l'unico modo di dimostrare che una riga del banco è portante.
 
+## Le schede gemelle (gen-6.22)
+
+Sullo stesso telefono l'app installata e il sito nel browser condividono
+`localStorage`, quindi **la stessa `CHIAVE_CODA`** (`scp:coda:v1`), e fra loro
+non c'è **nessun canale**: in tutto `app/app.jsx` non compaiono
+`BroadcastChannel`, `navigator.locks` né l'evento `storage`. Fino a gen-6.21
+`specchiaCoda` scriveva «la mia coda è la verità» — `setItem` con la sola coda
+propria, `removeItem` quando la propria era vuota — e quindi **una scheda
+cancellava la fila dell'altra**.
+
+Quattro cose da sapere prima di toccare quel pezzo:
+
+1. **A cancellare non è «chi salva per ultimo», è la scheda che ha il guasto.**
+   Quella senza rete riprova a ogni backoff, ogni riprova passa dal timbro e
+   rispecchia la **sola** coda sua: distrugge ripetutamente il lavoro della
+   scheda che funziona. E non serve che incassi niente — basta una mutazione a
+   **closure** in coda, per esempio la riga dello storico che l'app scrive da
+   sola all'ingresso quando trova vendite messe da parte. È `§19`, ed è
+   l'innesco più economico di tutto il difetto.
+2. **`mieRef` si alimenta in DUE punti, e il secondo è quello che si dimentica.**
+   `specchiaCoda` (le voci nate qui) e il **ritrovamento** all'ingresso, dove
+   vanno registrate **tutte le «buone»**, non le sole fresche: le ferme le
+   sposta questa scheda nell'altra chiave, e se restassero fuori dal registro
+   tornerebbero «di un altro» e verrebbero risuscitate sul disco.
+3. **Il dedup delle ferme ha il verso OPPOSTO a quello della coda, e apposta.**
+   Una ferma **senza `logId` si appende lo stesso**: la coda sul disco è merce
+   che si rigioca da sola, e lì un doppione è un incasso contato due volte; le
+   ferme sono un **biglietto per una persona**, e lì un biglietto di troppo si
+   legge, uno di meno è un incasso che nessuno va a guardare.
+4. **Il ripristino conta il TELEFONO, non la scheda.** Azzera lo stato e scrive
+   `s.scritture = {}`, cioè butta ogni ricevuta: le voci in mano all'altra
+   scheda si rigiocherebbero al buio. Il messaggio ha una **seconda frase**
+   nuova («chiudi le altre schede dell'app e riapri») perché quel numero adesso
+   può contare roba che questa scheda non spedirà mai — e la sottostringa
+   «1 modifica ancora da salvare» resta intatta apposta, la pretende
+   `sorpassatotest §4`.
+
+**Il candidato è stato respinto, ed è la parte che vale di più.** Il disegno
+diceva di dare alla fila un **proprietario** (un id di scheda sulla chiave, un
+battito, e `specchiaCoda` che si rifiuta di scrivere se il proprietario è un
+altro): **38 accuse, 38 in piedi, 15 mortali**. La peggiore è che rompe il caso
+di tutti i giorni — *una* scheda sola che si chiude e si riapre non è più la
+proprietaria e **non ritrova i suoi incassi**. È `§16b`, un contro-controllo
+verde prima e verde dopo, che l'ha ucciso; resta lì a guardia della cura
+spedita al suo posto, che **non ha orologi, non ha identità nuove e non cambia
+il formato della coda**. Il disegno di record è `progetti/schede-gemelle.md`.
+
+**`§17` è un LIMITE DICHIARATO, cioè una sezione verde sul danno che resta.**
+Due schede possono ancora spedire lo *stesso* scontrino e la giornata contarlo
+due volte (la copia della coda presa **prima** del primo timbro). La sezione
+pretende il danno — giornata 13,00 con **due** vendite — e in testa c'è scritto
+che **il giorno in cui esisterà un canale fra schede quella riga si inverte**.
+
+**E una lezione che vale più di una sezione.** `§19` è nata **verde** sul
+codice non curato: aspettava sei secondi, e il backoff dell'altra scheda ne
+vuole otto. Misurava la fortuna, non il difetto. Riscritta per **chiudere** la
+scheda che disturba e **contare le scritture** dell'altra (`window.__conta()`)
+prima di guardare il disco, è diventata rossa al primo colpo. Un'attesa a tempo
+non è una prova.
+
+**E il sabotaggio che ha trovato il buco del banco.** Spegnere la **presa in
+carico all'adozione** (la tessera 2, ramo ritrovamento) non faceva arrossire
+**niente** delle sette scene nuove. Non perché sia ridondante: perché nessuna
+delle sette guarda il disco **dopo** che la coda si è svuotata. Lo guardano
+`§1` e `§7b`, che pretendono `codaSalvata === null`, e lì il rosso c'era —
+la voce adottata resta «di un altro», la fusione la rimette sul disco e **la
+chiave non si toglie più**. Il muto era del **filtro delle sezioni**, non del
+codice; `sabotaggi-gen622.mjs` adesso gira `CON_REGRESSIONE` (`1,7b` più la
+famiglia) per S3 e S4. Regola: quando una tessera tocca `CHIAVE_CODA`, il
+sabotaggio va girato **anche sulle sezioni che guardano il disco a coda vuota**,
+o si spedisce una riparazione che nessun controllo può bocciare.
+
+**Quello che resta scoperto, per iscritto**: la fusione **non è atomica** (fra
+`getItem` e `setItem` l'altra scheda può scrivere: si passa da una distruzione
+*certa* a una gara di microsecondi, che è un miglioramento misurabile e non una
+garanzia); una **generazione di convivenza** (in tutto il file non c'è un
+`location.reload`, quindi finché su un telefono convivono una scheda gen-6.21 e
+una gen-6.22 quella vecchia continua a sostituire e a rimuovere); e la
+**pastiglia** in alto conta solo la coda di questa scheda — il rifiuto del
+ripristino è il solo posto dove quella differenza viene detta.
+
 ## Il ramo predefinito era fermo al 1° agosto — CHIUSO il 16 settembre
 
 **Com'era.** `origin/main` era a `2edbf21`, **1 agosto 2026**, e non conteneva
@@ -491,8 +585,9 @@ un repository pubblico: nessuna chiave, nessun token, i dati veri del magazzino
 fuori dal repository come impone `.gitignore`, nessun PIN oltre a quelli del seme.
 
 **Com'è adesso.** `main` è `48ad9ae`, porta tutto (bussola, passaggio, memoria,
-banchi, attrezzi, CI) **e** l'app di luglio intatta; `app/app.jsx` su `main` ha
-md5 `c230922976fc1191d6f38b868edb753f`, cioè gen-6.21. Il censimento è partito su
+banchi, attrezzi, CI) **e** l'app di luglio intatta; `app/app.jsx` su `main` era a
+md5 `c230922976fc1191d6f38b868edb753f`, cioè gen-6.21 (col rilascio di gen-6.22
+diventa `5319ff40121d588ae12991f6178128e2`). Il censimento è partito su
 `main` alla prima occasione (esecuzione 122).
 
 > **LA COSA CHE RESTA DA GUARDARE, ed è l'unica prova che conta:** il censimento
@@ -840,13 +935,20 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    aperti). Resta aperta la voce **`scorciatoia-vecchia`**, che è la sua
    vicina di casa e non si spedisce finché non si trova come farla diventare
    rossa.
-10. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
+10. ~~Le schede gemelle, metà~~: **fatto, online da gen-6.22**
+   (`collaudi/protocollotest.mjs` §16, §16b, §17, §18, §19, §20, §21, §21b;
+   **12 rossi registrati su gen-6.21**, tutti verdi dopo; 8 sabotaggi).
+   **La voce `schede-gemelle` RESTA APERTA** per l'altra metà — due schede che
+   spediscono lo stesso scontrino — e non si chiude senza un **canale** fra
+   schede. Il proprietario della coda è stato processato e respinto: non
+   riproporlo senza aver letto `progetti/schede-gemelle.md` e `§16b`.
+11. **Il pavimento del traffico vero** (PASSO 2 e seguenti): il PASSO 2 tocca
    `strumenti/server/app_kv_set.sql`, cioè la funzione da cui passa OGNI
    scrittura dell'app. Il documento chiede: tessera sua, di lunedì mattina, mai
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-11. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+12. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)
