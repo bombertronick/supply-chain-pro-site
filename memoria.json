@@ -695,6 +695,11 @@
    "quando": "2026-09-16",
    "dicevo": "Il censimento gira da solo ogni notte: l ho scritto in cima a .github/workflows/collaudi.yml il giorno che l ho fatto, e da allora l ho ripetuto nei documenti.",
    "invece": "NON E MAI PARTITO. GitHub fa scattare schedule SOLO dal ramo predefinito, e su origin/main quel file non c e — main e fermo al 1 agosto e non contiene nemmeno CLAUDE.md, PASSAGGIO.md e memoria.json. Prova: list_workflow_runs con event=schedule da total_count 0, e tutte le 114 esecuzioni esistenti sono event=push, cioe partite dal ramo. Il workflow era nato apposta perche tre collaudi erano rimasti rotti per mesi senza che nessuno se ne accorgesse: quella riparazione non ha mai funzionato, e a dirlo non e stato nessun rosso perche nessuno l aveva chiesto. LEZIONE: quando si scrive che qualcosa gira DA SOLO, si va a guardare che sia partito almeno una volta. Un automatismo non provato e una speranza scritta al futuro."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "memoriaapptest e intermittente: e la nota intermittenza di file://, verde due volte di fila sullo stesso codice. L ho scritto cosi nel passaggio di gen-6.20 e l ho ripetuto a gen-6.21.",
+   "invece": "Non era un intermittenza da subire: era IL DIFETTO GIA DIAGNOSTICATO E GIA CURATO ALTROVE, rimasto in quel banco. memoriaapptest:53 apriva l app da file://, cioe da un origine OPACA, e il banco CHIUDE la pagina e la RIAPRE leggendo localStorage fra le due: e il caso esatto per cui servi.mjs esiste dal 5 settembre. La nota scritta dalla prima pagina finiva in un altra partizione, il banco accusava l app di averla persa e poi moriva in un timeout di 30 secondi sul tasto Elimina di una nota che non esisteva. MISURATO invece che supposto: la versione su file:// cade 1 volta su 5 con la firma identica a quella della CI; servita su http, 8 giri su 8 verdi. A gen-6.05, riparando gen605test, avevo scritto che era L ULTIMO RIMASTO INDIETRO: non lo era. Adesso ho contato — dei 66 banchi su file://, solo memoriaapptest ricaricava o apriva una seconda pagina dipendente dalla prima; ricettetest ne apre due ma in CONTESTI separati, ognuno col suo seme, quindi indipendenti per scelta. LEZIONE: quando si ripara una famiglia di difetti si CONTA quanti membri ha, invece di dire che era l ultimo."
   }
  ],
  "regole": [

@@ -16,6 +16,7 @@
 
    Contro gen-5.91 tutto questo non esiste: la schermata non c'e' proprio. */
 import { chromium } from "playwright";
+import { apriServer } from "./servi.mjs";
 import { readFileSync, existsSync } from "fs";
 import path from "path"; import crypto from "crypto";
 const exe = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -32,6 +33,19 @@ const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] })
 const errs = [];
 /* UN SOLO CONTESTO per due pagine: e' il deposito condiviso, come in rete.
    Chiudere la pagina e riaprirla e' proprio la prova che serve. */
+/* ── UN'ORIGINE VERA, E NON E' UN DETTAGLIO (16 settembre) ──
+   Questo banco CHIUDE la pagina e la RIAPRE, e legge localStorage da due
+   pagine diverse: e' il caso esatto per cui servi.mjs esiste, ed e' rimasto su
+   file:// fino a oggi. Su file:// Chromium tratta l'origine come OPACA e ogni
+   pagina puo' ricevere un'archiviazione tutta sua: la nota scritta dalla prima
+   pagina non c'era piu' nella seconda, il banco accusava l'app di averla persa,
+   e poi moriva in un timeout di 30 secondi sul tasto «Elimina» di una nota che
+   non esisteva. Sul censimento di gen-6.21 in CI e' stata l'UNICA rossa su 115
+   file, e per settimane e' passata per «intermittenza nota».
+   La regola sta in PASSAGGIO.md — «i banchi si servono su http, mai file://» —
+   ed e' nata a gen-6.05 da gen605test. Allora si era detto che era «l'ultimo
+   rimasto indietro»: non lo era. */
+const srv = await apriServer();
 const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 await ctx.addInitScript((j) => {
   try { localStorage.setItem("scp:tour:v1", "1"); } catch {}
@@ -50,7 +64,11 @@ await ctx.addInitScript((j) => {
 const entra = async () => {
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errs.push(e.message));
-  await p.goto("file://" + path.resolve("index.html")); await p.waitForTimeout(1500);
+  await p.goto(srv.url); await p.waitForTimeout(1500);
+  /* se per qualunque motivo si finisse di nuovo su un'origine opaca, questo
+     banco NON puo' dire la verita': meglio gridare che dare un rosso falso */
+  if (!(await p.evaluate(() => location.protocol)).startsWith("http"))
+    { console.error("KO  BANCO GUASTO: non sono su http, l'archiviazione non e' condivisa fra le pagine"); process.exit(1); }
   await p.getByText("Admin", { exact: true }).first().click(); await p.waitForTimeout(400);
   for (const d of "1234") await p.getByRole("button", { name: d, exact: true }).first().click().catch(() => {});
   await p.waitForTimeout(1600);
@@ -128,6 +146,6 @@ ok(rimasto === "[]", `e nemmeno nel deposito (${rimasto})`);
 
 console.log("\nerrori di pagina:", errs.length);
 for (const e of errs.slice(0, 4)) console.log("  !!", e);
-await b.close();
+await b.close(); await srv.chiudi();
 console.log(ko ? `\n${ko} CONTROLLI FALLITI` : "\nTUTTI I CONTROLLI PASSATI");
 process.exit(ko || errs.length ? 1 : 0);
