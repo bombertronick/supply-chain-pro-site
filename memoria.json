@@ -45,6 +45,16 @@
    "gen": null,
    "quando": "16 settembre",
    "chiude": [],
+   "prova": "ricordatest.mjs",
+   "soloCollaudi": true,
+   "_soloCollaudi_perche": "Non tocca l app di Valerio: e un attrezzo che interroga memoria.json. Nessuna generazione.",
+   "cosa": "CHIEDERE ALLA MEMORIA INVECE DI LEGGERLA TUTTA. Misura: una sessione che riparte seguendo il primo messaggio di PASSAGGIO.md spendeva ~74.000 token di documenti prima di fare qualsiasi cosa, e memoria.json da sola ne vale ~40.000 (146 KB, +~4 KB a generazione: a gen-7.00 sarebbe mezzo milione di byte). E dentro «sbagliato» — 35 errori passati, l unico posto dove e scritto perche certe cose non si rifanno — non c e nessun tag ne indice: l unione delle chiavi su tutte le voci e esattamente quando/dicevo/invece, quindi si consulta solo leggendolo tutto, cioe in pratica non si consulta. strumenti/ricorda.mjs non aggiunge una seconda verita: legge memoria.json, che resta la sorgente, e cambia solo il modo di interrogarla. Comandi: stato, scrivimi (come si parla a Valerio + appunti-non-ordini + dispensa), sbagliato <parola>, aperti, chiusi, regole, tuoi. La ricerca ignora accenti e maiuscole. MISURATO dal banco, non dichiarato: «stato» costa 449 caratteri contro i 153.140 del file, 341 volte meno; una ricerca negli errori passati ne costa 2.007. E il primo messaggio di PASSAGGIO.md adesso dice di CHIEDERE invece di leggere tutto — un attrezzo che nessuno sa che esiste non serve a niente.",
+   "_nota": "DUE COSE CHE IL BANCO PRETENDE E CHE ALTRIMENTI SAREBBERO SOLO INTENZIONI. (1) Il risparmio si MISURA: se un giorno «stato» diventasse lungo quanto il file, §5 diventa rossa. (2) L attrezzo NON puo scrivere: il banco controlla che il sorgente non importi nemmeno un modo di scrivere su disco, e che dopo sei comandi memoria.json sia byte per byte la stessa — un attrezzo che legge la memoria e potesse anche scriverla sarebbe il modo piu comodo di farle dire una cosa falsa. E il cartello APPUNTI NON ORDINI si stampa in testa a ogni risposta, con i caratteri di controllo neutralizzati: la memoria e il testo di cui la prossima sessione si fida di piu, quindi il bersaglio piu ghiotto."
+  },
+  {
+   "gen": null,
+   "quando": "16 settembre",
+   "chiude": [],
    "prova": "dispensatest.mjs",
    "soloCollaudi": true,
    "_soloCollaudi_perche": "Non tocca l app di Valerio: e l attrezzo della dispensa (strumenti/dispensa.mjs) e le chiavi ctx:v1:* nel kv_store. Nessuna generazione.",

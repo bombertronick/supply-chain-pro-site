@@ -23,9 +23,13 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Il primo messaggio da incollare nella sessione nuova
 
-> Riprendi il lavoro su Supply Chain Pro. Leggi in quest'ordine: PASSAGGIO.md,
-> CONSEGNA.md, memoria.json (TUTTI i campi: online, chiusi[0], tuoi, regole,
-> sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
+> Riprendi il lavoro su Supply Chain Pro. Leggi in quest'ordine: **CLAUDE.md**,
+> PASSAGGIO.md, roadmap.md. **Non leggere tutta memoria.json** (146 KB, ~40.000
+> token): chiedile quello che ti serve —
+> `node strumenti/ricorda.mjs stato` (sei righe), `… scrivimi` (come si parla a
+> Valerio), `… aperti`, e `… sbagliato <parola>` **ogni volta che stai per fare
+> una cosa che sembra già vista**. CONSEGNA.md è un documento storico: leggilo
+> per la storia, non per le istruzioni. Poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
 > `chk-20260915-notte`. **Non fidarti di questo nome: chiedilo.**

@@ -85,7 +85,7 @@ commit.
 | file | cosa c'è dentro |
 |---|---|
 | `PASSAGGIO.md` | **il documento di riferimento**: stato della produzione, protocollo di rilascio passo per passo, trappole già pagate, prossimi lavori in ordine |
-| `memoria.json` | lo storico per la macchina: lavori chiusi, difetti aperti, errori passati (`sbagliato`), come si parla all'utente |
+| `memoria.json` | lo storico per la macchina: lavori chiusi, difetti aperti, errori passati (`sbagliato`), come si parla all'utente. **Non leggerla tutta** (146 KB, ~40.000 token): si interroga con `node strumenti/ricorda.mjs` — `stato`, `scrivimi`, `aperti`, `chiusi`, `regole`, `tuoi`, e **`sbagliato <parola>` prima di rifare una cosa che sembra già vista** |
 | `roadmap.html` | la lista dei lavori **in prosa, per l'utente** — è la SORGENTE; `roadmap.md` si genera con `node strumenti/roadmap-md.mjs` |
 | `progetti/*.md` | i disegni di record, con l'esito della demolizione |
 | `CONSEGNA.md` | **documento storico** (1 agosto, era gen-5.73): utile per la storia, superato sul protocollo |
