@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0E1116" />
+<meta name="color-scheme" content="dark" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Calcolatrice" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" href="icon-192.png" />
+<title>Calcolatrice</title>
+<!--
+  App inventario 100% offline e indipendente.
+  - Nessuna connessione a internet, nessuna libreria esterna, nessun font remoto.
+  - Tutti i dati sono salvati SOLO su questo dispositivo (localStorage del browser).
+  - Nessun server: niente da raggiungere o attaccare dall'esterno.
+-->
+<style>
+:root{
+  --bg:#0E1116; --bg2:#12161D; --sur:#1A1F29; --sur2:#232A36; --line:#2B3340;
+  --ink:#EDF2F8; --dim:#96A2B4; --faint:#5B6675;
+  --acc:#34D399; --acc2:#22D3EE; --out:#FB7185; --warn:#FBBF24;
+  --grad:linear-gradient(135deg,#34D399 0%,#22D3EE 100%);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+button{cursor:pointer;border:none;background:none}
+input,select,textarea{
+  width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:13px;
+  background:var(--bg2);outline:none;
+}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+label{display:block;font-size:12.5px;font-weight:700;color:var(--dim);margin:0 0 6px 2px}
+.field{margin-bottom:14px}
+
+.app{max-width:560px;margin:0 auto;min-height:100%;padding-bottom:calc(88px + var(--safe-b))}
+header{padding:20px 18px 16px;position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,var(--bg) 60%,rgba(14,17,22,.86));backdrop-filter:blur(6px)}
+header .top{display:flex;align-items:center;gap:12px}
+header .logo{width:42px;height:42px;border-radius:13px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+  box-shadow:0 8px 22px -10px rgba(52,211,153,.6)}
+header h1{font-size:20px;font-weight:800;line-height:1.1;letter-spacing:-.3px}
+header .sub{font-size:11.5px;color:var(--dim);font-weight:600;margin-top:1px}
+.view{padding:4px 18px 18px}
+.view.hidden{display:none}
+
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(18,22,29,.94);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  display:flex;padding:7px 4px calc(7px + var(--safe-b));max-width:560px;margin:0 auto}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 2px;border-radius:12px;color:var(--faint);font-size:10.5px;font-weight:700}
+nav button .ic{font-size:20px;line-height:1;filter:grayscale(.4);opacity:.7}
+nav button.on{color:var(--acc)}
+nav button.on .ic{filter:none;opacity:1}
+
+.carta{background:var(--sur);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.sez{margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sez-tit{font-size:15px;font-weight:800;letter-spacing:-.2px}
+.muted{color:var(--dim);font-size:13px}
+.btn{background:var(--grad);color:#04121A;font-weight:800;padding:13px 16px;border-radius:13px;
+  width:100%;display:flex;align-items:center;justify-content:center;gap:7px;font-size:15px}
+.btn:active{opacity:.88}
+.btn.ghost{background:var(--sur2);color:var(--ink)}
+.btn.danger{background:rgba(251,113,133,.14);color:var(--out)}
+.btn.sm{padding:9px 13px;font-size:13px;width:auto;border-radius:11px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;
+  padding:4px 9px;border-radius:99px;background:var(--sur2);color:var(--dim)}
+.pill.warn{background:rgba(251,191,36,.15);color:var(--warn)}
+.pill.bad{background:rgba(251,113,133,.15);color:var(--out)}
+.pill.ok{background:rgba(52,211,153,.15);color:var(--acc)}
+
+.mat{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.mat:last-child{border-bottom:none}
+.mat .info{flex:1;min-width:0}
+.mat .nome{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mat .meta{font-size:11.5px;color:var(--dim);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mat .qta{text-align:right;flex-shrink:0;min-width:52px}
+.mat .qta b{font-size:19px;font-weight:800;display:block;line-height:1}
+.mat .qta small{font-size:10.5px;color:var(--faint);font-weight:700}
+.stepper{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.stepper button{width:34px;height:34px;border-radius:10px;font-size:20px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;background:var(--sur2);color:var(--ink)}
+.stepper button.minus{background:rgba(251,113,133,.14);color:var(--out)}
+.stepper button.plus{background:rgba(52,211,153,.14);color:var(--acc)}
+
+.grp-tit{font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.6px;margin:16px 2px 8px;display:flex;align-items:center;gap:7px}
+.grp-tit:first-child{margin-top:2px}
+.grp-tit .sw{width:10px;height:10px;border-radius:3px}
+
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px}
+.stat .box{background:var(--sur);border:1px solid var(--line);border-radius:16px;padding:15px;text-align:left}
+.stat b{font-size:28px;font-weight:800;display:block;line-height:1;letter-spacing:-1px}
+.stat span{font-size:11px;color:var(--dim);font-weight:700;display:block;margin-top:6px}
+
+.empty{text-align:center;color:var(--faint);padding:32px 16px;font-size:14px}
+.empty .big{font-size:38px;margin-bottom:8px;filter:grayscale(.3)}
+
+.log{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.log:last-child{border-bottom:none}
+.log .dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.log.out .dot{background:rgba(251,113,133,.14)}
+.log.in .dot{background:rgba(52,211,153,.14)}
+.log .info{flex:1;min-width:0}
+.log .info b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.log .info .d{font-size:11.5px;color:var(--dim)}
+.log .amt{font-weight:800;font-size:15px;flex-shrink:0}
+.log .amt.out{color:var(--out)} .log .amt.in{color:var(--acc)}
+.log .x{color:var(--faint);font-size:17px;padding:4px 4px 4px 8px}
+
+.tipo{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--line)}
+.tipo:last-child{border-bottom:none}
+.tipo .sw{width:14px;height:14px;border-radius:5px;flex-shrink:0}
+.tipo .nome{flex:1;font-weight:700}
+.tipo .cnt{font-size:11.5px;color:var(--dim);font-weight:700}
+.tipo .go{color:var(--faint);font-size:18px}
+
+.modal{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;justify-content:center}
+.modal.show{display:flex}
+.modal .bg{position:absolute;inset:0;background:rgba(4,7,12,.68)}
+.sheet{position:relative;background:var(--sur);width:100%;max-width:560px;
+  border-radius:22px 22px 0 0;border:1px solid var(--line);border-bottom:none;
+  padding:20px 18px calc(22px + var(--safe-b));max-height:92vh;overflow:auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(28px);opacity:.5}to{transform:none;opacity:1}}
+.sheet .grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:-6px auto 14px}
+.sheet h3{font-size:18px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.sheet h3 .x{color:var(--faint);font-size:26px;font-weight:400;line-height:1}
+.seg{display:flex;gap:5px;background:var(--bg2);padding:4px;border-radius:13px;margin-bottom:16px}
+.seg button{flex:1;padding:9px;border-radius:9px;font-weight:800;font-size:13px;color:var(--dim)}
+.seg button.on{background:var(--sur2);color:var(--ink)}
+.color-row{display:flex;gap:9px;flex-wrap:wrap}
+.color-row .c{width:34px;height:34px;border-radius:10px;border:3px solid transparent}
+.color-row .c.on{border-color:var(--ink)}
+
+/* tasti rapidi / blocchi */
+.qgrid{display:flex;flex-wrap:wrap;gap:8px}
+.qbtn{background:var(--sur2);border:1px solid var(--line);color:var(--ink);font-weight:800;
+  font-size:15px;padding:11px 15px;border-radius:12px;display:inline-flex;align-items:center;gap:7px}
+.qbtn.out{background:rgba(251,113,133,.13);color:var(--out);border-color:transparent}
+.qbtn.clr{background:none;color:var(--dim);font-weight:700;font-size:13px}
+.qbtn.tag2{padding:9px 10px 9px 14px}
+.qbtn .rmv{color:var(--faint);font-size:13px;padding:0 2px}
+.qgrid2{display:flex;gap:10px;margin:12px 0 16px}
+.stepbig{flex:1;padding:13px;border-radius:12px;font-weight:800;font-size:16px;border:1px solid var(--line)}
+.stepbig.minus{background:rgba(251,113,133,.13);color:var(--out);border-color:transparent}
+.stepbig.plus{background:rgba(52,211,153,.13);color:var(--acc);border-color:transparent}
+.qhead{background:var(--bg2);border:1px solid var(--line);border-radius:13px;padding:12px 15px;
+  margin-bottom:16px;font-size:13px;color:var(--dim);display:flex;justify-content:space-between;align-items:center}
+.qhead b{color:var(--ink);font-size:18px;font-weight:800}
+.mat .go{color:var(--faint);font-size:20px;flex-shrink:0;padding-left:2px}
+
+/* distinta base */
+.bomline{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.bomline select{flex:1;min-width:0}
+.bomline input{width:78px;flex:0 0 auto;text-align:center;padding:12px 8px}
+.bomline .bomx{width:38px;height:44px;flex:0 0 auto;border-radius:11px;background:rgba(251,113,133,.14);color:var(--out);font-size:16px}
+
+/* cestino */
+.cestitem{padding:6px 0 12px;border-bottom:1px solid var(--line)}
+.cestitem:last-child{border-bottom:none}
+.cestitem .log{padding:8px 0}
+.cestitem .btn.sm{flex:1;width:auto}
+.delnote{color:var(--faint);font-size:11px}
+#cestBadge{color:var(--out);font-weight:800}
+
+.lock{position:fixed;inset:0;z-index:100;background:var(--bg);color:var(--ink);
+  display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.lock.show{display:flex}
+.lock .logo{width:70px;height:70px;border-radius:20px;background:var(--grad);
+  display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:16px;color:#04121A;
+  box-shadow:0 10px 30px -8px rgba(52,211,153,.5)}
+.lock h2{font-size:21px;font-weight:800}
+.lock p{color:var(--dim);font-size:13.5px;margin-top:4px}
+.pinbox{display:flex;gap:12px;margin:22px 0}
+.pinbox .d{width:15px;height:15px;border-radius:99px;border:2px solid var(--line)}
+.pinbox .d.f{background:var(--acc);border-color:var(--acc)}
+.keys{display:grid;grid-template-columns:repeat(3,70px);gap:14px}
+.keys button{height:70px;border-radius:99px;background:var(--sur);border:1px solid var(--line);
+  font-size:26px;font-weight:700;color:var(--ink)}
+.keys button:active{background:var(--sur2)}
+.keys button.blank{background:none;border:none}
+.lock .err{min-height:20px;font-size:13px;font-weight:700;color:var(--out);margin-top:2px}
+
+/* Copertura: calcolatrice */
+.calc{position:fixed;inset:0;z-index:110;background:#0b0b0d;color:#fff;
+  display:none;flex-direction:column;justify-content:flex-end;padding:16px calc(16px + env(safe-area-inset-right,0)) calc(20px + var(--safe-b)) calc(16px + env(safe-area-inset-left,0));
+  max-width:560px;margin:0 auto}
+.calc.show{display:flex}
+.calc .disp{flex:0 0 auto;text-align:right;font-weight:300;padding:24px 10px 18px;overflow:hidden}
+.calc .disp .big{font-size:64px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calc .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.calc .pad button{height:72px;border-radius:99px;font-size:28px;font-weight:500;background:#333;color:#fff}
+.calc .pad button:active{filter:brightness(1.35)}
+.calc .pad .fn{background:#a5a5a5;color:#000;font-weight:600}
+.calc .pad .op{background:#ff9f0a;color:#fff;font-weight:600}
+.calc .pad .op.active{background:#fff;color:#ff9f0a}
+.calc .pad .zero{grid-column:span 2;text-align:left;padding-left:30px;border-radius:99px}
+.calc .pad .gap{background:none;visibility:hidden}
+.calc .disp .big{font-size:60px}
+
+/* pulsante ri-copertura rapida */
+header .top{align-items:center}
+.lockbtn{margin-left:auto;width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.10);
+  color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lockbtn:active{background:rgba(255,255,255,.2)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--safe-b));
+  background:var(--sur2);border:1px solid var(--line);color:var(--ink);padding:11px 18px;border-radius:13px;
+  font-size:13.5px;font-weight:700;z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+
+.tag{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px}
+.hint{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:12.5px;color:var(--dim)}
+.link{color:var(--acc2);font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- BLOCCO PIN (opzionale, tutto locale) -->
+<div class="lock" id="lock">
+  <div class="logo">🔒</div>
+  <h2 id="lockTit">Inserisci PIN</h2>
+  <p id="lockSub">Accesso protetto locale</p>
+  <div class="pinbox" id="pinbox"></div>
+  <div class="err" id="lockErr"></div>
+  <div class="keys" id="keys"></div>
+</div>
+
+<!-- COPERTURA: calcolatrice funzionante. Codice segreto + = per entrare. -->
+<div class="calc" id="calc">
+  <div class="disp"><div class="big" id="calcDisp">0</div></div>
+  <div class="pad" id="calcPad"></div>
+</div>
+
+<div class="app">
+  <header>
+    <div class="top">
+      <div class="logo">📥</div>
+      <div>
+        <h1 id="hTitle">Magazzino</h1>
+        <div class="sub">Offline · dati solo su questo dispositivo</div>
+      </div>
+      <button id="lockNow" class="lockbtn" onclick="showDecoy()" title="Nascondi ora" style="display:none">🔒</button>
+    </div>
+  </header>
+
+  <!-- RIEPILOGO -->
+  <section class="view" id="v-home">
+    <div class="stat">
+      <div class="box"><b>0</b><span>prodotti</span></div>
+      <div class="box"><b style="color:var(--acc)">€ 0</b><span>guadagno oggi</span></div>
+      <div class="box"><b style="color:var(--out)">0</b><span>usciti oggi</span></div>
+      <div class="box"><b style="color:var(--warn)">0</b><span>sotto scorta</span></div>
+    </div>
+
+    <div class="carta" id="cardScorta" style="display:none">
+      <div class="sez"><span class="sez-tit">⚠️ Sotto scorta</span></div>
+      <div id="listScorta"></div>
+    </div>
+
+    <div class="carta">
+      <div class="sez">
+        <span class="sez-tit">Uscite di oggi</span>
+        <button class="btn danger sm" onclick="openMov('uscita')">➖ Uscita</button>
+      </div>
+      <div id="homeOggi"></div>
+    </div>
+  </section>
+
+  <!-- MATERIALI -->
+  <section class="view hidden" id="v-mat">
+    <button class="btn" style="margin-bottom:14px" onclick="openMat()">＋ Nuovo materiale</button>
+    <div class="field" style="margin-bottom:10px">
+      <input id="cerca" placeholder="🔎 Cerca materiale…" oninput="renderMat()" />
+    </div>
+    <div id="listMat"></div>
+  </section>
+
+  <!-- USCITE / MOVIMENTI -->
+  <section class="view hidden" id="v-mov">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn danger" onclick="openMov('uscita')">➖ Uscita</button>
+      <button class="btn ghost" onclick="openMov('carico')">➕ Carico</button>
+    </div>
+    <div class="field">
+      <label>Giorno</label>
+      <input type="date" id="movData" onchange="renderMov()" />
+    </div>
+    <div class="carta">
+      <div class="sez"><span class="sez-tit" id="movTitolo">Movimenti</span>
+        <span class="pill bad" id="movTot">0 uscite</span></div>
+      <div id="listMov"></div>
+    </div>
+    <button class="btn ghost" onclick="go('cestino')">🗑 Cestino movimenti <span id="cestBadge"></span></button>
+  </section>
+
+  <!-- CESTINO -->
+  <section class="view hidden" id="v-cestino">
+    <button class="btn ghost" style="margin-bottom:14px" onclick="go('mov')">‹ Torna alle uscite</button>
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🗑 Movimenti cancellati</span>
+        <button class="btn danger sm" onclick="svuotaCestino()">Svuota</button></div>
+      <div id="listCest"></div>
+    </div>
+    <p class="muted" style="text-align:center">Ripristina un movimento per rimetterlo tra le uscite, oppure eliminalo definitivamente.</p>
+  </section>
+
+  <!-- TIPOLOGIE -->
+  <section class="view hidden" id="v-tipi">
+    <button class="btn" style="margin-bottom:14px" onclick="openTipo()">＋ Nuova tipologia</button>
+    <div class="carta"><div id="listTipi"></div></div>
+    <p class="muted" style="text-align:center;margin-top:4px">Le tipologie raggruppano i materiali per categoria.</p>
+  </section>
+
+  <!-- IMPOSTAZIONI -->
+  <section class="view hidden" id="v-set">
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">⚡ Tasti rapidi (blocchi)</span></div>
+      <p class="muted" style="margin-bottom:12px">Quantità pronte per registrare un'uscita al volo, es. un blocco da 12. Compaiono nel pannello del materiale e nel form di movimento.</p>
+      <div class="qgrid" id="presetList" style="margin-bottom:12px"></div>
+      <div class="row">
+        <input id="presetNew" type="number" inputmode="decimal" min="0" step="any" placeholder="Nuova quantità (es. 12)" />
+        <button class="btn sm" style="flex:0 0 auto;padding:12px 16px" onclick="addPreset()">Aggiungi</button>
+      </div>
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🔐 Protezione con PIN</span>
+        <span class="pill" id="pinStato">Off</span></div>
+      <p class="muted" style="margin-bottom:12px">Blocca l'app con un PIN a 4 cifre, salvato solo su questo dispositivo. Nota: se attivi anche la copertura, all'apertura comparirà <b>solo la calcolatrice</b> e il PIN non verrà mostrato.</p>
+      <button class="btn" id="pinBtn" onclick="togglePin()">Attiva PIN</button>
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🎭 Copertura (calcolatrice)</span>
+        <span class="pill" id="decoyStato">Off</span></div>
+      <p class="muted" style="margin-bottom:12px">Con la copertura attiva, l'app si apre come una <b>calcolatrice funzionante</b>. Per entrare digiti il tuo codice segreto e premi <b>=</b>. Chi non lo conosce vede solo una calcolatrice.</p>
+      <div id="decoyOff">
+        <div class="field"><label>Codice segreto (almeno 4 cifre)</label>
+          <input id="decoyCode" type="number" inputmode="numeric" placeholder="Es. 1972" /></div>
+        <button class="btn" onclick="attivaDecoy()">Attiva copertura</button>
+      </div>
+      <div id="decoyOn" style="display:none">
+        <div class="field"><label>Cambia codice segreto (almeno 4 cifre)</label>
+          <input id="decoyNew" type="number" inputmode="numeric" placeholder="Nuovo codice" /></div>
+        <button class="btn ghost" onclick="cambiaDecoy()">Cambia codice</button>
+        <button class="btn danger" style="margin-top:10px" onclick="disattivaDecoy()">Disattiva copertura</button>
+      </div>
+      <p class="muted" style="margin-top:10px;font-size:12px">Suggerimento: dopo averla attivata, rifai «Aggiungi a Home» così anche l'icona prende il nome neutro.</p>
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">💾 Backup cifrato</span></div>
+      <p class="muted" style="margin-bottom:12px">Salva o ripristina l'inventario in un file <b>cifrato con password</b> (AES-256). Senza la password il file è illeggibile per chiunque; puoi riaprirlo solo reimportandolo qui. Il file resta sul dispositivo, non viene inviato da nessuna parte.</p>
+      <div class="row">
+        <button class="btn ghost" onclick="esporta()">⬇︎ Esporta</button>
+        <button class="btn ghost" onclick="fileImp.click()">⬆︎ Importa</button>
+      </div>
+      <input type="file" id="fileImp" accept=".mgz,.json,application/json" style="display:none" onchange="importa(event)" />
+    </div>
+
+    <div class="carta">
+      <div class="sez"><span class="sez-tit">🗑 Azzeramento</span></div>
+      <p class="muted" style="margin-bottom:12px">Operazioni non annullabili: esporta un backup prima.</p>
+      <button class="btn danger" style="margin-bottom:10px" onclick="azzeraMovimenti()">Cancella tutti i movimenti</button>
+      <button class="btn danger" onclick="azzeraTutto()">Cancella tutto</button>
+    </div>
+
+    <div class="hint">
+      🛡️ <b>Sicurezza.</b> Questa app non usa internet: niente server, account o connessioni. I dati vivono solo nella memoria di questo browser. Per non perderli, esporta ogni tanto un backup e non cancellare i dati del sito dalle impostazioni del dispositivo.
+    </div>
+    <p class="muted" style="text-align:center;margin-top:14px">Magazzino · inventario offline · v1</p>
+  </section>
+</div>
+
+<nav>
+  <button class="on" data-v="home" onclick="go('home')"><span class="ic">🏠</span>Riepilogo</button>
+  <button data-v="mat" onclick="go('mat')"><span class="ic">📦</span>Materiali</button>
+  <button data-v="mov" onclick="go('mov')"><span class="ic">📉</span>Uscite</button>
+  <button data-v="tipi" onclick="go('tipi')"><span class="ic">🏷️</span>Tipologie</button>
+  <button data-v="set" onclick="go('set')"><span class="ic">⚙️</span>Impost.</button>
+</nav>
+
+<div class="modal" id="modal">
+  <div class="bg" onclick="closeModal()"></div>
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const KEY = "magazzino_offline_v1";
+const PINKEY = "magazzino_pin_v1";
+const DECOYKEY = "magazzino_decoy_v1";
+const COLORI = ["#34D399","#22D3EE","#60A5FA","#A78BFA","#F472B6","#FB7185","#FBBF24","#94A3B8"];
+
+const PRESET_DEF = [5,10,25];
+let DB = load();
+function normalize(db){
+  db=db||{};
+  db.tipi=db.tipi||[]; db.materiali=db.materiali||[]; db.movimenti=db.movimenti||[];
+  db.presets=Array.isArray(db.presets)?db.presets:PRESET_DEF.slice();
+  db.cestino=Array.isArray(db.cestino)?db.cestino:[];
+  delete db.materie;
+  if(db.v!==3){
+    // migrazione a magazzino unico con costo medio ponderato
+    db.materiali.forEach(m=>{
+      const car=db.movimenti.filter(x=>x.materialeId===m.id&&x.tipo==="carico").reduce((s,x)=>s+(x.qta||0),0);
+      const usc=db.movimenti.filter(x=>x.materialeId===m.id&&x.tipo==="uscita").reduce((s,x)=>s+(x.qta||0),0);
+      const cur=(typeof m.giacenza==="number")?m.giacenza:0;
+      m.apGiac=Math.round((cur-car+usc)*1000)/1000;   // giacenza prima dei movimenti registrati
+      m.apCosto=0; delete m.bom;
+    });
+    db.movimenti.forEach(x=>{ if(x.consumi) delete x.consumi; });
+    db.v=3;
+  }
+  db.materiali.forEach(m=>{
+    if(typeof m.prezzo!=="number")m.prezzo=0;
+    if(typeof m.apGiac!=="number")m.apGiac=0;
+    if(typeof m.apCosto!=="number")m.apCosto=0;
+    if(typeof m.soglia!=="number")m.soglia=0;
+    if(typeof m.giacenza!=="number")m.giacenza=m.apGiac;
+    if(typeof m.costo!=="number")m.costo=m.apCosto;
+  });
+  return db;
+}
+function load(){
+  try{ const raw=localStorage.getItem(KEY); return raw? normalize(JSON.parse(raw)) : normalize({}); }catch(e){ return normalize({}); }
+}
+function r(n){ return Math.round(n*1000)/1000; }
+function money(n){ n=Math.round((n||0)*100)/100; return "€ "+n.toFixed(2).replace(".",","); }
+function nowStamp(){ const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
+  catch(e){ toast("Memoria piena o non disponibile"); }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function nf(n){ n = Math.round(n*1000)/1000; return (n%1===0)? n.toString() : n.toFixed(3).replace(/0+$/,"").replace(/\.$/,""); }
+function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function fmtData(iso){ try{ const [y,m,g]=iso.split("-"); return `${g}/${m}/${y}`; }catch(e){ return iso; } }
+let toastT;
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
+function tipoOf(id){ return DB.tipi.find(t=>t.id===id); }
+function matOf(id){ return DB.materiali.find(m=>m.id===id); }
+function scortaBassa(m){ return m.soglia>0 && m.giacenza<=m.soglia; }
+function margineUnit(p){ return (p.prezzo||0)-(p.costo||0); }
+/* Costo medio ponderato: rigioca i movimenti sull'apertura e ricalcola
+   giacenza, costo medio e il margine di ogni uscita col costo del momento. */
+function recalc(id){
+  const m=matOf(id); if(!m) return;
+  let qty=m.apGiac||0, avg=m.apCosto||0;
+  DB.movimenti.filter(x=>x.materialeId===id).forEach(x=>{
+    if(x.tipo==="carico"){
+      const add=x.qta||0;
+      const spesa=(typeof x.spesa==="number")? x.spesa : add*avg;  // se non indicata, non cambia il medio
+      const nq=qty+add;
+      if(nq>0) avg=(qty*avg+spesa)/nq;
+      qty=nq;
+    } else {
+      x.costoUnit=Math.round(avg*10000)/10000;
+      x.margine=r((x.qta||0)*((m.prezzo||0)-avg));
+      qty-=(x.qta||0);
+    }
+  });
+  m.giacenza=r(qty);
+  m.costo=Math.round(avg*10000)/10000;
+}
+function recalcAll(){ DB.materiali.forEach(m=>recalc(m.id)); }
+
+let vista="home";
+function go(v){
+  vista=v;
+  document.querySelectorAll(".view").forEach(s=>s.classList.add("hidden"));
+  $("v-"+v).classList.remove("hidden");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
+  const titoli={home:"Magazzino",mat:"Materiali",mov:"Uscite & carichi",cestino:"Cestino",tipi:"Tipologie",set:"Impostazioni"};
+  $("hTitle").textContent=titoli[v];
+  render(); window.scrollTo(0,0);
+}
+
+function render(){
+  if(vista==="home") renderHome();
+  else if(vista==="mat") renderMat();
+  else if(vista==="mov") renderMov();
+  else if(vista==="cestino") renderCestino();
+  else if(vista==="tipi") renderTipi();
+  else if(vista==="set") renderSet();
+}
+
+function guadagnoDi(movs){ return movs.filter(x=>x.tipo==="uscita").reduce((s,x)=>s+(x.margine||0),0); }
+function renderHome(){
+  const oggi=todayISO();
+  const usciteOggi=DB.movimenti.filter(x=>x.tipo==="uscita" && x.data===oggi);
+  const sotto=DB.materiali.filter(scortaBassa);
+  const boxes=document.querySelectorAll("#v-home .stat .box b");
+  boxes[0].textContent=DB.materiali.length;
+  boxes[1].textContent=money(guadagnoDi(usciteOggi));
+  boxes[2].textContent=usciteOggi.length;
+  boxes[3].textContent=sotto.length;
+
+  if(sotto.length){
+    $("cardScorta").style.display="";
+    $("listScorta").innerHTML=sotto.map(m=>{ const t=tipoOf(m.tipoId);
+      return `<div class="mat"><div class="info"><div class="nome">${esc(m.nome)}</div>
+        <div class="meta">${t?esc(t.nome)+" · ":""}soglia ${nf(m.soglia)} ${esc(m.unita)}</div></div>
+        <div class="qta"><b style="color:var(--out)">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div></div>`;
+    }).join("");
+  } else $("cardScorta").style.display="none";
+
+  $("homeOggi").innerHTML = usciteOggi.length
+    ? usciteOggi.slice().reverse().map(logRow).join("")
+    : `<div class="empty"><div class="big">🌙</div>Nessuna uscita registrata oggi.</div>`;
+}
+
+function logRow(x){
+  const m=matOf(x.materialeId);
+  const nome=m?m.nome:"(materiale eliminato)";
+  const unita=m?m.unita:"";
+  const out=x.tipo==="uscita";
+  const gain = out && x.margine ? ` · <span style="color:var(--acc)">${money(x.margine)}</span>` : "";
+  return `<div class="log ${out?"out":"in"}" onclick="editMov('${x.id}')">
+    <div class="dot">${out?"📤":"📥"}</div>
+    <div class="info"><b>${esc(nome)}</b><div class="d">${fmtData(x.data)}${x.nota?" · "+esc(x.nota):""}${gain}</div></div>
+    <div class="amt ${out?"out":"in"}">${out?"−":"+"}${nf(x.qta)} ${esc(unita)}</div>
+    <button class="x" onclick="event.stopPropagation();delMov('${x.id}')" aria-label="Elimina">✕</button>
+  </div>`;
+}
+
+function renderMat(){
+  const q=($("cerca").value||"").toLowerCase().trim();
+  const cont=$("listMat");
+  if(!DB.materiali.length){
+    cont.innerHTML=`<div class="empty"><div class="big">📦</div>Nessun prodotto.<br>Tocca <b>Nuovo prodotto</b> per iniziare.</div>`;
+    return;
+  }
+  const gruppi=[];
+  DB.tipi.forEach(t=>gruppi.push({tit:t.nome,col:t.colore,items:DB.materiali.filter(m=>m.tipoId===t.id)}));
+  gruppi.push({tit:"Senza tipologia",col:"#5B6675",items:DB.materiali.filter(m=>!tipoOf(m.tipoId))});
+  let html="";
+  gruppi.forEach(g=>{
+    let items=g.items;
+    if(q) items=items.filter(m=>m.nome.toLowerCase().includes(q));
+    if(!items.length) return;
+    html+=`<div class="grp-tit"><span class="sw" style="background:${g.col}"></span>${esc(g.tit)} · ${items.length}</div><div class="carta">`;
+    html+=items.map(matRow).join("");
+    html+=`</div>`;
+  });
+  cont.innerHTML=html||`<div class="empty"><div class="big">🔎</div>Nessun risultato.</div>`;
+}
+
+function matRow(m){
+  const bassa=scortaBassa(m);
+  const marg=margineUnit(m);
+  const bits=[];
+  if(bassa) bits.push('<span class="pill bad">sotto scorta</span>');
+  if(m.prezzo>0) bits.push(`<span style="color:${marg>=0?'var(--acc)':'var(--out)'}">margine ${money(marg)}</span>`);
+  else if(m.costo>0) bits.push(`costo ${money(m.costo)}`);
+  const meta=bits.join(" ");
+  return `<div class="mat" onclick="openQuick('${m.id}')">
+    <div class="info">
+      <div class="nome">${esc(m.nome)}</div>
+      <div class="meta">${meta||'<span class="muted">tocca per registrare</span>'}</div>
+    </div>
+    <div class="qta"><b style="${bassa?'color:var(--out)':''}">${nf(m.giacenza)}</b><small>${esc(m.unita)}</small></div>
+    <div class="go">›</div>
+  </div>`;
+}
+
+/* Pannello movimento rapido di un materiale */
+function openQuick(id){
+  const m=matOf(id); if(!m) return;
+  const chips=DB.presets.length
+    ? DB.presets.map(p=>`<button class="qbtn out" onclick="quickOut('${id}',${p})">−${nf(p)}</button>`).join("")
+    : `<span class="muted">Nessun tasto rapido. Aggiungili nelle Impostazioni ⚙️</span>`;
+  const marg=margineUnit(m);
+  openSheet(`
+    <h3>${esc(m.nome)}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="qhead">Giacenza attuale<b id="qGiac">${nf(m.giacenza)} ${esc(m.unita)}</b></div>
+    <div class="qhead">Costo medio · Prezzo<b>${money(m.costo)} · ${money(m.prezzo)}</b></div>
+    <div class="qhead">Margine a ${esc(m.unita)}<b style="color:${marg>=0?'var(--acc)':'var(--out)'}">${money(marg)}</b></div>
+    <label>Tasti rapidi · vendita a blocchi</label>
+    <div class="qgrid" style="margin-bottom:6px">${chips}</div>
+    <div class="qgrid2">
+      <button class="stepbig minus" onclick="quickOut('${id}',1)">− 1</button>
+      <button class="stepbig plus" onclick="quickIn('${id}',1)">＋ 1</button>
+    </div>
+    <button class="btn danger" onclick="openMov('uscita','${id}')">➖ Vendita / uscita (nota)</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openMov('carico','${id}')">➕ Carico (con costo)</button>
+    <hr class="sep"/>
+    <button class="btn ghost" onclick="openMat('${id}')">✏️ Modifica materiale</button>
+  `);
+}
+function quickOut(id,qty){
+  const m=matOf(id); if(!m) return;
+  if(qty>m.giacenza && !confirm(`Dare via ${nf(qty)} ${m.unita}? In giacenza ce ne sono ${nf(m.giacenza)}.`)) return;
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:"uscita",qta:qty,data:todayISO(),nota:""});
+  recalc(id); save(); toast(`− ${nf(qty)} ${m.unita} · uscita`);
+  const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
+  render();
+}
+function quickIn(id,qty){
+  const m=matOf(id); if(!m) return;
+  DB.movimenti.push({id:uid(),materialeId:id,tipo:"carico",qta:qty,data:todayISO(),nota:""});
+  recalc(id); save(); toast(`＋ ${nf(qty)} ${m.unita} · carico`);
+  const g=$("qGiac"); if(g) g.textContent=`${nf(m.giacenza)} ${m.unita}`;
+  render();
+}
+
+function renderMov(){
+  if(!$("movData").value) $("movData").value=todayISO();
+  const giorno=$("movData").value;
+  const movs=DB.movimenti.filter(x=>x.data===giorno);
+  const usc=movs.filter(x=>x.tipo==="uscita");
+  $("movTitolo").textContent = giorno===todayISO()?"Oggi":fmtData(giorno);
+  const g=guadagnoDi(usc);
+  $("movTot").textContent = `${usc.length} uscite · ${money(g)}`;
+  const cb=$("cestBadge"); if(cb) cb.textContent = DB.cestino.length ? `(${DB.cestino.length})` : "";
+  const cont=$("listMov");
+  cont.innerHTML = movs.length
+    ? movs.slice().reverse().map(logRow).join("")
+    : `<div class="empty"><div class="big">🗓️</div>Nessun movimento in questo giorno.</div>`;
+}
+
+function cestRow(x){
+  const m=matOf(x.materialeId);
+  const nome=x.matNome || (m&&m.nome) || "(materiale eliminato)";
+  const unita=x.unita || (m&&m.unita) || "";
+  const out=x.tipo==="uscita";
+  return `<div class="cestitem">
+    <div class="log ${out?"out":"in"}">
+      <div class="dot">${out?"📤":"📥"}</div>
+      <div class="info"><b>${esc(nome)}</b><div class="d">${fmtData(x.data)}${x.nota?" · "+esc(x.nota):""}<br><span class="delnote">cancellato il ${esc(x.del||"")}</span></div></div>
+      <div class="amt ${out?"out":"in"}">${out?"−":"+"}${nf(x.qta)} ${esc(unita)}</div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:2px">
+      <button class="btn ghost sm" onclick="ripristinaMov('${x.id}')">↩︎ Ripristina</button>
+      <button class="btn danger sm" onclick="eliminaDef('${x.id}')">Elimina def.</button>
+    </div>
+  </div>`;
+}
+function renderCestino(){
+  const cont=$("listCest");
+  cont.innerHTML = DB.cestino.length
+    ? DB.cestino.map(cestRow).join("")
+    : `<div class="empty"><div class="big">🗑</div>Il cestino è vuoto.</div>`;
+}
+function ripristinaMov(id){
+  const x=DB.cestino.find(c=>c.id===id); if(!x) return;
+  const mov={id:x.id,materialeId:x.materialeId,tipo:x.tipo,qta:x.qta,data:x.data,nota:x.nota,spesa:x.spesa};
+  DB.movimenti.push(mov);
+  DB.cestino=DB.cestino.filter(c=>c.id!==id);
+  const m=matOf(x.materialeId); if(m) recalc(m.id);
+  save(); render(); toast(m?"Movimento ripristinato":"Ripristinato (materiale mancante)");
+}
+function eliminaDef(id){
+  if(!confirm("Eliminare definitivamente questo movimento? Non sarà più recuperabile.")) return;
+  DB.cestino=DB.cestino.filter(c=>c.id!==id);
+  save(); renderCestino(); toast("Eliminato definitivamente");
+}
+function svuotaCestino(){
+  if(!DB.cestino.length){ toast("Il cestino è già vuoto"); return; }
+  if(!confirm(`Svuotare il cestino (${DB.cestino.length} movimenti)? Non saranno più recuperabili.`)) return;
+  DB.cestino=[]; save(); renderCestino(); toast("Cestino svuotato");
+}
+
+function renderTipi(){
+  const cont=$("listTipi");
+  if(!DB.tipi.length){
+    cont.innerHTML=`<div class="empty"><div class="big">🏷️</div>Nessuna tipologia.<br>Creane una per raggruppare i materiali.</div>`;
+    return;
+  }
+  cont.innerHTML=DB.tipi.map(t=>{
+    const n=DB.materiali.filter(m=>m.tipoId===t.id).length;
+    return `<div class="tipo" onclick="openTipo('${t.id}')">
+      <span class="sw" style="background:${t.colore}"></span>
+      <span class="nome">${esc(t.nome)}</span>
+      <span class="cnt">${n} prodotti</span><span class="go">›</span></div>`;
+  }).join("");
+}
+
+function renderSet(){
+  const on=!!localStorage.getItem(PINKEY);
+  $("pinStato").textContent=on?"Attivo":"Off";
+  $("pinStato").className="pill "+(on?"ok":"");
+  $("pinBtn").textContent=on?"Disattiva PIN":"Attiva PIN";
+  $("pinBtn").className="btn "+(on?"danger":"");
+  $("presetList").innerHTML = DB.presets.length
+    ? DB.presets.map((p,i)=>`<span class="qbtn tag2">${nf(p)}<button class="rmv" onclick="delPreset(${i})" aria-label="Rimuovi">✕</button></span>`).join("")
+    : '<span class="muted">Nessun tasto rapido impostato.</span>';
+  const dOn=!!localStorage.getItem(DECOYKEY);
+  $("decoyStato").textContent=dOn?"Attiva":"Off";
+  $("decoyStato").className="pill "+(dOn?"ok":"");
+  $("decoyOff").style.display=dOn?"none":"";
+  $("decoyOn").style.display=dOn?"":"none";
+}
+function addPreset(){
+  const v=parseFloat($("presetNew").value);
+  if(!(v>0)){ toast("Inserisci un numero maggiore di 0"); return; }
+  if(DB.presets.includes(v)){ toast("Già presente"); $("presetNew").value=""; return; }
+  DB.presets.push(v); DB.presets.sort((a,b)=>a-b);
+  save(); $("presetNew").value=""; renderSet(); toast("Tasto rapido aggiunto");
+}
+function delPreset(i){ DB.presets.splice(i,1); save(); renderSet(); }
+
+function openSheet(html){ $("sheet").innerHTML='<div class="grip"></div>'+html; $("modal").classList.add("show"); }
+function closeModal(){ $("modal").classList.remove("show"); }
+
+let editMatId="";
+function openMat(id){
+  editMatId=id||"";
+  const m=id?matOf(id):null;
+  const opz=DB.tipi.map(t=>`<option value="${t.id}" ${m&&m.tipoId===t.id?"selected":""}>${esc(t.nome)}</option>`).join("");
+  const attuale = m ? `<div class="hint" style="margin-bottom:14px">Attuale in magazzino: <b>${nf(m.giacenza)} ${esc(m.unita)}</b> · costo medio <b>${money(m.costo)}</b>. Giacenza e costo si aggiornano da soli con carichi e vendite.</div>` : "";
+  openSheet(`
+    <h3>${m?"Modifica materiale":"Nuovo materiale"}<span class="x" onclick="closeModal()">×</span></h3>
+    ${attuale}
+    <div class="field"><label>Nome</label><input id="fNome" value="${m?esc(m.nome):""}" placeholder="Es. Vite M6" /></div>
+    <div class="field"><label>Tipologia</label>
+      <select id="fTipo"><option value="">— nessuna —</option>${opz}</select>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="closeModal();openTipo()">＋ Nuova tipologia</button>
+    </div>
+    <div class="row">
+      <div class="field"><label>Unità di misura</label><input id="fUnita" value="${m?esc(m.unita):""}" placeholder="pz, kg, L…" oninput="updateMargineLive()" /></div>
+      <div class="field"><label>Prezzo di vendita (a unità)</label><input id="fPrezzo" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.prezzo):"0"}" oninput="updateMargineLive()" /></div>
+    </div>
+    <div class="field"><label>Soglia minima (avviso sotto scorta · 0 = off)</label>
+      <input id="fSoglia" type="number" inputmode="decimal" step="any" value="${m?nf(m.soglia):"0"}" /></div>
+    <hr class="sep"/>
+    <div class="sez"><span class="sez-tit">📦 Situazione iniziale</span></div>
+    <p class="muted" style="margin-bottom:10px">Giacenza e costo di partenza (prima dei carichi/vendite). Poi aggiorna con i <b>carichi</b>.</p>
+    <div class="row">
+      <div class="field"><label>Giacenza iniziale</label><input id="fApGiac" type="number" inputmode="decimal" step="any" value="${m?nf(m.apGiac):"0"}" /></div>
+      <div class="field"><label>Costo iniziale (a unità)</label><input id="fApCosto" type="number" inputmode="decimal" step="any" min="0" value="${m?nf(m.apCosto):"0"}" oninput="updateMargineLive()" /></div>
+    </div>
+    <div class="hint" id="margBox" style="margin-top:4px"></div>
+    <button class="btn" style="margin-top:14px" onclick="saveMat('${id||""}')">${m?"Salva modifiche":"Aggiungi materiale"}</button>
+    ${m?`<button class="btn danger" style="margin-top:10px" onclick="delMat('${id}')">Elimina materiale</button>`:""}
+  `);
+  updateMargineLive();
+  setTimeout(()=>$("fNome").focus(),120);
+}
+function updateMargineLive(){
+  const box=$("margBox"); if(!box) return;
+  const m=editMatId?matOf(editMatId):null;
+  const costo = m ? m.costo : (parseFloat(($("fApCosto")||{}).value)||0);
+  const prezzo=parseFloat(($("fPrezzo")||{}).value)||0;
+  const marg=prezzo-costo;
+  const u=(($("fUnita")||{}).value||"unità").trim()||"unità";
+  box.innerHTML=`Costo ${m?"medio":"iniziale"}: <b>${money(costo)}</b> · Prezzo: <b>${money(prezzo)}</b> · Margine: <b style="color:${marg>=0?'var(--acc)':'var(--out)'}">${money(marg)}</b> per ${esc(u)}`;
+}
+function saveMat(id){
+  const nome=$("fNome").value.trim();
+  if(!nome){ toast("Inserisci un nome"); return; }
+  const tipoId=$("fTipo").value||null;
+  const unita=$("fUnita").value.trim()||"pz";
+  const soglia=parseFloat($("fSoglia").value)||0;
+  const prezzo=parseFloat($("fPrezzo").value)||0;
+  const apGiac=parseFloat($("fApGiac").value)||0;
+  const apCosto=parseFloat($("fApCosto").value)||0;
+  if(id){ Object.assign(matOf(id),{nome,tipoId,unita,soglia,prezzo,apGiac,apCosto}); recalc(id); toast("Materiale aggiornato"); }
+  else { const nid=uid(); DB.materiali.push({id:nid,nome,tipoId,unita,soglia,prezzo,apGiac,apCosto,giacenza:apGiac,costo:apCosto}); recalc(nid); toast("Materiale aggiunto"); }
+  save(); closeModal(); render();
+}
+function delMat(id){
+  const m=matOf(id); if(!m) return;
+  const movs=DB.movimenti.filter(x=>x.materialeId===id);
+  if(!confirm(`Eliminare "${m.nome}"?${movs.length?`\n${movs.length} movimenti collegati finiranno nel cestino.`:""}`)) return;
+  movs.forEach(x=>{ DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m.nome, unita:m.unita})); });
+  DB.movimenti=DB.movimenti.filter(x=>x.materialeId!==id);
+  DB.materiali=DB.materiali.filter(x=>x.id!==id);
+  save(); closeModal(); render(); toast("Materiale eliminato");
+}
+
+function editMov(id){ openMov(null,null,id); }
+function openMov(tipo, matId, movId){
+  if(!DB.materiali.length){ toast("Aggiungi prima un prodotto"); closeModal(); go("mat"); return; }
+  const ed = movId ? DB.movimenti.find(x=>x.id===movId) : null;
+  if(ed){ tipo=ed.tipo; matId=ed.materialeId; }
+  if(!tipo) tipo="uscita";
+  const opz=DB.materiali.map(m=>`<option value="${m.id}" ${m.id===matId?"selected":""}>${esc(m.nome)} (${nf(m.giacenza)} ${esc(m.unita)})</option>`).join("");
+  const chips=DB.presets.map(p=>`<button type="button" class="qbtn" onclick="addQta(${p})">+${nf(p)}</button>`).join("")
+    + `<button type="button" class="qbtn clr" onclick="setQta(0)">azzera</button>`;
+  openSheet(`
+    <h3>${ed?"Modifica movimento":"Registra movimento"}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="seg">
+      <button id="segU" class="${tipo==="uscita"?"on":""}" onclick="setSeg('uscita')">📤 Uscita (dato via)</button>
+      <button id="segC" class="${tipo==="carico"?"on":""}" onclick="setSeg('carico')">📥 Carico</button>
+    </div>
+    <input type="hidden" id="mvTipo" value="${tipo}" />
+    <input type="hidden" id="mvEdit" value="${movId||""}" />
+    <div class="field"><label>Materiale</label><select id="mvMat" onchange="updateMovInfo()">${opz}</select></div>
+    <div class="field"><label>Quantità (anche a blocchi)</label>
+      <input id="mvQta" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${ed?nf(ed.qta):""}" oninput="updateMovInfo()" />
+      <div class="qgrid" style="margin-top:8px">${chips}</div>
+    </div>
+    <div class="field" id="mvSpesaWrap" style="${tipo==="carico"?"":"display:none"}">
+      <label>Costo speso per questo carico (€, totale)</label>
+      <input id="mvSpesa" type="number" inputmode="decimal" step="any" min="0" value="${ed&&typeof ed.spesa==="number"?nf(ed.spesa):""}" placeholder="quanto hai pagato in tutto" oninput="updateMovInfo()" />
+    </div>
+    <div class="hint" id="mvInfo" style="margin-bottom:14px"></div>
+    <div class="field"><label>Quando · giorno</label><input id="mvData" type="date" value="${ed?ed.data:($("movData").value||todayISO())}" /></div>
+    <div class="field"><label>Perché · nota</label><input id="mvNota" value="${ed?esc(ed.nota):""}" placeholder="Es. cliente, reparto, motivo…" /></div>
+    <button class="btn" onclick="saveMov()">${ed?"Salva modifiche":"Registra"}</button>
+    ${ed?`<button class="btn danger" style="margin-top:10px" onclick="delMov('${movId}')">Elimina movimento</button>`:""}
+  `);
+  updateMovInfo();
+  if(!ed) setTimeout(()=>{ const q=$("mvQta"); if(q) q.focus(); },120);
+}
+function setSeg(t){
+  $("mvTipo").value=t; $("segU").classList.toggle("on",t==="uscita"); $("segC").classList.toggle("on",t==="carico");
+  const w=$("mvSpesaWrap"); if(w) w.style.display=(t==="carico")?"":"none";
+  updateMovInfo();
+}
+function addQta(p){ const el=$("mvQta"); el.value=nf((parseFloat(el.value)||0)+p); updateMovInfo(); }
+function setQta(v){ const el=$("mvQta"); el.value=v?nf(v):""; updateMovInfo(); }
+function updateMovInfo(){
+  const box=$("mvInfo"); if(!box) return;
+  const tipo=$("mvTipo").value, m=matOf($("mvMat").value), qta=parseFloat(($("mvQta")||{}).value)||0;
+  if(!m){ box.innerHTML=""; return; }
+  if(tipo==="uscita"){
+    const g=qta*margineUnit(m);
+    box.innerHTML=`Costo medio <b>${money(m.costo)}</b> · prezzo <b>${money(m.prezzo)}</b> → guadagno stimato <b style="color:${g>=0?'var(--acc)':'var(--out)'}">${money(g)}</b>`;
+  } else {
+    const spesa=parseFloat(($("mvSpesa")||{}).value);
+    if(qta>0 && spesa>=0 && !isNaN(spesa)){
+      const nuovo=(m.giacenza+qta)>0 ? (m.giacenza*m.costo+spesa)/(m.giacenza+qta) : 0;
+      box.innerHTML=`Costo unitario di questo carico <b>${money(spesa/qta)}</b> → nuovo costo medio ≈ <b>${money(nuovo)}</b>`;
+    } else {
+      box.innerHTML=`Se non indichi il costo, il costo medio (<b>${money(m.costo)}</b>) resta invariato.`;
+    }
+  }
+}
+function saveMov(){
+  const editId=$("mvEdit").value||"";
+  const tipo=$("mvTipo").value;
+  const materialeId=$("mvMat").value;
+  const qta=parseFloat($("mvQta").value);
+  const data=$("mvData").value||todayISO();
+  const nota=$("mvNota").value.trim();
+  const spesaRaw=(tipo==="carico") ? $("mvSpesa").value : "";
+  if(!(qta>0)){ toast("Inserisci una quantità"); return; }
+  const m=matOf(materialeId); if(!m) return;
+
+  // controllo scorta per l'uscita (usa la giacenza al netto dell'eventuale vecchio movimento)
+  if(tipo==="uscita"){
+    let disp=m.giacenza;
+    const old0 = editId ? DB.movimenti.find(x=>x.id===editId) : null;
+    if(old0 && old0.materialeId===materialeId){ disp += (old0.tipo==="uscita"?old0.qta:-old0.qta); }
+    if(qta>disp && !confirm(`Stai dando via ${nf(qta)} ${m.unita} ma in giacenza ce ne sono ${nf(disp)}.\nProcedere comunque?`)) return;
+  }
+
+  const dato={materialeId,tipo,qta,data,nota};
+  if(tipo==="carico" && spesaRaw!=="" && !isNaN(parseFloat(spesaRaw))) dato.spesa=parseFloat(spesaRaw);
+
+  const old = editId ? DB.movimenti.find(x=>x.id===editId) : null;
+  const prevMat = old ? old.materialeId : null;
+  if(old){ Object.assign(old,{consumi:undefined,margine:undefined,spesa:undefined},dato); toast("Movimento aggiornato"); }
+  else { DB.movimenti.push(Object.assign({id:uid()},dato)); toast(tipo==="uscita"?"Uscita registrata":"Carico registrato"); }
+
+  recalc(materialeId);
+  if(prevMat && prevMat!==materialeId) recalc(prevMat);
+  save(); closeModal();
+  if(vista==="mov") $("movData").value=data;
+  render();
+}
+function delMov(id){
+  const x=DB.movimenti.find(m=>m.id===id); if(!x) return;
+  if(!confirm("Spostare questo movimento nel cestino? La giacenza verrà ripristinata.")) return;
+  const m=matOf(x.materialeId);
+  DB.movimenti=DB.movimenti.filter(mm=>mm.id!==id);
+  if(m) recalc(m.id);
+  DB.cestino.unshift(Object.assign({},x,{del:nowStamp(), matNome:m?m.nome:x.matNome, unita:m?m.unita:x.unita}));
+  save(); closeModal(); render(); toast("Spostato nel cestino");
+}
+
+let tipoColore=COLORI[0];
+function openTipo(id){
+  const t=id?tipoOf(id):null;
+  tipoColore=t?t.colore:COLORI[0];
+  const sw=COLORI.map(c=>`<button class="c ${c===tipoColore?"on":""}" data-c="${c}" style="background:${c}" onclick="pickColore('${c}')"></button>`).join("");
+  openSheet(`
+    <h3>${t?"Modifica tipologia":"Nuova tipologia"}<span class="x" onclick="closeModal()">×</span></h3>
+    <div class="field"><label>Nome</label><input id="tNome" value="${t?esc(t.nome):""}" placeholder="Es. Bevande, Imballaggi…" /></div>
+    <div class="field"><label>Colore</label><div class="color-row" id="colori">${sw}</div></div>
+    <button class="btn" onclick="saveTipo('${id||""}')">${t?"Salva":"Aggiungi"}</button>
+    ${t?`<button class="btn danger" style="margin-top:10px" onclick="delTipo('${id}')">Elimina tipologia</button>`:""}
+  `);
+  setTimeout(()=>$("tNome").focus(),120);
+}
+function pickColore(c){ tipoColore=c; document.querySelectorAll("#colori .c").forEach(b=>b.classList.toggle("on",b.dataset.c===c)); }
+function saveTipo(id){
+  const nome=$("tNome").value.trim();
+  if(!nome){ toast("Inserisci un nome"); return; }
+  if(id){ const t=tipoOf(id); t.nome=nome; t.colore=tipoColore; toast("Tipologia aggiornata"); }
+  else { DB.tipi.push({id:uid(),nome,colore:tipoColore}); toast("Tipologia aggiunta"); }
+  save(); closeModal(); render();
+}
+function delTipo(id){
+  const t=tipoOf(id); if(!t) return;
+  const n=DB.materiali.filter(m=>m.tipoId===id).length;
+  if(!confirm(`Eliminare la tipologia "${t.nome}"?${n?`\n${n} materiali resteranno senza tipologia.`:""}`)) return;
+  DB.materiali.forEach(m=>{ if(m.tipoId===id) m.tipoId=null; });
+  DB.tipi=DB.tipi.filter(x=>x.id!==id);
+  save(); closeModal(); render(); toast("Tipologia eliminata");
+}
+
+/* --- Backup cifrato (AES-256-GCM, chiave da password via PBKDF2) --- */
+function b64(buf){ const b=new Uint8Array(buf); let s=""; const CH=0x8000;
+  for(let i=0;i<b.length;i+=CH){ s+=String.fromCharCode.apply(null,b.subarray(i,i+CH)); } return btoa(s); }
+function unb64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
+async function deriveKey(pass, salt, it){
+  const km=await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:it, hash:"SHA-256"},
+    km, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+function download(text, name){
+  const blob=new Blob([text],{type:"application/octet-stream"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function esporta(){
+  if(!(window.crypto&&crypto.subtle)){ toast("Cifratura non disponibile qui"); return; }
+  const pass=prompt("Imposta una PASSWORD per proteggere il backup.\nSenza questa password il file non è leggibile da nessuno.");
+  if(pass==null) return;
+  if(pass.length<4){ toast("Password troppo corta (min 4 caratteri)"); return; }
+  const pass2=prompt("Ripeti la password per conferma:");
+  if(pass2==null) return;
+  if(pass!==pass2){ toast("Le password non coincidono"); return; }
+  try{
+    const it=150000;
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await deriveKey(pass, salt, it);
+    const plain=new TextEncoder().encode(JSON.stringify(DB));
+    const ct=await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, plain);
+    const out=JSON.stringify({app:"magazzino_enc", v:1, kdf:"PBKDF2", hash:"SHA-256", it,
+      salt:b64(salt), iv:b64(iv), ct:b64(ct)});
+    download(out, `magazzino-backup-${todayISO()}.mgz`);
+    toast("Backup cifrato esportato");
+  }catch(e){ toast("Errore durante la cifratura"); }
+}
+function importa(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async ()=>{
+    let obj; try{ obj=JSON.parse(r.result); }catch(e){ toast("File non valido"); ev.target.value=""; return; }
+    try{
+      if(obj && obj.app==="magazzino_enc"){
+        if(!(window.crypto&&crypto.subtle)){ toast("Decifratura non disponibile qui"); return; }
+        const pass=prompt("Password del backup:");
+        if(pass==null) return;
+        const key=await deriveKey(pass, unb64(obj.salt), obj.it||150000);
+        let ptBuf;
+        try{ ptBuf=await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(obj.iv)}, key, unb64(obj.ct)); }
+        catch(e){ toast("Password errata o file danneggiato"); return; }
+        applyImport(JSON.parse(new TextDecoder().decode(ptBuf)));
+      } else {
+        const d=obj.data||obj;
+        if(!d.materiali||!d.tipi||!d.movimenti){ toast("File non valido"); return; }
+        if(!confirm("Attenzione: questo backup NON è cifrato. Importarlo comunque?")) return;
+        applyImport(d);
+      }
+    }catch(e){ toast("File non valido"); }
+    finally{ ev.target.value=""; }
+  };
+  r.readAsText(f);
+}
+function applyImport(d){
+  if(!d||!d.materiali||!d.tipi||!d.movimenti){ toast("Backup incompleto"); return; }
+  if(!confirm("Importare questo backup? I dati attuali verranno sostituiti.")) return;
+  const presets=Array.isArray(d.presets)?d.presets:DB.presets;
+  DB=normalize({v:d.v,tipi:d.tipi,materiali:d.materiali,movimenti:d.movimenti, presets, cestino:d.cestino});
+  recalcAll(); save(); render(); toast("Backup importato");
+}
+function azzeraMovimenti(){
+  if(!confirm("Cancellare TUTTI i movimenti? Le giacenze restano invariate.")) return;
+  DB.materiali.forEach(m=>{ m.apGiac=m.giacenza; m.apCosto=m.costo; });  // fissa lo stato attuale come apertura
+  DB.movimenti=[]; recalcAll(); save(); render(); toast("Movimenti cancellati");
+}
+function azzeraTutto(){
+  if(!confirm("Cancellare TUTTO l'inventario (materiali, tipologie, movimenti)?\nNon annullabile.")) return;
+  if(!confirm("Sei davvero sicuro? Esporta un backup se non l'hai fatto.")) return;
+  DB={v:3,tipi:[],materiali:[],movimenti:[],presets:DB.presets,cestino:[]}; save(); render(); toast("Database azzerato");
+}
+
+async function sha(s){
+  try{
+    const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }catch(e){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return "f"+(h>>>0).toString(16); }
+}
+let pinMode="verify", pinBuf="", pinFirst="";
+function togglePin(){
+  if(localStorage.getItem(PINKEY)){
+    if(confirm("Disattivare la protezione con PIN?")){ localStorage.removeItem(PINKEY); renderSet(); toast("PIN disattivato"); }
+  } else { pinMode="set"; pinFirst=""; showLock("Crea un PIN","Scegli 4 cifre"); }
+}
+function showLock(tit,sub){ $("lockTit").textContent=tit; $("lockSub").textContent=sub||""; $("lockErr").textContent=""; pinBuf=""; drawPin(); $("lock").classList.add("show"); }
+function hideLock(){ $("lock").classList.remove("show"); }
+function drawPin(){ $("pinbox").innerHTML=[0,1,2,3].map(i=>`<div class="d ${i<pinBuf.length?"f":""}"></div>`).join(""); }
+function buildKeys(){
+  const k=$("keys"); k.innerHTML="";
+  ["1","2","3","4","5","6","7","8","9","","0","⌫"].forEach(v=>{
+    const b=document.createElement("button");
+    if(v===""){ b.className="blank"; b.disabled=true; }
+    else { b.textContent=v; b.onclick=()=>pinPress(v); }
+    k.appendChild(b);
+  });
+}
+function pinPress(v){
+  if(v==="⌫"){ pinBuf=pinBuf.slice(0,-1); drawPin(); return; }
+  if(pinBuf.length>=4) return;
+  pinBuf+=v; drawPin();
+  if(pinBuf.length===4) setTimeout(pinDone,150);
+}
+async function pinDone(){
+  const h=await sha(pinBuf);
+  if(pinMode==="verify"){
+    if(h===localStorage.getItem(PINKEY)) hideLock();
+    else { $("lockErr").textContent="PIN errato"; pinBuf=""; drawPin(); }
+  } else if(pinMode==="set"){
+    pinFirst=h; pinMode="confirm"; showLock("Conferma PIN","Ripeti le 4 cifre");
+  } else if(pinMode==="confirm"){
+    if(h===pinFirst){ localStorage.setItem(PINKEY,h); hideLock(); renderSet(); toast("PIN attivato"); }
+    else { $("lockErr").textContent="Non corrisponde, riprova"; pinMode="set"; pinFirst=""; showLock("Crea un PIN","Scegli 4 cifre"); }
+  }
+}
+
+/* ===== Copertura: calcolatrice realistica ===== */
+let decoy={cur:"0",prev:null,op:null,fresh:true,justEval:false};
+function resetCalc(){ decoy={cur:"0",prev:null,op:null,fresh:true,justEval:false}; drawCalc(); }
+function showDecoy(){ resetCalc(); $("calc").classList.add("show"); }
+function hideDecoy(){ $("calc").classList.remove("show"); }
+function buildDecoy(){
+  const pad=$("calcPad"); pad.innerHTML="";
+  const rows=[
+    [["AC","fn"],["±","fn"],["%","fn"],["÷","op"]],
+    [["7"],["8"],["9"],["×","op"]],
+    [["4"],["5"],["6"],["−","op"]],
+    [["1"],["2"],["3"],["+","op"]],
+    [["0","zero"],["."],["=","op"]]
+  ];
+  rows.forEach(row=>row.forEach(([lbl,cls])=>{
+    const b=document.createElement("button");
+    b.textContent=lbl; if(cls) b.className=cls;
+    if(cls==="op"){ b.dataset.op=lbl; b.onclick=()=> lbl==="=" ? cEquals() : cOp(lbl); }
+    else if(lbl==="AC"){ b.id="calcClear"; b.onclick=cClear; }
+    else if(lbl==="±"){ b.onclick=cNeg; }
+    else if(lbl==="%"){ b.onclick=cPct; }
+    else if(lbl==="."){ b.onclick=()=>cDigit("."); }
+    else { b.onclick=()=>cDigit(lbl); }
+    pad.appendChild(b);
+  }));
+}
+function trim(n){ if(!isFinite(n)) return "Errore"; return String(Math.round(n*1e10)/1e10); }
+function compute(a,op,b){ switch(op){case"+":return a+b;case"−":return a-b;case"×":return a*b;case"÷":return b===0?NaN:a/b;} return b; }
+function fmtCalc(s){
+  if(s==="Errore") return s;
+  const neg=s.startsWith("-"); if(neg) s=s.slice(1);
+  const dot=s.indexOf("."); let i=dot>=0?s.slice(0,dot):s, d=dot>=0?s.slice(dot):"";
+  i=i.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  return (neg?"-":"")+i+d;
+}
+function drawCalc(active){
+  $("calcDisp").textContent=fmtCalc(decoy.cur);
+  document.querySelectorAll("#calcPad .op").forEach(b=>b.classList.toggle("active", !!active && b.dataset.op===active && !decoy.justEval));
+  const cb=$("calcClear"); if(cb) cb.textContent=(decoy.cur!=="0"||decoy.op!==null||decoy.prev!==null)?"C":"AC";
+}
+function cDigit(d){
+  if(decoy.justEval){ decoy.cur="0"; decoy.fresh=true; decoy.justEval=false; }
+  if(decoy.fresh){ decoy.cur = d==="."?"0.":d; decoy.fresh=false; }
+  else if(d==="."){ if(!decoy.cur.includes(".")) decoy.cur+="."; }
+  else { decoy.cur = decoy.cur==="0"? d : decoy.cur+d; }
+  drawCalc();
+}
+function cOp(o){
+  if(decoy.op!==null && !decoy.fresh){ decoy.prev=compute(decoy.prev,decoy.op,parseFloat(decoy.cur)); decoy.cur=trim(decoy.prev); }
+  else { decoy.prev=parseFloat(decoy.cur); }
+  decoy.op=o; decoy.fresh=true; decoy.justEval=false; drawCalc(o);
+}
+function cNeg(){ if(decoy.cur!=="0"&&decoy.cur!=="Errore"){ decoy.cur=decoy.cur.startsWith("-")?decoy.cur.slice(1):"-"+decoy.cur; drawCalc(); } }
+function cPct(){ if(decoy.cur!=="Errore"){ decoy.cur=trim(parseFloat(decoy.cur)/100); decoy.fresh=false; drawCalc(); } }
+function cClear(){
+  if(decoy.cur!=="0"){ decoy.cur="0"; decoy.fresh=true; }
+  else { decoy.prev=null; decoy.op=null; decoy.fresh=true; }
+  decoy.justEval=false; drawCalc();
+}
+async function cEquals(){
+  if(decoy.op===null && /^[1-9]\d{3,}$/.test(decoy.cur)){
+    const h=await sha(decoy.cur);
+    if(h===localStorage.getItem(DECOYKEY)){ resetCalc(); hideDecoy(); return; }
+  }
+  if(decoy.op!==null){
+    decoy.cur=trim(compute(decoy.prev,decoy.op,parseFloat(decoy.cur)));
+    decoy.op=null; decoy.prev=null; decoy.fresh=true; decoy.justEval=true;
+  }
+  drawCalc();
+}
+async function attivaDecoy(){
+  const code=($("decoyCode").value||"").trim();
+  if(!/^[1-9]\d{3,}$/.test(code)){ toast("Almeno 4 cifre, senza iniziare da 0"); return; }
+  localStorage.setItem(DECOYKEY, await sha(code));
+  $("decoyCode").value=""; renderSet(); applyIdentity(); toast("Copertura attivata");
+}
+async function cambiaDecoy(){
+  const code=($("decoyNew").value||"").trim();
+  if(!/^[1-9]\d{3,}$/.test(code)){ toast("Almeno 4 cifre, senza iniziare da 0"); return; }
+  localStorage.setItem(DECOYKEY, await sha(code));
+  $("decoyNew").value=""; toast("Codice aggiornato");
+}
+function disattivaDecoy(){
+  if(!confirm("Disattivare la copertura? All'apertura non comparirà più la calcolatrice.")) return;
+  localStorage.removeItem(DECOYKEY);
+  renderSet(); applyIdentity(); toast("Copertura disattivata");
+}
+function updateLockBtn(){ const b=$("lockNow"); if(b) b.style.display=localStorage.getItem(DECOYKEY)?"":"none"; }
+
+/* ===== Identità installabile (nome + icona), adattata alla copertura ===== */
+function makeIcon(size, mode){
+  const c=document.createElement("canvas"); c.width=c.height=size; const x=c.getContext("2d");
+  const rad=size*0.22;
+  // sfondo arrotondato
+  x.fillStyle = mode==="calc" ? "#1c1c1e" : "#12161d";
+  roundRect(x,0,0,size,size,rad); x.fill();
+  if(mode==="calc"){
+    // griglia tasti stilizzata
+    const m=size*0.16, gap=size*0.07, cell=(size-2*m-2*gap)/3;
+    const cols=["#333","#333","#ff9f0a"];
+    for(let r=0;r<3;r++) for(let col=0;col<3;col++){
+      x.fillStyle = col===2? "#ff9f0a" : (r===0&&col<2? "#a5a5a5":"#4a4a4c");
+      const px=m+col*(cell+gap), py=m+size*0.14+r*(cell+gap);
+      roundRect(x,px,py,cell,cell,cell*0.28); x.fill();
+    }
+    x.fillStyle="#fff"; x.font=`700 ${size*0.11}px system-ui,sans-serif`; x.textAlign="right";
+    x.fillText("0", size-m, m+size*0.11);
+  } else {
+    // gradiente + scatola
+    const g=x.createLinearGradient(0,0,size,size); g.addColorStop(0,"#34D399"); g.addColorStop(1,"#22D3EE");
+    x.fillStyle=g; x.font=`${size*0.5}px sans-serif`; x.textAlign="center"; x.textBaseline="middle";
+    x.fillText("📥", size*0.5, size*0.56);
+  }
+  return c.toDataURL("image/png");
+}
+function roundRect(x,px,py,w,h,r){ x.beginPath(); x.moveTo(px+r,py);
+  x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r);
+  x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath(); }
+let manifestUrl=null;
+function applyIdentity(){
+  const covered=!!localStorage.getItem(DECOYKEY);
+  const nome = covered ? "Calcolatrice" : "Magazzino";
+  document.title = covered ? "Calcolatrice" : "Magazzino · inventario offline";
+  const mode = covered ? "calc" : "app";
+  try{
+    const icon180=makeIcon(180,mode), icon192=makeIcon(192,mode), icon512=makeIcon(512,mode);
+    let al=document.querySelector('link[rel="apple-touch-icon"]');
+    if(!al){ al=document.createElement("link"); al.rel="apple-touch-icon"; document.head.appendChild(al); }
+    al.href=icon180;
+    let fav=document.querySelector('link[rel="icon"]');
+    if(!fav){ fav=document.createElement("link"); fav.rel="icon"; document.head.appendChild(fav); }
+    fav.href=icon180;
+    const manifest={ name:nome, short_name:nome, display:"standalone", background_color:"#0e1116",
+      theme_color: covered?"#0b0b0d":"#0e1116", start_url:".", scope:".",
+      icons:[{src:icon192,sizes:"192x192",type:"image/png"},{src:icon512,sizes:"512x512",type:"image/png"}] };
+    if(manifestUrl) URL.revokeObjectURL(manifestUrl);
+    manifestUrl=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/manifest+json"}));
+    let ml=document.querySelector('link[rel="manifest"]');
+    if(!ml){ ml=document.createElement("link"); ml.rel="manifest"; document.head.appendChild(ml); ml.href=manifestUrl; }
+    else if(!ml.href || ml.href.startsWith("blob:")){ ml.href=manifestUrl; }  /* rispetta un manifest statico (PWA) */
+    let atl=document.querySelector('meta[name="apple-mobile-web-app-title"]'); if(atl) atl.content=nome;
+  }catch(e){}
+  updateLockBtn();
+}
+
+/* ===== Service worker per l'offline (attivo solo se servito su https/localhost) ===== */
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+
+/* ===== Avvio ===== */
+recalcAll(); save();
+buildKeys(); buildDecoy(); applyIdentity();
+$("movData").value=todayISO();
+if(localStorage.getItem(DECOYKEY)){ showDecoy(); }               // copertura attiva → SOLO calcolatrice (PIN ignorato)
+else if(localStorage.getItem(PINKEY)){ pinMode="verify"; showLock("Inserisci PIN","Accesso protetto locale"); }
+go("home");
+</script>
+</body>
+</html>
