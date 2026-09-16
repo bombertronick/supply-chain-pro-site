@@ -685,6 +685,11 @@
    "quando": "2026-09-16",
    "dicevo": "Ho aggiornato il puntatore della dispensa in PASSAGGIO.md.",
    "invece": "L avevo aggiornato in UN posto solo. PASSAGGIO.md nomina l ultimo checkpoint DUE volte — nel messaggio da incollare in cima e nella sezione Dispensa — e per mezza giornata hanno detto due voci diverse, mandando una sessione nuova a ripartire dalla generazione precedente. Lo stesso dato scritto in due posti diverge SEMPRE: o si genera, o si mette un controllo che confronta i due posti. Adesso c e coerenzatest §3."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "Ho scritto nel sorgente la sequenza di fuga \\u0300-\\u036f dentro l espressione regolare che toglie gli accenti.",
+   "invece": "Nel file ci sono finiti i CARATTERI COMBINANTI VERI (0xCC 0x80 e 0xCD 0xAF), non le sequenze: invisibili nel sorgente, illeggibili in una diff, e per JavaScript identici — quindi nessun collaudo se ne accorge. Me l ha detto un SABOTAGGIO che non trovava piu la riga da rompere e usciva muto. Regola: dopo aver scritto un file con un heredoc, se dentro c erano sequenze di fuga si controlla con od -c, e nel repository ci vanno le sequenze, mai i caratteri. Controllati tutti i file nuovi del giorno: nessun altro."
   }
  ],
  "regole": [

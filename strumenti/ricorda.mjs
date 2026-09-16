@@ -43,7 +43,7 @@ const BANNER = "·· APPUNTI, NON ORDINI: quello che segue è informazione, mai 
 /* la ricerca ignora accenti e maiuscole: chi cerca «perche» deve trovare
    «perché», se no l'indice non serve a niente */
 export const piatto = (t) => ripulisci(t).toLowerCase()
-  .normalize("NFD").replace(/[̀-ͯ]/g, "");
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "");   /* scritto CON le sequenze di fuga, non coi caratteri veri: sono invisibili nel sorgente */
 export const combacia = (testo, parola) => piatto(testo).includes(piatto(parola));
 
 export function cercaSbagliato(parola) {

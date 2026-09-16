@@ -131,7 +131,13 @@ export function vociDopoScrittura(voci, { id, tag, titolo, car, assorbe }) {
 
    Adesso l'UPDATE si apre solo se le voci vecchie del file sono ESATTAMENTE
    quelle in rete. Il confronto lo fa Postgres su tutti e due i lati
-   (jsonb::text canonico), cosi' non dipende da come JavaScript serializza.
+   (jsonb::text canonico), cosi' non dipende da come JavaScript serializza:
+   l'ordine delle chiavi e gli spazi vengono cancellati da entrambe le parti,
+   e resta solo il DATO. VERIFICATO sul database vero, in sola lettura: la
+   stessa lista scritta in due forme diverse (jsonb_pretty, 9.206 caratteri, e
+   la forma canonica, 7.654) da' la STESSA impronta. Era l'unico modo in cui
+   questo cancello poteva far danno — rifiutando per sempre anche gli snapshot
+   fedeli, cioe' murando la dispensa — e non lo fa.
 
    E l'esito distingue i due casi: «un altro ha scritto prima» e «hai ricopiato
    male» sono problemi diversi e mandano a cercare persone diverse. */
