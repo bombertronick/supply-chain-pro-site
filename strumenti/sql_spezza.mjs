@@ -116,7 +116,20 @@ select (select count(*) from atteso) as attese,
 } else if (vecchioF) {
   console.log("!! sorgente vecchio non trovato: audit.sql NON scritto");
 } else {
+  /* ── SENZA AUDIT NON E' UN SUCCESSO (16 settembre) ──
+     Prima questa era una riga di avviso e lo strumento usciva con 0: chi
+     dimenticava il quarto argomento otteneva i pezzi, un messaggio in mezzo a
+     dieci, e nessun audit. L'audit e' il cancello che a gen-6.11 ha trovato una
+     tessera diversa da quella provata in locale; saltarlo deve costare un
+     rifiuto, non una riga. Se davvero non lo si vuole, si dichiara:
+     SENZA_AUDIT=1. */
   console.log("·· senza il sorgente vecchio non si puo' scrivere l'audit per tessera");
+  if (process.env.SENZA_AUDIT !== "1") {
+    console.error("\n!! AUDIT NON SCRITTO: manca il sorgente vecchio.");
+    console.error("   node sql_spezza.mjs <file.sql> [caratteri] <vecchio.jsx>");
+    console.error("   Se vuoi davvero rilasciare senza audit per tessera: SENZA_AUDIT=1.");
+    process.exit(1);
+  }
 }
 console.log(`\n${statement.length} statement -> ${pezzi.length} pezzi in ${fuori}`);
 console.log("Si mandano IN ORDINE, uno per chiamata. Gli «update ... value || ...» UNA VOLTA SOLA.");

@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { execFileSync } from "child_process";
 import crypto from "crypto";
+import { bilancia } from "./bilancia.mjs";
 
 const [vecchioF, nuovoF, tag, ver] = process.argv.slice(2);
 const vecchio = readFileSync(vecchioF, "utf8");
@@ -40,6 +41,35 @@ for (const m of grezzo.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm)
 zone.sort((a, b) => a.off - b.off);
 for (let i = 1; i < zone.length; i++)
   if (zone[i].off < zone[i - 1].off + zone[i - 1].len) { console.error("!! zone sovrapposte"); process.exit(1); }
+
+/* ── LA BILANCIA, RIMESSA NELLA CATENA (16 settembre) ──
+   Questo controllo esisteva e l'ho PERSO: viveva nei genNNN_pairs.mjs, cioe'
+   nel protocollo delle coppie scritte a mano, ed e' rimasto indietro quando
+   sql_diff l'ha sostituito. Nessuno se n'e' accorto per venti generazioni,
+   perche' la sua assenza non fa diventare rosso niente — che e' esattamente il
+   tipo di perdita che questa casa dice di non voler fare.
+   Guarda una cosa sola: dentro una zona sostituita, tonde, graffe, quadre e
+   tag JSX devono restare in pari come le ha trovate. Le md5 dicono «il testo e'
+   quello che intendevo», NON «il testo ha senso»: e' con le md5 tutte verdi
+   che il 2 agosto e' partita una versione a cui mancava un tag di chiusura.
+   Provata a posteriori sulle zone vere di gen-6.20 (20 zone) e gen-6.21 (13):
+   zero falsi allarmi. Se uno sbilancio e' VOLUTO, la zona va allargata fino a
+   comprendere la parte che la riequilibra — oppure, per vederlo senza fermarsi,
+   BILANCIA=avvisa. */
+let sbilanciate = 0;
+zone.forEach((z, i) => {
+  if (!bilancia(vecchio.slice(z.off, z.off + z.len), z.testo, `zona ${i + 1} di ${zone.length}`)) sbilanciate++;
+});
+if (sbilanciate) {
+  if (process.env.BILANCIA === "avvisa") {
+    console.error(`!! ${sbilanciate} zone sbilanciate — vado avanti perche' BILANCIA=avvisa`);
+  } else {
+    console.error(`\n!! ${sbilanciate} zone su ${zone.length} lasciano la struttura diversa da come l'hanno trovata.`);
+    console.error("   Non scrivo niente. Allarga la zona fino alla parte che la riequilibra,");
+    console.error("   oppure, se lo sbilancio e' voluto e lo hai guardato, rilancia con BILANCIA=avvisa.");
+    process.exit(1);
+  }
+}
 
 /* ricostruzione locale: se non torna identica non si scrive niente */
 let out = "", cur = 0;

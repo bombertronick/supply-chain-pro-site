@@ -29,7 +29,18 @@ function tagJsx(s) {
     let j = i + 1;
     const chiusura = s[j] === "/";
     if (chiusura) j++;
-    if (!/[A-Z]/.test(s[j] || "")) continue;      // solo i componenti, non <div>
+    /* ── SOLO I COMPONENTI, NON <div> — E NON E' UNA PIGRIZIA ──
+       Il 16 settembre ho provato a estendere il conto anche ai tag minuscoli,
+       perche' un </div> perso e' esattamente l'errore per cui questo file
+       esiste. MISURATO sulle zone vere di quattro rilasci (gen-6.17 -> gen-6.21,
+       66 zone): con i soli maiuscoli 0 sbilanciate, coi minuscoli TRE falsi
+       allarmi. Due sono parole dentro un commento che sembrano tag —
+       «<dispositivo>» e «<caricamento>» — e uno e' un <main> legittimamente
+       aperto in una zona e chiuso fuori. Il 4,5% di falsi allarmi su un
+       controllo che blocca un rilascio vuol dire che a furia di aggirarlo si
+       smette di leggerlo: e' la stessa lezione scritta qui sopra, presa una
+       seconda volta. Resta com'e'. Chi lo riapre, lo misuri di nuovo. */
+    if (!/[A-Z]/.test(s[j] || "")) continue;
     let nome = "";
     while (j < s.length && /[\w.]/.test(s[j])) nome += s[j++];
     let graffe = 0, virg = null, autochiuso = false, k = j;

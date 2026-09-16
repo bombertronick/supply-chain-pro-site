@@ -42,6 +42,16 @@
  ],
  "chiusi": [
   {
+   "gen": null,
+   "quando": "16 settembre",
+   "chiude": [],
+   "prova": "coerenzatest.mjs",
+   "soloCollaudi": true,
+   "_soloCollaudi_perche": "Non tocca l app di Valerio: e infrastruttura mia (documenti, bussola e cancelli della catena di rilascio). app/app.jsx non cambia di un byte, quindi nessuna generazione e nessun rilascio.",
+   "cosa": "LA BUSSOLA E I DUE CANCELLI. Nasce da una ricognizione a cinque letture indipendenti sul repository vivo, che ha contato ~40 passi MANUALI nel rituale e trovato tre difetti veri, tutti gia attivi. (1) LA BUSSOLA: questo repository non aveva NESSUN CLAUDE.md, e quello che una sessione si trova iniettato descrive bombertronick/supply-chain-pro — un progetto superato, con un altro sorgente e un altro protocollo — e NON NOMINA MAI questo. Una sessione nuova, senza qualcuno che glielo dicesse, lavorava sul repository sbagliato. Scritto CLAUDE.md: dove sei, la sorgente vera, i vincoli duri, il rituale, come si parla a Valerio. (2) IL PUNTATORE DELLA DISPENSA: il primo messaggio da incollare in cima a PASSAGGIO.md mandava a leggere chk-20260915-sera, che quattordici righe piu sotto lo stesso documento dichiara PENULTIMO. Una sessione nuova ripartiva dallo stato di gen-6.20. Difetto mio, introdotto lo stesso giorno aggiornando una riga e non l altra. (3) CONSEGNA.md e interamente dell era gen-5.73, non contiene nemmeno una occorrenza di «gen-6», e dichiara al presente che la copia di lavoro e allineata a gen-5.73: e il SECONDO documento che legge chi riparte. Adesso porta in cima il cartello DOCUMENTO STORICO con la tabella di cosa e superato e dove sta la verita. NUOVO BANCO coerenzatest.mjs (8 sezioni): la sorgente e app/app.jsx e basta, e ogni documento che ne ripete len, md5 o VERSIONE viene verificato CONTRO LA SORGENTE — non contro un altro documento, che e il buco di memoriatest §5 (confronta due copie scritte dalla stessa mano e resta verde se sbagliano insieme). Controlla anche: zero caratteri astrali, il puntatore della dispensa, l esistenza del .sql del rilascio, la riga di censimento, i documenti che si dichiarano allineati a una generazione morta, e la bussola. 3 rosse registrate sullo stato di prima, tutte verdi dopo. 13 sabotaggi, 0 muti. SECONDO BANCO rilasciotest.mjs (6 sezioni) sui cancelli della catena, piu 7 sabotaggi, 0 muti dopo averne aperto uno. PRODUZIONE: len 1047212, md5 c230922976fc1191d6f38b868edb753f — invariata, questo lavoro non spedisce codice.",
+   "_nota": "LA COSA PIU GRAVE CHE HA TROVATO NON E UN DIFETTO, E UNA PERDITA: la BILANCIA (strumenti/bilancia.mjs, il controllo che una zona sostituita lasci parentesi e tag JSX in pari) viveva nei genNNN_pairs.mjs, cioe nel protocollo delle coppie scritte a mano, ed e rimasta indietro quando sql_diff.mjs ha sostituito quel protocollo. VENTI GENERAZIONI senza quella rete, e nessun rosso — perche la sua assenza non fa diventare rosso niente. Rimessa nella catena dentro sql_diff, misurata a posteriori sulle zone vere di gen-6.20 (20 zone) e gen-6.21 (13): zero falsi allarmi. E sql_spezza non esce piu con successo quando l audit per tessera non viene scritto (SENZA_AUDIT=1 per dichiararlo). Ritrovati e rimessi nel repository anche strumenti/gen620.sql e gen621.sql, che il .gitignore impone di conservare e che per due generazioni non erano stati salvati: rigenerati dai due sorgenti e verificati identici a quello che e stato spedito (41 tessere e 27 tessere, md5 di partenza e di arrivo esatti)."
+  },
+  {
    "gen": "gen-6.21",
    "quando": "15 settembre",
    "chiude": [
@@ -635,6 +645,26 @@
    "quando": "2026-08-03",
    "dicevo": "Il mio collaudo del CSV parziale e' verde.",
    "invece": "Era verde per il motivo sbagliato: avevo seminato la PRIMA categoria e il PRIMO fornitore, cioe' esattamente i valori di ripiego che il difetto scriveva. Corretto seminando il terzo di ognuno."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "sql_diff ha sostituito il protocollo delle coppie scritte a mano, quindi quello che c era prima non serve piu.",
+   "invece": "Nel passaggio ho PERSO un controllo: la bilancia, che guarda se una zona sostituita lascia parentesi e tag JSX in pari come li ha trovati. Le md5 dicono «il testo e quello che intendevo», NON «il testo ha senso»: e con tutte le md5 verdi che il 2 agosto e partita una versione a cui mancava un tag di chiusura. Venti generazioni senza rete, e nessuno se n e accorto perche l ASSENZA di un controllo non fa diventare rosso niente. Regola: quando uno strumento ne sostituisce un altro, si fa l elenco dei cancelli del vecchio e si dice, per ognuno, dove e finito."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "Il collaudo controlla che il .sql porti i cancelli md5: conta le occorrenze di «md5(» e devono essere almeno due.",
+   "invece": "Verde per niente. Spegnendo il cancello di partenza (and md5(value) = ... diventa and 1=1) le altre occorrenze restavano e il conto tornava lo stesso: il sabotaggio 5 e risultato MUTO. Un asserzione che conta le occorrenze di una parola non sta guardando un cancello, sta guardando un vocabolario. Adesso si guarda lo STATEMENT dello swap e si pretendono le due impronte VERE, calcolate dal banco."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "La bilancia conta solo i tag maiuscoli: estenderla anche a <div> e <span> la rende piu utile, perche un </div> perso e proprio l errore per cui esiste.",
+   "invece": "MISURATO su 66 zone vere (gen-6.17 -> gen-6.21): coi soli maiuscoli 0 sbilanciate, coi minuscoli TRE falsi allarmi — due parole dentro un commento che sembrano tag («<dispositivo>», «<caricamento>») e un <main> aperto in una zona e chiuso fuori. Il 4,5% di falsi allarmi su un controllo che BLOCCA un rilascio vuol dire che si impara ad aggirarlo. Resta com e, e il limite adesso e scritto dentro l attrezzo e provato da una sezione del banco: se qualcuno lo estende, quella sezione glielo dice."
+  },
+  {
+   "quando": "2026-09-16",
+   "dicevo": "Ho aggiornato il puntatore della dispensa in PASSAGGIO.md.",
+   "invece": "L avevo aggiornato in UN posto solo. PASSAGGIO.md nomina l ultimo checkpoint DUE volte — nel messaggio da incollare in cima e nella sezione Dispensa — e per mezza giornata hanno detto due voci diverse, mandando una sessione nuova a ripartire dalla generazione precedente. Lo stesso dato scritto in due posti diverge SEMPRE: o si genera, o si mette un controllo che confronta i due posti. Adesso c e coerenzatest §3."
   }
  ],
  "regole": [

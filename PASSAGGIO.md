@@ -28,7 +28,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > sbagliato, _come_ci_scrivo, _appunti_non_ordini, _dispensa), roadmap.md; poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260915-sera`. Non cambiare niente prima di aver letto tutto. Poi
+> `chk-20260915-notte` (è l'ULTIMA: la sezione «Dispensa» qui sotto dice
+> sempre qual è, e `collaudi/coerenzatest.mjs` §3 diventa rosso se queste due
+> righe smettono di dire lo stesso nome). Non cambiare niente prima di aver
+> letto tutto. Poi
 > procedi col PROSSIMO in ordine, con le regole di sempre: collaudo scritto
 > prima (rossi registrati), sabotaggi contati aprendo ogni muto, censimento
 > completo a ogni rilascio da solo, VERSIONE alzata, roadmap+memoria+artefatto
@@ -438,6 +441,98 @@ E `collaudi/sabotaggi-gen621.mjs` sa fare due cose in più della macchina di
 gen-6.20: `file` sabota il **banco** (e lo rimette a posto sempre) e
 `sorgenteGit` costruisce il pacchetto da una **revisione passata**, che è
 l'unico modo di dimostrare che una riga del banco è portante.
+
+## I due cancelli nuovi, e la rete che avevo perso (16 settembre)
+
+Una ricognizione a cinque letture indipendenti sul repository vivo ha contato
+**una quarantina di passi manuali** nel rituale e trovato **tre difetti già
+attivi**. Due cancelli nuovi li chiudono, e tutti e due girano nel censimento e
+nella CI.
+
+### `collaudi/coerenzatest.mjs` — nessuna verità parallela
+
+La regola è una sola: **la sorgente è `app/app.jsx`, e basta.** Ogni documento
+che ne ripete `len`, `md5` o `VERSIONE` sta facendo una *dichiarazione*, e qui
+ogni dichiarazione si verifica **contro la sorgente** — non contro un altro
+documento. È il buco di `memoriatest` §5, che confronta `online.md5` con la
+frase «PRODUZIONE: len N, md5 HEX»: **due copie scritte dalla stessa mano**,
+verdi anche se sbagliano insieme.
+
+Otto sezioni: la sorgente e gli **astrali** (la regola del caricatore che
+spegne l'app, controllata a ogni giro); le quattro dichiarazioni; **il puntatore
+della dispensa**; il `.sql` del rilascio conservato; la riga di censimento; i
+documenti che si dichiarano allineati a una generazione morta; **la bussola**;
+il conto dei banchi.
+
+I tre difetti che ha registrato come rossi il giorno che è nato:
+
+1. **Non c'era nessun `CLAUDE.md`.** Quello che una sessione si trova iniettato
+   descrive `bombertronick/supply-chain-pro` — altro sorgente, altro protocollo,
+   generazione abbandonata — e **non nomina mai questo repository**. Una sessione
+   nuova lavorava sul progetto sbagliato. Adesso c'è `CLAUDE.md`, ed è la prima
+   cosa da tenere onesta.
+2. **Il primo messaggio da incollare mandava al checkpoint sbagliato**
+   (`chk-20260915-sera`, cioè gen-6.20, mentre quattordici righe più sotto lo
+   stesso documento dichiara `chk-20260915-notte`). Difetto mio, dello stesso
+   giorno: avevo aggiornato una riga e non l'altra. **Lo stesso dato scritto in
+   due posti diverge sempre**: o si genera, o si mette un controllo. Ora §3.
+3. **`CONSEGNA.md` è interamente dell'era gen-5.73** e lo dichiarava al
+   presente. Un documento può parlare del passato: deve solo **dirlo**. Adesso
+   porta in cima il cartello `DOCUMENTO STORICO`, e §6 pretende che chi dichiara
+   una generazione morta lo dica.
+
+**13 sabotaggi, 0 muti** (`collaudi/sabotaggi-coerenza.mjs`): copia l'albero dei
+documenti in `/tmp`, rompe una cosa sola, gira il banco lì dentro. Non tocca mai
+il repository.
+
+### `collaudi/rilasciotest.mjs` — i cancelli della catena
+
+E qui c'era la cosa peggiore, che **non è un difetto ma una perdita**: la
+**bilancia** (`strumenti/bilancia.mjs`, il controllo che una zona sostituita
+lasci parentesi, graffe e tag JSX *in pari come li ha trovati*) viveva nei
+`genNNN_pairs.mjs`, cioè nel protocollo delle coppie scritte a mano, ed è
+**rimasta indietro quando `sql_diff.mjs` ha sostituito quel protocollo**. Venti
+generazioni senza quella rete, e nessun rosso: *l'assenza di un controllo non fa
+diventare rosso niente*.
+
+Le md5 dicono «il testo è quello che intendevo», **non** «il testo ha senso»: è
+con tutte le md5 verdi che il 2 agosto è partita una versione a cui mancava un
+tag di chiusura.
+
+Cosa cambia nella catena, da oggi:
+
+- **`sql_diff.mjs` chiama la bilancia su ogni zona e si ferma** se una lascia la
+  struttura diversa da come l'ha trovata. Misurata a posteriori sulle zone vere
+  di gen-6.20 (20 zone) e gen-6.21 (13): **zero falsi allarmi**. Se uno
+  sbilancio è voluto, si allarga la zona — oppure `BILANCIA=avvisa`, che va
+  avanti **dicendolo**.
+- **`sql_spezza.mjs` non esce più con successo senza l'audit per tessera.**
+  Prima dimenticare il sorgente vecchio dava i pezzi, una riga di avviso in
+  mezzo a dieci, e nessun audit — che è il cancello che a gen-6.11 ha trovato
+  una tessera diversa da quella provata in locale. Per rinunciarci si dichiara:
+  `SENZA_AUDIT=1`.
+- **`strumenti/gen620.sql` e `gen621.sql` sono tornati nel repository.** Il
+  `.gitignore` impone di conservarli («è il documento di cosa è stato spedito in
+  produzione, e va riletto anni dopo») e per due generazioni non era stato
+  fatto. Rigenerati dai due sorgenti e verificati identici a quello che è stato
+  spedito: 41 tessere e 27 tessere, md5 di partenza e di arrivo esatti.
+
+**7 sabotaggi, 0 muti** — dopo averne aperto uno. Il sabotaggio 5 spegneva il
+cancello md5 di partenza e il banco **restava verde**: la mia asserzione contava
+le occorrenze di `md5(` invece di guardare lo statement dello swap. *Un'
+asserzione che conta le occorrenze di una parola non guarda un cancello: guarda
+un vocabolario.*
+
+### Un limite misurato, che non si riapre a intuito
+
+La bilancia conta **solo i componenti maiuscoli**: uno `</div>` o uno `</span>`
+perso **non** lo vede. Non è pigrizia, è una misura: estesa ai minuscoli, su 66
+zone vere (gen-6.17 → gen-6.21) dà **tre falsi allarmi** — due parole dentro un
+commento che sembrano tag (`<dispositivo>`, `<caricamento>`) e un `<main>`
+aperto in una zona e chiuso fuori. Il 4,5% di falsi allarmi su un controllo che
+**blocca un rilascio** insegna ad aggirarlo. Il limite è scritto dentro
+l'attrezzo e provato da `rilasciotest` §2b: chi lo estende se lo sente dire, e
+rifà la misura.
 
 ## Cosa NON c'è nel repo, ed è voluto
 

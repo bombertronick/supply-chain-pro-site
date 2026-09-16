@@ -1,5 +1,22 @@
 # Supply Chain Pro — documento di consegna
 
+> ## DOCUMENTO STORICO — scritto per gen-5.73, non descrive il presente
+>
+> Vale come **storia** e come racconto di perché certe cose sono fatte così.
+> **Non vale come istruzioni.** Quello che qui è superato, e dove sta la verità
+> di oggi:
+>
+> | cosa | qui dice | oggi |
+> |---|---|---|
+> | copia di lavoro | allineata a gen-5.73 | `app/app.jsx`, generazione corrente in `PASSAGGIO.md` |
+> | `app:jsx:meta` | `{"len": …, "ver": "gen-5.NN"}` | stessa forma, valore vero in `PASSAGGIO.md` |
+> | protocollo di rilascio (sez. 2) | coppie scritte a mano in `strumenti/h5NN/`, `genNNN_pairs.mjs`, `sql_deploy.mjs` | `sql_diff.mjs` → `sql_spezza.mjs` → `sql_lotti.mjs`, un lotto per chiamata `execute_sql` |
+> | censimento | numeri dell'era gen-5 | riga per generazione in `PASSAGGIO.md` |
+>
+> **Il documento di riferimento è `PASSAGGIO.md`**, e la bussola per chi arriva
+> è `CLAUDE.md`. Questo cartello è tenuto onesto da `collaudi/coerenzatest.mjs`
+> §6: un documento può parlare del passato, ma deve dirlo.
+
 *Scritto il 1 agosto 2026, alla fine di una giornata di lavoro, perché fino a
 oggi tutto quello che sta in questo repository esisteva solo in una cartella
 temporanea legata a una singola sessione. L'app era al sicuro; la rete di
