@@ -13906,10 +13906,43 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
      «Incassa» sopra la fascia deve seguirla (gen-6.09) */
   const fasciaRef = useRef(null);
   const [altezzaFascia, setAltezzaFascia] = useState(0);
+  /* ── DUE COLONNE DA TABLET IN SU (gen-6.23, parole di Valerio del 17
+     settembre: «ottimizza per tablet la visualizzazione della cassa e sistema
+     anche la tendina delle aggiunte e' troppo ingombrante») ──
+     MISURATO su gen-6.22 prima di toccare, non stimato: a 1180x820 con due
+     piatti battuti «Incassa» finiva a 909px su 820 di schermo — 89 FUORI. Chi
+     batte non vedeva quanto stava facendo pagare senza scorrere, perche' la
+     Cassa era UNA colonna da telefono stirata larga: griglia sopra, conto
+     sotto. E la fascia degli ingredienti era larga 1156 su 1180, cioe' copriva
+     tre file di pizze E il conto.
+     LA SOGLIA E' 1024 e non 768: a 768 il listino scenderebbe a due colonne
+     strette e il conto a 360 non ci starebbe.
+     PERCHE' UNO STATO E NON UNA CLASSE: la fascia resta `fixed` (non si tocca
+     la sua struttura, che porta tre collaudi addosso) ma da qui in su va
+     allineata alla COLONNA del listino, e quella posizione non e' scrivibile
+     in CSS senza inseguire a mano la barra laterale (w-56) e il contenitore
+     (max-w-5xl mx-auto). Si misura la colonna e si passano left/right: nessun
+     numero magico da tenere allineato, e funziona a qualunque larghezza.
+     SOTTO LA SOGLIA NON CAMBIA NIENTE: `colonna` resta null e la fascia e' da
+     un bordo all'altro sopra la barra, esattamente come gen-6.04 l'ha lasciata. */
+  const listinoRef = useRef(null);
+  const [grande, setGrande] = useState(false);
+  const [colonna, setColonna] = useState(null);
   useEffect(() => {
     const misura = () => {
       const h = fasciaRef.current ? Math.round(fasciaRef.current.getBoundingClientRect().height) : 0;
       setAltezzaFascia((p) => (Math.abs(p - h) > 1 ? h : p));
+      /* questo effetto gira dopo OGNI disegno (nessuna lista di dipendenze,
+         com'era gia'): ogni set qui dentro deve restituire lo STESSO valore
+         quando niente e' cambiato, o si entra in un giro infinito. */
+      const largo = typeof window !== "undefined" && window.innerWidth >= 1024;
+      setGrande(largo);
+      const rl = listinoRef.current ? listinoRef.current.getBoundingClientRect() : null;
+      setColonna((p) => {
+        if (!largo || !rl) return p === null ? p : null;
+        const n = { left: Math.round(rl.left), right: Math.round(window.innerWidth - rl.right) };
+        return p && p.left === n.left && p.right === n.right ? p : n;
+      });
     };
     misura();
     window.addEventListener("resize", misura);
@@ -14585,6 +14618,15 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
       {/* l'ancora di «torna in cima»: sta FUORI dalla riga appiccicata,
           perche' una riga sticky e' gia' in cima e non saprebbe dove andare */}
       <div ref={cimaRef} data-cima-gruppi="1" />
+      {/* ═══ LE DUE COLONNE (gen-6.23) ═══
+          Da 1024px in su: listino a sinistra, conto a DESTRA e appiccicato in
+          alto, cosi' il totale non scorre mai via. Il conto sta a destra e non
+          a sinistra perche' il pollice che batte sta sul listino e l'occhio
+          che controlla il totale va a fine riga.
+          Sotto la soglia le due className sono stringhe vuote: il telefono
+          resta una colonna sola, identico a prima. */}
+      <div className={grande ? "flex gap-3 items-start" : ""}>
+      <div ref={listinoRef} data-listino="1" className={grande ? "flex-1 min-w-0" : ""}>
       {aFisarmonica && (
         /* APPICCICATA: una fisarmonica in posto avrebbe lasciato il pulsante
            «Fritti» sotto le venti pizze, cioe' sotto la piega, cioe' il
@@ -14687,6 +14729,8 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
             </div>
           </div>
         ))}
+      </div>
+      <div data-conto="1" className={grande ? "w-[360px] shrink-0 sticky top-2" : ""}>
       {carrello.length > 0 && (
         <Scheda className="p-3.5 mt-1">
           <div className="font-extrabold mb-2" style={{ color: T.ink }}>Il conto</div>
@@ -14772,6 +14816,8 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
           </div>
         </Scheda>
       )}
+      </div>
+      </div>
       {/* LO SPAZIATORE: la fascia e' alta ~96 e sta a 86 dal fondo; il
           paddingBottom del guscio (7rem = 112) non basta a far scorrere
           «Incassa» sopra di lei. Misurato, non a occhio: il collaudo §12
@@ -14818,7 +14864,8 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
              perche' quello e' l'unico stato che, dimenticato, fa sbagliare
              la pizza dopo. */
           <div ref={fasciaRef} data-fascia-chiusa="1" className="fixed z-30"
-            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            style={{ left: colonna ? colonna.left : 12, right: colonna ? colonna.right : 12,
+              bottom: colonna ? 12 : "calc(5.4rem + env(safe-area-inset-bottom))" }}>
             <button onClick={() => setFasciaSu(true)} aria-label={dove}
               className="w-full rounded-2xl px-3 flex items-center gap-2"
               style={{ minHeight: 48, background: inMano ? "#FFF6E8" : "#fff",
@@ -14833,7 +14880,8 @@ function VistaCassa({ stato, profilo, muta, mutaDato, mostraToast, sez = "batter
         );
         return (
           <div ref={fasciaRef} data-fascia="1" className="fixed z-30"
-            style={{ left: 12, right: 12, bottom: "calc(5.4rem + env(safe-area-inset-bottom))" }}>
+            style={{ left: colonna ? colonna.left : 12, right: colonna ? colonna.right : 12,
+              bottom: colonna ? 12 : "calc(5.4rem + env(safe-area-inset-bottom))" }}>
             <div className="rounded-2xl p-2" style={{ background: inMano ? "#FFF6E8" : "#fff",
               border: `1.5px solid ${inMano ? T.ambra : T.bordo}`, boxShadow: "0 12px 30px -14px rgba(20,30,60,.45)" }}>
               <div className="flex items-center gap-2 mb-1.5">
