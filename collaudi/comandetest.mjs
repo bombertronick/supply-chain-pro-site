@@ -61,14 +61,32 @@ base.listino = [
 base.postazioni = [
   { id: "po-fri", nome: "Friggitoria", sedeId: "", gruppi: ["Fritti", "Dolci"] },
   { id: "po-piz", nome: "Pizzeria", sedeId: "", gruppi: ["pizze"] },
+  /* ── LA TERZA POSTAZIONE ESISTE PER UNA RAGIONE PRECISA (gen-6.23) ──
+     Da questa generazione le Comande sono in barra solo a chi una postazione
+     e' stata ASSEGNATA, quindi OpZero una ce l'ha. Ma non puo' essere una
+     delle due che le scene usano: il profilo ci sarebbe gia' SEDUTO, e
+     `siediti` cerca il bottone «Siediti a X» che in quel caso non esiste —
+     il banco fallirebbe per la sedia, non per la comanda.
+     «Vini» non e' il gruppo di nessuna voce di questo listino, percio' questa
+     postazione non rivendica niente e non sporca nessuna misura: serve solo a
+     dire «a questo profilo la cucina e' stata assegnata».
+     E NON SI CHIAMA «Banco»: §6 ne CREA una con quel nome dalla UI e poi la
+     cerca per nome — con due omonime trovava questa e leggeva i gruppi
+     sbagliati. Costato un giro rosso, scritto qui perche' non ricapiti. */
+  { id: "po-cantina", nome: "Cantina", sedeId: "", gruppi: ["Vini"] },
 ];
 
 const PR = {
   admin: { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#111", pinHash: hash("1234") },
   opZero: { id: "pr-o0", nome: "OpZero", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-    magazziniIds: [linea.id], pinHash: hash("2222") },
+    magazziniIds: [linea.id], postazioniIds: ["po-cantina"], pinHash: hash("2222") },
   opCassa: { id: "pr-ok", nome: "OpCassa", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
     magazziniIds: [linea.id], cassa: true, pinHash: hash("2222") },
+  /* gen-6.23: la CUCINA vera, cioe' quella a cui la postazione e' stata
+     ASSEGNATA. Prima non serviva distinguerla, perche' il posto vuoto andava
+     alla cucina senza chiedere niente. */
+  opCucina: { id: "pr-oc", nome: "OpCucina", ruolo: "operatore", sedeId: FM.id, colore: "#F59E0B",
+    magazziniIds: [linea.id], postazioniIds: ["po-fri"], pinHash: hash("7777") },
 };
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -125,16 +143,36 @@ const alzati = async (p, nomePost) => {
 
 /* ═══ 1. LA BARRA: le Comande sono dell'operatore col posto libero ═══ */
 console.log("\n— 1. barra e porte —");
-const O0 = await apri(base, [PR.opZero], "OpZero", "2222");
+const NUDO = { id: "pr-nu", nome: "OpNudo", ruolo: "operatore", sedeId: FM.id, colore: "#94A3B8",
+  magazziniIds: [linea.id], pinHash: hash("9999") };
+const O0 = await apri(base, [NUDO], "OpNudo", "9999");
 await prova("§1", async () => {
   const nav = await testoNav(O0.p);
-  ok(/Comande/.test(nav), "operatore tutto-spento: «Comande» è la quinta voce (il posto della Plancia filtrata)");
+  /* ── LA REGOLA E' CAMBIATA (gen-6.23) ──
+     Fino a ieri qui si leggeva: «operatore tutto-spento: Comande è la quinta
+     voce (il posto della Plancia filtrata)». Era vero, ed era voluto da
+     gen-5.98: il posto lasciato libero dalla Plancia andava alla cucina senza
+     chiedere niente a nessuno.
+     Parole di Valerio, 17 settembre, guardando il profilo «Luca»: «al profilo
+     non ho assegnato le comande ma le vede». Da qui in poi un posto vuoto non
+     e' un buon motivo per regalare una sezione: le Comande le vede chi ha una
+     postazione ASSEGNATA, e §1z qui sotto misura il verso opposto. */
+  ok(!/Comande/.test(nav), "operatore tutto-spento SENZA postazioni: «Comande» NON è in barra (gen-6.23)");
   ok(!/Cassa/.test(nav), "e la Cassa continua a non esserci: guardare non è battere");
   await lente(O0.p, "comande");
   ok(/comande in cucina/i.test(await testoDi(O0.p)), "la lente trova «Le comande in cucina»");
   await chiudiLente(O0.p);
 });
 await O0.ctx.close();
+/* IL VERSO OPPOSTO, e senza di lui §1 direbbe solo «non c'e'» senza dire mai
+   «quando c'e', si vede»: mezza misura e' peggio di nessuna. */
+const OCU = await apri(base, [PR.opCucina], "OpCucina", "7777");
+await prova("§1z", async () => {
+  const nav = await testoNav(OCU.p);
+  ok(/Comande/.test(nav),
+    "operatore CON una postazione assegnata: «Comande» prende il posto della Plancia, come da gen-5.98");
+});
+await OCU.ctx.close();
 const AD = await apri(base, [PR.admin], "Admin", "1234");
 await prova("§1b", async () => {
   const nav = await testoNav(AD.p);

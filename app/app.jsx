@@ -2884,6 +2884,26 @@ function puoCassa(profilo) {
 function soloCassa(profilo) {
   return profilo?.ruolo !== "admin" && !!profilo?.soloCassa && puoCassa(profilo);
 }
+/* ── I MESTIERI UNICI (gen-6.23, parole di Valerio del 17 settembre: «ogni
+   profilo deve vedere solo cio' che gli si assegna, che faccia parte delle
+   postazioni o dei profili conteggio (quindi come la cassa)») ──
+   Sono i GEMELLI di soloCassa, e come lei sono INTERRUTTORI DICHIARATI. Il
+   meccanismo l'ha nominato Valerio stesso — «quindi come la cassa» — e
+   combacia con la regola scritta qui sopra: avere le postazioni assegnate non
+   toglie niente DA SOLO. Dedurre il permesso da un'assegnazione e' la scelta
+   che questa casa ha gia' respinto: un profilo perderebbe voci senza che
+   nessuno abbia spento niente, e chi assegna non saprebbe di aver chiuso una
+   porta. mestiereunicotest §10 e' il guardiano di quella regola.
+   Ognuno e' appeso alla cosa che rende il mestiere possibile, come soloCassa
+   e' appeso a puoCassa: senza postazioni «solo alle postazioni» sarebbe una
+   stanza vuota, e senza magazzini «solo ai conteggi» non avrebbe niente da
+   contare. */
+function soloPostazioni(profilo) {
+  return profilo?.ruolo !== "admin" && !!profilo?.soloPostazioni && (profilo?.postazioniIds || []).length > 0;
+}
+function soloConteggi(profilo) {
+  return profilo?.ruolo !== "admin" && !!profilo?.soloConteggi && (profilo?.magazziniIds || []).length > 0;
+}
 /* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
    Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
    specialita' di ruolo che resta e' che il laboratorio e' competente solo
@@ -4580,7 +4600,11 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
      derivato da stato.profili ed e' vivo, quindi un permesso acceso o spento
      dall'admin arriva al poll dopo senza che nessuno ricarichi niente. */
   const soloQui = soloCassa(profilo);
-  const [vista, setVista] = useState(soloQui ? "cassa" : "home");
+  const soloPost = soloPostazioni(profilo);
+  const soloCont = soloConteggi(profilo);
+  /* chi ha UN mestiere solo atterra dentro il suo, non sulla Home: la Home e'
+     un indice, e a un indice di una stanza sola non serve nessuno. */
+  const [vista, setVista] = useState(soloQui ? "cassa" : soloPost ? "comande" : soloCont ? "conteggi" : "home");
   const [guida, setGuida] = useState(null);     // tutorial in corso: array di passi
   const [aiuto, setAiuto] = useState(false);    // menù "?" (guida)
   const [cerca, setCerca] = useState(false);    // ricerca globale dall'intestazione
@@ -4665,7 +4689,13 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
     ...(soloQui ? [] : [{ id: "cassa-esci", nome: "Esci", icona: ArrowLeft, pronta: true,
       attiva: false, azione: () => naviga("home") }]),
   ];
-  const NAV = soloQui ? BARRA_CASSA : {
+  /* UNA VOCE SOLA, e non e' una svista: dice DOVE SEI, come fa la barra della
+     Cassa con le sue tre. L'uscita non sta qui ma in alto a destra, la stessa
+     scelta di gen-6.17 — due bottoni «Esci» sulla stessa schermata sono una
+     trappola. */
+  const BARRA_POSTAZIONI = [{ id: "comande", nome: "Comande", icona: CheckCheck, pronta: true }];
+  const BARRA_CONTEGGI = [{ id: "conteggi", nome: "Conteggi", icona: ClipboardList, pronta: true }];
+  const NAV = soloQui ? BARRA_CASSA : soloPost ? BARRA_POSTAZIONI : soloCont ? BARRA_CONTEGGI : {
     admin: [
       { id: "home", nome: "Home", icona: Home, pronta: true },
       { id: "magazzini", nome: "Magazzini", icona: Boxes, pronta: true },
@@ -4701,9 +4731,22 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
        restava con quattro voci — quel posto e' della cucina, che e'
        esattamente chi guarda le comande tutto il servizio. Chi ha cassa
        o correzioni tiene la sua voce e raggiunge le Comande dalla lente,
-       come l'admin; il laboratorio resta com'e'. */
+       come l'admin; il laboratorio resta com'e'.
+       ── MA SOLO A CHI LE POSTAZIONI SONO STATE ASSEGNATE (gen-6.23) ──
+       Parole di Valerio, 17 settembre: «al profilo non ho assegnato le comande
+       ma le vede». Era vero, ed era voluto: gen-5.98 dava quel posto alla
+       cucina senza chiedere niente, perche' il posto era vuoto e qualcuno
+       doveva occuparlo. Con la regola nuova — «ogni profilo vede solo cio' che
+       gli si assegna» — un posto vuoto non e' un buon motivo per regalare una
+       sezione: chi non ha nessuna postazione resta con quattro voci, e quattro
+       voci stanno benissimo (il tetto e' cinque).
+       NON E' LA DEDUZIONE CHE QUESTA CASA VIETA: li' il timore e' che un
+       profilo PERDA una porta che qualcuno gli aveva aperto. Qui la porta non
+       gliel'aveva aperta nessuno — era un regalo del posto libero. L'assegnare
+       una postazione RESTA l'atto esplicito, come vuole la regola. */
     .map((v) => (v.id === "plancia" && profilo.ruolo === "operatore"
       && !puoCassa(profilo) && !puoCorreggere(profilo)
+      && (profilo.postazioniIds || []).length > 0
       ? { id: "comande", nome: "Comande", icona: CheckCheck, pronta: true } : v))
     /* la Plancia e' un cruscotto di comandi: senza «correzioni» ne'
        «struttura» e' una sala macchine con le leve spente — meglio nessuna
@@ -4772,6 +4815,11 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
          filtrati; questo e' il muro di riserva, che vale anche per le porte
          di domani — la stessa ragione per cui il gate esiste (gen-5.95). */
       (soloQui && vista !== "cassa") ||
+      /* gen-6.23: lo stesso muro di riserva per gli altri due mestieri unici.
+         Vale anche per le porte di domani, che e' la ragione per cui il gate
+         esiste e non ci si affida al fatto che «nessun bottone ci porta». */
+      (soloPost && vista !== "comande") ||
+      (soloCont && vista !== "conteggi") ||
       (!admin && ["catalogo", "analisi", "accessi", "memoria", "sistema", "altro", "sedi", "profili", "storico", "listino", "informazioni"].includes(vista)) ||
       (!admin && vista === "storico-ordini" && !puoOrdinare(profilo)) ||
       (!admin && vista === "plancia" && !puoCorreggere(profilo)) ||
@@ -7650,6 +7698,17 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
   const [ordini, setOrdini] = useState(!!item?.ordini);
   const [cassa, setCassa] = useState(!!item?.cassa);
   const [soloBanco, setSoloBanco] = useState(!!item?.soloCassa);
+  const [soloPosti, setSoloPosti] = useState(!!item?.soloPostazioni);
+  const [soloCont, setSoloCont] = useState(!!item?.soloConteggi);
+  /* I TRE MESTIERI UNICI SI ESCLUDONO A VICENDA: accenderne uno spegne gli
+     altri due. Non e' una raffinatezza — due accesi insieme vorrebbero dire
+     due stanze uniche, cioe' niente, e il primo `if` della catena vincerebbe
+     in silenzio lasciando l'admin convinto di aver scelto l'altro. */
+  const unicoMestiere = (quale) => {
+    setSoloBanco(quale === "cassa" ? !soloBanco : false);
+    setSoloPosti(quale === "postazioni" ? !soloPosti : false);
+    setSoloCont(quale === "conteggi" ? !soloCont : false);
+  };
   const [pin, setPin] = useState("");
 
   const sediOk = stato.sedi.filter((s) => (ruolo === "laboratorio" ? s.tipo === "laboratorio" : s.tipo === "operatore"));
@@ -7698,6 +7757,10 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
            una barra di sole voci della Cassa addosso a chi in Cassa non puo'
            entrare sarebbe una porta su un muro (gen-6.17) */
         soloCassa: ruolo === "admin" ? undefined : ((cassa && soloBanco) || undefined),
+        /* stessa regola dei gemelli: appesi a cio' che rende il mestiere
+           possibile, e assenti quando sono spenti */
+        soloPostazioni: ruolo === "admin" || postIds.length === 0 ? undefined : (soloPosti || undefined),
+        soloConteggi: ruolo === "admin" || magIds.length === 0 ? undefined : (soloCont || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -7810,9 +7873,24 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
           {/* compare solo se la cassa e' accesa: senza, sarebbe un
               interruttore che non puo' fare niente (gen-6.17) */}
           {cassa && (
-            <InterruttoreAut acceso={soloBanco} onCambia={() => setSoloBanco((v) => !v)}
+            <InterruttoreAut acceso={soloBanco} onCambia={() => unicoMestiere("cassa")}
               titolo="Sta solo in cassa"
               sotto="Chi lo ha acceso apre l'app direttamente sulla Cassa e sotto il pollice trova Battere · Clienti · Giornata, niente altro: né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi al banco batte e basta." />
+          )}
+          {/* ── GLI ALTRI DUE MESTIERI UNICI (gen-6.23) ──
+              Compaiono solo quando c'e' qualcosa a cui restare: senza
+              postazioni assegnate «sta solo alle postazioni» sarebbe una porta
+              su una stanza vuota, esattamente come «sta solo in cassa» senza
+              la cassa (gen-6.17). */}
+          {postIds.length > 0 && (
+            <InterruttoreAut acceso={soloPosti} onCambia={() => unicoMestiere("postazioni")}
+              titolo="Sta solo alle postazioni"
+              sotto="Chi lo ha acceso apre l'app direttamente sulle Comande e vede SOLO le comande che gli arrivano: niente Home, né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi in cucina guarda lo schermo e spunta quello che esce." />
+          )}
+          {magIds.length > 0 && (
+            <InterruttoreAut acceso={soloCont} onCambia={() => unicoMestiere("conteggi")}
+              titolo="Sta solo ai conteggi"
+              sotto="Chi lo ha acceso apre l'app direttamente sui Conteggi e vede solo quelli: niente Home, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi passa il turno a contare le linee e basta." />
           )}
           <InterruttoreAut acceso={struttura} onCambia={() => setStruttura((v) => !v)}
             titolo="Può modificare la struttura dei magazzini"

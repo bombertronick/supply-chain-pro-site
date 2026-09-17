@@ -56,6 +56,14 @@ base.postazioni = [
   { id: "po-fri-a", nome: "Friggitoria A", sedeId: sedeA.id, gruppi: ["Fritti"] },
   { id: "po-piz-b", nome: "Pizzeria B", sedeId: sedeB.id, gruppi: ["Pizze"] },
   { id: "po-tut", nome: "Passe tutte", sedeId: "", gruppi: ["Pizze"] },
+  /* gen-6.23: la postazione che serve a Nino per avere le Comande in barra.
+     DEVE essere locale alla sede B: «Passe tutte» e' dichiarata per tutte le
+     sedi, e darla a Nino faceva arrivare in sede B le comande della sede A —
+     cioe' rompeva proprio il filtro che §5 e §6 misurano. Costato un giro
+     rosso, scritto qui perche' non ricapiti.
+     «Vini» non e' il gruppo di nessuna voce di questo listino: questa
+     postazione non rivendica niente e non sporca nessuna misura. */
+  { id: "po-bar-b", nome: "Bar B", sedeId: sedeB.id, gruppi: ["Vini"] },
 ];
 /* una vendita battuta nella sede A, mezz'ora fa (dentro le 12 ore) */
 const t0 = Date.now() - 30 * 60 * 1000;
@@ -71,9 +79,19 @@ const PR = {
   /* Marco lavora in sede A e la sua postazione e' la Friggitoria */
   marco: { id: "pr-m", nome: "Marco", ruolo: "operatore", sedeId: sedeA.id, colore: "#3B82F6",
     magazziniIds: [lineaA.id], postazioniIds: ["po-fri-a"], pinHash: hash("3333") },
-  /* Nino lavora in sede B e non ha nessuna postazione assegnata */
+  /* Nino lavora in sede B. Fino a gen-6.22 qui non aveva NESSUNA postazione
+     assegnata, e le Comande in barra gli arrivavano lo stesso: era la regola
+     del «posto vuoto» di gen-5.98.
+     Da gen-6.23 quella regola e' caduta — parole di Valerio, 17 settembre,
+     guardando il profilo «Luca»: «al profilo non ho assegnato le comande ma
+     le vede» — e senza assegnazione la voce non c'e' piu'.
+     Gli si da' «Bar B» e NON «Pizzeria B» di proposito: §6 deve poter
+     cliccare «Siediti a Pizzeria B», e a una sedia dove sei gia' seduto quel
+     bottone non esiste. E nemmeno «Passe tutte», che vale per TUTTE le sedi e
+     gli farebbe arrivare le comande della sede A. Le due sezioni misurano il
+     FILTRO DI SEDE, non l'assegnazione: con «Bar B» misurano ancora quello. */
   nino: { id: "pr-n", nome: "Nino", ruolo: "operatore", sedeId: sedeB.id, colore: "#3B82F6",
-    magazziniIds: [], pinHash: hash("4444") },
+    magazziniIds: [], postazioniIds: ["po-bar-b"], pinHash: hash("4444") },
 };
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
