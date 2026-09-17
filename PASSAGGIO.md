@@ -112,7 +112,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   di ogni voce di qua e di là, da confrontare prima di scrivere.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL;
-  gen-6.21 e' la **Versione 32**). Prima di ripubblicare si passa da
+  gen-6.22 e' la **Versione 33**). Prima di ripubblicare si passa da
   `node strumenti/artefatto-tocco.mjs <file>`: prova la copia PUBBLICATA, che
   non e' il file del repository. E prima ancora si LEGGE l'artefatto pubblicato
   (`action: "read"`): il corpo che torna, tolto l'involucro dell'host, deve
