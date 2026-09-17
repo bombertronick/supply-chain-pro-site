@@ -9,12 +9,16 @@
    IL BERSAGLIO e' strumenti/server/app_kv_set.sql (o VERO_SQL). Serve dentro
    collaudi/ perche' servertest.mjs risolve «pg» da collaudi/node_modules.
 
-   UNA COSA IMPARATA E SCRITTA: il sabotaggio che rimette il FOR UPDATE DENTRO
-   il blocco EXCEPTION («Modifica 1» del disegno) NON e' qui, perche' NON
-   arrossisce niente: misurato 40 gare su 40, l'ON CONFLICT dell'INSERT
-   serializza la gara sul valore corrotto a prescindere dalla posizione del
-   lucchetto. La tessera percio' non tocca quella struttura, e non c'e' un
-   sabotaggio per una riga che non cambia niente.
+   UNA COSA IMPARATA A CARO PREZZO, E SCRITTA QUI PERCHE' NON SI RIPETA: per un
+   giro intero questo file ha portato la frase «il sabotaggio che rimette il FOR
+   UPDATE DENTRO il blocco EXCEPTION non arrossisce niente, misurato 40 gare su
+   40». Era FALSA. Quelle 40 gare correvano sullo STESSO token, e a mettere in
+   fila le due casse era l'UPDATE di app_sess_valida sulla riga di sessione
+   condivisa — mai il cancello. Con un token per cassa, come in pizzeria, il
+   difetto si vede subito: 98 vendite perse su 100. Quel sabotaggio adesso c'e',
+   e' S9, e arrossisce §8a e §8d.
+   LA REGOLA CHE NE RESTA: un MUTO non e' mai una notizia sul codice finche' non
+   hai guardato se e' il BANCO a non saper distinguere i due mondi.
 
    Uso: node sabotaggi-server.mjs [numero]   (senza numero: tutti) */
 import { readFileSync, writeFileSync, appendFileSync } from "fs";
@@ -71,8 +75,44 @@ const SABOTAGGI = [
 
   { n: 8, nome: "via la riparazione del NUL",
     attesa: "§11 rossa: uno stato con l'escape NUL manda in errore ::jsonb e spegne il cancello per tutti",
-    da: "    p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');\n",
-    a: "" },
+    da: `    EXCEPTION WHEN others THEN
+      p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');
+      BEGIN
+        v_atteso := (p_value::jsonb ->> 'revBase')::numeric;
+      EXCEPTION WHEN others THEN v_atteso := NULL;
+      END;
+    END;`,
+    a: `    EXCEPTION WHEN others THEN v_atteso := NULL;
+    END;` },
+
+  { n: 9, nome: "via la Modifica 1: il lucchetto torna DENTRO il blocco con l'EXCEPTION",
+    attesa: "§8a e §8d rosse: sul valore corrotto il rollback della sottotransazione rilascia il lucchetto, passano due casse e una vendita sparisce sotto l'altra",
+    da: `      SELECT true INTO v_c_e FROM public.kv_store WHERE key = p_key FOR UPDATE;
+      v_c_e := coalesce(v_c_e, false);
+      IF v_c_e THEN
+        BEGIN
+          SELECT (value::jsonb ->> 'rev')::numeric INTO v_ora
+            FROM public.kv_store WHERE key = p_key;
+        EXCEPTION WHEN others THEN v_c_e := false; v_ora := NULL;
+        END;
+      END IF;`,
+    a: `      BEGIN
+        SELECT true, (value::jsonb ->> 'rev')::numeric INTO v_c_e, v_ora
+          FROM public.kv_store WHERE key = p_key FOR UPDATE;
+      EXCEPTION WHEN others THEN v_c_e := false; v_ora := NULL;
+      END;` },
+
+  { n: 10, nome: "la riparazione del NUL torna golosa (fatta sempre, non solo sul rotto)",
+    attesa: "§11 rossa sul rovescio: un testo VALIDO che contiene quelle sei lettere viene alterato in silenzio",
+    da: `    BEGIN
+      v_atteso := (p_value::jsonb ->> 'revBase')::numeric;
+    EXCEPTION WHEN others THEN
+      p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');`,
+    a: `    p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');
+    BEGIN
+      v_atteso := (p_value::jsonb ->> 'revBase')::numeric;
+    EXCEPTION WHEN others THEN
+      p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');` },
 ];
 
 const arg = process.argv[2] ? Number(process.argv[2]) : null;

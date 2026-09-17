@@ -16,24 +16,44 @@ BEGIN
   -- QUI SOTTO NON CAMBIA di una riga rispetto alla produzione: il PASSO 2 aggiunge la
   -- spia (dopo l'INSERT) e il ramo diretto monotono, non tocca la regola del conflitto.
   IF p_key = 'scp:stato:v1' THEN
-    -- [PASSO 2] L'UNICA CORRUZIONE CHE UN CLIENT VERO PRODUCE e' l'escape NUL: JSON.stringify
-    -- di una stringa con dentro il carattere U+0000 mette nel testo l'escape di sei caratteri
-    -- (barra-u-zero-zero-zero-zero), e ::jsonb lo RIFIUTA con 22P05. Se entrasse nello stato, il
-    -- cast qui sotto solleverebbe, v_atteso resterebbe NULL, il cancello si spegnerebbe per
-    -- TUTTI e la spia non verrebbe scritta. Si sostituisce con l'escape di U+FFFD (il carattere
-    -- «sconosciuto»), stessa lunghezza, JSON valido: cambia solo quel singolo carattere dentro
-    -- la stringa, la struttura resta intatta. E' un dato alterato, dichiarato.
-    p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');
+    -- [PASSO 2] LA RIPARAZIONE DEL NUL, E SOLO SU UN PAYLOAD GIA' ROTTO. JSON.stringify di una
+    -- stringa che contiene il carattere U+0000 mette nel testo l'escape di sei caratteri
+    -- (barra-u-zero-zero-zero-zero), e ::jsonb lo RIFIUTA: se entrasse nello stato, il cast qui
+    -- sotto solleverebbe, v_atteso resterebbe NULL e il cancello si spegnerebbe per TUTTI.
+    -- Si prova PRIMA il cast pulito e si ripara SOLO se ha fallito: cosi' un testo valido che
+    -- contiene per davvero le sei lettere barra-u-zero-zero-zero-zero (dove la barra e' a sua
+    -- volta escapata) passa al primo colpo e NON viene mai toccato. Con la replace fatta sempre,
+    -- quel testo valido veniva alterato in silenzio: difetto trovato dalla demolizione.
     BEGIN
       v_atteso := (p_value::jsonb ->> 'revBase')::numeric;
-    EXCEPTION WHEN others THEN v_atteso := NULL;
+    EXCEPTION WHEN others THEN
+      p_value := replace(p_value, chr(92) || 'u0000', chr(92) || 'ufffd');
+      BEGIN
+        v_atteso := (p_value::jsonb ->> 'revBase')::numeric;
+      EXCEPTION WHEN others THEN v_atteso := NULL;
+      END;
     END;
     IF v_atteso IS NOT NULL THEN
-      BEGIN
-        SELECT true, (value::jsonb ->> 'rev')::numeric INTO v_c_e, v_ora
-          FROM public.kv_store WHERE key = p_key FOR UPDATE;
-      EXCEPTION WHEN others THEN v_c_e := false; v_ora := NULL;
-      END;
+      -- [PASSO 2] MODIFICA 1 — IL LUCCHETTO SI PRENDE PRIMA E FUORI DAL BLOCCO CON L'EXCEPTION.
+      -- Misurato su Postgres vero, due casse con token DIVERSI e stato corrotto in rete: con il
+      -- lucchetto preso DENTRO il blocco, il rollback della sottotransazione (lo fa scattare il
+      -- cast sul valore illeggibile) lo RILASCIA, il cancello si spegne per tutte e due e passano
+      -- entrambe — 98 vendite perse su 100. Con il lucchetto qui fuori, la seconda cassa aspetta,
+      -- rilegge il valore che la prima ha appena riparato e riceve il 40001: 0 su 100.
+      -- Il cast resta guardato e in caduta aperta (fail-open), ma ora SOTTO LUCCHETTO: un valore
+      -- corrotto continua a non murare nessuno (la prima scrittura passa e ripara), e smette di
+      -- aprire una gara. Il vecchio «40 gare su 40 identiche» era un artefatto del banco, che
+      -- faceva correre le due casse sullo STESSO token: a metterle in fila era il lucchetto
+      -- della riga di sessione di app_sess_valida, non il cancello.
+      SELECT true INTO v_c_e FROM public.kv_store WHERE key = p_key FOR UPDATE;
+      v_c_e := coalesce(v_c_e, false);
+      IF v_c_e THEN
+        BEGIN
+          SELECT (value::jsonb ->> 'rev')::numeric INTO v_ora
+            FROM public.kv_store WHERE key = p_key;
+        EXCEPTION WHEN others THEN v_c_e := false; v_ora := NULL;
+        END;
+      END IF;
       IF v_c_e AND coalesce(v_ora, 0) <> v_atteso THEN
         RAISE EXCEPTION 'conflitto: in rete c''e'' la revisione %, questa scrittura parte dalla %',
           coalesce(v_ora, 0), v_atteso USING ERRCODE = '40001';

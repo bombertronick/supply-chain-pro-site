@@ -130,6 +130,11 @@ END $f$;
 CREATE TRIGGER banco_freno BEFORE INSERT ON public.kv_store FOR EACH ROW EXECUTE FUNCTION public.banco_freno();`);
   await db.query(sql);
   const tok = (await db.query(`insert into app_sessione(profilo_id, ruolo) values ('pr-prova','admin') returning token`)).rows[0].token;
+  /* IL SECONDO TOKEN NON E' UN DETTAGLIO: due casse vere hanno due sessioni. Con un
+     token solo, app_sess_valida fa un UPDATE sulla STESSA riga di sessione e mette in
+     fila le due chiamate PRIMA che arrivino al cancello — il banco diventa verde per
+     il lucchetto della sessione, non per il cancello, e una gara persa non si vede. */
+  const tok2 = (await db.query(`insert into app_sessione(profilo_id, ruolo) values ('pr-prova-2','admin') returning token`)).rows[0].token;
   const chiama = async (conn, k, v, t = tok) => {
     try { const r = await conn.query(`select public.app_kv_set($1::uuid, $2, $3) as r`, [t, k, v]); return { risposta: r.rows[0].r }; }
     catch (e) { return { stato: e.code || null, messaggio: String(e.message) }; }
@@ -143,7 +148,7 @@ CREATE TRIGGER banco_freno BEFORE INSERT ON public.kv_store FOR EACH ROW EXECUTE
   const aperte = [db];
   const altra = async () => { const c = await connetti(); aperte.push(c); return c; };
   const chiudi = async () => { for (const c of aperte) { try { await c.end(); } catch {} } };
-  return { db, tok, set, chiama, get, riga, rev, diretto, impronta, altra, chiudi };
+  return { db, tok, tok2, set, chiama, get, riga, rev, diretto, impronta, altra, chiudi };
 }
 const CHIAVE = "scp:stato:v1", SPIA = "scp:rev:v1";
 const NESSUNO = "00000000-0000-0000-0000-000000000000";
@@ -303,18 +308,20 @@ console.log("\n— 7. la rev enorme viaggia intatta —");
    E' la parte che un Postgres a una connessione non poteva vedere: B chiama
    app_kv_set col FRENO acceso (un trigger del banco la fa dormire mezzo secondo
    PRIMA dell'INSERT) e dopo 150 ms arriva D senza freno.
-   UNA COSA MISURATA E DA DIRE, perche' cambia la storia del disegno: il PASSO 2
-   proponeva di spostare il FOR UPDATE FUORI dal blocco EXCEPTION («Modifica 1»)
-   per impedire che, sul valore corrotto, il rollback della sottotransazione
-   rilasciasse il lucchetto e facesse passare due casse. NON SERVE, ed e' stato
-   misurato: 40 gare su 40, il testo di produzione (FOR UPDATE dentro
-   l'EXCEPTION) e la versione «fuori» danno lo STESSO esito, «B ok / D 40001».
-   Il serializzatore vero non e' quel lucchetto, e' l'ON CONFLICT dell'INSERT,
-   che prende la riga e la rilegge: chi arriva secondo la trova riparata e
-   riceve il 40001. Percio' questa tessera NON tocca la struttura del cancello
-   di produzione — cambia solo cio' che e' misurabile (la spia e il ramo
-   diretto). §8 e' la guardia che quella serializzazione regga e che la spia
-   resti coerente sotto contesa.
+   UNA COSA MISURATA, E DA RACCONTARE COME E' ANDATA DAVVERO, perche' qui questo
+   banco ha MENTITO una volta. Il PASSO 2 propone di prendere il FOR UPDATE FUORI
+   dal blocco EXCEPTION («Modifica 1»), perche' sul valore corrotto e' il cast a
+   far scattare il rollback della sottotransazione, e quel rollback RILASCIA il
+   lucchetto preso dentro: il cancello si spegne per tutte e due e passano
+   entrambe. La prima misura diceva «non serve, 40 gare su 40 identiche»: era
+   FALSA, e la colpa era del fixture, che faceva correre le due casse sullo
+   STESSO token. A metterle in fila era l'UPDATE di app_sess_valida sulla riga di
+   sessione condivisa — mai il cancello. Con un token per cassa, come in
+   pizzeria, il testo di produzione perde 98 vendite su 100 in gara simultanea;
+   con la Modifica 1, 0 su 100. Percio' la tessera la porta, e da qui in avanti
+   OGNI gara di questo banco usa DUE token.
+   §8 e' la guardia che la serializzazione regga e che la spia resti coerente
+   sotto contesa.
    §8a LA GARA SUL VALORE CORROTTO: B ripara, D — arrivata nella finestra —
    trova il valore riparato e riceve il 40001; e la spia resta quella del
    vincitore, non un residuo.
@@ -340,7 +347,7 @@ async function gara(s, chiamaB, chiamaD) {
   const s8 = await nuovoServer(testoSql);
   await s8.set(CHIAVE, stato(7, 0));
   await s8.diretto(`update kv_store set value = 'NON-JSON' where key = $1`, [CHIAVE]);
-  const g = await gara(s8, (B) => s8.chiama(B, CHIAVE, stato(8, 7)), (D) => s8.chiama(D, CHIAVE, stato(9, 7)));
+  const g = await gara(s8, (B) => s8.chiama(B, CHIAVE, stato(8, 7), s8.tok), (D) => s8.chiama(D, CHIAVE, stato(9, 7), s8.tok2));
   ok(g.frenata, `§8a: il freno ha tenuto B nella finestra (B ha impiegato ${g.rB.ms} ms)`);
   const esiti = [esitoDi(g.rB), esitoDi(g.rD)];
   ok(esiti[0] === "ok" && esiti[1] === "40001",
@@ -352,18 +359,42 @@ async function gara(s, chiamaB, chiamaD) {
   const s9 = await nuovoServer(testoSql);
   await s9.set(CHIAVE, stato(5, 0));
   await s9.set(SPIA, "5");
-  const g2 = await gara(s9, (B) => s9.chiama(B, SPIA, "7"), (D) => s9.chiama(D, SPIA, "9"));
+  const g2 = await gara(s9, (B) => s9.chiama(B, SPIA, "7", s9.tok), (D) => s9.chiama(D, SPIA, "9", s9.tok2));
   ok(g2.frenata && esitoDi(g2.rB) === "ok" && esitoDi(g2.rD) === "ok", `§8b: le due spie tornano tutte e due {ok:true} (letto: ${esitoDi(g2.rB)} / ${esitoDi(g2.rD)}, B in ${g2.rB.ms} ms)`);
   ok((await s9.get(SPIA)) === "9", `§8b: e in rete resta la piu' alta, 9, anche se il 7 e' partito prima e ha scritto dopo (letto: ${JSON.stringify(await s9.get(SPIA))})`);
   await s9.chiudi();
 
   const s10 = await nuovoServer(testoSql);
   await s10.set(CHIAVE, stato(7, 0));
-  const g3 = await gara(s10, (B) => s10.chiama(B, CHIAVE, stato(8, 7)), (D) => s10.chiama(D, CHIAVE, stato(9, 7)));
+  const g3 = await gara(s10, (B) => s10.chiama(B, CHIAVE, stato(8, 7), s10.tok), (D) => s10.chiama(D, CHIAVE, stato(9, 7), s10.tok2));
   const e3 = [esitoDi(g3.rB), esitoDi(g3.rD)];
   ok(g3.frenata && e3[0] === "ok" && e3[1] === "40001", `§8c: due casse dalla stessa base, valore leggibile: una passa e una riceve il 40001, come sempre (letto: B ${e3[0]} / D ${e3[1]})`);
   ok((await s10.rev()) === 8, `§8c: e la rev in rete e' quella della prima, 8 (letto: ${await s10.rev()})`);
   await s10.chiudi();
+
+  /* §8d LA GARA SIMULTANEA SUL VALORE CORROTTO — IL CONTROLLO CHE MANCAVA.
+     Le gare qui sopra danno alla prima cassa un vantaggio (il freno, poi 150 ms):
+     basta quello a farla finire prima, e la finestra non si apre mai. Qui le due
+     casse partono NELLO STESSO ISTANTE, con due token diversi, su uno stato
+     illeggibile. Deve passarne UNA SOLA: se ne passano due, la vendita dell'una
+     sparisce sotto quella dell'altra. E' la scena che il disegno promette sicura
+     («un valore corrotto non apre una gara») e che nessuna sezione controllava. */
+  const sIns = await nuovoServer(testoSql);
+  const CB = await sIns.altra(), CD = await sIns.altra();
+  const GIRI = 12;
+  let dueVolte = 0;
+  for (let i = 0; i < GIRI; i++) {
+    await sIns.diretto(`delete from kv_store`);
+    await sIns.diretto(`insert into kv_store(key, value) values ($1, 'NON-JSON')`, [CHIAVE]);
+    const [rB, rD] = await Promise.all([
+      sIns.chiama(CB, CHIAVE, stato(8, 7), sIns.tok),
+      sIns.chiama(CD, CHIAVE, stato(9, 7), sIns.tok2),
+    ]);
+    if (esitoDi(rB) === "ok" && esitoDi(rD) === "ok") dueVolte++;
+  }
+  ok(dueVolte === 0,
+    `§8d: ${GIRI} gare simultanee sul valore corrotto, due casse su due sessioni: non ne passano mai due (vendite perse: ${dueVolte}/${GIRI})`);
+  await sIns.chiudi();
 }
 
 /* ═══ 9. LE ALTRE CHIAVI PASSANO COME PRIMA ═══ */
@@ -427,6 +458,13 @@ console.log("\n— 11. un NUL nello stato non spegne il cancello per tutti —")
      il ramo, revBase non sarebbe piu' guardata */
   const conflitto = await s8.set(CHIAVE, stato(9, 3));
   ok(conflitto.stato === "40001", `e il cancello regge ancora dopo: una revBase vecchia riceve il 40001 (letto: ${conflitto.stato ?? JSON.stringify(conflitto.risposta)})`);
+  /* E IL ROVESCIO: un testo VALIDO che contiene per davvero le sei lettere
+     barra-u-zero-zero-zero-zero (con la barra a sua volta escapata) NON e' rotto
+     e NON va riparato. Con la replace fatta sempre, veniva alterato in silenzio. */
+  const conLett = await s8.set(CHIAVE, stato(5, 4, { nota: "\\u0000" }));
+  const nota2 = JSON.parse(await s8.get(CHIAVE)).nota;
+  ok(conLett.risposta?.ok === true && nota2 === "\\u0000",
+    `un testo valido con dentro quelle sei lettere non viene alterato (letto: ${JSON.stringify(nota2)})`);
   await s8.chiudi();
 }
 
