@@ -719,7 +719,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.22";
+const VERSIONE = "gen-6.23";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -11981,7 +11981,10 @@ function VistaRichieste({ stato, profilo, muta, mostraToast }) {
                 })()
               ) : (
                 r.evasoDa && <div className="text-xs mt-2" style={{ color: T.tenue }}>
-                  {r.stato === "annullata" ? "Annullata" : `Evasa da «${r.magazzinoLabNome || "—"}»`} · {r.evasoDa} · {tempoFa(r.tEvasione)}
+                  {/* gen-6.23: una DATA, non «3 ore fa». Un tempo relativo risponde
+                      a «quanto e' passato»; qui la domanda e' «quando», e a fine
+                      serata «5 ore fa» non si ricostruisce piu'. */}
+                  {r.stato === "annullata" ? "Annullata" : `Evasa da «${r.magazzinoLabNome || "—"}»`} · {r.evasoDa} · {dataIt(r.tEvasione)}
                 </div>
               )}
             </Scheda>
@@ -12277,6 +12280,25 @@ function RichiesteLab({ stato, righe }) {
                     <div className="font-bold truncate" style={{ color: T.ink }}>{p?.nome || "—"}</div>
                     <div className="text-xs truncate" style={{ color: T.tenue }}>
                       {r.magNome} · chiesti {fmtQ(r.qty)} {sym}
+                    </div>
+                    {/* ── CHI HA CONFERMATO, E QUANDO (gen-6.23, parole di Valerio del
+                        17 settembre: «ogni volta che faccio una richiesta compaia data,
+                        ora e operatore che ha confermato la richiesta») ──
+                        Il dato c'era GIA': applicaEvasione scrive evasoDa e tEvasione su
+                        tutte e tre le strade di chiusura. Mancava solo mostrarlo: qui si
+                        leggeva il magazzino e la quantita', e basta.
+                        NIENTE `truncate` su questa riga, al contrario delle due sopra: una
+                        data tagliata a meta' e' peggio di nessuna data, e un collaudo che
+                        legge innerText non se ne accorgerebbe MAI, perche' il taglio e'
+                        CSS e il testo resta tutto nel nodo. Va a capo, e §4 misura che non
+                        sia tagliata.
+                        «fabbisogno automatico» non e' una persona: si dice come e' nata,
+                        la stessa regola gia' scritta nella pagina del laboratorio. */}
+                    <div data-firma="1" className="text-xs leading-tight mt-0.5" style={{ color: T.tenue }}>
+                      {r.stato === "in-attesa"
+                        ? <>chiesta il {dataIt(r.t)} · {r.creataDa === "fabbisogno automatico"
+                            ? "in automatico, per scorta bassa" : `da ${r.creataDa || "—"}`}</>
+                        : <>confermata il {dataIt(r.tEvasione || r.t)} · da {r.evasoDa || "—"}</>}
                     </div>
                   </div>
                   <Chip colore={col}>
