@@ -64,7 +64,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   gen-6.19 a **102 verdi / 2233 controlli veri, 0 rosse, 0 mute, 7 saltate, 109 file**;
   gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**;
   gen-6.21 a **105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file** (il banco in più è `sorpassatotest`);
-  gen-6.22 a **PRIMO GIRO: 106 verdi / 2361 controlli veri, 0 mute, 7 saltate, 115 file, 2 rosse** — e tutte e due valevano la pena.
+  gen-6.22 a **108 verdi / 2519 controlli veri, 0 rosse, 0 mute, 7 saltate, 115 file** — giro pulito, il SECONDO.
+  Il primo aveva dato **106 verdi / 2361 controlli veri, 0 mute, 7 saltate, 115 file, 2 rosse**, e tutte e due valevano la pena.
   La prima, `coerenzatest §5`, è la riga che stai leggendo: pretende il censimento
   di questa generazione dentro questo file, e non può esistere prima del censimento.
   La seconda, `protocollotest §12`, **era il banco e non la cura**, ed è uscita solo
@@ -76,7 +77,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   di mezzo il **disco** di A (non la sua coda in memoria, che è quello che la sezione
   misura), §12 è verde con tutte le sue asserzioni, e il **sabotaggio 21 di gen-6.20**
   — la ricevuta costruita dalla lettura invece che dalla bozza — la fa ancora
-  arrossire: 2 rossi. Il banco non è stato ammorbidito
+  arrossire: 2 rossi. Il banco non è stato ammorbidito. Corrette tutte e due, il
+  **secondo censimento completo è pulito al primo colpo**: 108 verdi / 2519 controlli veri, 0 rosse, 0 mute, 7 saltate, 115 file
   (i due banchi in più sono `protocollotest` e `protopurotest`; il file in più è
   `mkprotolib.mjs`, che è una libreria e non un banco). **ATTENZIONE alla
   sequenza, che stavolta non è stata quella giusta**: il censimento di gen-6.20 è
