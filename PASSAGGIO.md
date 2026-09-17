@@ -611,8 +611,20 @@ diventa `5319ff40121d588ae12991f6178128e2`). Il censimento è partito su
 > · e le Actions su `main` **funzionano**: l'esecuzione 126 (`event=push`, head
 >   `main`, `bef0f7c`) è andata in `success`, 00:49:30Z → 02:16:51Z. Il
 >   censimento in CI dura **circa 87 minuti**, che è un dato utile di suo.
-> Resta una sola spiegazione possibile, e non è verificabile in trenta minuti.
-> Controllo riprogrammato; il verdetto si scrive dopo una notte intera.
+> **Seconda misura, 05:45 UTC — due ore e trentacinque dopo il cron: ancora `0`.**
+> Con quella sono cadute anche le ultime due cause che si potevano guardare:
+> il repository **non è un fork** (`fork: false` — nei fork GitHub disattiva i
+> lavori a orario) e non è né archiviato né disabilitato
+> (`archived: false`, `disabled: false`, `visibility: public`), e l'API conferma
+> `default_branch: main`.
+>
+> **Non resta niente da misurare adesso**, e il verdetto si dà sulla SECONDA
+> notte: se il 18 settembre `event=schedule` è ancora `0`, la conclusione onesta
+> non è una causa inventata — è «il lavoro a orario non parte, e tutte le cause
+> verificabili sono escluse», con la sua conseguenza pratica scritta accanto: il
+> censimento **su push** gira a ogni commit e copre il bisogno vero, quindi il
+> notturno è un di più che oggi non c'è. Controllo armato per il 18 alle 04:15
+> UTC, e poi basta: due notti sono una misura, la terza è accanimento.
 
 **E la lezione, che vale più della riparazione:** quando si scrive che qualcosa
 gira **da solo**, si va a guardare che sia partito **almeno una volta**. Un
