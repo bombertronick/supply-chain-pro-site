@@ -180,3 +180,115 @@ sopra il vuoto, e non si nasconde mai se è acceso.*
    il magazzino **per sbaglio** e poi lo ripristina da backup, il mestiere resta
    spento: è il verso giusto in cui sbagliare?
 6. C'è un sesto posto che nessuna delle sei lenti ha guardato?
+
+---
+
+# VERDETTO DELLA DEMOLIZIONE — il disegno qui sopra è MORTO
+
+Quattro lenti col mandato di distruggerlo, più una controprova su ogni accusa
+mortale: **46 accuse, 12 dichiarate mortali, 4 confermate tali dalla
+controprova**. Il disegno **non si spedisce**. Quello che segue è il perché, e
+vale più del disegno.
+
+## ☠ 1 — Le due cure di B sono lo stesso evento con due verdetti opposti
+
+Il difetto è mio e sta a due paragrafi di distanza da sé stesso.
+`soloPostazioni()` e `soloConteggi()` sono appese alla **lunghezza della lista**,
+non al flag (`app.jsx:2902`, `:2905`). Quindi:
+
+- **B1**, postazione cancellata: l'id resta, `length` è 1, il predicato resta
+  **true** → chiuso in una stanza vuota. La mia cura (la cascata) porta la lista
+  a 0 → il predicato passa a **false** → **barra piena**. Cioè **esattamente il
+  danno che chiamo B2 e che definisco «il danno che ho usato come argomento per
+  NON dedurre i permessi»**.
+- **B2**, ultimo magazzino cancellato: il predicato è **già** false per via del
+  `.length`, quindi spegnere anche il flag **non cambia un pixel**. Misurato
+  affiancando i due stati: barra `["Home","Conteggi","Magazzini","Ordini"]` in
+  tutti e due i casi. La cura non tocca il danno: lo rende **irreversibile** —
+  Valerio ricrea il magazzino, lo riassegna, e il muro non torna più perché il
+  flag non c'è più.
+
+Il principio che avevo scritto — *«un interruttore non resta acceso sopra il
+vuoto»* — sceglie in silenzio «gli si riapre tutto»: la deduzione al contrario,
+lo stesso peccato vietato per iscritto ad `app.jsx:2888-2894`.
+
+**La domanda che non avevo posto:** *cosa deve vedere un mestiere unico quando la
+sua stanza è vuota?* Le opzioni oneste sono due, e vanno scritte prima del
+codice:
+
+- **(a)** flag spento → barra piena: **regala** sezioni che nessuno ha acceso;
+- **(b)** il mestiere unico **sopravvive al vuoto**: si toglie `&& length > 0`
+  dai due predicati e la stanza è onesta — «l'Admin non ti ha ancora assegnato
+  una postazione», più il tasto Esci che c'è già.
+
+**Scelgo (b).** Non regala niente e non chiude nessuno. La «porta su una stanza
+vuota» che gen-6.17 vieta era una porta **in più**; questa è **l'unica** stanza,
+ed è la differenza che cambia il verdetto. Cade con questo anche la regola che
+avevo scritto a gen-6.23 («appeso a ciò che rende il mestiere possibile»): era
+proprio lei a fabbricare la contraddizione.
+
+## ☠ 2 — A5 spegne tre sentinelle e un sabotaggio, e la toppa è peggio del buco
+
+Il muro in una riga sola cancella **letteralmente** le tre stringhe su cui
+poggiano tre sentinelle sul sorgente: `cassa617test §14`,
+`mestiereunicotest §3` e `§6`. Contato oggi: `soloPost` insieme a `vista !==`
+compare **solo** a `4821`, `soloCont` **solo** a `4822`, `soloQui && vista !==
+"cassa"` **una volta sola** a `4817`. Più il sabotaggio `S6`, che perde l'ancora
+e fa uscire il file dei sabotaggi con codice 1.
+
+E la controprova ha fatto la cosa che conta: **l'ha costruito e girato**. Rimessi
+i nomi in un **commento** accanto alla riga, §3 e §6 tornano verdi. Poi **tolta
+del tutto la riga del muro**, lasciando solo il commento: §3 e §6 dicono ancora
+`ok`. **Verde col muro tolto, prodotto dal disegno stesso.**
+
+**Rinuncio ad A5.** Resta solo la derivazione delle tre costanti da
+`mestiereUnico`; le tre clausole del muro restano scritte per esteso. E §3/§6
+vanno irrobustite perché **rifiutino una riga di commento** — quello è un difetto
+del banco che esiste **oggi**, non da domani.
+
+## ☠ 3 — «Verde per assenza» nel cuore della prova
+
+Il banco misura il « ? » e il giro guidato **solo** su `AllePostazioni`. Una cura
+scritta `!soloQui && !soloPost` — cioè dimenticando i conteggi — farebbe
+diventare **verdi tutti e 10 i rossi** mentre un ragazzo «solo conteggi» si
+prende ancora in faccia il giro di otto passi. Sonda eseguita: su gen-6.23 con un
+profilo `soloConteggi`, il tour **parte** e il « ? » offre **Plancia** e
+**Panoramica completa**. Servono §22c e §23c, gemelli esatti su `AiConteggi`.
+
+## ☠ 4 — `righeRicerca → []` toglie a «solo conteggi» proprio il suo mestiere
+
+Misurato prima e dopo. **Oggi** la lente risponde a chi conta: «Patate forno ·
+Linea Pizze fm · previsto 3 gn · 0 gn» — il magazzino, la soglia del giorno, la
+giacenza, il pallino sotto scorta. **Con la cura**: «Non trovo né un prodotto né
+una funzione». Quella regola era scritta per il **cassiere**, che di magazzino
+non chiede niente; il contatore non fa altro che chiedere di magazzino.
+
+**Le righe restano** per il mestiere «conteggi». Si cambia la **destinazione del
+bottone di riga** (`app.jsx:6072`, oggi `vaiA("magazzini")`) mandandolo alla
+stanza del mestiere. E serve il contro-controllo che manca: «solo conteggi» cerca
+un prodotto e **deve** vedere ancora giacenza e «previsto».
+
+## Le serie che restano in piedi, e che entrano nel disegno nuovo
+
+- **La scheda del profilo riscrive l'id morto e vince.** `dati` è costruito
+  **fuori** dalla bozza: due admin, e il salvataggio di B rimette
+  `postazioniIds: ["po-fri"]` con dentro l'id di una postazione cancellata. La
+  regola della casa è rispettata a metà — l'entità si ricerca nella bozza, i suoi
+  **riferimenti** no. Vanno filtrati **dentro** la bozza, in `salva`.
+- **B è senza un solo controllo che possa diventare rosso.** I 10 rossi sono
+  tutti di A. E il `§27` «id morto seminato a mano» che mi era stato proposto
+  **sarebbe rosso prima e rosso dopo** la cura: misurerebbe un difetto diverso da
+  quello che la cura tocca. Un rosso che resta rosso a lavoro finito mente in un
+  terzo modo.
+- **L'interruttore già acceso non si nasconde mai** (`app.jsx:7885`, `:7890`):
+  questo trattino resta, ed è l'unico di B che valeva.
+
+## Dove riparte il disegno
+
+1. Scrivere la regola mancante — *il mestiere unico sopravvive al vuoto* — e
+   toglierla dai predicati, non dalle cascate.
+2. Le sezioni che mancano **prima** del codice: il «?» e il tour su `AiConteggi`;
+   le righe di prodotto che restano per chi conta; la barra **dopo** una
+   cancellazione vera, fatta da un admin dentro il banco.
+3. §3 e §6 che rifiutano un commento.
+4. A1–A4 restano come sono. A5 muore.
