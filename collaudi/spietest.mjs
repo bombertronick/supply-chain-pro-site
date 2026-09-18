@@ -134,8 +134,9 @@ base.aggiunte = []; base.postazioni = []; base.vendite = []; base.giornate = [];
    dell'admin NON ha ne' Cassa ne' Comande — ci si arriva dalla lente, e sta
    scritto nel codice (app.jsx, «l'admin arriva in Cassa dalla lente»). Un
    operatore con l'interruttore «cassa» ha Cassa al posto della Plancia; un
-   operatore SENZA cassa e senza correzioni ha Comande. Sistema invece e'
-   dell'admin. Quindi ogni sezione entra con chi quella porta ce l'ha.
+   operatore SENZA cassa e senza correzioni ha Comande SE gli e' stata
+   assegnata almeno una postazione (gen-6.23: prima bastava il posto vuoto).
+   Sistema invece e' dell'admin. Quindi ogni sezione entra con chi quella porta ce l'ha.
    L'Admin serve anche quando non entra: senza un admin col PIN il Foglio
    dello storno non mostra il campo del PIN (guardia adminConPin) e il
    cassiere non potrebbe confermare niente. */
@@ -693,6 +694,17 @@ await prova("§9", async () => {
     `la soglia si legge dal sorgente (${SPIE.SOGLIA_VISTA_FERMA} ms) e sta dentro il tetto umano (${TETTO_UMANO} ms)`);
   const seme = semeCon((s) => {
     s.postazioni = [{ id: "po-1", nome: "Forno", gruppi: ["Pizze"], sedeId: FM.id }];
+    /* gen-6.23: la postazione va anche ASSEGNATA, se no le Comande non sono in
+       barra. Prima bastava non avere ne' cassa ne' correzioni — il posto
+       lasciato libero dalla Plancia se lo prendeva la cucina «per default» — e
+       questa sezione ci passava sopra senza saperlo. L'assegnazione e' l'atto
+       esplicito che la regola nuova chiede e non spegne niente: «solo alle
+       postazioni» e' un interruttore a parte (soloPostazioni), che qui non
+       c'e'. L'override e' LOCALE alla sezione e non sul profilo condiviso,
+       perche' SEME nasce con «postazioni: []»: un postazioniIds globale
+       rimetterebbe le Comande in barra anche dove di postazioni non ce n'e'
+       nessuna, cioe' rifarebbe il regalo dal lato del banco. */
+    s.profili = s.profili.map((p) => (p.id === "pr-ku" ? { ...p, postazioniIds: ["po-1"] } : p));
   });
   const G = await apriCon(seme);
   await login(G.p, "OpCucina", "3333");
@@ -700,7 +712,14 @@ await prova("§9", async () => {
   await G.p.waitForTimeout(1200);
   /* ci si SIEDE: senza una sedia la schermata e' «Scegli la tua postazione»
      e il vuoto della coda non si vede nemmeno */
-  await G.p.getByRole("button", { name: /Siediti a Forno/ }).first().click().catch(() => {});
+  /* gen-6.23: con la postazione ASSEGNATA lo schermo nasce gia' seduto —
+     gen-6.01, «il profilo propone, il dispositivo comanda»: senza una scelta
+     su questo schermo, «sedute» sono le postazioni del profilo. Il bottone
+     allora dice «Alzati da Forno», e un click incondizionato su «Siediti»
+     aspetterebbe trenta secondi un bottone che non esiste. Ci si siede solo
+     se serve; il gesto del sedersi lo misurano comandetest e postazionitest. */
+  const sediaG = G.p.getByRole("button", { name: /Siediti a Forno/ });
+  if (await sediaG.count()) { await sediaG.first().click(); await G.p.waitForTimeout(500); }
   await G.p.waitForTimeout(900);
   const riga = G.p.locator("[data-eta-vista]").first();
   ok((await riga.count()) > 0, "la riga dell'eta' della vista c'e', in cima a Comande");
@@ -834,12 +853,30 @@ await prova("§12", async () => {
   /* e la stessa cosa sulla riga di Comande, che e' dove la legge la cucina */
   const seme = semeCon((s) => {
     s.postazioni = [{ id: "po-1", nome: "Forno", gruppi: ["Pizze"], sedeId: FM.id }];
+    /* gen-6.23: la postazione va anche ASSEGNATA, se no le Comande non sono in
+       barra. Prima bastava non avere ne' cassa ne' correzioni — il posto
+       lasciato libero dalla Plancia se lo prendeva la cucina «per default» — e
+       questa sezione ci passava sopra senza saperlo. L'assegnazione e' l'atto
+       esplicito che la regola nuova chiede e non spegne niente: «solo alle
+       postazioni» e' un interruttore a parte (soloPostazioni), che qui non
+       c'e'. L'override e' LOCALE alla sezione e non sul profilo condiviso,
+       perche' SEME nasce con «postazioni: []»: un postazioniIds globale
+       rimetterebbe le Comande in barra anche dove di postazioni non ce n'e'
+       nessuna, cioe' rifarebbe il regalo dal lato del banco. */
+    s.profili = s.profili.map((p) => (p.id === "pr-ku" ? { ...p, postazioniIds: ["po-1"] } : p));
   });
   const H = await apriCon(seme);
   await login(H.p, "OpCucina", "3333");
   await vaiA(H.p, "Comande");
   await H.p.waitForTimeout(1200);
-  await H.p.getByRole("button", { name: /Siediti a Forno/ }).first().click().catch(() => {});
+  /* gen-6.23: con la postazione ASSEGNATA lo schermo nasce gia' seduto —
+     gen-6.01, «il profilo propone, il dispositivo comanda»: senza una scelta
+     su questo schermo, «sedute» sono le postazioni del profilo. Il bottone
+     allora dice «Alzati da Forno», e un click incondizionato su «Siediti»
+     aspetterebbe trenta secondi un bottone che non esiste. Ci si siede solo
+     se serve; il gesto del sedersi lo misurano comandetest e postazionitest. */
+  const sediaH = H.p.getByRole("button", { name: /Siediti a Forno/ });
+  if (await sediaH.count()) { await sediaH.first().click(); await H.p.waitForTimeout(500); }
   await H.p.waitForTimeout(900);
   const riga = H.p.locator("[data-eta-vista]").first();
   ok((await riga.count()) > 0, "la riga dell'eta' c'e' anche qui");

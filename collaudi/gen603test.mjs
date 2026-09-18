@@ -93,8 +93,17 @@ const PR = {
   admin: { id: "pr-a", nome: "Admin", ruolo: "admin", colore: "#111", pinHash: hash("1234") },
   opCassa: { id: "pr-ok", nome: "OpCassa", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
     magazziniIds: [linea.id], cassa: true, pinHash: hash("2222") },
+  /* gen-6.23: la postazione assegnata NON e' un dettaglio del seme, e' la
+     condizione perche' le Comande stiano in barra. Prima bastava non avere ne'
+     cassa ne' correzioni: il posto lasciato libero dalla Plancia se lo prendeva
+     la cucina «per default», e questa sezione ci passava sopra senza saperlo.
+     Assegnarla e' l'ATTO ESPLICITO che la regola nuova chiede, e non spegne
+     niente: «solo alle postazioni» e' un interruttore a parte (soloPostazioni),
+     e questo profilo non ce l'ha. Non e' un banco ammorbidito: la regola della
+     barra la misurano mestiereunicotest §7 e comandetest §1/§1z, non questa
+     sezione, che parla di cosa legge la cucina. */
   opZero: { id: "pr-o0", nome: "OpZero", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-    magazziniIds: [linea.id], pinHash: hash("2222") },
+    magazziniIds: [linea.id], postazioniIds: ["po-piz"], pinHash: hash("2222") },
 };
 
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -403,8 +412,14 @@ await prova("§9", async () => {
   dopoVendita = await stato(C.p);
   const K = await apri(dopoVendita, [PR.opZero], "OpZero", "2222");
   await vaiA(K.p, "Comande");
-  await K.p.getByRole("button", { name: "Siediti a Pizzeria" }).click();
-  await K.p.waitForTimeout(500);
+  /* gen-6.23: con la postazione ASSEGNATA lo schermo nasce gia' seduto —
+     gen-6.01, «il profilo propone, il dispositivo comanda»: senza una scelta
+     su questo schermo, «sedute» sono le postazioni del profilo. Il bottone
+     allora dice «Alzati da Pizzeria», e un click incondizionato su «Siediti»
+     aspetterebbe trenta secondi un bottone che non esiste. Ci si siede solo
+     se serve; il gesto del sedersi lo misurano comandetest e postazionitest. */
+  const sedia = K.p.getByRole("button", { name: "Siediti a Pizzeria" });
+  if (await sedia.count()) { await sedia.click(); await K.p.waitForTimeout(500); }
   const t = await testoDi(K.p);
   const iN = t.indexOf("Boscaiola"), iD = t.indexOf("mozzarella, funghi, salsiccia"), iA = t.indexOf("+ Salsiccia");
   ok(iN >= 0 && iD > iN && iA > iD,

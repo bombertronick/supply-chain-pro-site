@@ -70,6 +70,26 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   gen-6.20 a **102 verdi / 2300 controlli veri, 0 mute, 7 saltate, 111 file**;
   gen-6.21 a **105 verdi / 2390 controlli veri, 0 rosse, 0 mute, 7 saltate, 112 file** (il banco in più è `sorpassatotest`);
   gen-6.22 a **108 verdi / 2519 controlli veri, 0 rosse, 0 mute, 7 saltate, 115 file** — giro pulito, il SECONDO.
+  gen-6.23, **primo giro**: **106 verdi / 2227 controlli veri, 0 mute, 7 saltate,
+  118 file, 5 rosse** — e le cinque valevano tutte la pena, quindi le scrivo invece
+  di arrotondarle. Una, `coerenzatest §5`, è la riga che stai leggendo: pretende il
+  censimento di questa generazione dentro questo file, e non può esistere prima del
+  censimento. Le altre quattro — `extratest §6`, `gen603test §9`,
+  `protocollotest §14/§14b`, `spietest §9/§12` — erano **una causa sola**, ed è la
+  ricaduta vera di gen-6.23: quei banchi raggiungevano le Comande con un profilo
+  **senza postazioni assegnate**, cioè campavano sul regalo del posto vuoto che
+  questa generazione ha tolto. Nessuna delle quattro misura la regola della barra
+  (quella la misurano `mestiereunicotest §7` e `comandetest §1/§1z`): misurano cosa
+  legge la cucina. Riparate assegnando la postazione — **l'atto esplicito che la
+  regola nuova chiede** — e rendendo condizionale il gesto del sedersi, perché con
+  una postazione sul profilo lo schermo **nasce già seduto** (gen-6.01) e il bottone
+  dice «Alzati», non «Siediti».
+  **La prova che non sono state ammorbidite**, e sono due. Contando: ognuna delle
+  quattro esegue adesso PIÙ asserzioni di prima (39→42, 80→83, 112→117, 63→69),
+  perché l'eccezione sulla navigazione abortiva la sezione a metà. Sabotando: tolto
+  il «+» davanti al nome dell'aggiunta nella carta di cucina, `extratest §6` e
+  `gen603test §9` tornano rosse (1 e 2 rossi); congelato a zero `data-eta-vista`,
+  `spietest §9` e `§12` tornano rosse.
   Il primo aveva dato **106 verdi / 2361 controlli veri, 0 mute, 7 saltate, 115 file, 2 rosse**, e tutte e due valevano la pena.
   La prima, `coerenzatest §5`, è la riga che stai leggendo: pretende il censimento
   di questa generazione dentro questo file, e non può esistere prima del censimento.

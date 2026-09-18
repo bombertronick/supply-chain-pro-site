@@ -1064,8 +1064,17 @@ await prova("§13", async () => {
    dispositivo, non del profilo), quindi B si siede e A nasce gia' seduto —
    che e' esattamente la scena di due tablet appesi alla stessa postazione. */
 console.log("\n— 14. la spunta vecchia contro il lavoro recente —");
+  /* gen-6.23: la postazione assegnata NON e' un dettaglio del seme, e' la
+     condizione perche' le Comande stiano in barra. Prima bastava non avere ne'
+     cassa ne' correzioni: il posto lasciato libero dalla Plancia se lo prendeva
+     la cucina «per default», e questa sezione ci passava sopra senza saperlo.
+     Assegnarla e' l'ATTO ESPLICITO che la regola nuova chiede, e non spegne
+     niente: «solo alle postazioni» e' un interruttore a parte (soloPostazioni),
+     e questo profilo non ce l'ha. Non e' un banco ammorbidito: la regola della
+     barra la misurano mestiereunicotest §7 e comandetest §1/§1z, non questa
+     sezione, che parla di cosa legge la cucina. */
 const PRO = { id: "pr-cuoco", nome: "Cuoco", ruolo: "operatore", sedeId: FM.id, colore: "#3B82F6",
-  magazziniIds: [linea.id], pinHash: hash("3333") };
+  magazziniIds: [linea.id], postazioniIds: ["po-piz"], pinHash: hash("3333") };
 const semeComande = () => {
   const Vcom = vendita("ve-com", MIN(6), 6.5);
   Vcom.righe = [{ voceId: "li-mar", nome: "Margherita", qty: 1, prezzo: 6.5, aliquota: 10, gruppo: "Pizze" }];
