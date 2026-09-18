@@ -592,39 +592,38 @@ md5 `c230922976fc1191d6f38b868edb753f`, cioè gen-6.21 (col rilascio di gen-6.22
 diventa `5319ff40121d588ae12991f6178128e2`). Il censimento è partito su
 `main` alla prima occasione (esecuzione 122).
 
-> **LA COSA CHE RESTA DA GUARDARE, ed è l'unica prova che conta:** il censimento
-> **a orario** non è ancora mai partito. Scatta alle 03:10 UTC. La prova che
-> questo lavoro è servito è che `event=schedule` passi da `0` a `1`. Finché non
-> l'hai visto, non dire che funziona: è esattamente l'errore che questa sezione
-> racconta.
+> **MISURATO, E IL VERDETTO E' L'OPPOSTO DI QUELLO CHE STAVO PER SCRIVERE.**
+> Il censimento a orario **parte, e va verde**: esecuzione **127**,
+> `event=schedule`, `conclusion: success`, head `main` (`86196458`),
+> **17 settembre 08:34:28Z → 10:01:54Z** — 87 minuti, esattamente la durata
+> nota. `total_count` per `event=schedule` e' passato da `0` a `1`.
 >
-> **Misura del 17 settembre, 03:41 UTC — trentun minuti DOPO l'orario del cron:
-> `event=schedule` è ancora `0`.** Il verdetto NON si dà: trenta minuti non sono
-> una notte, e GitHub ritarda o lascia cadere i lavori a orario quando i runner
-> sono in coda. Quello che si può dire è che le tre cause verificabili sono
-> **escluse**, una per una:
-> · il workflow `Collaudi` (id 325567596) risulta `state: active`, quindi non è
->   stato spento per i 60 giorni di inattività né a mano;
-> · il ramo predefinito **è** `main` (`git remote show origin` → `HEAD branch: main`);
-> · il cron su `main` è `10 3 * * *` e il file sta lì dal **16 settembre alle
->   18:41 UTC** (esecuzione 122, PR #7), cioè da prima delle 03:10 del 17;
-> · e le Actions su `main` **funzionano**: l'esecuzione 126 (`event=push`, head
->   `main`, `bef0f7c`) è andata in `success`, 00:49:30Z → 02:16:51Z. Il
->   censimento in CI dura **circa 87 minuti**, che è un dato utile di suo.
-> **Seconda misura, 05:45 UTC — due ore e trentacinque dopo il cron: ancora `0`.**
-> Con quella sono cadute anche le ultime due cause che si potevano guardare:
-> il repository **non è un fork** (`fork: false` — nei fork GitHub disattiva i
-> lavori a orario) e non è né archiviato né disabilitato
-> (`archived: false`, `disabled: false`, `visibility: public`), e l'API conferma
-> `default_branch: main`.
+> **MA NON ALL'ORA CHE DICE IL CRON.** Il cron e' `10 3 * * *`; il lavoro e'
+> partito alle **08:34**, cioe' **cinque ore e ventiquattro minuti dopo**.
+> GitHub accoda i lavori a orario e li fa partire quando ha runner liberi: il
+> ritardo di ore e' normale, non e' un guasto.
 >
-> **Non resta niente da misurare adesso**, e il verdetto si dà sulla SECONDA
-> notte: se il 18 settembre `event=schedule` è ancora `0`, la conclusione onesta
-> non è una causa inventata — è «il lavoro a orario non parte, e tutte le cause
-> verificabili sono escluse», con la sua conseguenza pratica scritta accanto: il
-> censimento **su push** gira a ogni commit e copre il bisogno vero, quindi il
-> notturno è un di più che oggi non c'è. Controllo armato per il 18 alle 04:15
-> UTC, e poi basta: due notti sono una misura, la terza è accanimento.
+> **LE DUE MISURE DI PRIMA ERANO TROPPO PRESTO, E BASTA.** Il 17 alle 03:41
+> (31 minuti dopo il cron) e alle 05:45 (2h35 dopo) `event=schedule` era `0`
+> perche' il lavoro **non era ancora partito**, non perche' non partisse. Le
+> cinque cause che avevo escluso una per una — workflow attivo, ramo
+> predefinito giusto, cron a posto dal 16, Actions funzionanti, repository non
+> fork e non archiviato — erano tutte escluse per il motivo giusto: non c'era
+> niente da escludere.
+>
+> **LA LEZIONE, E VALE PIU' DELLA RIPARAZIONE.** Ero a un passo dallo scrivere
+> qui dentro, come limite noto del progetto, «il lavoro a orario non parte e
+> tutte le cause verificabili sono escluse». Sarebbe stata **falsa**, e sarebbe
+> rimasta scritta. Un verdetto NEGATIVO preso da una misura fatta troppo presto
+> e' sbagliato esattamente quanto un verdetto positivo preso senza guardare: in
+> tutti e due i casi si scrive una cosa che non si e' vista. Quando si misura
+> un automatismo che dipende da una coda di qualcun altro, **la finestra di
+> misura la detta la coda, non l'orologio del cron**.
+>
+> **CONSEGUENZA PRATICA:** il censimento notturno c'e' e funziona, ma **l'ora
+> non e' garantita**. Chi ha bisogno di un censimento entro un momento preciso
+> usa quello su **push**, che parte subito a ogni commit. Il notturno e' la
+> rete, non la sveglia.
 
 **E la lezione, che vale più della riparazione:** quando si scrive che qualcosa
 gira **da solo**, si va a guardare che sia partito **almeno una volta**. Un
