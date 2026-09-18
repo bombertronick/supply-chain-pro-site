@@ -90,6 +90,10 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   il «+» davanti al nome dell'aggiunta nella carta di cucina, `extratest §6` e
   `gen603test §9` tornano rosse (1 e 2 rossi); congelato a zero `data-eta-vista`,
   `spietest §9` e `§12` tornano rosse.
+  **Secondo giro, pulito al primo colpo**: **111 verdi / 2579 controlli veri, 0 rosse,
+  0 mute, 7 saltate, 118 file**. I cinque banchi in più sono esattamente i cinque rossi
+  riparati, e i 352 controlli in più sono quelli che l'eccezione sulla navigazione
+  impediva di eseguire. Nessun banco è stato tolto dal giro per farlo passare.
   Il primo aveva dato **106 verdi / 2361 controlli veri, 0 mute, 7 saltate, 115 file, 2 rosse**, e tutte e due valevano la pena.
   La prima, `coerenzatest §5`, è la riga che stai leggendo: pretende il censimento
   di questa generazione dentro questo file, e non può esistere prima del censimento.
