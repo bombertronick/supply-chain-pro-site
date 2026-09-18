@@ -1,6 +1,6 @@
 # Supply Chain Pro · scegli l'ordine dei lavori
 
-_Aggiornata il 16 settembre · in cucina gira **gen-6.23**_
+_Aggiornata il 18 settembre · in cucina gira **gen-6.23**_
 
 > **Per scegliere:** rispondimi in chat con i numeri nell'ordine che vuoi.
 

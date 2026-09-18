@@ -32,7 +32,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 > per la storia, non per le istruzioni. Poi
 > l'indice della dispensa (`node strumenti/dispensa.mjs indice` → esegui l'SQL
 > col connettore Supabase → salva il risultato così com'è in un file) e la voce
-> `chk-20260916-notte`. **Non fidarti di questo nome: chiedilo.**
+> `chk-20260918`. **Non fidarti di questo nome: chiedilo.**
 > `node strumenti/dispensa.mjs ultima` → esegui l'SQL, e la risposta è
 > l'ultima voce per davvero. (Il nome resta scritto qui per quando il database
 > non c'è, e `collaudi/coerenzatest.mjs` §3 diventa rosso se questa riga e la
@@ -122,8 +122,8 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   #39: descrive i banchi com'erano l'11 settembre sera) (il banco in più è
   `spietest`). Sempre 0 rosse, 0 mute, 7 saltate: i sette vogliono i dati veri,
   che non stanno nel repository, e corri.mjs li elenca da solo alla fine.
-- **Dispensa**: le voci che servono: `chk-20260916-notte` (il checkpoint
-  completo, l'ultimo: gen-6.22), `chk-20260915-notte` (quello prima: gen-6.21) e
+- **Dispensa**: le voci che servono: `chk-20260918` (il checkpoint
+  completo, l'ultimo: gen-6.23), `chk-20260916-notte` (quello prima: gen-6.22) e
   `passaggio-20260909` (il
   testo del passaggio, così sta anche fuori dal repository). Ogni voce scritta
   in dispensa si verifica per impronta subito dopo, `length` E `md5`.
@@ -141,7 +141,7 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
   di ogni voce di qua e di là, da confrontare prima di scrivere.
 - **Artefatto roadmap**: https://claude.ai/code/artifact/e9da7ae5-bc75-409d-8633-254dab3ba5e8
   (si ripubblica con `roadmap.html` meno le prime 3 righe, passando l'URL;
-  gen-6.22 e' la **Versione 33**). Prima di ripubblicare si passa da
+  gen-6.23 e' la **Versione 34**). Prima di ripubblicare si passa da
   `node strumenti/artefatto-tocco.mjs <file>`: prova la copia PUBBLICATA, che
   non e' il file del repository. E prima ancora si LEGGE l'artefatto pubblicato
   (`action: "read"`): il corpo che torna, tolto l'involucro dell'host, deve
