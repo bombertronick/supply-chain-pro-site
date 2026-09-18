@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 16 settembre 2026
+# Passaggio di consegne fra sessioni · 18 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -45,15 +45,20 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.22, `app:jsx:src` len 1052950, md5
-  `5319ff40121d588ae12991f6178128e2`, meta `{"len":1052950,"ver":"gen-6.22"}`.
-  Backup: `backup:pre-gen622` = gen-6.21, `backup:pre-gen621` = gen-6.20,
-  `backup:pre-gen620` = gen-6.19. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.23, `app:jsx:src` len 1063404, md5
+  `3867679ff319995d9024e18abc4b2425`, meta `{"len":1063404,"ver":"gen-6.23"}`.
+  Backup: `backup:pre-gen623` = gen-6.22, `backup:pre-gen622` = gen-6.21,
+  `backup:pre-gen621` = gen-6.20. Verificare con una `select` prima di toccare.
   (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
-  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen622` è il codice di
-  PRIMA di gen-6.22, cioè gen-6.21. `backup:pre-gen623` nascerà col rilascio di
-  gen-6.23, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen623` è il codice di
+  PRIMA di gen-6.23, cioè gen-6.22. `backup:pre-gen624` nascerà col rilascio di
+  gen-6.24, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
   sopra è il motivo per cui non è finito in produzione.)
+  **ATTENZIONE, 18 settembre**: questi tre numeri sono quelli del sorgente che
+  il repository SPEDISCE, ed è la forma che `coerenzatest` pretende. Finché lo
+  scambio non è passato da `execute_sql`, in cucina gira ancora gen-6.22: la
+  `select` qui sopra è l'unica cosa che lo dice, e va fatta prima di dare per
+  buono qualunque numero di questa riga.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
   per il prossimo `sql_diff`; controllare `md5sum app/app.jsx` contro il valore
   qui sopra prima di usarlo come base.
@@ -550,6 +555,121 @@ una gen-6.22 quella vecchia continua a sostituire e a rimuovere); e la
 **pastiglia** in alto conta solo la coda di questa scheda — il rifiuto del
 ripristino è il solo posto dove quella differenza viene detta.
 
+## I mestieri unici e la Cassa a due colonne (gen-6.23)
+
+Quattro richieste di Valerio del 17 settembre sera più un guasto che ha
+fotografato lui. Quello che segue è quello che costa un giro di banco a chi non
+lo sa.
+
+**«Non si deduce, si dichiara» — la regola che questa generazione ha difeso.**
+Valerio ha scritto «ogni profilo deve vedere solo ciò che gli si assegna, che
+faccia parte delle postazioni o dei profili conteggio (**quindi come la
+cassa**)». La lettura facile era: *ha delle postazioni, quindi vede solo
+quelle*. **Non è stata fatta così**, ed è la stessa regola già scritta a
+gen-6.17: con la deduzione un profilo perde metà app il giorno che gli si
+assegna una postazione per comodità, e chi assegna non sa di aver chiuso una
+porta. `soloPostazioni()` e `soloConteggi()` sono **interruttori dichiarati**,
+gemelli di `soloCassa`, e il meccanismo l'ha nominato Valerio stesso. Il
+guardiano è `mestiereunicotest §10` — *lo stesso profilo SENZA l'interruttore
+tiene tutte le sue voci* — e il sabotaggio S3 rimette la deduzione apposta.
+
+**Ognuno è appeso a ciò che rende il mestiere possibile**, come `soloCassa` è
+appesa a `puoCassa`: `soloPostazioni` a `postazioniIds.length > 0`,
+`soloConteggi` a `magazziniIds.length > 0`. Senza, sarebbe una porta su una
+stanza vuota. E i tre **si escludono a vicenda** (`unicoMestiere()` in
+`FormProfilo`): due accesi insieme vorrebbero dire due stanze uniche, e il primo
+`if` della catena vincerebbe in silenzio lasciando l'admin convinto di aver
+scelto l'altro.
+
+**Le Comande non sono più un regalo del posto vuoto.** A gen-5.98 la voce
+Comande prendeva in barra il posto lasciato libero dalla Plancia per
+**qualunque** operatore senza cassa né correzioni, senza chiedere niente sulle
+postazioni: è il guasto che Valerio ha fotografato («al profilo non ho assegnato
+le comande ma le vede»). Adesso la mappa chiede anche
+`(profilo.postazioniIds || []).length > 0`. **Non è la deduzione vietata**: lì
+il timore è che un profilo PERDA una porta che qualcuno gli aveva aperto, qui la
+porta non gliel'aveva aperta nessuno.
+
+**Il muro di riserva vale anche per i mestieri nuovi.** Nel gate `chiusa` ci
+sono adesso `(soloPost && vista !== "comande")` e
+`(soloCont && vista !== "conteggi")` accanto a quello della Cassa. Filtrare la
+barra non basta: il muro vale anche per le porte di domani, ed è la ragione per
+cui il gate esiste (gen-5.95).
+
+**L'effetto che misura la Cassa gira dopo OGNI disegno.** `VistaCassa` ha un
+`useEffect` **senza lista di dipendenze** (c'era già, misurava l'altezza della
+fascia). Da gen-6.23 dentro ci sono anche `setGrande` e `setColonna`: **ogni
+`set` lì dentro deve restituire lo STESSO valore a input invariato**, o si entra
+in un giro infinito. Per questo `setColonna` confronta `left`/`right` e
+restituisce il vecchio oggetto quando non è cambiato niente. Chi aggiunge una
+misura lì dentro deve fare lo stesso.
+
+**La fascia si allinea alla colonna misurandola, non inseguendola.** Resta
+`fixed` — la sua struttura porta tre collaudi addosso e non si tocca — ma da
+1024px in su `left`/`right` vengono dal `getBoundingClientRect()` della colonna
+del listino (`listinoRef`). L'alternativa era inseguire a mano la barra laterale
+(`w-56`) e il contenitore (`max-w-5xl mx-auto`) con numeri magici da tenere
+allineati per sempre. **La soglia è 1024 e non 768**: a 768 il listino
+scenderebbe a due colonne strette e un conto da 360 non ci starebbe.
+`cassatablettest §13` la tiene ferma perché nessuno la sposti di nascosto.
+
+**`truncate` è CSS, e `innerText` non lo vede.** La riga della firma
+(`data-firma="1"`) è l'unica delle tre senza `truncate`, apposta: una data
+tagliata a metà è peggio di nessuna data, e un collaudo che legge il testo
+direbbe **verde** su una data tagliata, perché la stringa intera resta nel nodo.
+`richiestefirmatest §4` misura `scrollWidth` contro `clientWidth`; il sabotaggio
+S4 rimette `truncate` e arrossisce **solo** §4. Chi scrive un banco su un testo
+che potrebbe essere tagliato deve misurare la geometria, non la stringa.
+
+**Tre lezioni pagate aprendo i muti, e sono di metodo:**
+- **una riga che nessun controllo poteva far arrossire.** Il conto appiccicato
+  (`sticky top-2`) a schermo fermo si vede comunque: nessuna sezione lo
+  distingueva da un conto non appiccicato. Da lì `§1b`, che **scorre** e poi
+  guarda se il totale è ancora lì.
+- **verde per assenza.** `§1b` nasceva verde perché il guscio dell'app scorre in
+  un `div` interno e `window.scrollBy` non muoveva niente. Adesso si cerca il
+  contenitore con la corsa più lunga e la funzione **restituisce di quanto si è
+  mossa**, e chi chiama lo verifica. Una misura che non può fallire non è una
+  misura.
+- **la scena era troppo corta.** Con 99px di corsa un conto non appiccicato
+  resta visibile lo stesso, e il sabotaggio usciva MUTO. Trenta pizze in più
+  danno 1099px, e i due mondi si distinguono.
+- **e il muto di `mestiereunicotest`**: S5 fa atterrare il profilo sulla Home
+  invece che nel suo mestiere e **non arrossiva**, perché il muro intercettava
+  comunque la vista — §1 misurava «non è sulla Home», non «è al suo posto».
+  Aggiunta la misura positiva (`!/non è del tuo profilo/i`), S5 arrossisce §1 e
+  §4. **Una sezione che accerta solo un'assenza è cieca a metà.**
+
+**Due banchi vecchi sono stati riscritti, non aggirati.** `comandetest §1`
+affermava la regola di ieri («operatore tutto-spento: Comande è la quinta
+voce»); riscritta sulla nuova, più `§1z` sul verso opposto. In `postazionitest`,
+Nino — il profilo scritto apposta per «nessuna postazione assegnata» — ha
+ricevuto una postazione **locale alla sua sede**: dargli «Passe tutte» (valida
+per TUTTE le sedi) rompeva proprio il filtro di sede che §5 e §6 misurano.
+**Attenzione ai nomi**: `comandetest §6` CREA una postazione chiamata «Banco» e
+la cerca **per nome** — una postazione nuova con lo stesso nome la fa sbagliare
+bersaglio.
+
+**Tre limiti dichiarati, che non si riaprono a intuito:**
+1. **Il tablet in VERTICALE (820px) resta a una colonna.** Con la barra laterale
+   restano 596px e un listino da 236 sarebbe peggio del male; lì «Incassa» sta a
+   1949px su 1180, cioè sotto la piega. È il comportamento di prima, **non una
+   regressione**, ma non è risolto. Valerio ha detto che il tablet lo tiene in
+   orizzontale.
+2. **La fascia più compatta non è entrata, e l'ho bocciata io.** La pastiglia a
+   32px arrossisce `gen603test.mjs:527` **per nome**; rimpicciolirla guadagna
+   **zero pixel** (l'area dei chip è già limitata a `6.1rem` e scorre); «80px» è
+   impossibile (la sola cornice ne prende 69); e l'aritmetica delle colonne che
+   avevo fatto usava un `gap` di 8 che non esiste — è 12, cioè 900 su 892 di
+   larghezza vera. Verbale in `progetti/cassa-telaio.md`.
+3. **Il «metti e togli» sulle varianti è demolito**:
+   `progetti/senza-e-varianti.md`, 22 accuse fatali e 25 serie in piedi. Le
+   quattro che uccidono il disegno: la chiave del conto non conosce il «senza» e
+   due pizze diverse si fondono; `aggiungi()` è l'unico costruttore di riga e
+   cancella il «senza» al primo tocco; `dentroId` è progettato per decadere e
+   l'app insegna il gesto che lo azzera; il taglio a zero è sul carrello invece
+   che sulla riga.
+
 ## Il ramo predefinito era fermo al 1° agosto — CHIUSO il 16 settembre
 
 **Com'era.** `origin/main` era a `2edbf21`, **1 agosto 2026**, e non conteneva
@@ -977,7 +1097,17 @@ di record e valgono; ma sono stati scritti prima di gen-6.12 e gen-6.13, quindi:
    di venerdì o nel fine settimana, con la tessera di ritorno scritta insieme, e
    il file aggiornato nel repository nello stesso commit. Non è un rilascio come
    gli altri: prima si mostra il piano a Valerio.
-12. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
+12. ~~I mestieri unici e la Cassa a due colonne~~: **fatto, online da gen-6.23**
+   (`collaudi/cassatablettest.mjs`, `collaudi/richiestefirmatest.mjs`,
+   `collaudi/mestiereunicotest.mjs`: **18 rossi registrati su gen-6.22**, tutti
+   verdi dopo; 17 sabotaggi, zero muti; due banchi vecchi riscritti). Quattro
+   richieste di Valerio del 17 settembre più il guasto che ha fotografato lui.
+   **Restano aperte tre cose, e sono sue**: il tablet in VERTICALE, la fascia
+   più compatta (disegno demolito da me, `progetti/cassa-telaio.md`) e il «metti
+   e togli» sulle varianti (`progetti/senza-e-varianti.md`). Leggere la sezione
+   «I mestieri unici e la Cassa a due colonne (gen-6.23)» prima di toccare
+   `VistaCassa`, il gate `chiusa` o la barra di navigazione.
+13. Poi: sessione scaduta che cancella la coda (#28), media dei consumi, «cosa
    c'è dentro», ordini cliente.
 
 ## Le misure di produzione già fatte (9 settembre, non ripeterle)
