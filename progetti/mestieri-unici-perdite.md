@@ -388,3 +388,26 @@ profilo che non c'entrava niente **non perde** le sue assegnazioni.
 Per §30 questo banco ha finalmente un **admin** (`Capo`, PIN 9999). Fino a
 gen-6.23 non ne aveva uno, ed è per quello che §29 è dovuta restare una
 sentinella sul sorgente.
+
+## Il difetto che la campagna ha trovato nei SABOTAGGI (non nel codice)
+
+Al terzo verdetto è saltato fuori che **S1 prometteva «§3 rossa» e §3 non è
+mai diventata rossa**. È giusto così: S1 spegne il predicato delle postazioni,
+§3 è la sentinella **del muro**, e il muro S1 non lo tocca. La promessa era
+sbagliata da sempre — veniva da gen-6.23 — e **nessuno se n'era accorto**,
+perché il verdetto guardava solo «rossi > 0» e l'attesa era **prosa che
+nessuno confrontava**: una didascalia, non un'attesa.
+
+Adesso ogni sabotaggio porta `attese: ["§…", …]`, la macchina confronta con i
+§ misurati e stampa lo scarto nei due versi:
+
+- **MANCANTE** — la promessa non mantenuta: il controllo che dovevo far
+  arrossire è rimasto verde. O il sabotaggio non morde lì, o quel controllo è
+  cieco. Tutte e due vanno guardate.
+- **IN PIÙ** — un rosso non previsto. Non è un guasto di per sé, ma va capito
+  prima di chiamare «come atteso» il verdetto.
+
+E la prima cosa che il confronto ha corretto è stata una **mia** previsione:
+per S5 avevo scritto anche §27 e §28, e la misura dice §27b e §28b. §27 e §28
+guardano la **barra**, che S5 non tocca; dentro la stanza guardano §27b e
+§28b. Scritto nel file, accanto all'attesa.

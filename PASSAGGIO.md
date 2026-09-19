@@ -1,4 +1,4 @@
-# Passaggio di consegne fra sessioni · 18 settembre 2026
+# Passaggio di consegne fra sessioni · 19 settembre 2026
 
 Questo file serve a UNA cosa: far ripartire un'altra sessione di Claude Code
 dal punto esatto in cui questa si è fermata, senza che Valerio debba spiegare
@@ -45,18 +45,18 @@ scritto qui sotto: i numeri erano tutti veri, il **rituale** no.
 
 ## Stato al momento del passaggio
 
-- **Produzione**: gen-6.23, `app:jsx:src` len 1063404, md5
-  `3867679ff319995d9024e18abc4b2425`, meta `{"len":1063404,"ver":"gen-6.23"}`.
-  Backup: `backup:pre-gen623` = gen-6.22, `backup:pre-gen622` = gen-6.21,
-  `backup:pre-gen621` = gen-6.20. Verificare con una `select` prima di toccare.
+- **Produzione**: gen-6.24, `app:jsx:src` len 1069982, md5
+  `cd1d92142ea7e891be2e35266859cb50`, meta `{"len":1069982,"ver":"gen-6.24"}`.
+  Backup: `backup:pre-gen624` = gen-6.23, `backup:pre-gen623` = gen-6.22,
+  `backup:pre-gen622` = gen-6.21. Verificare con una `select` prima di toccare.
   (Il nome del backup è quello della generazione che sta per ENTRARE, e lo
-  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen623` è il codice di
-  PRIMA di gen-6.23, cioè gen-6.22. `backup:pre-gen624` nascerà col rilascio di
-  gen-6.24, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
+  scrive `sql_diff.mjs` da solo dal `tag`: `backup:pre-gen624` è il codice di
+  PRIMA di gen-6.24, cioè gen-6.23. `backup:pre-gen625` nascerà col rilascio di
+  gen-6.25, non adesso — l'ho scritto sbagliato una volta, e la `select` qui
   sopra è il motivo per cui non è finito in produzione.)
-  **ATTENZIONE, 18 settembre**: questi tre numeri sono quelli del sorgente che
+  **ATTENZIONE, 19 settembre**: questi tre numeri sono quelli del sorgente che
   il repository SPEDISCE, ed è la forma che `coerenzatest` pretende. Finché lo
-  scambio non è passato da `execute_sql`, in cucina gira ancora gen-6.22: la
+  scambio non è passato da `execute_sql`, in cucina gira ancora gen-6.23: la
   `select` qui sopra è l'unica cosa che lo dice, e va fatta prima di dare per
   buono qualunque numero di questa riga.
 - **Repo**: in pari con la produzione, byte per byte. `app/app.jsx` è la base
