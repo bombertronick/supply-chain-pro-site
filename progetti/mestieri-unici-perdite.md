@@ -292,3 +292,99 @@ un prodotto e **deve** vedere ancora giacenza e «previsto».
    cancellazione vera, fatta da un admin dentro il banco.
 3. §3 e §6 che rifiutano un commento.
 4. A1–A4 restano come sono. A5 muore.
+
+---
+
+# IL DISEGNO NUOVO (v2) — dopo la demolizione
+
+## La regola che mancava, in una riga
+
+> **Il mestiere unico è del profilo, non della sua lista.**
+
+I due predicati smettono di guardare la **lunghezza**:
+
+```js
+function soloPostazioni(profilo) { return profilo?.ruolo !== "admin" && !!profilo?.soloPostazioni; }
+function soloConteggi(profilo)   { return profilo?.ruolo !== "admin" && !!profilo?.soloConteggi; }
+```
+
+Con questo cadono insieme **B1 e B2**: non c'è più un evento che accende o spegne
+un mestiere alle spalle di Valerio. Cancellare una postazione non chiude nessuno
+in una prigione muta, e cancellare un magazzino non regala l'app a nessuno.
+
+**E non costa una riga di schermata nuova — verificato sul file:**
+
+| stanza vuota | cosa dice già oggi |
+|---|---|
+| Comande (`app.jsx:13749`) | «Non ci sono ancora postazioni · Le disegna un Admin da Gestione → Listino» |
+| Conteggi (`app.jsx:11191`) | «Nessun magazzino linea assegnato · Chiedi a un Admin di assegnarti i magazzini linea dal pannello Profili» |
+
+Tutte e due dicono **cosa manca e chi lo ripara**, e il tasto Esci è in alto a
+destra dove è sempre stato. La «porta su una stanza vuota» che gen-6.17 vieta era
+una porta **in più**; questa è **l'unica** stanza, e dice la verità.
+
+Cade anche la regola che avevo scritto a gen-6.23 — *«appeso a ciò che rende il
+mestiere possibile»*: era lei a fabbricare la contraddizione.
+
+## Cosa cambia di conseguenza
+
+1. **L'interruttore si accende solo se c'è qualcosa** (non si offre a vuoto), ma
+   **si disegna sempre se è già acceso**, così Valerio lo vede e può spegnerlo:
+   `{(postIds.length > 0 || soloPosti) && (` — `app.jsx:7885`, `:7890`.
+2. **Il salvataggio non lo spegne più da solo**:
+   `soloPostazioni: ruolo === "admin" ? undefined : (soloPosti || undefined)`.
+3. **La cascata della postazione toglie l'id morto** — ed è **igiene, non
+   permessi**: adesso è sicura, perché togliere l'id non cambia più il mestiere.
+4. **`salva` filtra i riferimenti DENTRO la bozza**, così la scheda di un secondo
+   admin non può rimettere in vita un id cancellato.
+5. **`setPostIds([])` al cambio sede**, come già fa `cambiaRuolo`.
+
+## La parte A, corretta dalla demolizione
+
+- `mestiereUnico(profilo)` restituisce **l'id della vista** (`"cassa"`,
+  `"comande"`, `"conteggi"`) o `null`.
+- `azioniTrovate` → `const solo = mestiereUnico(profilo); if (solo) return a.d === solo;`
+- `righeRicerca` → `if (solo && solo !== "conteggi") return [];`
+  **Le righe dei prodotti restano a chi conta**: misurato, oggi la lente gli
+  risponde «Patate forno · Linea Pizze fm · previsto 3 gn · 0 gn», che per un
+  contatore **è il lavoro**. Quella regola era scritta per il cassiere.
+- il « ? » e il giro guidato automatico → `!unico`
+- **A5 è morto.** Le tre clausole del muro restano scritte per esteso: sono
+  l'unica cosa che tre sentinelle sul sorgente sanno leggere.
+
+## Il banco, prima del codice
+
+- **§3 e §6 rifiutano una riga di commento** — difetto che esiste **oggi**: una
+  sentinella sul sorgente si accontenta di una frase.
+- **§22c, §23c** — il « ? » e il giro guidato su `AiConteggi`, gemelli esatti di
+  §22 e §23: senza, una cura che dimentica i conteggi fa diventare verdi tutti e
+  dieci i rossi.
+- **§24d** — `AiConteggi` cerca un prodotto e **deve vedere ancora** giacenza e
+  «previsto»: il contro-controllo che impedisce di curare togliendogli il lavoro.
+- **§27** — un admin **dentro il banco** cancella la postazione, poi si rientra:
+  il profilo è ancora nel suo mestiere, non con la barra piena.
+- **§28** — `soloConteggi: true` con `magazziniIds: []`: barra di **una** voce,
+  non piena. È il cuore della regola nuova, ed è rosso oggi.
+
+## Il muto che andava aperto: la cascata (§30)
+
+Il sabotaggio **S17** toglie la cascata della postazione cancellata. Nessuna
+schermata se ne accorge — ed **è corretto che sia così**: da gen-6.24 il
+mestiere unico non guarda più la lunghezza della lista, quindi un id morto non
+accende e non spegne niente a nessuno. Era esattamente la ragione per cui la
+cascata è diventata sicura.
+
+Ma *invisibile* non vuol dire *inesistente*. L'id resta appeso nel documento
+condiviso, e da lì lo rimette in piedi chiunque ricrei una postazione con lo
+stesso id, o lo conti. Allora il controllo va dove il guasto vive davvero: nel
+**documento**. `§30` apre il Listino da un admin **dentro il banco**, cancella
+la Friggitoria, e poi rilegge `db:scp:stato:v1` — che è lo stesso posto da cui
+l'app lo legge, non una finestra di comodo.
+
+Quattro misure: la postazione è assegnata a 2 profili prima; sparisce dal
+documento; **nessun profilo si tiene l'id morto**; e — contro-controllo — un
+profilo che non c'entrava niente **non perde** le sue assegnazioni.
+
+Per §30 questo banco ha finalmente un **admin** (`Capo`, PIN 9999). Fino a
+gen-6.23 non ne aveva uno, ed è per quello che §29 è dovuta restare una
+sentinella sul sorgente.

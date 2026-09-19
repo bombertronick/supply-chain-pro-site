@@ -597,10 +597,11 @@ gemelli di `soloCassa`, e il meccanismo l'ha nominato Valerio stesso. Il
 guardiano è `mestiereunicotest §10` — *lo stesso profilo SENZA l'interruttore
 tiene tutte le sue voci* — e il sabotaggio S3 rimette la deduzione apposta.
 
-**Ognuno è appeso a ciò che rende il mestiere possibile**, come `soloCassa` è
-appesa a `puoCassa`: `soloPostazioni` a `postazioniIds.length > 0`,
-`soloConteggi` a `magazziniIds.length > 0`. Senza, sarebbe una porta su una
-stanza vuota. E i tre **si escludono a vicenda** (`unicoMestiere()` in
+~~**Ognuno è appeso a ciò che rende il mestiere possibile**~~ — **regola
+MORTA, uccisa da gen-6.24**: vedi la sezione «Il mestiere è del profilo, non
+della sua lista». Era `soloPostazioni` appeso a `postazioniIds.length > 0` e
+`soloConteggi` a `magazziniIds.length > 0`, e fabbricava una contraddizione.
+Resta invece vero che i tre **si escludono a vicenda** (`unicoMestiere()` in
 `FormProfilo`): due accesi insieme vorrebbero dire due stanze uniche, e il primo
 `if` della catena vincerebbe in silenzio lasciando l'admin convinto di aver
 scelto l'altro.
@@ -693,6 +694,98 @@ bersaglio.
    cancella il «senza» al primo tocco; `dentroId` è progettato per decadere e
    l'app insegna il gesto che lo azzera; il taglio a zero è sul carrello invece
    che sulla riga.
+
+## Il mestiere è del profilo, non della sua lista (gen-6.24)
+
+Questa sezione **corregge** quella di gen-6.23 qui sopra. Leggile in
+quest'ordine: lì c'è il disegno, qui c'è dove era sbagliato.
+
+**La contraddizione, trovata demolendo e MISURATA.** Fino a gen-6.23
+`soloPostazioni()` chiedeva anche `&& (postazioniIds || []).length > 0`.
+Sembrava prudenza. Affiancando i due stati viene fuori che lo stesso evento —
+*l'admin cancella l'ultima postazione* — aveva due verdetti opposti:
+
+- **senza cascata**: l'id resta appeso, la lunghezza è 1, il predicato è vero,
+  e il ragazzo è **chiuso in una stanza vuota** senza che nessuno l'abbia
+  deciso;
+- **con la cascata** (la cura ovvia): la lunghezza va a 0, il predicato cade, e
+  la **barra è piena** — cioè al profilo vengono regalate le sezioni che
+  nessuno gli aveva acceso. È **la deduzione vietata, al contrario**.
+
+Cioè: *la cura di B1 produceva B2*. Non c'era una terza riga da scrivere,
+c'era **una domanda che mancava**: cosa deve vedere un mestiere unico quando la
+sua stanza è vuota? **Risposta scelta: resta nel suo mestiere, e la stanza dice
+la verità.** I due predicati adesso sono l'interruttore e basta.
+
+**Non è costata una schermata nuova, ed è verificato sul file**: Comande
+(`app.jsx:13749`) dice già «Non ci sono ancora postazioni · Le disegna un Admin
+da Gestione → Listino», Conteggi (`app.jsx:11191`) «Nessun magazzino linea
+assegnato · Chiedi a un Admin di assegnarti i magazzini linea dal pannello
+Profili». Tutte e due dicono **cosa manca e chi lo ripara**, e l'uscita è in
+alto a destra. La «porta su una stanza vuota» che gen-6.17 vieta era una porta
+**in più**; questa è **l'unica** stanza.
+
+**Il mestiere unico era unico A METÀ.** gen-6.23 aveva portato i due gemelli
+solo su barra, atterraggio e muro. La lente, il tasto «?» e il giro guidato
+continuavano a chiedere `soloCassa(profilo)` e a rispondersi di no. Tre domande
+diverse per la stessa cosa. Adesso ce n'è **una sola**, `mestiereUnico(profilo)`,
+che **restituisce l'id della vista** (`"cassa"` | `"comande"` | `"conteggi"`)
+o `null`: chi filtra deve sapere **cosa lasciar passare**, non solo cosa
+bloccare, e così non nasce una seconda tabella da tenere allineata.
+
+**Una sola eccezione, e l'ha decisa una misura**: `righeRicerca` resta chiusa
+per la cassa ma **non per chi conta** (`if (solo && solo !== "conteggi")`). A
+un profilo «solo conteggi» la lente risponde «Patate forno · Linea Pizze fm ·
+previsto 3 gn · 0 gn»: il magazzino, la soglia e la giacenza. Per un contatore
+**è il lavoro**, non una porta su un muro. La regola era stata scritta per il
+cassiere, che di magazzino non chiede niente. Guardiano: `§24d`.
+
+**L'interruttore acceso non si nasconde mai.** Con la lista vuota spariva dalla
+scheda del profilo: Valerio **non lo vedeva e quindi non poteva spegnerlo**,
+mentre il ragazzo restava chiuso dentro. Adesso si **offre** solo quando c'è
+qualcosa a cui restare, ma se è **già acceso** si disegna sempre —
+`{(postIds.length > 0 || soloPosti) && (`. Guardiano: `§29`, sentinella sul
+sorgente **dichiarata come tale**.
+
+**La cascata della postazione, e perché adesso è sicura.** Cancellare una
+postazione la toglie anche dai profili (il magazzino ce l'ha da sempre con
+`eliminaMagazzinoCascata`). È **igiene, non permessi**: dopo gen-6.24 togliere
+un id morto non accende e non spegne niente a nessuno — **prima l'avrebbe
+fatto**, ed è la contraddizione che ha ucciso il primo disegno. L'id si legge
+dalla closure ma la **lista si riscrive dentro la bozza**, e il filtro è
+idempotente.
+
+**I riferimenti si filtrano DENTRO la bozza.** `FormProfilo.salva` rispettava
+la regola della casa **a metà**: l'ENTITÀ si cercava nella bozza
+(`trova(s.profili, item.id)`), i suoi RIFERIMENTI no — venivano dallo stato
+React fotografato all'apertura della scheda. Due admin: il primo cancella la
+postazione, il secondo salva anche solo il nome da una scheda aperta prima, e
+**rimette dentro l'id morto per sempre**. Adesso `vivi(ids, lista)` tiene solo
+gli id che nella bozza esistono ancora.
+
+**A5 è morto, e l'ha ucciso una controprova costruita e girata.** Il disegno
+prevedeva di fondere le tre clausole del muro in una riga sola. Tre sentinelle
+sul sorgente le leggono **per nome** (`cassa617test §14`, `mestiereunicotest §3`
+e `§6`), più l'ancora del sabotaggio S6. La controprova ha mostrato che, con i
+nomi rimessi in un **commento**, quelle sentinelle tornano verdi **col muro
+tolto**: la riga unica non valeva niente. Per questo `soloQui`/`soloPost`/
+`soloCont` restano scritte per esteso. (E per questo `§3` e `§6` adesso
+**rifiutano le righe di commento**: era un difetto vero, non un'ipotesi.)
+
+**Il muto aperto, e come si apre un muto che NON si vede a schermo.** Il
+sabotaggio S17 toglie la cascata e **nessuna schermata se ne accorge** — ed è
+corretto: da gen-6.24 la lunghezza della lista non decide più niente. Ma
+*invisibile* non vuol dire *inesistente*: l'id resta appeso nel documento. Il
+controllo `§30` va a misurarlo **dove il guasto vive**: apre il Listino da un
+admin dentro il banco, cancella la Friggitoria e rilegge `db:scp:stato:v1`, che
+è **lo stesso posto da cui l'app legge**, non una finestra di comodo. Per §30
+questo banco ha finalmente un admin (`Capo`, PIN 9999).
+
+**Ogni riga del banco porta il suo `§`.** Prima lo portavano solo le eccezioni,
+e l'intestazione della sezione non basta: «— 22c-23c.» ne copre due, e un
+sabotaggio che arrossisce solo una delle due non si distingueva da uno che le
+arrossisce tutte e due. `ok()` adesso antepone `SEZ`, che `prova()` imposta.
+Chi legge l'uscita di un sabotaggio legge il `§` **dalla riga rossa**.
 
 ## Il ramo predefinito era fermo al 1° agosto — CHIUSO il 16 settembre
 

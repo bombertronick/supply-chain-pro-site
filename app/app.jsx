@@ -719,7 +719,7 @@ function sfoltisciRichieste(lista) {
    SI AGGIORNA A OGNI RILASCIO, insieme alla meta — un numero vecchio qui
    direbbe una bugia proprio nella schermata nata per dire la verita'.
    (Regola scritta anche in memoria.json.) */
-const VERSIONE = "gen-6.23";
+const VERSIONE = "gen-6.24";
 /* ── IL BATTITO DI VERSIONE (gen-6.15) ──
    L'ordine dei rilasci esiste solo nel repository. Il codice nuovo entra in
    servizio su un telefono quando QUEL telefono ricarica la pagina, cioe'
@@ -2894,15 +2894,46 @@ function soloCassa(profilo) {
    che questa casa ha gia' respinto: un profilo perderebbe voci senza che
    nessuno abbia spento niente, e chi assegna non saprebbe di aver chiuso una
    porta. mestiereunicotest §10 e' il guardiano di quella regola.
-   Ognuno e' appeso alla cosa che rende il mestiere possibile, come soloCassa
-   e' appeso a puoCassa: senza postazioni «solo alle postazioni» sarebbe una
-   stanza vuota, e senza magazzini «solo ai conteggi» non avrebbe niente da
-   contare. */
+   ── IL MESTIERE UNICO E' DEL PROFILO, NON DELLA SUA LISTA (gen-6.24) ──
+   Fino a gen-6.23 questi due chiedevano anche «e almeno una postazione / un
+   magazzino assegnato». Sembrava prudenza — «appeso a cio' che rende il
+   mestiere possibile» — ed era invece una contraddizione, trovata demolendo
+   il disegno di gen-6.24 e MISURATA affiancando i due stati:
+   · cancellata l'ultima postazione, l'id restava appeso, la lunghezza era 1,
+     il predicato restava vero e il ragazzo si trovava chiuso in una stanza
+     vuota senza saperlo;
+   · e la cura ovvia — ripulire la lista con una cascata — portava la
+     lunghezza a 0, il predicato a falso, e la BARRA PIENA: cioe' regalava a
+     quel profilo sezioni che nessuno aveva acceso. La deduzione al contrario,
+     lo stesso peccato vietato qui sopra.
+   I due guasti erano LO STESSO EVENTO con due verdetti opposti. La domanda
+   che mancava era una sola: cosa deve vedere un mestiere unico quando la sua
+   stanza e' vuota? Risposta scelta e scritta: RESTA NEL SUO MESTIERE, e la
+   stanza dice la verita'. Non costa una schermata nuova, perche' le due
+   stanze vuote la dicono gia' — «Non ci sono ancora postazioni · Le disegna
+   un Admin da Gestione → Listino» e «Nessun magazzino linea assegnato ·
+   Chiedi a un Admin di assegnarteli» — con l'uscita in alto a destra dov'e'
+   sempre stata. mestiereunicotest §27 e §28 sono i guardiani, e sono nati
+   rossi proprio su questo. */
 function soloPostazioni(profilo) {
-  return profilo?.ruolo !== "admin" && !!profilo?.soloPostazioni && (profilo?.postazioniIds || []).length > 0;
+  return profilo?.ruolo !== "admin" && !!profilo?.soloPostazioni;
 }
 function soloConteggi(profilo) {
-  return profilo?.ruolo !== "admin" && !!profilo?.soloConteggi && (profilo?.magazziniIds || []).length > 0;
+  return profilo?.ruolo !== "admin" && !!profilo?.soloConteggi;
+}
+/* ── UNA DOMANDA SOLA, E DICE ANCHE QUALE STANZA (gen-6.24) ──
+   gen-6.23 ha fatto i due gemelli ma li ha portati solo su barra, atterraggio
+   e muro: la lente, il tasto «?» e il giro guidato continuavano a chiedere
+   «soloCassa?» e a rispondersi di no. Tre domande diverse per la stessa cosa
+   sono il modo in cui un mestiere unico resta unico A META'.
+   Restituisce l'ID DELLA VISTA, non un'etichetta nuova: chi filtra deve
+   sapere cosa lasciar passare, non solo cosa bloccare, e cosi' non nasce una
+   seconda tabella da tenere allineata. */
+function mestiereUnico(profilo) {
+  if (soloCassa(profilo)) return "cassa";
+  if (soloPostazioni(profilo)) return "comande";
+  if (soloConteggi(profilo)) return "conteggi";
+  return null;
 }
 /* la scala dei permessi su UN magazzino: pieno > rettifica > lettura.
    Una regola sola per dettaglio, inventario, Plancia e ripristino; l'unica
@@ -4599,9 +4630,18 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
   /* si calcola nel CORPO, a ogni render, e non in uno stato: «profilo» e'
      derivato da stato.profili ed e' vivo, quindi un permesso acceso o spento
      dall'admin arriva al poll dopo senza che nessuno ricarichi niente. */
-  const soloQui = soloCassa(profilo);
-  const soloPost = soloPostazioni(profilo);
-  const soloCont = soloConteggi(profilo);
+  /* ── LA DOMANDA E' UNA SOLA (gen-6.24) ──
+     Le tre costanti restano, e servono: le tre clausole del muro qui sotto
+     sono scritte per esteso perche' TRE SENTINELLE SUL SORGENTE le leggono
+     per nome (cassa617test §14, mestiereunicotest §3 e §6) piu' l'ancora del
+     sabotaggio S6. Il disegno che le fondeva in una riga sola e' stato
+     demolito: la controprova l'ha costruito e girato, e ha mostrato che con i
+     nomi rimessi in un COMMENTO quelle sentinelle tornano verdi col muro
+     tolto. La riga unica non valeva niente; la domanda unica, si'. */
+  const unico = mestiereUnico(profilo);
+  const soloQui = unico === "cassa";
+  const soloPost = unico === "comande";
+  const soloCont = unico === "conteggi";
   /* chi ha UN mestiere solo atterra dentro il suo, non sulla Home: la Home e'
      un indice, e a un indice di una stanza sola non serve nessuno. */
   const [vista, setVista] = useState(soloQui ? "cassa" : soloPost ? "comande" : soloCont ? "conteggi" : "home");
@@ -4772,7 +4812,14 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
          Ordina · Ricevi, che e' il mestiere di un altro. La chiave si scrive
          lo stesso, cosi' se un giorno cambia mestiere non gli parte addosso
          un giro vecchio (gen-6.17). */
-      if (!soloQui && !localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
+      /* gen-6.24: vale per TUTTI e tre i mestieri unici, non per la sola
+         cassa. La frase qui sopra — «la panoramica racconta Conta · Ordina ·
+         Ricevi, che e' il mestiere di un altro» — ai due gemelli valeva
+         parola per parola, e il codice non li nominava: a un pizzaiolo
+         partivano addosso da sole SETTE schermate su un mestiere che non e'
+         il suo, con dentro sezioni che poi trova murate. Era la perdita piu'
+         grave perche' era MUTA: nessuno la tocca, arriva addosso. */
+      if (!unico && !localStorage.getItem(k) && !localStorage.getItem("scp:tour:v1")) setGuida(passiPanoramica(NAV));
       localStorage.setItem(k, "1");
     } catch {}
   }, []);
@@ -4955,12 +5002,14 @@ function Struttura({ stato, profilo, muta, mutaDato, sync, daSalvare, esci, most
       <Foglio aperto={aiuto} titolo="Guida e tutorial" onChiudi={() => setAiuto(false)}>
         <div className="flex flex-col gap-2">
           <p className="text-sm mb-1" style={{ color: T.dim }}>Un aiuto veloce, quando vuoi. Puoi sempre saltarlo.</p>
-          {/* a chi sta solo in cassa queste due non si offrono: la Plancia
+          {/* a chi ha UNA stanza sola queste due non si offrono: la Plancia
               e' una porta che il gate qui sopra gli chiude, e la Panoramica
               racconta un mestiere che non e' il suo. Gli resta la guida
               della sua stanza, che esce col nome giusto grazie a
-              FUORI_BARRA (gen-6.17). */}
-          {!soloQui && (<>
+              FUORI_BARRA (gen-6.17).
+              gen-6.24: la guardia era `!soloQui` e nominava la sola cassa;
+              adesso e' `!unico` e vale per tutti e tre. */}
+          {!unico && (<>
           <button onClick={() => { setAiuto(false); naviga("plancia"); }}
             className="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left" style={{ background: "#F7F9FE", border: `1.5px solid ${T.bordo}` }}>
             <span className="rounded-xl p-2.5 shrink-0" style={{ background: "#EAF0FE", color: T.blu }}><Gauge size={18} /></span>
@@ -5927,7 +5976,14 @@ function azioniTrovate(profilo, q) {
        finale), NON le comande (true per tutti, apposta) e NON le voci degli
        ordini senza «serve». Con la barra della Cassa fissa, ognuna di quelle
        porte lo lascerebbe in una stanza che non e' sua (gen-6.17). */
-    if (soloCassa(profilo)) return a.d === "cassa";
+    /* gen-6.24: la domanda e' una sola per tutti e tre i mestieri unici, e
+       dice QUALE stanza. Prima questa riga nominava solo la cassa: a un «solo
+       postazioni» la lente offriva ancora «Sposta o rimuovi prodotti»,
+       «Trasferisci le scorte», «Aggiungi piu' prodotti» e «Contare quello che
+       c'e'» — piu' «Registrare la merce arrivata», che e' l'unica voce degli
+       Ordini senza `serve` e cadeva sul ripiego finale. Tutte porte sul muro. */
+    const solo = mestiereUnico(profilo);
+    if (solo) return a.d === solo;
     if (["catalogo", "analisi", "storico", "storico-ordini", "sedi", "profili", "accessi", "sistema", "listino", "informazioni"].includes(a.d)) return false;
     if (a.d === "conteggi") return profilo.ruolo === "operatore";  /* il lab da qui finiva in una schermata vuota */
     if (a.d === "plancia") return puoCorreggere(profilo);
@@ -5948,8 +6004,16 @@ function righeRicerca(stato, profilo, q) {
   const testo = (q || "").trim().toLowerCase();
   if (testo.length < 2) return [];
   /* e nemmeno le righe dei prodotti: ognuna porta un bottone che apre i
-     Magazzini, e un cassiere non ha domande di magazzino (gen-6.17) */
-  if (soloCassa(profilo)) return [];
+     Magazzini, e un cassiere non ha domande di magazzino (gen-6.17).
+     ── MA NON A CHI CONTA (gen-6.24) ──
+     Estendere questa riga a tutti i mestieri unici sembrava simmetrico, ed e'
+     stato bocciato da una MISURA: a un profilo «solo conteggi» la lente
+     risponde «Patate forno · Linea Pizze fm · previsto 3 gn · 0 gn», cioe' il
+     magazzino, la soglia del giorno e la giacenza. Per un contatore quella
+     non e' una porta: e' il lavoro. La regola era stata scritta per il
+     cassiere, che di magazzino non chiede niente. §24d e' il guardiano. */
+  const solo = mestiereUnico(profilo);
+  if (solo && solo !== "conteggi") return [];
   const mags = magazziniVisti(stato, profilo);
   const out = [];
   for (const p of stato.prodotti) {
@@ -7742,13 +7806,24 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
     if (!item && !pinOk) return mostraToast("Imposta un PIN di 4 cifre", "errore");
     const pinHash = pin ? await hashPin(pin) : item.pinHash;
     muta((s) => {
+      /* ── I RIFERIMENTI SI FILTRANO DENTRO LA BOZZA (gen-6.24) ──
+         Trovato demolendo: `dati` si costruisce con lo stato React fotografato
+         quando la scheda si e' aperta, quindi la regola della casa era
+         rispettata a meta' — l'ENTITA' si ricerca nella bozza (`trova(s.profili,
+         item.id)`), i suoi RIFERIMENTI no. Due admin: il primo cancella la
+         postazione, il secondo salva anche solo il nome da una scheda aperta
+         prima e rimette dentro l'id morto, per sempre. Qui si tengono solo gli
+         id che nella bozza esistono ancora. */
+      const vivi = (ids, lista) => (ids || []).filter((id) => (lista || []).some((x) => x.id === id));
+      const postVivi = vivi(postIds, s.postazioni);
+      const magVivi = vivi(magIds, s.magazzini);
       const dati = {
         nome: nome.trim(), ruolo, colore, pinHash,
         sedeId: ruolo === "admin" ? undefined : sedeId,
-        magazziniIds: ruolo === "operatore" ? magIds : undefined,
+        magazziniIds: ruolo === "operatore" ? magVivi : undefined,
         /* niente per l'admin e niente quando e' vuoto: il campo assente e'
            il verso giusto anche qui (gen-6.01) */
-        postazioniIds: ruolo === "admin" || postIds.length === 0 ? undefined : postIds,
+        postazioniIds: ruolo === "admin" || postVivi.length === 0 ? undefined : postVivi,
         struttura: ruolo === "admin" ? undefined : (struttura || undefined),
         correzioni: ruolo === "admin" ? undefined : (correzioni || undefined),
         ordini: ruolo === "admin" ? undefined : (ordini || undefined),
@@ -7757,10 +7832,15 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
            una barra di sole voci della Cassa addosso a chi in Cassa non puo'
            entrare sarebbe una porta su un muro (gen-6.17) */
         soloCassa: ruolo === "admin" ? undefined : ((cassa && soloBanco) || undefined),
-        /* stessa regola dei gemelli: appesi a cio' che rende il mestiere
-           possibile, e assenti quando sono spenti */
-        soloPostazioni: ruolo === "admin" || postIds.length === 0 ? undefined : (soloPosti || undefined),
-        soloConteggi: ruolo === "admin" || magIds.length === 0 ? undefined : (soloCont || undefined),
+        /* ── IL MESTIERE NON SI SPEGNE PIU' DA SOLO (gen-6.24) ──
+           Prima queste due righe spegnevano il mestiere quando la lista era
+           vuota. Sembrava igiene ed era la contraddizione: significava che
+           svuotare una lista REGALAVA al profilo tutte le sezioni che nessuno
+           gli aveva acceso. Adesso il mestiere e' del profilo; se la lista si
+           svuota, la sua stanza glielo dice. Lo spegne Valerio, dal suo
+           interruttore, che per questo qui sotto non si nasconde piu'. */
+        soloPostazioni: ruolo === "admin" ? undefined : (soloPosti || undefined),
+        soloConteggi: ruolo === "admin" ? undefined : (soloCont || undefined),
       };
       if (item) Object.assign(trova(s.profili, item.id), dati);
       else s.profili.push({ id: uid("pr"), ...dati });
@@ -7780,7 +7860,7 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
     {ruolo !== "admin" && (
       sediOk.length
         ? <Selettore label={ruolo === "laboratorio" ? "Sede laboratorio" : "Sede operatore"}
-            valore={sedeId} onCambia={(v) => { setSedeId(v); setMagIds([]); }} opzioni={sediOk} />
+            valore={sedeId} onCambia={(v) => { setSedeId(v); setMagIds([]); setPostIds([]); }} opzioni={sediOk} />
         : <p className="text-sm font-semibold" style={{ color: T.ambra }}>Nessuna sede di questo tipo: creala prima da «Sedi».</p>
     )}
     {ruolo === "operatore" && sedeId && (
@@ -7878,16 +7958,19 @@ function FormProfilo({ stato, item, muta, mostraToast, onChiudi }) {
               sotto="Chi lo ha acceso apre l'app direttamente sulla Cassa e sotto il pollice trova Battere · Clienti · Giornata, niente altro: né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi al banco batte e basta." />
           )}
           {/* ── GLI ALTRI DUE MESTIERI UNICI (gen-6.23) ──
-              Compaiono solo quando c'e' qualcosa a cui restare: senza
-              postazioni assegnate «sta solo alle postazioni» sarebbe una porta
-              su una stanza vuota, esattamente come «sta solo in cassa» senza
-              la cassa (gen-6.17). */}
-          {postIds.length > 0 && (
+              Si OFFRONO solo quando c'e' qualcosa a cui restare — non si
+              propone un mestiere sopra il vuoto — ma se sono GIA' ACCESI si
+              disegnano sempre (gen-6.24). Prima sparivano insieme all'ultima
+              postazione: Valerio non vedeva piu' l'interruttore e quindi non
+              poteva spegnerlo, mentre il profilo restava nel suo mestiere. Un
+              interruttore acceso che non si vede e' il modo piu' rapido per
+              perdere il controllo di cosa vede la propria gente. */}
+          {(postIds.length > 0 || soloPosti) && (
             <InterruttoreAut acceso={soloPosti} onCambia={() => unicoMestiere("postazioni")}
               titolo="Sta solo alle postazioni"
               sotto="Chi lo ha acceso apre l'app direttamente sulle Comande e vede SOLO le comande che gli arrivano: niente Home, né conteggi, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi in cucina guarda lo schermo e spunta quello che esce." />
           )}
-          {magIds.length > 0 && (
+          {(magIds.length > 0 || soloCont) && (
             <InterruttoreAut acceso={soloCont} onCambia={() => unicoMestiere("conteggi")}
               titolo="Sta solo ai conteggi"
               sotto="Chi lo ha acceso apre l'app direttamente sui Conteggi e vede solo quelli: niente Home, né magazzini, né ordini. Si esce dal profilo col tasto in alto a destra. Accendilo per chi passa il turno a contare le linee e basta." />
@@ -13326,7 +13409,24 @@ function VistaListino({ stato, muta, mostraToast }) {
       <Conferma aperto={!!delPost} titolo={`Togliere la postazione «${delPost?.nome}»?`}
         testo="I suoi gruppi restano nel listino: senza una postazione che li reclama compariranno su tutti gli schermi delle Comande."
         onNo={() => setDelPost(null)}
-        onSi={() => { muta((s) => { s.postazioni = (s.postazioni || []).filter((x) => x.id !== delPost.id); }, `Postazione «${delPost.nome}» rimossa`); setDelPost(null); }} />
+        /* ── LA CASCATA CHE MANCAVA (gen-6.24) ──
+            Il magazzino ce l'ha da sempre (eliminaMagazzinoCascata); la
+            postazione no, e l'id restava appeso nei profili. E' IGIENE, non
+            permessi: da gen-6.24 il mestiere unico non guarda piu' la
+            lunghezza della lista, quindi togliere un id morto non accende e
+            non spegne niente a nessuno — prima invece l'avrebbe fatto, ed e'
+            la contraddizione che ha ucciso il primo disegno.
+            L'id si legge dalla closure ma la LISTA si riscrive dentro la
+            bozza, e il filtro e' idempotente: rigiocato su una bozza dove
+            l'id non c'e' piu' non cambia niente. */
+        onSi={() => { muta((s) => {
+          s.postazioni = (s.postazioni || []).filter((x) => x.id !== delPost.id);
+          for (const pr of s.profili || []) {
+            if (!(pr.postazioniIds || []).includes(delPost.id)) continue;
+            const resta = pr.postazioniIds.filter((x) => x !== delPost.id);
+            pr.postazioniIds = resta.length ? resta : undefined;
+          }
+        }, `Postazione «${delPost.nome}» rimossa`); setDelPost(null); }} />
     </div>
   );
 }

@@ -536,6 +536,11 @@
  ],
  "sbagliato": [
   {
+   "quando": "2026-09-19",
+   "dicevo": "Un mestiere unico va appeso a cio' che lo rende possibile: soloPostazioni vero solo con almeno una postazione assegnata, soloConteggi solo con almeno un magazzino — «come soloCassa e' appesa a puoCassa». Scritto in gen-6.23, in app.jsx e in PASSAGGIO.md.",
+   "invece": "Era una CONTRADDIZIONE, e l'ha trovata la demolizione del disegno di gen-6.24 misurando i due stati affiancati. Lo stesso evento — l'admin cancella l'ultima postazione — aveva due verdetti opposti: senza cascata l'id resta appeso, la lunghezza e' 1, il predicato resta vero e il ragazzo e' CHIUSO IN UNA STANZA VUOTA senza che nessuno l'abbia deciso; con la cascata (la cura ovvia) la lunghezza va a 0, il predicato cade e la BARRA E' PIENA, cioe' al profilo vengono regalate le sezioni che nessuno gli aveva acceso — la deduzione vietata, al contrario. La cura di B1 produceva B2. Non mancava una terza riga, mancava UNA DOMANDA: cosa deve vedere un mestiere unico quando la sua stanza e' vuota? Risposta scelta e scritta: RESTA NEL SUO MESTIERE, e la stanza dice la verita' — che le due stanze vuote dicevano gia', quindi zero schermate nuove. IL MESTIERE UNICO E' DEL PROFILO, NON DELLA SUA LISTA."
+  },
+  {
    "quando": "2026-09-11",
    "dicevo": "L'eta' della lista in cima a Comande si conta dall'ultimo giro del poll andato a buon fine, magro o pieno che sia.",
    "invece": "Un giro magro prova solo che scp:rev:v1 risponde: leggiRemoto non viene nemmeno chiamata, la lista NON arriva. E il risveglio da schermo spento fa proprio un giro magro, quindi la riga avrebbe scritto «confermata adesso» sul tablet ripreso in mano dopo venti minuti — la bugia esatta che quella riga esiste per togliere, nell'istante di rischio massimo. Adesso ultimaRete si timbra solo dopo una lettura piena ACCETTATA (rev >= base: una lettura scartata perche' stantia non conferma niente), e il contatto leggero ha un campo suo, ultimaSpia. Trovato da un revisore prima del codice, non dal banco."
